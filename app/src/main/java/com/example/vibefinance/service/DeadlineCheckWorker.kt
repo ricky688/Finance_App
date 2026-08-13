@@ -1,0 +1,85 @@
+package com.example.vibefinance.service
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import com.example.vibefinance.data.InMemoryDatabase
+import com.example.vibefinance.data.entity.AccountType
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+class DeadlineCheckWorker(
+    context: Context,
+    params: WorkerParameters
+) : CoroutineWorker(context, params) {
+
+    override suspend fun doWork(): Result {
+        // Query all credit card accounts
+        val ccAccounts = InMemoryDatabase.accounts.value.filter { it.type == AccountType.CC }
+        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        for (account in ccAccounts) {
+            val paymentDeadlineDay = account.paymentDeadline ?: continue
+            
+            // Calculate remaining days until deadline
+            val today = LocalDate.now()
+            val dueLocalDate = if (today.dayOfMonth <= paymentDeadlineDay) {
+                today.withDayOfMonth(paymentDeadlineDay)
+            } else {
+                today.plusMonths(1).withDayOfMonth(paymentDeadlineDay)
+            }
+            
+            val daysUntilDeadline = ChronoUnit.DAYS.between(today, dueLocalDate).toInt()
+            
+            // If in the "Red Alert" zone (<= 3 days), trigger notification
+            if (daysUntilDeadline <= 3) {
+                showRedAlertNotification(notificationManager, account.name, daysUntilDeadline)
+            }
+        }
+
+        return Result.success()
+    }
+
+    fun triggerNotificationBlockForTest(cardName: String, days: Int) {
+        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        showRedAlertNotification(notificationManager, cardName, days)
+    }
+
+    private fun showRedAlertNotification(
+        notificationManager: NotificationManager,
+        cardName: String,
+        days: Int
+    ) {
+        val channelId = "cc_deadline_alerts"
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Credit Card Deadlines",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts for credit card payment deadlines"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val textContent = if (days == 0) {
+            "Your payment is due today! Tap to manage your assets and log payments."
+        } else {
+            "Your payment deadline is in $days days. Tap to manage your assets and log payments."
+        }
+
+        val builder = NotificationCompat.Builder(applicationContext, channelId)
+            .setSmallIcon(android.R.drawable.stat_notify_chat) // Robust system asset to ensure no resource build resolution failures
+            .setContentTitle("🚨 Red Alert: $cardName Due!")
+            .setContentText(textContent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+
+        notificationManager.notify(cardName.hashCode(), builder.build())
+    }
+}
