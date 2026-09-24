@@ -558,6 +558,23 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
 - **Platform XML Roles**: Preserved platform-mandatory XML descriptors (`AndroidManifest.xml`, `themes.xml` for pre-Compose window decor, `backup_rules.xml`, and launcher mipmaps for the Android OS launcher process).
 - **External Reference Repository**: Clarified that `buckwheat/` is an external reference directory and is excluded from compilation (`settings.gradle.kts` only includes `:app`).
 
+### 8. Fresh Launch & Release APK Architecture (Zero Initial Data)
+- **Zero-Data Cold Startup**:
+  - Removed proactive auto-seeding of mock data from `FinanceViewModel.kt` (`existingAccounts.isEmpty()` trigger removed).
+  - Explicit reset/mock data intent (`FinanceIntent.SeedMockData`) remains isolated for developer/test usage.
+  - Fallback `DailyBudgetInfo` across `MainScreen.kt`, `HomeScreen.kt`, and `BudgetRepository.kt` defaults to `0.0` amount, `0` days, and `0L` timestamps instead of hardcoded `$1,500.00`.
+- **Friendly Empty State System**:
+  - **Daily Hero Card (`HeroDailyBudgetCard.kt`)**: Implements `HeroDailyBudgetState.NO_BUDGET`. Header badge shows `No Budget Set` (`no_budget_set`), days left shows `—`, and the primary action button presents `[⚡] Set Budget` (`btn_set_budget`) which opens the new period configuration sheet.
+  - **Whole Budget Card (`WholeBudgetCard.kt`)**: Guards `startDate` and `endDate` against `<= 0L` to render `—` instead of Unix Epoch 1970 artifacts.
+  - **Assets Screen (`AccountsScreen.kt`)**: Added a glassmorphic empty state card when `filteredAccounts.isEmpty()` prompting the user to create their first account (`+ Add Account`).
+  - **Recurring Subscriptions (`RecurringScreen.kt`)**: Renders `HK$ 0.00` commitment, `0 Active`, and the `EmptyRecurringCard`.
+  - **Activity History (`HistoryScreen.kt`)**: Displays `0 Logged`, empty breakdown, and `No transactions found` card.
+- **Release Verification & Distribution**:
+  - Verified on Waydroid emulator (`192.168.240.112:5555`) with `pm clear` cold boot: verified all 4 tabs start with 0 data, 0 crashes, and clean UI transitions upon setting a budget.
+  - 77 unit tests pass with 100% success (`./gradlew testDebugUnitTest`).
+  - Assembled production release APK (`./gradlew assembleRelease`).
+  - Published and updated GitHub Release asset `VibeFinance-v1.0.0.apk` on `v1.0.0` (`https://github.com/ricky688/Finance_App/releases/tag/v1.0.0`).
+
 ---
 
 ## 4. Operational Instructions for Future Agents
