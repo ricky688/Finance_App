@@ -31,11 +31,20 @@ android {
         localeFilters += listOf("en", "zh-rHK", "zh-rTW", "zh", "b+zh+Hant")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("keystore/release.keystore")
+            storePassword = "vibefinance123"
+            keyAlias = "vibefinance"
+            keyPassword = "vibefinance123"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
