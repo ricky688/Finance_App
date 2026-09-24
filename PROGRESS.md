@@ -7,6 +7,12 @@ This document details all recent features, architectural changes, modified files
 ## 1. Executive Summary & Current Status
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
+### 2026-09-25: VibeFinance v1.0.0 Release APK Build & GitHub Deployment
+- **Release Build (`assembleRelease`)**: Built minified and resource-shrunk production APK (`2.9 MB`) configured with Proguard / R8 optimization rules in `proguard-rules.pro`.
+- **Git Synchronization**: Committed 70 files spanning all recent M3 Expressive UI components, unified chart palettes, subscription deletion decision flow, and 77 unit tests to `main` branch. Pushed cleanly to GitHub remote `https://github.com/ricky688/Finance_App.git`.
+- **GitHub Release Publishing**: Created official GitHub release `v1.0.0` at `https://github.com/ricky688/Finance_App/releases/tag/v1.0.0`.
+- **Asset Upload**: Uploaded standalone release binary `VibeFinance-v1.0.0.apk` (`3,021,303 bytes`) with direct browser download link: `https://github.com/ricky688/Finance_App/releases/download/v1.0.0/VibeFinance-v1.0.0.apk`.
+- **Live Device Verification**: Installed `app-release.apk` onto Waydroid emulator (`192.168.240.112:5555`), launched successfully, verified 0 runtime crashes, verified smooth Compose rendering (`release_apk_verified_home.png`), and confirmed 0% idle CPU settle.
 
 ### 2026-09-25: Connected Assets Group Switch Transition
 - **Selection motion**: Kept the native Material 3 Expressive connected `ToggleButton` shape spring and added medium-low spring transitions for selected fill and content colors, a subtle spring scale on the icon/count, and a 32 dp accent that springs between the three choices. The accent uses direction-aware offset so it follows the buttons in right-to-left layouts. These animations run only when the selection changes.
