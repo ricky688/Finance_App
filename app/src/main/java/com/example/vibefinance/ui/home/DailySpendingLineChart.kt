@@ -1,14 +1,21 @@
 package com.example.vibefinance.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import kotlin.math.roundToInt
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -19,26 +26,30 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -47,16 +58,27 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.vibefinance.data.entity.TransactionEntity
+import com.example.vibefinance.R
 import com.example.vibefinance.ui.FinanceUiState
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
+
+enum class DailyChartMode {
+    CUMULATIVE,
+    DAILY
+}
 
 @Composable
 fun DailySpendingLineChart(
@@ -71,7 +93,6 @@ fun DailySpendingLineChart(
 
     val dailySpending = remember(state.transactions, last7Days) {
         val map = mutableMapOf<LocalDate, Double>()
-        // Initialize
         last7Days.forEach { map[it] = 0.0 }
         
         state.transactions.forEach { tx ->
@@ -96,9 +117,19 @@ fun DailySpendingLineChart(
         }
     }
 
-    val maxSpending = remember(cumulativeSpending) {
-        val maxVal = cumulativeSpending.maxOfOrNull { it.second } ?: 0.0
-        if (maxVal < 100.0) 100.0 else maxVal
+    // Chart Mode State: Cumulative vs Single-Day spending
+    var chartMode by remember { mutableStateOf(DailyChartMode.CUMULATIVE) }
+
+    val activeDataset = if (chartMode == DailyChartMode.CUMULATIVE) cumulativeSpending else dailySpending
+
+    val maxSpending = remember(activeDataset) {
+        val maxVal = activeDataset.maxOfOrNull { it.second } ?: 0.0
+        if (maxVal < 10.0) 50.0 else maxVal
+    }
+
+    val avgDailySpending = remember(dailySpending) {
+        val sum = dailySpending.sumOf { it.second }
+        if (dailySpending.isNotEmpty()) sum / dailySpending.size else 0.0
     }
 
     // 2. Interactive Touch/Scrub state
@@ -109,9 +140,9 @@ fun DailySpendingLineChart(
     val activeItem = cumulativeSpending.getOrNull(activeIndex)
     val activeDailyItem = dailySpending.getOrNull(activeIndex)
 
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val haptic = LocalHapticFeedback.current
     var previousIdx by remember { mutableStateOf<Int?>(null) }
-    androidx.compose.runtime.LaunchedEffect(selectedIndex) {
+    LaunchedEffect(selectedIndex) {
         if (selectedIndex != previousIdx && selectedIndex != null) {
             haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
             previousIdx = selectedIndex
@@ -132,46 +163,89 @@ fun DailySpendingLineChart(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // Header
+            // Header Row: Title & Subtitle on left, M3 Expressive Mode Switch on right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
-                        text = "Weekly Spending Trend",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = stringResource(R.string.chart_spending_trend),
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Cumulative expenses last 7 days (Drag to scrub)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        text = stringResource(R.string.chart_last_7_days),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
-                
-                // Tooltip trigger info indicator
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Material 3 Expressive Mode Switch Pill
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), CircleShape)
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    DailyChartMode.entries.forEach { mode ->
+                        val isSel = chartMode == mode
+                        val bg by animateColorAsState(
+                            targetValue = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "chartModeBg_${mode.name}"
+                        )
+                        val fg by animateColorAsState(
+                            targetValue = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "chartModeFg_${mode.name}"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(bg)
+                                .clickable {
+                                    chartMode = mode
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = when (mode) {
+                                    DailyChartMode.CUMULATIVE -> stringResource(R.string.chart_mode_cumulative)
+                                    DailyChartMode.DAILY -> stringResource(R.string.chart_mode_daily)
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = fg
+                            )
+                        }
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Tooltip Display Area with Rolling Numbers
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .height(60.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 if (activeItem != null && activeDailyItem != null) {
@@ -181,23 +255,24 @@ fun DailySpendingLineChart(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            val formattedDate = activeItem.first.format(DateTimeFormatter.ofPattern("EEEE, dd MMM", Locale.US))
+                            val formattedDate = activeItem.first.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
                             Text(
                                 text = formattedDate,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 fontWeight = FontWeight.Bold
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                val labelText = if (activeItem.first == today) "Today: " else "Daily: "
                                 Text(
-                                    text = "Today's Spent: ",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = labelText,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Medium
                                 )
                                 com.example.vibefinance.ui.components.RollingNumberText(
                                     text = String.format(Locale.US, "$%,.2f", activeDailyItem.second),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -205,13 +280,13 @@ fun DailySpendingLineChart(
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "CUMULATIVE",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                text = if (chartMode == DailyChartMode.CUMULATIVE) "CUMULATIVE" else "DAY SPEND",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             )
                             com.example.vibefinance.ui.components.RollingNumberText(
-                                text = String.format(Locale.US, "$%,.2f", activeItem.second),
-                                style = MaterialTheme.typography.titleMedium,
+                                text = String.format(Locale.US, "$%,.2f", if (chartMode == DailyChartMode.CUMULATIVE) activeItem.second else activeDailyItem.second),
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -220,16 +295,17 @@ fun DailySpendingLineChart(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Bezier Chart Canvas
+            // Bezier Chart Canvas & Interactive Scrubbing Layer
             val strokeColor = MaterialTheme.colorScheme.primary
-            val gradientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            val gradientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
             val highlightColor = MaterialTheme.colorScheme.tertiary
+            val avgGuideColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)
             
-            // Smooth animated position gliding for active crosshair indicator & glow
             val targetXRatio = activeIndex / 6f
-            val targetYRatio = (((activeItem?.second ?: 0.0) / maxSpending).coerceIn(0.0, 1.0)).toFloat()
+            val currentTargetVal = activeDataset.getOrNull(activeIndex)?.second ?: 0.0
+            val targetYRatio = ((currentTargetVal / maxSpending).coerceIn(0.0, 1.0)).toFloat()
 
             val animatedRatioX by animateFloatAsState(
                 targetValue = targetXRatio,
@@ -250,22 +326,28 @@ fun DailySpendingLineChart(
             )
 
             val animatedGlowRadius by animateDpAsState(
-                targetValue = if (isDragging) 16.dp else 12.dp,
+                targetValue = if (isDragging) 18.dp else 12.dp,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                 label = "glowRadius"
             )
 
             val animatedDotRadius by animateDpAsState(
-                targetValue = if (isDragging) 8.dp else 6.dp,
+                targetValue = if (isDragging) 9.dp else 6.dp,
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
                 label = "dotRadius"
             )
+
+            var chartWidthPx by remember { mutableFloatStateOf(0f) }
+            val density = LocalDensity.current
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
-                    .pointerInput(cumulativeSpending) {
+                    .onGloballyPositioned { coordinates ->
+                        chartWidthPx = coordinates.size.width.toFloat()
+                    }
+                    .pointerInput(activeDataset) {
                         detectTapGestures(
                             onPress = { offset ->
                                 isDragging = true
@@ -277,7 +359,7 @@ fun DailySpendingLineChart(
                             }
                         )
                     }
-                    .pointerInput(cumulativeSpending) {
+                    .pointerInput(activeDataset) {
                         detectDragGestures(
                             onDragStart = { offset ->
                                 isDragging = true
@@ -302,7 +384,7 @@ fun DailySpendingLineChart(
                     val height = size.height
 
                     val dayWidth = width / 6f
-                    val points = cumulativeSpending.mapIndexed { idx, pair ->
+                    val points = activeDataset.mapIndexed { idx, pair ->
                         val x = idx * dayWidth
                         val y = height - ((pair.second / maxSpending) * height).toFloat()
                         Offset(x, y)
@@ -320,7 +402,38 @@ fun DailySpendingLineChart(
                         )
                     }
 
-                    // 2. Draw smooth Bezier curve line
+                    // 1.5 Draw daily average reference guide line in DAILY mode
+                    if (chartMode == DailyChartMode.DAILY && avgDailySpending > 0) {
+                        val avgY = height - ((avgDailySpending / maxSpending) * height).toFloat()
+                        if (avgY in 0f..height) {
+                            drawLine(
+                                color = avgGuideColor,
+                                start = Offset(0f, avgY),
+                                end = Offset(width, avgY),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+                            )
+                        }
+                    }
+
+                    // 2. In Daily Mode: Draw subtle vertical bar pillars for each day
+                    if (chartMode == DailyChartMode.DAILY) {
+                        points.forEachIndexed { idx, pt ->
+                            val isSel = idx == activeIndex
+                            val barWidth = 14.dp.toPx()
+                            val barTop = pt.y
+                            val barHeight = (height - barTop).coerceAtLeast(0f)
+                            val barAlpha = if (isSel) 0.35f else 0.12f
+                            drawRoundRect(
+                                color = strokeColor.copy(alpha = barAlpha),
+                                topLeft = Offset(pt.x - barWidth / 2, barTop),
+                                size = Size(barWidth, barHeight),
+                                cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                            )
+                        }
+                    }
+
+                    // 3. Draw smooth Bezier curve line
                     val linePath = Path()
                     val fillPath = Path()
 
@@ -363,7 +476,7 @@ fun DailySpendingLineChart(
                         )
                     }
 
-                    // 3. Draw vertical scrubbing indicator line & smooth animated gliding dot
+                    // 4. Draw vertical scrubbing indicator line & smooth animated gliding dot
                     val animPointX = animatedRatioX * width
                     val animPointY = height - (animatedRatioY * height)
                     val animPoint = Offset(animPointX, animPointY)
@@ -390,6 +503,53 @@ fun DailySpendingLineChart(
                         center = animPoint
                     )
                 }
+
+                // 5. Interactive Floating Scrub Tooltip Badge
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isDragging,
+                    enter = fadeIn(tween(120)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+                    exit = fadeOut(tween(120)) + scaleOut(spring(stiffness = Spring.StiffnessMediumLow)),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    if (chartWidthPx > 0f) {
+                        val badgeWidth = with(density) { 92.dp.toPx() }
+                        val currX = animatedRatioX * chartWidthPx
+                        val clampedX = (currX - badgeWidth / 2f).coerceIn(4f, (chartWidthPx - badgeWidth - 4f).coerceAtLeast(4f))
+                        val animY = 180.dp.value * (1f - animatedRatioY)
+                        val clampedY = with(density) { (animY - 50).dp.toPx().coerceIn(4f, 100f) }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shadowElevation = 6.dp,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .offset { IntOffset(clampedX.roundToInt(), clampedY.roundToInt()) }
+                                .width(92.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                val currentVal = if (chartMode == DailyChartMode.CUMULATIVE) activeItem?.second ?: 0.0 else activeDailyItem?.second ?: 0.0
+                                Text(
+                                    text = activeItem?.first?.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())) ?: "",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "$%,.0f", currentVal),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -400,7 +560,7 @@ fun DailySpendingLineChart(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 last7Days.forEachIndexed { idx, date ->
-                    val dayAbbrev = date.format(DateTimeFormatter.ofPattern("E", Locale.US)).take(3)
+                    val dayAbbrev = date.format(DateTimeFormatter.ofPattern("E", Locale.getDefault())).take(3)
                     val isSelected = activeIndex == idx
 
                     val labelColor by animateColorAsState(
@@ -419,10 +579,15 @@ fun DailySpendingLineChart(
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Normal,
                         color = labelColor,
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = labelScale
-                            scaleY = labelScale
-                        }
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = labelScale
+                                scaleY = labelScale
+                            }
+                            .clickable {
+                                selectedIndex = idx
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            }
                     )
                 }
             }

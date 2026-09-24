@@ -95,10 +95,13 @@ fun VibeForecastCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(animatedAccent.copy(alpha = 0.18f)),
                             contentAlignment = Alignment.Center
@@ -107,34 +110,36 @@ fun VibeForecastCard(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = null,
                                 tint = animatedAccent,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "🔮 預測預算趨勢 (Vibe Forecast)",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "Vibe Forecast",
+                            style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
 
                     // Velocity badge
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = animatedAccent.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = String.format(Locale.US, "⚡ HK$ %,.0f/天", forecast.actualDailyVelocity),
-                            style = MaterialTheme.typography.labelMedium,
+                            text = String.format(Locale.US, "⚡ HK$ %,.0f/day", forecast.actualDailyVelocity),
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
                             fontWeight = FontWeight.Bold,
                             color = animatedAccent,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Forecast Main Display
                 Row(
@@ -144,14 +149,14 @@ fun VibeForecastCard(
                 ) {
                     Column {
                         Text(
-                            text = if (forecast.projectedEndBalance >= 0) "預期期末結餘 (Projected Savings)" else "預期的超支風險",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            text = if (forecast.projectedEndBalance >= 0) "Projected Savings" else "Overspend Risk",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = String.format(Locale.US, "HK$ %,.0f", Math.abs(forecast.projectedEndBalance)),
-                            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp),
+                            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
                             fontWeight = FontWeight.Black,
                             color = animatedAccent
                         )

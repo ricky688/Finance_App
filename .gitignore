@@ -18,3 +18,12 @@ local.properties
 secrets.properties
 .gemini/
 graphify-out/
+buckwheat/
+skill/
+.agents/auditor_*
+.agents/worker_*
+.agents/reviewer_*
+.agents/challenger_*
+.agents/explorer_*
+.agents/orchestrator_*
+.agents/sentinel/

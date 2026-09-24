@@ -1,0 +1,195 @@
+package com.example.vibefinance.data.entity
+
+import java.util.Locale
+
+enum class InterceptableApp(
+    val id: String,
+    val displayName: String,
+    val iconEmoji: String,
+    val brandColorHex: Long,
+    val defaultEnabled: Boolean,
+    val packageKeywords: List<String>,
+    val requiredTitleKeywords: List<String> = emptyList()
+) {
+    GOOGLE_PAY(
+        id = "google_pay",
+        displayName = "Google Pay / Wallet",
+        iconEmoji = "💳",
+        brandColorHex = 0xFF4285F4,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.google.android.apps.walletnfcrel",
+            "com.google.android.apps.nbu.paisa.user",
+            "com.google.android.apps.wallet"
+        )
+    ),
+    SAMSUNG_PAY(
+        id = "samsung_pay",
+        displayName = "Samsung Pay / Wallet",
+        iconEmoji = "📱",
+        brandColorHex = 0xFF1428A0,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.samsung.android.spay",
+            "com.samsung.android.raja.spay",
+            "com.samsung.android.spaymini",
+            "com.samsung.android.samsungpay.gear"
+        )
+    ),
+    OCTOPUS(
+        id = "octopus",
+        displayName = "Octopus Card",
+        iconEmoji = "🐙",
+        brandColorHex = 0xFFFF7A00,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.octopuscards.nfc_reader",
+            "com.octopuscards.octopus_app",
+            "com.octopus.wallet"
+        )
+    ),
+    PAYME(
+        id = "payme",
+        displayName = "PayMe by HSBC",
+        iconEmoji = "🔴",
+        brandColorHex = 0xFFE60028,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "hk.com.hsbc.payme",
+            "com.hsbc.payme"
+        )
+    ),
+    ALIPAY(
+        id = "alipay",
+        displayName = "Alipay / AlipayHK",
+        iconEmoji = "🔵",
+        brandColorHex = 0xFF1677FF,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "hk.alipay.payment",
+            "com.alipay.hk",
+            "com.eg.android.AlipayGphone"
+        )
+    ),
+    WECHAT_PAY(
+        id = "wechat_pay",
+        displayName = "WeChat Pay",
+        iconEmoji = "🟢",
+        brandColorHex = 0xFF07C160,
+        defaultEnabled = false,
+        packageKeywords = listOf(
+            "com.tencent.mm"
+        ),
+        requiredTitleKeywords = listOf(
+            "微信支付", "wechat pay", "微信買單", "微信轉賬", "微信轉帳", "支付憑證"
+        )
+    ),
+    LINE_PAY(
+        id = "line_pay",
+        displayName = "LINE Pay",
+        iconEmoji = "💚",
+        brandColorHex = 0xFF00C300,
+        defaultEnabled = false,
+        packageKeywords = listOf(
+            "com.linepayplus.paa",
+            "jp.naver.line.android"
+        ),
+        requiredTitleKeywords = listOf(
+            "line pay", "line 錢包", "line wallet", "linepay"
+        )
+    ),
+    HSBC(
+        id = "hsbc_bank",
+        displayName = "HSBC HK Mobile Banking",
+        iconEmoji = "🏦",
+        brandColorHex = 0xFFDB0011,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.hsbc.hbap.mobilebanking",
+            "hk.com.hsbc.hsbchongkong",
+            "com.hsbc.hbap"
+        )
+    ),
+    HANG_SENG(
+        id = "hang_seng_bank",
+        displayName = "Hang Seng Mobile Banking",
+        iconEmoji = "🟢",
+        brandColorHex = 0xFF008559,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.hangseng.rbmobile"
+        )
+    ),
+    BOCHK(
+        id = "bochk",
+        displayName = "BOCHK 中銀香港",
+        iconEmoji = "🔴",
+        brandColorHex = 0xFFB71C1C,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.bankofchina.bochk.mobileapplication",
+            "com.boc.bank"
+        )
+    ),
+    MOX_BANK(
+        id = "mox_bank",
+        displayName = "Mox Bank by SC",
+        iconEmoji = "🖤",
+        brandColorHex = 0xFF111111,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.mox.bank"
+        )
+    ),
+    CITIBANK(
+        id = "citibank",
+        displayName = "Citi Mobile HK",
+        iconEmoji = "🔵",
+        brandColorHex = 0xFF003B70,
+        defaultEnabled = true,
+        packageKeywords = listOf(
+            "com.citibank.mobile.hk",
+            "com.citi.citimobile"
+        )
+    );
+
+    fun matches(packageName: String, title: String, text: String): Boolean {
+        val lowerPkg = packageName.lowercase(Locale.US)
+        val lowerTitle = title.lowercase(Locale.US)
+        val lowerText = text.lowercase(Locale.US)
+        val isShell = lowerPkg.contains("shell")
+
+        // Exact match or prefix match on real package name (or shell for automated testing)
+        val matchesPkg = isShell || packageKeywords.any { kw ->
+            val kwLower = kw.lowercase(Locale.US)
+            lowerPkg == kwLower || lowerPkg.startsWith("$kwLower.")
+        }
+        if (!matchesPkg) return false
+
+        // If shell testing, verify title/text contains the app keyword
+        if (isShell) {
+            val hasIdentifier = id.replace("_", " ").lowercase(Locale.US).split(" ").any { 
+                lowerTitle.contains(it) || lowerText.contains(it) 
+            }
+            if (!hasIdentifier && requiredTitleKeywords.none { lowerTitle.contains(it.lowercase(Locale.US)) }) {
+                return false
+            }
+        }
+
+        // If specific channel/title required (e.g. WeChat / LINE chat app vs payment service notification)
+        if (requiredTitleKeywords.isNotEmpty()) {
+            val titleMatches = requiredTitleKeywords.any { kw ->
+                val kwLower = kw.lowercase(Locale.US)
+                lowerTitle.contains(kwLower) || lowerText.contains(kwLower)
+            }
+            if (!titleMatches) return false
+        }
+
+        return true
+    }
+
+    companion object {
+        fun fromId(id: String): InterceptableApp? = values().find { it.id == id }
+        fun defaultEnabledApps(): Set<String> = values().filter { it.defaultEnabled }.map { it.id }.toSet()
+    }
+}

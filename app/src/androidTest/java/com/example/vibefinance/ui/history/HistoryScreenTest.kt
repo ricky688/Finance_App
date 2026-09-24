@@ -6,6 +6,9 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,6 +30,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import com.example.vibefinance.ui.FinanceIntent
+import com.example.vibefinance.R
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.performClick
 
@@ -48,6 +53,7 @@ class HistoryScreenTest {
             description = "Test Swipe"
         )
         val mockState = FinanceUiState(
+            isLoading = false,
             transactions = listOf(mockTransaction)
         )
 
@@ -59,13 +65,13 @@ class HistoryScreenTest {
         }
 
         // Find the transaction by its testTag
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
         val transactionNode = composeTestRule.onNodeWithTag("TransactionRow_1")
         transactionNode.assertIsDisplayed()
 
-        // Simulate an early release (Abort) - swipe horizontally by less than 25% threshold
+        // Release before the recurring-style 40% detachment threshold.
         transactionNode.performTouchInput {
             down(centerLeft)
-            // Move right by a small amount (e.g. 10% of width) to not cross the 25% threshold
             moveBy(Offset(viewConfiguration.touchSlop + 50f, 0f))
             up()
         }
@@ -73,7 +79,8 @@ class HistoryScreenTest {
         composeTestRule.waitForIdle()
 
         // Verify the row returns to its settled position and does NOT trigger the Edit state (Dialog)
-        composeTestRule.onNodeWithText("Edit Transaction").assertDoesNotExist()
+        val editTitle = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.edit_transaction_title)
+        composeTestRule.onNodeWithText(editTitle).assertDoesNotExist()
     }
 
     @Test
@@ -88,6 +95,7 @@ class HistoryScreenTest {
             description = "Test Swipe"
         )
         val mockState = FinanceUiState(
+            isLoading = false,
             transactions = listOf(mockTransaction)
         )
 
@@ -99,10 +107,11 @@ class HistoryScreenTest {
         }
 
         // Find the transaction by its testTag
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
         val transactionNode = composeTestRule.onNodeWithTag("TransactionRow_1")
         transactionNode.assertIsDisplayed()
 
-        // Simulate a full swipe right that exceeds the 25% threshold
+        // Swipe beyond the recurring-style 40% detachment threshold.
         transactionNode.performTouchInput {
             swipeRight(startX = 0f, endX = right)
         }
@@ -110,7 +119,8 @@ class HistoryScreenTest {
         composeTestRule.waitForIdle()
 
         // Verify the dismiss confirmation flow is triggered properly (Edit Transaction Dialog appears)
-        composeTestRule.onNodeWithText("Edit Transaction").assertIsDisplayed()
+        val editTitle = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.edit_transaction_title)
+        composeTestRule.onNodeWithText(editTitle).assertIsDisplayed()
     }
 
     @Test
@@ -133,7 +143,7 @@ class HistoryScreenTest {
                 snackbarHost = { SnackbarHost(snackbarHostState) }
             ) { padding ->
                 HistoryScreen(
-                    state = FinanceUiState(transactions = transactions),
+                    state = FinanceUiState(isLoading = false, transactions = transactions),
                     onIntent = { intent ->
                         if (intent is FinanceIntent.DeleteTransaction) {
                             transactions = transactions.filter { it.id != intent.tx.id }
@@ -150,6 +160,7 @@ class HistoryScreenTest {
             }
         }
 
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
         val transactionNode = composeTestRule.onNodeWithTag("TransactionRow_1")
         transactionNode.assertIsDisplayed()
 
@@ -173,6 +184,28 @@ class HistoryScreenTest {
         composeTestRule.waitForIdle()
         
         // Assert item is restored back to the list
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
         composeTestRule.onNodeWithTag("TransactionRow_1").assertIsDisplayed()
+    }
+
+    @Test
+    fun dailyNetIncludesIncomeAndVisibleTransfer() {
+        val today = System.currentTimeMillis()
+        val income = TransactionEntity(
+            id = 1L, amount = -2500.0, category = "Income", timestamp = today,
+            accountId = 1L, description = "Paycheck"
+        )
+        val transfer = TransactionEntity(
+            id = 2L, amount = 200.0, category = "Transfer", timestamp = today,
+            accountId = 1L, toAccountId = 2L, description = "Card payment"
+        )
+        composeTestRule.setContent {
+            HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(income, transfer)), onIntent = {})
+        }
+
+        val expected = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.daily_net_format, "+", 2300.0)
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasText(expected))
+        composeTestRule.onNodeWithText(expected).assertIsDisplayed()
     }
 }

@@ -5,9 +5,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
+import com.example.vibefinance.theme.BentoCardShape
+import com.example.vibefinance.ui.common.bouncyClickable
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -27,61 +35,72 @@ fun MinMaxSpentCard(
     val spent = if (isMin) minSpent else maxSpent
 
     val amountText = spent?.let { String.format(Locale.US, "$%,.2f", it.amount) } ?: "-"
-    val label = if (isMin) "最低消費" else "最高消費"
+    val label = if (isMin) {
+        stringResource(R.string.lowest_spending_day)
+    } else {
+        stringResource(R.string.highest_spending_day)
+    }
 
-    val colorMinMain = Color(0xFF185ED6)
-    val colorMaxMain = Color(0xFFDD1414)
+    val isDark = isDarkTheme || MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    val colorMinMain = MaterialTheme.colorScheme.primary
+    val colorMaxMain = MaterialTheme.colorScheme.error
 
     val colors = if (isMin) {
-        if (isDarkTheme) {
+        if (isDark) {
             CardDefaults.cardColors(
-                containerColor = Color(0xFF132038),
-                contentColor = Color(0xFF90CAF9)
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                contentColor = MaterialTheme.colorScheme.primary
             )
         } else {
             CardDefaults.cardColors(
-                containerColor = Color(0xFFE3F2FD),
-                contentColor = Color(0xFF0D47A1)
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     } else {
-        if (isDarkTheme) {
+        if (isDark) {
             CardDefaults.cardColors(
-                containerColor = Color(0xFF331619),
-                contentColor = Color(0xFFEF9A9A)
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.error
             )
         } else {
             CardDefaults.cardColors(
-                containerColor = Color(0xFFFFEBEE),
-                contentColor = Color(0xFFC62828)
+                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
             )
         }
     }
 
     StatCard(
-        modifier = modifier,
+        modifier = modifier
+            .clip(BentoCardShape)
+            .bouncyClickable {},
         value = amountText,
         label = label,
         colors = colors,
         content = {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             if (spent != null) {
                 val timeStr = remember(spent.timestamp) {
                     val dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(spent.timestamp), ZoneId.systemDefault())
-                    dt.format(DateTimeFormatter.ofPattern("dd MMM hh:mm a", Locale.US))
+                    dt.format(DateTimeFormatter.ofPattern("dd MMM HH:mm", Locale.US))
                 }
                 Text(
                     text = timeStr,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 if (spent.description.isNotEmpty()) {
                     Text(
                         text = spent.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = LocalContentColor.current.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(top = 2.dp),
-                        maxLines = 1
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = LocalContentColor.current.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 1.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -92,7 +111,7 @@ fun MinMaxSpentCard(
                     modifier = Modifier.fillMaxSize(),
                     spends = spends,
                     markedTransaction = spent,
-                    chartPadding = PaddingValues(vertical = 16.dp, horizontal = 16.dp),
+                    chartPadding = PaddingValues(vertical = 12.dp, horizontal = 12.dp),
                     colorMin = colorMinMain,
                     colorMax = colorMaxMain,
                     showBeforeMarked = 4,

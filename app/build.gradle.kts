@@ -28,13 +28,14 @@ android {
     }
 
     androidResources {
-        localeFilters += "en"
+        localeFilters += listOf("en", "zh-rHK", "zh-rTW", "zh", "b+zh+Hant")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -89,6 +90,8 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
+  implementation("com.google.android.material:material:1.10.0") // Material color utilities for seed palettes
+  implementation("dev.chrisbanes.haze:haze:1.7.2")
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests

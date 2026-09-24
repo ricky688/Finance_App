@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -17,6 +18,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.vibefinance.theme.BentoCardShape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,14 +54,16 @@ fun WholeBudgetCard(
     val amountText = remember(budget) { String.format(Locale.US, "$%,.2f", budget) }
 
     StatCard(
-        modifier = modifier.fillMaxWidth(),
-        label = "起始預算",
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(BentoCardShape),
+        label = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.start_budget),
         value = amountText,
         valueFontStyle = MaterialTheme.typography.displayMedium,
         valueFontSize = MaterialTheme.typography.headlineLarge.fontSize,
         colors = colors,
         content = {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Layout(
                 modifier = Modifier.height(IntrinsicSize.Min),
                 measurePolicy = growByMiddleChildRowMeasurePolicy(LocalDensity.current),
@@ -69,8 +73,7 @@ fun WholeBudgetCard(
                             text = startDateText,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
 
@@ -78,7 +81,7 @@ fun WholeBudgetCard(
                         Arrow(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
+                                .padding(horizontal = 8.dp)
                                 .fillMaxHeight()
                         )
                         CountDaysChip(
@@ -92,8 +95,7 @@ fun WholeBudgetCard(
                             text = endDateText,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 },
@@ -114,9 +116,10 @@ fun CountDaysChip(modifier: Modifier = Modifier, daysCount: Int) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                text = "${daysCount}天",
+                modifier = Modifier.padding(horizontal = 8.dp),
+                text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.days_count_format, daysCount),
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                maxLines = 1
             )
         }
     }
@@ -161,18 +164,18 @@ fun Arrow(
 
 fun growByMiddleChildRowMeasurePolicy(localDensity: Density) =
     MeasurePolicy { measurables, constraints ->
-        val minMiddleWidth = with(localDensity) { (24 + 32).dp.toPx().toInt() }
+        val minMiddleWidth = with(localDensity) { 48.dp.toPx().toInt() }
 
         val first = measurables[0]
             .measure(
                 constraints.copy(
-                    maxWidth = (constraints.maxWidth - minMiddleWidth) / 2
+                    maxWidth = ((constraints.maxWidth - minMiddleWidth) / 2).coerceAtLeast(0)
                 )
             )
         val last = measurables[2]
             .measure(
                 constraints.copy(
-                    maxWidth = (constraints.maxWidth - minMiddleWidth) / 2
+                    maxWidth = ((constraints.maxWidth - minMiddleWidth) / 2).coerceAtLeast(0)
                 )
             )
 

@@ -162,4 +162,62 @@ class PaymentNotificationListenerTest {
         val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
         assertNull(parsed)
     }
+
+    @Test
+    fun testSystemNotificationWithNumbersReturnsNull() {
+        // e.g. Play Store update notification
+        val title = "Google Play Store"
+        val text = "2 updates available: Google and Google Messages (45.5 MB)"
+        val pkg = "com.android.vending"
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNull(parsed)
+    }
+
+    @Test
+    fun testOtpVerificationCodeReturnsNull() {
+        val title = "HSBC Security"
+        val text = "Your HSBC one-time password OTP is 492019 for payment of HK$500.00 at Apple Store. Do not share."
+        val pkg = "com.hsbc.hbap.mobilebanking"
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNull(parsed)
+    }
+
+    @Test
+    fun testMarketingPromoBannerReturnsNull() {
+        val title = "HSBC Special Offer"
+        val text = "Get up to $500 discount when you apply for the new HSBC Visa Signature Card today!"
+        val pkg = "com.hsbc.hbap.mobilebanking"
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNull(parsed)
+    }
+
+    @Test
+    fun testLoginAlertReturnsNull() {
+        val title = "Security Alert"
+        val text = "New login detected on your Chase account from Windows Chrome at 08:30 PM."
+        val pkg = "com.chase.sig.android"
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNull(parsed)
+    }
+
+    @Test
+    fun testInterceptableAppMatching() {
+        val googlePay = com.example.vibefinance.data.entity.InterceptableApp.GOOGLE_PAY
+        // Real Google Wallet package
+        org.junit.Assert.assertTrue(googlePay.matches("com.google.android.apps.walletnfcrel", "Sushiro", "金額：HK$100"))
+        // Generic Google app or system package must NOT match
+        org.junit.Assert.assertFalse(googlePay.matches("com.google.android.gms", "System", "Update"))
+        org.junit.Assert.assertFalse(googlePay.matches("com.google.android.apps.messaging", "Mom", "Hello $50"))
+        org.junit.Assert.assertFalse(googlePay.matches("com.google.android.googlequicksearchbox", "News", "Article"))
+
+        val weChat = com.example.vibefinance.data.entity.InterceptableApp.WECHAT_PAY
+        // Regular WeChat chat must NOT match
+        org.junit.Assert.assertFalse(weChat.matches("com.tencent.mm", "Friend", "Hey check this out"))
+        // Official WeChat Pay notification MUST match
+        org.junit.Assert.assertTrue(weChat.matches("com.tencent.mm", "微信支付", "已付款 HK$50.00"))
+    }
 }

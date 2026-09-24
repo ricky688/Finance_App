@@ -17,6 +17,9 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.luminance
+import com.example.vibefinance.theme.ChartColors
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -93,7 +96,10 @@ fun MoneySeparationChart(
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
-    val segments = remember(accounts, totalAssets) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val segments = remember(accounts, totalAssets, isDark, primaryColor) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -102,7 +108,7 @@ fun MoneySeparationChart(
                     name = "Cash Wallet",
                     amount = cashTotal,
                     percentage = (cashTotal / validTotal).toFloat(),
-                    color = Color(0xFF4CAF50) // Emerald Green (Matches History chart green)
+                    color = ChartColors.getAssetSegmentColor("cash", isDark, primaryColor)
                 )
             )
         }
@@ -113,7 +119,7 @@ fun MoneySeparationChart(
                     name = "Bank Accounts",
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
-                    color = Color(0xFF2196F3) // Ocean Blue (Matches History chart blue)
+                    color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)
                 )
             )
         }
@@ -124,7 +130,7 @@ fun MoneySeparationChart(
                     name = "Credit Debt",
                     amount = debtTotal,
                     percentage = 0f, // Special non-positive asset segment
-                    color = Color(0xFFE91E63) // Rose Pink / Red (Matches History chart accent)
+                    color = ChartColors.getAssetSegmentColor("debt", isDark, primaryColor)
                 )
             )
         }
@@ -168,77 +174,80 @@ fun MoneySeparationChart(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            // Header (Identical layout & style to History page CategoryBreakdownCard)
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.AccountBalance,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
-                                text = "Money Allocation (資金分佈)",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = "Money Allocation",
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            // Focused Clear Pill with spring scaleIn & scaleOut (Identical to History page)
-                            AnimatedVisibility(
-                                visible = selectedSegmentId != null,
-                                enter = fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy)) +
-                                        scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)),
-                                exit = fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
-                                       scaleOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy))
-                            ) {
+                            if (selectedSegment != null) {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Surface(
                                     shape = CircleShape,
-                                    color = selectedSegment?.color?.copy(alpha = 0.2f) ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    modifier = Modifier.padding(horizontal = 2.dp)
+                                    color = selectedSegment.color.copy(alpha = 0.18f),
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .clickable { selectedSegmentId = null }
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .clickable { selectedSegmentId = null }
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
                                             text = "Focused",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = selectedSegment?.color ?: MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                            color = selectedSegment.color,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Clear",
-                                            tint = selectedSegment?.color ?: MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(12.dp)
+                                            tint = selectedSegment.color,
+                                            modifier = Modifier.size(10.dp)
                                         )
                                     }
                                 }
                             }
                         }
                         Text(
-                            text = if (selectedSegmentId != null) "Tap category to clear focus filter" else "Tap any category below to filter assets",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (selectedSegmentId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            text = if (selectedSegment != null) "Filtering: ${selectedSegment.name} • Tap to reset" else "Tap any category below to filter",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                            color = if (selectedSegment != null) selectedSegment.color else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -516,7 +525,10 @@ fun InteractiveDonutChart(
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
-    val segments = remember(accounts, totalAssets) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val segments = remember(accounts, totalAssets, isDark, primaryColor) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -525,7 +537,7 @@ fun InteractiveDonutChart(
                     name = "Cash",
                     amount = cashTotal,
                     percentage = (cashTotal / validTotal).toFloat(),
-                    color = Color(0xFF4CAF50)
+                    color = ChartColors.getAssetSegmentColor("cash", isDark, primaryColor)
                 )
             )
         }
@@ -536,7 +548,7 @@ fun InteractiveDonutChart(
                     name = "Bank Accounts",
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
-                    color = Color(0xFF2196F3)
+                    color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)
                 )
             )
         }

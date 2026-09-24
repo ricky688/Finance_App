@@ -1,7 +1,8 @@
 package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -33,12 +34,16 @@ fun RollingNumberText(
                 AnimatedContent(
                     targetState = char,
                     transitionSpec = {
+                        val digitSpring = spring<androidx.compose.ui.unit.IntOffset>(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
                         if (targetState >= initialState) {
-                            (slideInVertically(animationSpec = tween(220)) { height -> height } + fadeIn())
-                                .togetherWith(slideOutVertically(animationSpec = tween(220)) { height -> -height } + fadeOut())
+                            (slideInVertically(animationSpec = digitSpring) { height -> height } + fadeIn())
+                                .togetherWith(slideOutVertically(animationSpec = digitSpring) { height -> -height } + fadeOut())
                         } else {
-                            (slideInVertically(animationSpec = tween(220)) { height -> -height } + fadeIn())
-                                .togetherWith(slideOutVertically(animationSpec = tween(220)) { height -> height } + fadeOut())
+                            (slideInVertically(animationSpec = digitSpring) { height -> -height } + fadeIn())
+                                .togetherWith(slideOutVertically(animationSpec = digitSpring) { height -> height } + fadeOut())
                         }
                     },
                     label = "digit_$index"
@@ -61,3 +66,4 @@ fun RollingNumberText(
         }
     }
 }
+

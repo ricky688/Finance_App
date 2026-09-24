@@ -29,6 +29,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import com.example.vibefinance.ui.AppLanguage
+import java.util.Locale
+
 class MainActivity : ComponentActivity() {
     
     // Clean manual dependency injection bypassing local annotation processor issues
@@ -40,7 +49,8 @@ class MainActivity : ComponentActivity() {
         val dataSeeder = DataSeeder(
             accountRepository = accountRepository,
             transactionRepository = transactionRepository,
-            budgetRepository = budgetRepository
+            budgetRepository = budgetRepository,
+            subscriptionRepository = subscriptionRepository
         )
         FinanceViewModel(
             accountRepository = accountRepository,
@@ -87,24 +97,83 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay {
-                androidx.compose.animation.Crossfade(
-                    targetState = isDark,
-                    animationSpec = androidx.compose.animation.core.tween(
-                        durationMillis = 450,
-                        easing = androidx.compose.animation.core.FastOutSlowInEasing
-                    ),
-                    label = "screenThemeCrossfade"
-                ) { targetIsDark ->
-                    VibeFinanceTheme(
-                        darkTheme = targetIsDark,
-                        dynamicColorEnabled = state.dynamicColorEnabled
-                    ) {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.background
+
+            val context = LocalContext.current
+            val currentLocale = remember(state.appLanguage) {
+                when (state.appLanguage) {
+                    AppLanguage.SYSTEM -> {
+                        val sysLocales = androidx.core.os.ConfigurationCompat.getLocales(context.resources.configuration)
+                        if (!sysLocales.isEmpty) sysLocales[0] ?: Locale.getDefault() else Locale.getDefault()
+                    }
+                    AppLanguage.ENGLISH -> Locale.ENGLISH
+                    AppLanguage.TRADITIONAL_CHINESE -> Locale.forLanguageTag("zh-Hant-TW")
+                }
+            }
+
+            val baseConfig = LocalConfiguration.current
+            val localizedConfig = remember(state.appLanguage, baseConfig, currentLocale) {
+                android.content.res.Configuration(baseConfig).apply {
+                    setLocale(currentLocale)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        setLocales(android.os.LocaleList(currentLocale, Locale.ENGLISH))
+                    }
+                    setLayoutDirection(currentLocale)
+                }
+            }
+
+            val localizedContext = remember(state.appLanguage, context, currentLocale) {
+                val conf = android.content.res.Configuration(context.resources.configuration).apply {
+                    setLocale(currentLocale)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        setLocales(android.os.LocaleList(currentLocale, Locale.ENGLISH))
+                    }
+                    setLayoutDirection(currentLocale)
+                }
+                object : android.content.ContextWrapper(this@MainActivity) {
+                    private val configContext = this@MainActivity.createConfigurationContext(conf)
+                    override fun getResources(): android.content.res.Resources = configContext.resources
+                    override fun getAssets(): android.content.res.AssetManager = configContext.assets
+                }
+            }
+
+            LaunchedEffect(currentLocale, localizedConfig) {
+                Locale.setDefault(currentLocale)
+                try {
+                    @Suppress("DEPRECATION")
+                    context.resources.updateConfiguration(localizedConfig, context.resources.displayMetrics)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            CompositionLocalProvider(
+                LocalConfiguration provides localizedConfig,
+                LocalContext provides localizedContext,
+                LocalActivityResultRegistryOwner provides this@MainActivity
+            ) {
+                com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay {
+                    androidx.compose.animation.Crossfade(
+                        targetState = isDark,
+                        animationSpec = androidx.compose.animation.core.tween(
+                            durationMillis = 450,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        ),
+                        label = "screenThemeCrossfade"
+                    ) { targetIsDark ->
+                        VibeFinanceTheme(
+                            darkTheme = targetIsDark,
+                            dynamicColorEnabled = state.dynamicColorEnabled,
+                            appearancePalette = state.appearancePalette,
+                            appearanceContrast = state.appearanceContrast,
+                            pureBlackDarkMode = state.pureBlackDarkMode,
+                            iconShape = state.iconShape.shape
                         ) {
-                            MainScreen(viewModel = viewModel)
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.background
+                            ) {
+                                MainScreen(viewModel = viewModel)
+                            }
                         }
                     }
                 }

@@ -6,7 +6,9 @@ import com.example.vibefinance.data.entity.BudgetEntity
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.data.repository.AccountRepository
 import com.example.vibefinance.data.repository.BudgetRepository
+import com.example.vibefinance.data.repository.SubscriptionRepository
 import com.example.vibefinance.data.repository.TransactionRepository
+import com.example.vibefinance.data.entity.SubscriptionEntity
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -16,7 +18,8 @@ import javax.inject.Singleton
 class DataSeeder @Inject constructor(
     private val accountRepository: AccountRepository,
     private val transactionRepository: TransactionRepository,
-    private val budgetRepository: BudgetRepository
+    private val budgetRepository: BudgetRepository,
+    private val subscriptionRepository: SubscriptionRepository
 ) {
     suspend fun seedDatabase() {
         val today = LocalDate.now()
@@ -149,7 +152,68 @@ class DataSeeder @Inject constructor(
             installments = 12
         )
 
-        // 5. Seed real-world shops with GNSS location & credit card discounts
+        // Tx 7: ChatGPT Plus Subscription Payment (Previous paid record)
+        transactionRepository.insertTransaction(
+            TransactionEntity(
+                amount = 160.00,
+                category = "Software / AI",
+                timestamp = nowMilli - (18 * dayMilli),
+                accountId = ccId,
+                description = "Auto-charge: ChatGPT Plus"
+            )
+        )
+
+        // 5. Seed realistic sample subscriptions
+        val twoDaysLaterMilli = nowMilli + (2 * dayMilli)
+        val fiveDaysLaterMilli = nowMilli + (5 * dayMilli)
+        val twelveDaysLaterMilli = nowMilli + (12 * dayMilli)
+        val twentyDaysLaterMilli = nowMilli + (20 * dayMilli)
+
+        subscriptionRepository.insertSubscription(
+            SubscriptionEntity(
+                name = "Netflix Premium",
+                amount = 93.00,
+                category = "Entertainment",
+                frequency = "Monthly",
+                nextPaymentDate = twoDaysLaterMilli,
+                accountId = ccId
+            )
+        )
+
+        subscriptionRepository.insertSubscription(
+            SubscriptionEntity(
+                name = "Spotify Family",
+                amount = 68.00,
+                category = "Entertainment",
+                frequency = "Monthly",
+                nextPaymentDate = fiveDaysLaterMilli,
+                accountId = ccId
+            )
+        )
+
+        subscriptionRepository.insertSubscription(
+            SubscriptionEntity(
+                name = "ChatGPT Plus",
+                amount = 160.00,
+                category = "Software / AI",
+                frequency = "Monthly",
+                nextPaymentDate = twelveDaysLaterMilli,
+                accountId = ccId
+            )
+        )
+
+        subscriptionRepository.insertSubscription(
+            SubscriptionEntity(
+                name = "iCloud+ 200GB",
+                amount = 23.00,
+                category = "Utilities",
+                frequency = "Monthly",
+                nextPaymentDate = twentyDaysLaterMilli,
+                accountId = bankId
+            )
+        )
+
+        // 6. Seed real-world shops with GNSS location & credit card discounts
         seedDiscountShops(ccId)
     }
 

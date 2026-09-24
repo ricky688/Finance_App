@@ -42,18 +42,67 @@ class PaymentNotificationListener : NotificationListenerService() {
         if (sbn == null) return
 
         val packageName = sbn.packageName ?: ""
-        val extras = sbn.notification.extras ?: Bundle.EMPTY
         
+        // 1. Ignore own app notifications immediately to prevent loops
+        if (packageName == applicationContext.packageName) {
+            return
+        }
+
+        // 2. Ignore ongoing / sticky / foreground service notifications (e.g. music playback, timer, download progress, system status, VPN)
+        if (sbn.isOngoing) {
+            return
+        }
+
+        // 3. Ignore system, UI, and non-payment Android framework packages
+        val systemPackages = setOf(
+            "android",
+            "com.android.systemui",
+            "com.android.vending",
+            "com.google.android.gms",
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.apps.nexuslauncher",
+            "com.android.launcher3",
+            "com.google.android.apps.photos",
+            "com.google.android.apps.messaging",
+            "com.google.android.dialer",
+            "com.google.android.apps.maps",
+            "com.google.android.calendar",
+            "com.google.android.youtube",
+            "com.google.android.gm",
+            "com.android.settings",
+            "com.android.bluetooth",
+            "com.android.nfc",
+            "com.android.providers.downloads"
+        )
+        if (systemPackages.contains(packageName.lowercase(Locale.US))) {
+            return
+        }
+
+        val extras = sbn.notification.extras ?: Bundle.EMPTY
         val title = (extras.getCharSequence(Notification.EXTRA_TITLE) ?: "").toString()
         val text = (extras.getCharSequence(Notification.EXTRA_TEXT) ?: "").toString()
 
-        android.util.Log.d("VibeFinanceNotification", "Received notification from: $packageName, title: '$title', text: '$text'")
+        if (title.isBlank() && text.isBlank()) return
 
-        // Check if automatic logging is enabled in Settings
+        // 4. Check if automatic logging is enabled in Settings
         if (!InMemoryDatabase.isNotificationLoggingEnabled) {
             android.util.Log.d("VibeFinanceNotification", "Notification logging is disabled in Settings.")
             return
         }
+
+        // 5. Check if incoming notification matches user-selected intercept payment apps
+        if (!InMemoryDatabase.isAppInterceptEnabled(packageName, title, text)) {
+            android.util.Log.d("VibeFinanceNotification", "Notification from '$packageName' ('$title') is ignored (not selected in allowed apps).")
+            return
+        }
+
+        // 6. Strict Payment Intent Guard: Filter out non-payment alerts (OTP, promos, marketing, login alerts)
+        if (!isPaymentNotification(title, text)) {
+            android.util.Log.d("VibeFinanceNotification", "Notification from '$packageName' ('$title') filtered out: not a payment transaction.")
+            return
+        }
+
+        android.util.Log.d("VibeFinanceNotification", "Valid payment notification from: $packageName, title: '$title', text: '$text'")
 
         // Push to sliding window batch buffer for on-device Gemini Nano synthesis & deduplication
         val rawItem = com.example.vibefinance.ai.RawNotificationItem(
@@ -73,6 +122,37 @@ class PaymentNotificationListener : NotificationListenerService() {
 
     companion object {
         /**
+         * Privacy-First Payment Intent Guard:
+         * Rejects OTPs, login notices, promotional banners, and non-transactional messages.
+         */
+        fun isPaymentNotification(title: String, text: String): Boolean {
+            val combined = "$title $text".lowercase(Locale.US)
+
+            // Negative Keywords: OTP, security codes, promo ads, login alerts, statement notices
+            val negativeKeywords = listOf(
+                "otp", "one-time password", "verification code", "驗證碼", "安全碼", "動態密碼",
+                "security code", "activation code", "promo", "promotion", "discount", "coupon",
+                "offer", "優惠", "推廣", "獎賞", "抽獎", "earn up to", "apply now", "upgrade now",
+                "logged in", "login from", "登入", "登錄", "新登入", "password reset", "密碼重置",
+                "statement is ready", "結單已備妥", "e-statement", "monthly statement", "download now",
+                "update available", "version", "battery", "storage", "charging"
+            )
+            if (negativeKeywords.any { combined.contains(it) }) {
+                return false
+            }
+
+            // Positive Payment Indicators:
+            val positiveIndicators = listOf(
+                "paid", "spent", "payment", "purchased", "charged", "transferred",
+                "debited", "sent", "amount:", "transaction", "card payment", "you paid", "you spent",
+                "已付款", "成功付款", "已扣款", "消費", "支出", "轉賬", "轉帳", "交易金額", "金額：", "支付成功",
+                "扣款成功", "付款：", "已完成付款", "smart octopus", "octopus", "八達通", "payme", "fps", "轉數快",
+                "alipay", "支付寶", "wechat pay", "微信支付"
+            )
+            return positiveIndicators.any { combined.contains(it) }
+        }
+
+        /**
          * On-device privacy-first parser for payment notifications.
          * Pure deterministic parsing without cloud inference, ensuring user privacy.
          */
@@ -84,9 +164,9 @@ class PaymentNotificationListener : NotificationListenerService() {
             val lowerText = text.lowercase(Locale.US)
 
             val isShell = lowerPkg.contains("shell")
-            val isGoogle = lowerPkg.contains("wallet") || lowerTitle.contains("google wallet") || lowerTitle.contains("google pay") ||
+            val isGoogle = lowerPkg.contains("walletnfcrel") || lowerPkg.contains("nbu.paisa") || lowerTitle.contains("google wallet") || lowerTitle.contains("google pay") ||
                     (isShell && (text.contains("金額：") || text.contains("Amount:") || lowerText.contains("spent")))
-            val isSamsung = lowerPkg.contains("spay") || lowerPkg.contains("samsung") || lowerTitle.contains("samsung wallet") || lowerTitle.contains("samsung pay") ||
+            val isSamsung = lowerPkg.contains("spay") || lowerTitle.contains("samsung wallet") || lowerTitle.contains("samsung pay") ||
                     (isShell && !isGoogle && (text.contains("octopus") || title.contains("octopus")))
 
             // 1. Google Wallet / Google Pay notifications
@@ -132,7 +212,12 @@ class PaymentNotificationListener : NotificationListenerService() {
                 }
             }
 
-            // 3. Digital Payment Apps & Bank Alerts (PayMe, FPS, Alipay, WeChat, HSBC, Citi, Chase, Bank of China, etc.)
+            // 3. General Payment Verification: Must pass payment intent check
+            if (!isPaymentNotification(title, text)) {
+                return null
+            }
+
+            // 4. Digital Payment Apps & Bank Alerts (PayMe, FPS, Alipay, WeChat, HSBC, Citi, Chase, Bank of China, etc.)
             // General Amount Extractor: Matches $100.00, HK$45.50, USD 29.99, 125.00 HKD, etc.
             val generalAmountRegex = Regex("(?:HK\\$|USD|EUR|GBP|RMB|NT\\$|\\$|¥|€|£)\\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|([0-9]{1,3}(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*(?:HKD|USD|EUR|GBP|RMB)")
             val match = generalAmountRegex.find(text) ?: generalAmountRegex.find(title)

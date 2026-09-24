@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -22,14 +24,74 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
 import com.example.vibefinance.data.repository.DailyBudgetInfo
+import com.example.vibefinance.theme.HeroCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
 import java.util.Locale
 
+/**
+ * State classification for the Hero Daily Budget Card according to Buckwheat rules.
+ */
+enum class HeroDailyBudgetState {
+    NORMAL,
+    OVERDRAFT,
+    BUDGET_END,
+    PERIOD_ENDED
+}
+
+/**
+ * Calculates the current hero daily budget financial state according to Buckwheat rules.
+ */
+fun calculateHeroDailyBudgetState(
+    info: DailyBudgetInfo,
+    currentTimeMillis: Long = System.currentTimeMillis()
+): HeroDailyBudgetState {
+    val isPeriodEnded = info.daysLeft <= 0 || (info.endDate > 0 && currentTimeMillis >= info.endDate)
+    if (isPeriodEnded) return HeroDailyBudgetState.PERIOD_ENDED
+    val isBudgetEnd = info.monthlyRemaining <= 0.0 || (info.dailyRemaining < 0.0 && info.newDailyBudget <= 0.0)
+    if (isBudgetEnd) return HeroDailyBudgetState.BUDGET_END
+    val isOverdraft = info.dailyRemaining < 0.0
+    if (isOverdraft) return HeroDailyBudgetState.OVERDRAFT
+    return HeroDailyBudgetState.NORMAL
+}
+
+/**
+ * Calculates responsive typography font size for hero amount based on character length.
+ */
+fun calculateHeroAmountFontSize(formattedText: String): TextUnit = when {
+    formattedText.length >= 13 -> 24.sp
+    formattedText.length >= 10 -> 28.sp
+    formattedText.length >= 8 -> 32.sp
+    formattedText.length >= 6 -> 36.sp
+    else -> 40.sp
+}
+
+/**
+ * Formats hero target amount, retaining negative deficit sign when period has ended.
+ */
+fun formatHeroTargetAmount(
+    targetAmount: Float,
+    isPeriodEnded: Boolean,
+    monthlyRemaining: Double
+): String {
+    val absTarget = Math.abs(targetAmount)
+    return if (isPeriodEnded && monthlyRemaining < 0) {
+        String.format(Locale.US, "-HK$ %,.0f", absTarget)
+    } else {
+        String.format(Locale.US, "HK$ %,.0f", absTarget)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HeroDailyBudgetCard(
     budgetInfo: DailyBudgetInfo,
@@ -38,128 +100,108 @@ fun HeroDailyBudgetCard(
     modifier: Modifier = Modifier
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+
+    // Buckwheat State Machine
+    val budgetState = calculateHeroDailyBudgetState(budgetInfo)
+    val isPeriodEnded = budgetState == HeroDailyBudgetState.PERIOD_ENDED
+    val isBudgetEnd = budgetState == HeroDailyBudgetState.BUDGET_END
+    val isOverdraft = budgetState == HeroDailyBudgetState.OVERDRAFT
+    val isNormal = budgetState == HeroDailyBudgetState.NORMAL
+
+    var showNewDayBudgetInfoSheet by remember { mutableStateOf(false) }
+    var showBudgetEndInfoSheet by remember { mutableStateOf(false) }
+
     val dailyRem = budgetInfo.dailyRemaining
     val dailyAllowance = budgetInfo.dailyAllowance
-    val isPos = dailyRem >= 0
+    val todaySpent = (dailyAllowance - dailyRem).coerceAtLeast(0.0)
 
-    val ratio = if (dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
+    val ratio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
 
-    // Animated wave movement
-    val infiniteTransition = rememberInfiniteTransition(label = "heroWaveShift")
-    val shift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 5000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "heroWaveShift"
-    )
+    // Let the ambient wave settle after its entrance instead of redrawing forever.
+    val shiftState = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        shiftState.animateTo(1f, tween(durationMillis = 5000, easing = LinearEasing))
+    }
 
-    // Option 2: Ambient Financial Health Mood Glow Color
+    // Ambient Financial Health Mood Glow Color
     val ambientGlowColor = when {
-        isPos && ratio >= 0.5f -> Color(0xFF00E676).copy(alpha = if (isDark) 0.18f else 0.25f) // Emerald Flow
-        isPos -> Color(0xFFFFB74D).copy(alpha = if (isDark) 0.18f else 0.25f)                  // Sunset Amber
-        else -> Color(0xFFFF5252).copy(alpha = if (isDark) 0.22f else 0.30f)                   // Crimson Alert
+        isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.25f) // Emerald Flow
+        isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.18f else 0.25f)                  // Sunset Amber
+        else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.22f else 0.30f)                   // Crimson Alert
     }
 
     // Spring Physics animation specs
-    val springSpec = spring<Color>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
-    val floatSpringSpec = spring<Float>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
+    val colorSpringSpec = spring<Color>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)
+    val ratioSpringSpec = spring<Float>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
 
     // Animated ratio fill with Spring physics
+    val targetRatio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0.05f
     val animatedRatio by animateFloatAsState(
-        targetValue = ratio.coerceAtLeast(0.08f),
-        animationSpec = floatSpringSpec,
+        targetValue = targetRatio,
+        animationSpec = ratioSpringSpec,
         label = "heroFillRatio"
     )
 
-    // Animated amount number counter with Spring physics
-    val animatedAmount by animateFloatAsState(
-        targetValue = Math.abs(dailyRem).toFloat(),
-        animationSpec = floatSpringSpec,
-        label = "heroAmount"
-    )
-
-    // Animated daily allowance with Spring physics
-    val animatedDailyAllowance by animateFloatAsState(
-        targetValue = dailyAllowance.toFloat(),
-        animationSpec = floatSpringSpec,
-        label = "heroDailyAllowance"
-    )
-
-    // Animated monthly remaining with Spring physics
-    val animatedMonthlyRemaining by animateFloatAsState(
-        targetValue = budgetInfo.monthlyRemaining.toFloat(),
-        animationSpec = floatSpringSpec,
-        label = "heroMonthlyRemaining"
-    )
-
-    // Color tokens adaptation for Light (White Mode) & Dark Mode with Spring Transitions
-    val targetContainerBg = when {
-        !isDark && isPos -> Color(0xFFE8F5E9)  // Soft fresh mint in White Mode
-        !isDark && !isPos -> Color(0xFFFFEBEE) // Soft light red in White Mode
-        isDark && isPos -> Color(0xFF0F2618)   // Midnight forest green in Dark Mode
-        else -> Color(0xFF2E1414)              // Midnight crimson in Dark Mode
+    // Target amount to display in giant rolling numbers
+    val targetAmount = when {
+        isPeriodEnded -> budgetInfo.monthlyRemaining.toFloat()
+        isBudgetEnd -> 0f
+        isOverdraft -> budgetInfo.newDailyBudget.toFloat()
+        else -> dailyRem.toFloat()
     }
-    val containerBg by animateColorAsState(targetContainerBg, springSpec, label = "containerBg")
+
+    val targetThirdMetric = if (isOverdraft) budgetInfo.newDailyBudget.toFloat() else budgetInfo.tomorrowAllowance.toFloat()
+
+    // Semantic Color tokens adaptation for Light & Dark Mode
+    val targetContainerBg = when {
+        isNormal -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.45f)
+        else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = if (isDark) 0.35f else 0.45f)
+    }
+    val containerBg by animateColorAsState(targetContainerBg, colorSpringSpec, label = "containerBg")
 
     val targetWaveFillColor = when {
-        !isDark && isPos -> Color(0xFFC8E6C9)
-        !isDark && !isPos -> Color(0xFFFFCDD2)
-        isDark && isPos -> Color(0xFF1B4D2E)
-        else -> Color(0xFF5C1D1D)
+        isNormal -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.60f else 0.70f)
+        else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = if (isDark) 0.60f else 0.70f)
     }
-    val waveFillColor by animateColorAsState(targetWaveFillColor, springSpec, label = "waveFillColor")
+    val waveFillColor by animateColorAsState(targetWaveFillColor, colorSpringSpec, label = "waveFillColor")
 
     val targetCardBorderColor = when {
-        !isDark && isPos -> Color(0xFF81C784)
-        !isDark && !isPos -> Color(0xFFE57373)
-        isDark && isPos -> Color(0xFF00E676).copy(alpha = 0.35f)
-        else -> Color(0xFFFF5252).copy(alpha = 0.35f)
+        isNormal -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.25f)
+        else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.35f else 0.25f)
     }
-    val cardBorderColor by animateColorAsState(targetCardBorderColor, springSpec, label = "cardBorderColor")
+    val cardBorderColor by animateColorAsState(targetCardBorderColor, colorSpringSpec, label = "cardBorderColor")
 
     val targetTitleTextColor = when {
-        !isDark && isPos -> Color(0xFF1B5E20)
-        !isDark && !isPos -> Color(0xFFB71C1C)
-        isDark && isPos -> Color(0xFF81C784)
-        else -> Color(0xFFFF8A80)
+        isNormal -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onErrorContainer
     }
-    val titleTextColor by animateColorAsState(targetTitleTextColor, springSpec, label = "titleTextColor")
+    val titleTextColor by animateColorAsState(targetTitleTextColor, colorSpringSpec, label = "titleTextColor")
 
     val targetAmountTextColor = when {
-        !isDark && isPos -> Color(0xFF1B5E20)
-        !isDark && !isPos -> Color(0xFFC62828)
-        isDark && isPos -> Color(0xFF00E676)
-        else -> Color(0xFFFF5252)
+        isNormal -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.error
     }
-    val amountTextColor by animateColorAsState(targetAmountTextColor, springSpec, label = "amountTextColor")
+    val amountTextColor by animateColorAsState(targetAmountTextColor, colorSpringSpec, label = "amountTextColor")
 
-    val subtitleTextColor = when {
-        !isDark -> Color(0xFF2E7D32).copy(alpha = 0.85f)
-        else -> Color.White.copy(alpha = 0.7f)
-    }
+    val subtitleTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val targetActionButtonBg = when {
-        !isDark && isPos -> Color(0xFF2E7D32)
-        !isDark && !isPos -> Color(0xFFC62828)
-        isDark && isPos -> Color(0xFF00E676)
-        else -> Color(0xFFFF5252)
+        isNormal -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.error
     }
-    val actionButtonBg by animateColorAsState(targetActionButtonBg, springSpec, label = "actionButtonBg")
+    val actionButtonBg by animateColorAsState(targetActionButtonBg, colorSpringSpec, label = "actionButtonBg")
 
     val actionButtonTextColor = when {
-        !isDark -> Color.White
-        else -> Color(0xFF0A1F11)
+        isNormal -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onError
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(HeroCardShape)
     ) {
-        // Option 2: Ambient Financial Health Mood Glow Layer behind card
+        // Ambient Mood Glow Layer
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -176,34 +218,37 @@ fun HeroDailyBudgetCard(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
+            shape = HeroCardShape,
             color = containerBg,
             border = BorderStroke(1.5.dp, cardBorderColor),
             shadowElevation = if (isDark) 8.dp else 4.dp
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
-                // Background Liquid Wavy Filler
+                // Background Liquid Wavy Filler with Spring Motion
                 Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            waveFillColor,
-                            shape = WavyShape(
-                                period = 48.dp,
-                                amplitude = 3.dp,
-                                shift = shift
-                            )
-                        )
-                        .fillMaxWidth(animatedRatio)
-                )
+                    modifier = Modifier.matchParentSize()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedRatio.coerceIn(0.001f, 1.0f))
+                            .graphicsLayer {
+                                shape = WavyShape(
+                                    period = 36.dp,
+                                    amplitude = 4.dp,
+                                    shift = shiftState.value
+                                )
+                                clip = true
+                            }
+                            .background(waveFillColor)
+                    )
+                }
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 22.dp, vertical = 20.dp)
                 ) {
-                    val isPeriodEnded = budgetInfo.daysLeft <= 0 || (budgetInfo.endDate > 0 && System.currentTimeMillis() >= budgetInfo.endDate)
-
                     // Header Status Badge & Title Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -217,7 +262,14 @@ fun HeroDailyBudgetCard(
                             Surface(
                                 shape = CircleShape,
                                 color = titleTextColor.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, titleTextColor.copy(alpha = 0.3f))
+                                border = BorderStroke(1.dp, titleTextColor.copy(alpha = 0.3f)),
+                                modifier = Modifier.bouncyClickable {
+                                    when {
+                                        isOverdraft -> showNewDayBudgetInfoSheet = true
+                                        isBudgetEnd -> showBudgetEndInfoSheet = true
+                                        else -> onOpenBudgetDialog()
+                                    }
+                                }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -225,17 +277,35 @@ fun HeroDailyBudgetCard(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = if (isPeriodEnded) Icons.Default.Warning else if (isPos) Icons.Default.Bolt else Icons.Default.Warning,
+                                        imageVector = when {
+                                            isPeriodEnded -> Icons.Default.EventBusy
+                                            isBudgetEnd -> Icons.Default.Warning
+                                            isOverdraft -> Icons.Default.Info
+                                            else -> Icons.Default.Bolt
+                                        },
                                         contentDescription = null,
                                         tint = titleTextColor,
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Text(
-                                        text = if (isPeriodEnded) "週期已結束" else if (isPos) "今日剩餘" else "今日超支",
+                                        text = when {
+                                            isPeriodEnded -> stringResource(R.string.period_ended)
+                                            isBudgetEnd -> stringResource(R.string.budget_end)
+                                            isOverdraft -> stringResource(R.string.new_daily_budget_short)
+                                            else -> stringResource(R.string.rest_budget_for_today)
+                                        },
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = titleTextColor
                                     )
+                                    if (isOverdraft || isBudgetEnd) {
+                                        Icon(
+                                            imageVector = Icons.Default.Info,
+                                            contentDescription = "Info",
+                                            tint = titleTextColor.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -243,7 +313,7 @@ fun HeroDailyBudgetCard(
                         // Days Left Badge
                         Surface(
                             shape = CircleShape,
-                            color = primaryTextColor(isDark).copy(alpha = 0.08f),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
                             modifier = Modifier.bouncyClickable { onOpenBudgetDialog() }
                         ) {
                             Row(
@@ -252,15 +322,15 @@ fun HeroDailyBudgetCard(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = if (isPeriodEnded) "0 天 (Ended)" else "剩餘 ${budgetInfo.daysLeft} 天",
+                                    text = if (isPeriodEnded) "0 " + stringResource(R.string.period_ended) else stringResource(R.string.days_left_format, budgetInfo.daysLeft),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = primaryTextColor(isDark).copy(alpha = 0.8f)
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                                 )
                                 Icon(
                                     imageVector = Icons.Default.Settings,
                                     contentDescription = "Settings",
-                                    tint = primaryTextColor(isDark).copy(alpha = 0.6f),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -269,79 +339,158 @@ fun HeroDailyBudgetCard(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Giant Iconic Hero Amount Display: Today's Remaining Budget to Spend (e.g. HK$ 75)
+                    // Giant Iconic Hero Amount Display with Auto-scaling and Deficit Support
+                    val formattedTarget = formatHeroTargetAmount(
+                        targetAmount = targetAmount,
+                        isPeriodEnded = isPeriodEnded,
+                        monthlyRemaining = budgetInfo.monthlyRemaining
+                    )
+                    val amountFontSize = calculateHeroAmountFontSize(formattedTarget)
+
                     com.example.vibefinance.ui.components.RollingNumberText(
-                        text = String.format(Locale.US, "HK$ %,.0f", animatedAmount),
-                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 42.sp),
+                        text = formattedTarget,
+                        style = MaterialTheme.typography.displayMedium.copy(fontSize = amountFontSize),
                         fontWeight = FontWeight.Black,
                         color = amountTextColor
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Subtitle Metrics Breakdown: Today Budget, Spent, & Next Days Daily Baseline
-                    val startLocal = java.time.Instant.ofEpochMilli(budgetInfo.startDate).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    val endLocal = java.time.Instant.ofEpochMilli(budgetInfo.endDate).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    val totalDaysInPeriod = (java.time.temporal.ChronoUnit.DAYS.between(startLocal, endLocal) + 1).coerceAtLeast(1).toDouble()
-                    val baseDaily = if (totalDaysInPeriod > 0) (budgetInfo.totalMonthlyBudget / totalDaysInPeriod).coerceAtLeast(0.0) else 0.0
-                    val nextDaysAllowance = if (budgetInfo.rolloverMode == com.example.vibefinance.data.entity.RolloverMode.ADD_TO_NEXT_DAY) baseDaily else dailyAllowance
-                    val todaySpent = (dailyAllowance - dailyRem).coerceAtLeast(0.0)
+                    // Subtitle Metrics Breakdown (Responsive 3-column Bento Pills)
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val columnWidth = maxWidth / 3
+                        val isCompactPill = columnWidth < 105.dp
+                        val pillPaddingHorizontal = if (isCompactPill) 2.dp else 4.dp
+                        val pillSpacing = if (isCompactPill) 6.dp else 8.dp
+                        val labelFontSize = if (isCompactPill) 10.sp else 11.sp
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "今日預算 ",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = subtitleTextColor
-                        )
-                        com.example.vibefinance.ui.components.RollingNumberText(
-                            text = String.format(Locale.US, "HK$%,.0f", animatedDailyAllowance),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = subtitleTextColor
-                        )
-                        Text(
-                            text = "  •  已花 ",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = subtitleTextColor
-                        )
-                        com.example.vibefinance.ui.components.RollingNumberText(
-                            text = String.format(Locale.US, "HK$%,.0f", todaySpent.toFloat()),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = subtitleTextColor
-                        )
-                        Text(
-                            text = "  •  明起每天 ",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            color = subtitleTextColor
-                        )
-                        com.example.vibefinance.ui.components.RollingNumberText(
-                            text = String.format(Locale.US, "HK$%,.0f", nextDaysAllowance.toFloat()),
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = subtitleTextColor
-                        )
+                        fun autoMetricFontSize(text: String): androidx.compose.ui.unit.TextUnit = when {
+                            text.length >= 13 -> 9.5.sp
+                            text.length >= 10 -> 11.sp
+                            isCompactPill -> 12.sp
+                            else -> 13.sp
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(pillSpacing),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Column 1: Daily Target / Allowance
+                            val dailyTargetText = String.format(Locale.US, "HK$ %,.0f", dailyAllowance)
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = pillPaddingHorizontal, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.hero_daily_target).trim(),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = labelFontSize),
+                                        fontWeight = FontWeight.Medium,
+                                        color = subtitleTextColor.copy(alpha = 0.85f),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    com.example.vibefinance.ui.components.RollingNumberText(
+                                        text = dailyTargetText,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontSize = autoMetricFontSize(dailyTargetText)),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = subtitleTextColor
+                                    )
+                                }
+                            }
+
+                            // Column 2: Spent Today
+                            val spentVal = if (todaySpent < 0.5) 0.0 else todaySpent
+                            val spentTodayText = String.format(Locale.US, "HK$ %,.0f", spentVal)
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = pillPaddingHorizontal, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.hero_spent_today).trim(),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = labelFontSize),
+                                        fontWeight = FontWeight.Medium,
+                                        color = subtitleTextColor.copy(alpha = 0.85f),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    com.example.vibefinance.ui.components.RollingNumberText(
+                                        text = spentTodayText,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontSize = autoMetricFontSize(spentTodayText)),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = subtitleTextColor
+                                    )
+                                }
+                            }
+
+                            // Column 3: Tomorrow's Allowance / New Daily Budget
+                            val thirdVal = if (targetThirdMetric < 0.5f) 0.0 else targetThirdMetric.toDouble()
+                            val thirdMetricText = String.format(Locale.US, "HK$ %,.0f", thirdVal)
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = pillPaddingHorizontal, vertical = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = if (isOverdraft) stringResource(R.string.new_daily_budget_short).trim() else stringResource(R.string.tomorrow_daily_format).trim(),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = labelFontSize),
+                                        fontWeight = FontWeight.Medium,
+                                        color = subtitleTextColor.copy(alpha = 0.85f),
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    com.example.vibefinance.ui.components.RollingNumberText(
+                                        text = thirdMetricText,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontSize = autoMetricFontSize(thirdMetricText)),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = subtitleTextColor
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Action Buttons Row inside Hero Card
+                    // Action Buttons Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Option 1: Recalculate / New Period Button
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(44.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .bouncyClickable { onOpenRecalcSheet() },
-                            shape = RoundedCornerShape(14.dp),
+                                .clip(RoundedCornerShape(16.dp))
+                                .bouncyClickable {
+                                    if (isPeriodEnded || isBudgetEnd) {
+                                        onOpenBudgetDialog()
+                                    } else {
+                                        onOpenRecalcSheet()
+                                    }
+                                },
+                            shape = RoundedCornerShape(16.dp),
                             color = actionButtonBg,
                             shadowElevation = 4.dp
                         ) {
@@ -358,7 +507,7 @@ fun HeroDailyBudgetCard(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isPeriodEnded) "開啟新預算週期" else "重新計算預算",
+                                    text = if (isPeriodEnded || isBudgetEnd) stringResource(R.string.btn_new_period) else stringResource(R.string.btn_recalculate_budget),
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = actionButtonTextColor
@@ -370,8 +519,102 @@ fun HeroDailyBudgetCard(
             }
         }
     }
-}
 
-private fun primaryTextColor(isDark: Boolean): Color {
-    return if (isDark) Color.White else Color(0xFF1A1C20)
+    // Modal Sheet 1: Buckwheat New Daily Budget Description
+    if (showNewDayBudgetInfoSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showNewDayBudgetInfoSheet = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.new_daily_budget),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = String.format(Locale.US, "HK$ %,.0f/day", budgetInfo.newDailyBudget),
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.new_daily_budget_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { showNewDayBudgetInfoSheet = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(text = "OK", fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+
+    // Modal Sheet 2: Buckwheat Budget Is Over Description
+    if (showBudgetEndInfoSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBudgetEndInfoSheet = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.budget_end),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.budget_end_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = {
+                        showBudgetEndInfoSheet = false
+                        onOpenBudgetDialog()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(text = stringResource(R.string.btn_new_period), fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
 }

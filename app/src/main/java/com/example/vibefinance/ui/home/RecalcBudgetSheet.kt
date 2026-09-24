@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,16 +31,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.RolloverMode
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.ui.common.bouncyClickable
 import kotlinx.coroutines.delay
-import androidx.compose.runtime.withFrameNanos
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.cos
@@ -94,43 +97,90 @@ fun RecalcBudgetSheet(
 
     // Particle state list for physics animation
     val particles = remember { mutableStateListOf<RibbonParticle>() }
-    var animTick by remember { mutableStateOf(0L) }
+    var animTick by remember { mutableLongStateOf(0L) }
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    var hasLaunchedConfetti by remember { mutableStateOf(false) }
 
-    // Launch Buckwheat 60FPS physics loop
-    LaunchedEffect(Unit) {
+    // Launch one celebration after Canvas has a measured size, then stop requesting frames.
+    LaunchedEffect(canvasSize.width > 0 && canvasSize.height > 0) {
+        if (canvasSize.width <= 0 || canvasSize.height <= 0 || hasLaunchedConfetti) return@LaunchedEffect
+        hasLaunchedConfetti = true
         delay(150)
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
+        val canvasWidth = canvasSize.width.toFloat()
+        val canvasHeight = canvasSize.height.toFloat()
+        repeat(80) {
+            val angleRad = Math.toRadians((Random.nextFloat() * 45f + 35f).toDouble())
+            val force = Random.nextFloat() * 14f + 7f
+            particles.add(
+                RibbonParticle(
+                    posX = canvasWidth * 0.1f,
+                    posY = canvasHeight * 0.5f,
+                    velX = (cos(angleRad) * force).toFloat(),
+                    velY = -(sin(angleRad) * force).toFloat(),
+                    color = buckwheatColors.random(),
+                    width = Random.nextFloat() * 12f + 8f,
+                    height = Random.nextFloat() * 18f + 12f,
+                    windage = Random.nextFloat() * 0.1f + 0.02f,
+                    angleZ = Random.nextFloat() * 360f,
+                    angleX = Random.nextFloat() * 360f,
+                    maxLifetimeMs = 3500f,
+                    remainingLifetimeMs = 3500f,
+                    shiftXCoeff = (Random.nextFloat() - 0.5f) * 4f
+                )
+            )
+        }
+        repeat(80) {
+            val angleRad = Math.toRadians((Random.nextFloat() * 45f + 100f).toDouble())
+            val force = Random.nextFloat() * 14f + 7f
+            particles.add(
+                RibbonParticle(
+                    posX = canvasWidth * 0.9f,
+                    posY = canvasHeight * 0.5f,
+                    velX = (cos(angleRad) * force).toFloat(),
+                    velY = -(sin(angleRad) * force).toFloat(),
+                    color = buckwheatColors.random(),
+                    width = Random.nextFloat() * 12f + 8f,
+                    height = Random.nextFloat() * 18f + 12f,
+                    windage = Random.nextFloat() * 0.1f + 0.02f,
+                    angleZ = Random.nextFloat() * 360f,
+                    angleX = Random.nextFloat() * 360f,
+                    maxLifetimeMs = 3500f,
+                    remainingLifetimeMs = 3500f,
+                    shiftXCoeff = (Random.nextFloat() - 0.5f) * 4f
+                )
+            )
+        }
+
         var lastTime = System.nanoTime()
-        while (true) {
+        while (particles.isNotEmpty()) {
             withFrameNanos { frameTime ->
                 val dt = ((frameTime - lastTime) / 1_000_000f).coerceIn(1f, 32f)
                 lastTime = frameTime
                 animTick = frameTime
 
-                if (particles.isNotEmpty()) {
-                    val iterator = particles.iterator()
-                    while (iterator.hasNext()) {
-                        val p = iterator.next()
-                        p.remainingLifetimeMs -= dt
+                val iterator = particles.iterator()
+                while (iterator.hasNext()) {
+                    val p = iterator.next()
+                    p.remainingLifetimeMs -= dt
 
-                        if (p.remainingLifetimeMs <= 0f) {
-                            p.alpha -= dt * 0.002f
-                            if (p.alpha <= 0f) {
-                                iterator.remove()
-                                continue
-                            }
+                    if (p.remainingLifetimeMs <= 0f) {
+                        p.alpha -= dt * 0.002f
+                        if (p.alpha <= 0f) {
+                            iterator.remove()
+                            continue
                         }
-
-                        // Physics updates: Gravity 0.28f + Windage + Sinusoidal Wobble
-                        p.velY += 0.28f * (dt / 16f)
-                        p.velX *= (1f - p.windage * 0.02f)
-                        p.posX += (p.velX + sin(p.remainingLifetimeMs * 0.008f) * p.shiftXCoeff) * (dt / 16f)
-                        p.posY += p.velY * (dt / 16f)
-
-                        p.angleZ += 6f * (dt / 16f)
-                        p.angleX += 5f * (dt / 16f)
                     }
+
+                    // Physics updates: Gravity 0.28f + Windage + Sinusoidal Wobble
+                    p.velY += 0.28f * (dt / 16f)
+                    p.velX *= (1f - p.windage * 0.02f)
+                    p.posX += (p.velX + sin(p.remainingLifetimeMs * 0.008f) * p.shiftXCoeff) * (dt / 16f)
+                    p.posY += p.velY * (dt / 16f)
+
+                    p.angleZ += 6f * (dt / 16f)
+                    p.angleX += 5f * (dt / 16f)
                 }
             }
         }
@@ -353,14 +403,14 @@ fun RecalcBudgetSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "平均分割至包含今天及剩餘天數",
+                                text = stringResource(R.string.split_rest_days_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = primaryTextColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = String.format(Locale.US, "今天預算 HK$%,.0f，明起每天 HK$%,.0f (剩餘 HK$%,.0f)", dailyDistribute, dailyDistribute, (dailyDistribute - todayExpenses).coerceAtLeast(0.0)),
+                                text = stringResource(R.string.split_rest_days_description, dailyDistribute),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = secondaryTextColor,
                                 fontWeight = FontWeight.Medium
@@ -377,7 +427,7 @@ fun RecalcBudgetSheet(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Option 2 Card: "全數加至今天預算" (Leave for Today) with Spring Physics
+                // Option 2 Card: "Leave for Today" (保留至今天) with Spring Physics
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = cardContainerColor,
@@ -397,14 +447,14 @@ fun RecalcBudgetSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (isToday) "全數加至今天預算" else "保留至當天",
+                                text = stringResource(R.string.add_current_day_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = primaryTextColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = String.format(Locale.US, "今天預算 HK$%,.0f，明起每天 HK$%,.0f (剩餘 HK$%,.0f)", dailyTodayAdd, dailyNextDays, (dailyTodayAdd - todayExpenses).coerceAtLeast(0.0)),
+                                text = stringResource(R.string.add_current_day_description, dailyTodayAdd, dailyNextDays),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = secondaryTextColor,
                                 fontWeight = FontWeight.Medium
@@ -427,57 +477,9 @@ fun RecalcBudgetSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(450.dp)
+                    .onSizeChanged { canvasSize = it }
             ) {
                 animTick.let { }
-                val canvasWidth = size.width
-                val canvasHeight = size.height
-
-                // Lazily initialize 160 colorful particles if empty
-                if (particles.isEmpty() && canvasWidth > 0) {
-                    repeat(80) {
-                        val angleRad = Math.toRadians((Random.nextFloat() * 45f + 35f).toDouble())
-                        val force = Random.nextFloat() * 14f + 7f
-                        particles.add(
-                            RibbonParticle(
-                                posX = canvasWidth * 0.1f,
-                                posY = canvasHeight * 0.5f,
-                                velX = (cos(angleRad) * force).toFloat(),
-                                velY = -(sin(angleRad) * force).toFloat(),
-                                color = buckwheatColors.random(),
-                                width = Random.nextFloat() * 12f + 8f,
-                                height = Random.nextFloat() * 18f + 12f,
-                                windage = Random.nextFloat() * 0.1f + 0.02f,
-                                angleZ = Random.nextFloat() * 360f,
-                                angleX = Random.nextFloat() * 360f,
-                                maxLifetimeMs = 3500f,
-                                remainingLifetimeMs = 3500f,
-                                shiftXCoeff = (Random.nextFloat() - 0.5f) * 4f
-                            )
-                        )
-                    }
-
-                    repeat(80) {
-                        val angleRad = Math.toRadians((Random.nextFloat() * 45f + 100f).toDouble())
-                        val force = Random.nextFloat() * 14f + 7f
-                        particles.add(
-                            RibbonParticle(
-                                posX = canvasWidth * 0.9f,
-                                posY = canvasHeight * 0.5f,
-                                velX = (cos(angleRad) * force).toFloat(),
-                                velY = -(sin(angleRad) * force).toFloat(),
-                                color = buckwheatColors.random(),
-                                width = Random.nextFloat() * 12f + 8f,
-                                height = Random.nextFloat() * 18f + 12f,
-                                windage = Random.nextFloat() * 0.1f + 0.02f,
-                                angleZ = Random.nextFloat() * 360f,
-                                angleX = Random.nextFloat() * 360f,
-                                maxLifetimeMs = 3500f,
-                                remainingLifetimeMs = 3500f,
-                                shiftXCoeff = (Random.nextFloat() - 0.5f) * 4f
-                            )
-                        )
-                    }
-                }
 
                 particles.forEach { p ->
                     rotate(degrees = p.angleZ, pivot = Offset(p.posX, p.posY)) {

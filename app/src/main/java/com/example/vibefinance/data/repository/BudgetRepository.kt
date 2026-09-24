@@ -86,6 +86,17 @@ class BudgetRepository @Inject constructor() {
             }
             val dailyRemaining = dailyAllowanceToday - todayExpensesSum
 
+            // Buckwheat Recalculation for following days if today is overspent or for baseline
+            val futureDays = (daysLeft - 1).coerceAtLeast(1)
+            val remainingAfterToday = (budget.totalBudgetAmount - totalSpent).coerceAtLeast(0.0)
+            val newDailyBudget = if (daysLeft > 1) remainingAfterToday / futureDays else remainingAfterToday
+
+            val tomorrowAllowance = when {
+                dailyRemaining < 0.0 -> newDailyBudget
+                budget.rolloverMode == com.example.vibefinance.data.entity.RolloverMode.ADD_TO_NEXT_DAY -> standardBaseDaily
+                else -> if (daysLeft > 1) (periodRemainingBeforeToday - todayExpensesSum) / daysLeft else dailyAllowanceToday
+            }
+
             DailyBudgetInfo(
                 totalMonthlyBudget = budget.totalBudgetAmount,
                 totalSpentThisMonth = totalSpent,
@@ -95,7 +106,9 @@ class BudgetRepository @Inject constructor() {
                 daysLeft = daysLeft,
                 startDate = budget.startDate,
                 endDate = budget.endDate,
-                rolloverMode = budget.rolloverMode
+                rolloverMode = budget.rolloverMode,
+                newDailyBudget = newDailyBudget,
+                tomorrowAllowance = tomorrowAllowance
             )
         }
     }
@@ -110,5 +123,7 @@ data class DailyBudgetInfo(
     val daysLeft: Int,
     val startDate: Long,
     val endDate: Long,
-    val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY
+    val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY,
+    val newDailyBudget: Double = 0.0,
+    val tomorrowAllowance: Double = 0.0
 )

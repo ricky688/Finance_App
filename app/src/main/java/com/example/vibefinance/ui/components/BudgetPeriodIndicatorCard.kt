@@ -103,7 +103,10 @@ fun BudgetPeriodIndicatorCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
@@ -119,25 +122,29 @@ fun BudgetPeriodIndicatorCard(
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
-                                text = "Budget Period (預算週期)",
+                                text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.budget_period_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                             ) {
                                 Text(
-                                    text = "Active",
+                                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.badge_active),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -145,10 +152,13 @@ fun BudgetPeriodIndicatorCard(
                             text = "$startFormatted – $endFormatted",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -156,11 +166,12 @@ fun BudgetPeriodIndicatorCard(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 ) {
                     Text(
-                        text = "${budgetInfo.daysLeft}d left",
+                        text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.days_left_format, budgetInfo.daysLeft),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        maxLines = 1
                     )
                 }
             }
@@ -174,13 +185,13 @@ fun BudgetPeriodIndicatorCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = String.format(Locale.US, "Spent: HK$ %,.2f", budgetInfo.totalSpentThisMonth),
+                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.history_spent_format, budgetInfo.totalSpentThisMonth),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = String.format(Locale.US, "Budget: HK$ %,.2f", budgetInfo.totalMonthlyBudget),
+                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.history_budget_format, budgetInfo.totalMonthlyBudget),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -189,40 +200,35 @@ fun BudgetPeriodIndicatorCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Progress track
-            Box(
+            LinearProgressIndicator(
+                progress = { animatedProgress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(animatedProgress)
-                        .clip(CircleShape)
-                        .background(
-                            if (spentRatio >= 1.0f) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.primary
-                        )
-                )
-            }
+                    .height(8.dp),
+                color = if (spentRatio >= 1.0f) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
             // 3. Expressive Connected Button Group (ExpressiveSegmentedButtonGroup)
             val periodModes = PeriodFilterMode.entries
             val selectedIndex = periodModes.indexOf(selectedFilter)
+            val strAll = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_all)
+            val strActive = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_active)
+            val strOther = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_other)
+
             ExpressiveSegmentedButtonGroup(
                 items = periodModes,
                 selectedIndex = selectedIndex,
                 onItemSelected = { index -> onSelectFilter(periodModes[index]) },
+                isScrollable = false,
                 labelProvider = { mode ->
                     when (mode) {
-                        PeriodFilterMode.ALL -> "全部記錄"
-                        PeriodFilterMode.ACTIVE_PERIOD -> "當前週期"
-                        PeriodFilterMode.OTHER_PERIODS -> "過往週期"
+                        PeriodFilterMode.ALL -> strAll
+                        PeriodFilterMode.ACTIVE_PERIOD -> strActive
+                        PeriodFilterMode.OTHER_PERIODS -> strOther
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

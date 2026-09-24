@@ -1,6 +1,8 @@
 package com.example.vibefinance.ui.home
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -35,7 +37,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -50,17 +52,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.unit.Dp
+import com.example.vibefinance.theme.BentoCardShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Commute
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Savings
@@ -69,7 +75,6 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import com.example.vibefinance.theme.ThemeMode
@@ -161,12 +166,85 @@ fun CategoryIcon(category: String, tint: Color, modifier: Modifier = Modifier) {
         "entertainment", "netflix", "premium", "subscription", "recurring" -> Icons.Default.AutoMode
         "salary", "paycheck", "wages" -> Icons.Default.Savings
         "bonus", "reward" -> Icons.Default.Add
-        "investment", "dividend", "stocks" -> Icons.Default.TrendingUp
+        "investment", "dividend", "stocks" -> Icons.AutoMirrored.Filled.TrendingUp
         "part-time", "freelance", "side hustle" -> Icons.Default.AccountBalance
         "gift", "redpocket", "allowance" -> Icons.Default.Savings
         else -> Icons.Default.MoreHoriz
     }
     Icon(icon, contentDescription = category, tint = tint, modifier = modifier)
+}
+
+/**
+ * Resolves responsive Bento grid column and item spacing based on available screen width.
+ */
+fun resolveBentoSpacing(screenWidthDp: Int): Dp = if (screenWidthDp < 400) 12.dp else 16.dp
+
+/**
+ * Resolves responsive screen horizontal/vertical outer padding based on available screen width.
+ */
+fun resolveScreenPadding(screenWidthDp: Int): Dp = if (screenWidthDp < 400) 12.dp else 16.dp
+
+/**
+ * Resolves responsive top bar horizontal padding based on available screen width.
+ */
+fun resolveTopBarPadding(screenWidthDp: Int): Dp = if (screenWidthDp < 400) 12.dp else 20.dp
+
+/**
+ * Daily financial vibe health categories based on daily spending ratio.
+ */
+enum class DailyVibeCategory {
+    SAVING_VIBE,
+    STEADY_VIBE,
+    OVERSPENT_ALERT
+}
+
+/**
+ * Categorizes current day's financial health vibe according to spending ratio.
+ */
+fun resolveDailyVibeCategory(dailyAllowance: Double, dailyRemaining: Double): DailyVibeCategory {
+    val spentToday = dailyAllowance - dailyRemaining
+    val ratioSpent = if (dailyAllowance > 0) spentToday / dailyAllowance else 0.0
+    return when {
+        ratioSpent <= 0.5 -> DailyVibeCategory.SAVING_VIBE
+        ratioSpent <= 1.0 -> DailyVibeCategory.STEADY_VIBE
+        else -> DailyVibeCategory.OVERSPENT_ALERT
+    }
+}
+
+/**
+ * Calculates total period duration in days between start and end epochs.
+ */
+fun calculatePeriodTotalDays(startDate: Long, endDate: Long): Int {
+    return if (startDate > 0 && endDate > 0) {
+        val startLocal = Instant.ofEpochMilli(startDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        val endLocal = Instant.ofEpochMilli(endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        (ChronoUnit.DAYS.between(startLocal, endLocal) + 1).toInt()
+    } else {
+        30
+    }
+}
+
+@Composable
+fun getCategoryDisplayName(category: String): String {
+    return when (category.lowercase(Locale.US).trim()) {
+        "food", "food & drink", "restaurant", "food & dining" -> stringResource(R.string.cat_food)
+        "transport", "transit", "commute", "bus", "taxi" -> stringResource(R.string.cat_transport)
+        "shopping", "clothing" -> stringResource(R.string.cat_shopping)
+        "groceries", "supermarket" -> stringResource(R.string.cat_groceries)
+        "electronics", "gadgets" -> stringResource(R.string.cat_electronics)
+        "entertainment", "movie", "games", "gaming" -> stringResource(R.string.cat_entertainment)
+        "utilities", "electricity", "water", "bills" -> stringResource(R.string.cat_utilities)
+        "housing", "rent" -> stringResource(R.string.cat_housing)
+        "health", "medical", "health & medical" -> stringResource(R.string.cat_health)
+        "software / ai", "software", "ai", "subscription", "recurring" -> stringResource(R.string.cat_software_ai)
+        "education", "tuition" -> stringResource(R.string.cat_education)
+        "salary", "paycheck", "wages", "income" -> stringResource(R.string.cat_salary)
+        "bonus", "reward" -> stringResource(R.string.cat_bonus)
+        "investment", "dividend", "stocks" -> stringResource(R.string.cat_investment)
+        "transfer" -> stringResource(R.string.filter_transfer)
+        "others", "other" -> stringResource(R.string.cat_others)
+        else -> category
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -175,6 +253,7 @@ fun HomeScreen(
     state: FinanceUiState,
     onIntent: (FinanceIntent) -> Unit,
     modifier: Modifier = Modifier,
+    topContentPadding: Dp = 16.dp,
     onViewAllClick: () -> Unit = {},
     showAddDialog: Boolean = false,
     onDismissAddDialog: () -> Unit = {},
@@ -194,14 +273,13 @@ fun HomeScreen(
     )
 
     // Dynamic glow color based on Daily Spent ratio
-    val spentToday = budgetInfo.dailyAllowance - budgetInfo.dailyRemaining
-    val ratioSpent = if (budgetInfo.dailyAllowance > 0) spentToday / budgetInfo.dailyAllowance else 0.0
+    val dailyVibe = resolveDailyVibeCategory(budgetInfo.dailyAllowance, budgetInfo.dailyRemaining)
 
     val glowColorAnimated by animateColorAsState(
-        targetValue = when {
-            ratioSpent <= 0.5 -> MaterialTheme.colorScheme.primary // Saving Vibe
-            ratioSpent <= 1.0 -> MaterialTheme.colorScheme.secondary // Steady Vibe
-            else -> MaterialTheme.colorScheme.tertiary              // Overspent Alert
+        targetValue = when (dailyVibe) {
+            DailyVibeCategory.SAVING_VIBE -> MaterialTheme.colorScheme.primary // Saving Vibe
+            DailyVibeCategory.STEADY_VIBE -> MaterialTheme.colorScheme.secondary // Steady Vibe
+            DailyVibeCategory.OVERSPENT_ALERT -> MaterialTheme.colorScheme.tertiary // Overspent Alert
         },
         animationSpec = tween(durationMillis = 600),
         label = "glowColor"
@@ -224,13 +302,7 @@ fun HomeScreen(
         }
     }
     val totalDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
-        if (budgetInfo.startDate > 0 && budgetInfo.endDate > 0) {
-            val startLocal = Instant.ofEpochMilli(budgetInfo.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
-            val endLocal = Instant.ofEpochMilli(budgetInfo.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
-            (ChronoUnit.DAYS.between(startLocal, endLocal) + 1).toInt()
-        } else {
-            30
-        }
+        calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
     }
 
     // Dynamic extraction of lowest and highest expense values
@@ -261,17 +333,9 @@ fun HomeScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = topContentPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-            // A. TOP PROFILE APP BAR SPACER
-            item {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .height(72.dp)
-                )
-            }
             // ICONIC HERO DAILY REMAINING BUDGET CARD (Option 5)
             item {
                 HeroDailyBudgetCard(
@@ -285,7 +349,7 @@ fun HomeScreen(
             item {
                 WholeBudgetCard(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(BentoCardShape)
                         .bouncyClickable { onOpenBudgetDialog() },
                     budget = budgetInfo.totalMonthlyBudget,
                     startDate = budgetInfo.startDate,
@@ -296,12 +360,13 @@ fun HomeScreen(
                 )
             }
 
-
-
             // C. BENTO MATRIX SECTION
             item {
+                val screenWidthDp = LocalConfiguration.current.screenWidthDp
+                val bentoSpacing = resolveBentoSpacing(screenWidthDp)
+
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(bentoSpacing),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     // Left: Remaining Budget, Right: Circular Days Left & Stats
@@ -311,6 +376,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(IntrinsicSize.Min),
+                        horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RestAndSpentBudgetCard(
@@ -321,22 +387,15 @@ fun HomeScreen(
                             totalBudget = budgetInfo.totalMonthlyBudget,
                             isDarkTheme = isDark
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        val totalDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
-                            if (budgetInfo.startDate > 0 && budgetInfo.endDate > 0) {
-                                val startLocal = Instant.ofEpochMilli(budgetInfo.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
-                                val endLocal = Instant.ofEpochMilli(budgetInfo.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
-                                (ChronoUnit.DAYS.between(startLocal, endLocal) + 1).toFloat()
-                            } else {
-                                30f
-                            }
+                        val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
+                            calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
                         }
                         DaysLeftCard(
                             modifier = Modifier
                                 .weight(0.8f)
                                 .height(160.dp),
                             daysLeft = budgetInfo.daysLeft,
-                            totalDays = totalDays.toInt()
+                            totalDays = totalPeriodDays
                         )
                     }
 
@@ -345,7 +404,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(IntrinsicSize.Min),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         MinMaxSpentCard(
@@ -383,7 +442,7 @@ fun HomeScreen(
 
             // Bottom space
             item {
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }
@@ -400,32 +459,36 @@ fun TotalExpensesRow(
     val totalCount = state.transactions.size
     val totalExpenses = state.transactions.filter { it.toAccountId == null && !it.isExcludedFromDailyBudget && it.amount > 0 }.sumOf { it.amount }
     
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val isCompact = screenWidthDp < 400
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = BentoCardShape,
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onViewAllClick() }
+            .clip(BentoCardShape)
+            .bouncyClickable { onViewAllClick() }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+                .padding(horizontal = if (isCompact) 14.dp else 20.dp, vertical = if (isCompact) 14.dp else 18.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
-                    text = "Total Expenses",
+                    text = stringResource(R.string.total_expenses),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "$totalCount transactions logged",
+                    text = stringResource(R.string.transactions_logged_count, totalCount),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -441,8 +504,8 @@ fun TotalExpensesRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowRight,
-                    contentDescription = "View Details",
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.view_details),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
@@ -462,20 +525,30 @@ private fun blendColors(colorA: Color, colorB: Color, angle: Float): Color {
 
 
 
+/**
+ * Expressive categorical color palette for the daily donut chart.
+ * Uses unified ChartColors for 100% color scheme consistency across all 4 pages.
+ */
+fun getDailySemanticCategoryColor(category: String, isDark: Boolean): Color? =
+    com.example.vibefinance.theme.ChartColors.getSemanticCategoryColor(category, isDark)
+
+fun getDailyFallbackPalette(isDark: Boolean): List<Color> =
+    com.example.vibefinance.theme.ChartColors.getFallbackPalette(isDark)
+
+fun buildDailyCategoryColorMap(
+    categories: List<String>,
+    isDark: Boolean,
+    primaryColor: Color
+): Map<String, Color> =
+    com.example.vibefinance.theme.ChartColors.buildCategoryColorMap(categories, isDark, primaryColor)
+
 @Composable
 fun CategoryDonutChart(
     state: FinanceUiState,
     modifier: Modifier = Modifier
 ) {
-    val colors = listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.secondary,
-        MaterialTheme.colorScheme.tertiary,
-        MaterialTheme.colorScheme.inversePrimary,
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.secondaryContainer,
-        MaterialTheme.colorScheme.tertiaryContainer
-    )
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val primaryColor = MaterialTheme.colorScheme.primary
     
     val categorySpending = remember(state.transactions) {
         val map = mutableMapOf<String, Double>()
@@ -491,10 +564,12 @@ fun CategoryDonutChart(
         categorySpending.sumOf { it.second }
     }
     
-    val categoryColors = remember(categorySpending, colors) {
-        categorySpending.mapIndexed { index, pair ->
-            pair.first to colors[index % colors.size]
-        }.toMap()
+    val categoryColors = remember(categorySpending, isDark, primaryColor) {
+        buildDailyCategoryColorMap(
+            categories = categorySpending.map { it.first },
+            isDark = isDark,
+            primaryColor = primaryColor
+        )
     }
 
     var selectedCategory by remember { mutableStateOf<String?>(null) }
@@ -567,11 +642,11 @@ fun CategoryDonutChart(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Interactive Animated Donut Chart Canvas
                 Box(
-                    modifier = Modifier.size(136.dp),
+                    modifier = Modifier.size(118.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(

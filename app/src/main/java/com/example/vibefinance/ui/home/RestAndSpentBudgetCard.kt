@@ -1,10 +1,7 @@
 package com.example.vibefinance.ui.home
 
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,11 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.vibefinance.theme.BentoCardShape
 import java.util.Locale
 
 data class HarmonizedColorPalette(
@@ -48,74 +47,40 @@ fun RestAndSpentBudgetCard(
         remainingBudget
     }
 
-    val displayLabel = if (showSpentCard) "已花費" else "總剩餘"
+    val labelSpent = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.total_spent)
+    val labelRemaining = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.total_remaining)
+    val displayLabel = if (showSpentCard) labelSpent else labelRemaining
     
     val percentFormatted = String.format(Locale.US, "%.2f%%", ratio * 100)
 
-    val infiniteTransition = rememberInfiniteTransition(label = "waveShift")
-    val shift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 5000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "waveShift"
-    )
+    val shiftState = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        shiftState.animateTo(1f, tween(durationMillis = 5000, easing = LinearEasing))
+    }
 
-    // Custom harmonized colors matching buckwheat screenshot
-    val colors = remember(ratio, isDarkTheme) {
-        if (ratio < 0.2f) {
-            // Low budget -> Red/Pink
-            if (isDarkTheme) {
-                HarmonizedColorPalette(
-                    main = Color(0xFFC62828),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFF2C1C1D),
-                    onContainer = Color(0xFFFFCDD2)
-                )
-            } else {
-                HarmonizedColorPalette(
-                    main = Color(0xFFE57373),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFFFFEBEE),
-                    onContainer = Color(0xFFC62828)
-                )
-            }
-        } else if (ratio < 0.5f) {
-            // Medium budget -> Orange/Yellow
-            if (isDarkTheme) {
-                HarmonizedColorPalette(
-                    main = Color(0xFFE65100),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFF2D2319),
-                    onContainer = Color(0xFFFFE0B2)
-                )
-            } else {
-                HarmonizedColorPalette(
-                    main = Color(0xFFFFB74D),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFFFFF3E0),
-                    onContainer = Color(0xFFEF6C00)
-                )
-            }
-        } else {
-            // Good budget -> Green/Teal
-            if (isDarkTheme) {
-                HarmonizedColorPalette(
-                    main = Color(0xFF2E7D32),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFF1B241C),
-                    onContainer = Color(0xFFC8E6C9)
-                )
-            } else {
-                HarmonizedColorPalette(
-                    main = Color(0xFF81C784),
-                    onMain = Color(0xFFFFFFFF),
-                    container = Color(0xFFE8F5E9),
-                    onContainer = Color(0xFF2E7D32)
-                )
-            }
+    val colorScheme = MaterialTheme.colorScheme
+
+    // Semantic tokens replacing hardcoded hex colors
+    val colors = remember(ratio, colorScheme) {
+        when {
+            ratio < 0.2f -> HarmonizedColorPalette(
+                main = colorScheme.error.copy(alpha = 0.30f),
+                onMain = colorScheme.onError,
+                container = colorScheme.errorContainer,
+                onContainer = colorScheme.onErrorContainer
+            )
+            ratio < 0.5f -> HarmonizedColorPalette(
+                main = colorScheme.tertiary.copy(alpha = 0.30f),
+                onMain = colorScheme.onTertiary,
+                container = colorScheme.tertiaryContainer,
+                onContainer = colorScheme.onTertiaryContainer
+            )
+            else -> HarmonizedColorPalette(
+                main = colorScheme.primary.copy(alpha = 0.30f),
+                onMain = colorScheme.onPrimary,
+                container = colorScheme.primaryContainer,
+                onContainer = colorScheme.onPrimaryContainer
+            )
         }
     }
 
@@ -125,7 +90,7 @@ fun RestAndSpentBudgetCard(
 
     Box(
         modifier = modifier
-            .clip(shape = RoundedCornerShape(24.dp))
+            .clip(shape = BentoCardShape)
             .bouncyClickable { showSpentCard = !showSpentCard }
             .onGloballyPositioned {
                 heightDp = with(localDensity) { it.size.height.toDp() }
@@ -136,11 +101,12 @@ fun RestAndSpentBudgetCard(
 
         Card(
             modifier = Modifier.fillMaxWidth().height(resolvedHeight),
-            shape = RoundedCornerShape(24.dp),
+            shape = BentoCardShape,
             colors = CardDefaults.cardColors(
                 containerColor = colors.container,
                 contentColor = colors.onContainer,
             ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Box(
                 Modifier.fillMaxSize()
@@ -148,25 +114,32 @@ fun RestAndSpentBudgetCard(
                 // Wave background
                 Box(
                     modifier = Modifier
-                        .background(
-                            colors.main,
+                        .fillMaxHeight()
+                        .fillMaxWidth(ratio)
+                        .graphicsLayer {
                             shape = WavyShape(
                                 period = 40.dp,
                                 amplitude = 2.dp * (1f - ((ratio.coerceIn(0.96f, 1f) - 0.96f) / (1f - 0.96f))),
-                                shift = shift,
-                            ),
-                        )
-                        .fillMaxHeight()
-                        .fillMaxWidth(ratio),
+                                shift = shiftState.value,
+                            )
+                            clip = true
+                        }
+                        .background(colors.main),
                 )
 
-                val verticalPadding = if (heightDp > 0.dp) (heightDp * 0.1f).coerceIn(8.dp, 16.dp) else 16.dp
-                val horizontalPadding = if (widthDp > 0.dp) (widthDp * 0.15f).coerceIn(12.dp, 24.dp) else 24.dp
+                val verticalPadding = if (heightDp > 0.dp) (heightDp * 0.1f).coerceIn(8.dp, 16.dp) else 14.dp
+                val horizontalPadding = if (widthDp > 0.dp) (widthDp * 0.12f).coerceIn(12.dp, 18.dp) else 14.dp
 
-                val amountFontSize = if (heightDp > 0.dp) (heightDp.value * 0.15f).coerceIn(16f, 26f).sp else 24.sp
+                val baseAmountFontSize = if (heightDp > 0.dp) (heightDp.value * 0.15f).coerceIn(16f, 26f).sp else 24.sp
+                val formattedAmount = String.format(Locale.US, "$%,.2f", displayAmount)
+                val amountFontSize = when {
+                    formattedAmount.length >= 12 -> (baseAmountFontSize.value * 0.75f).sp
+                    formattedAmount.length >= 10 -> (baseAmountFontSize.value * 0.85f).sp
+                    else -> baseAmountFontSize
+                }
                 val labelFontSize = if (heightDp > 0.dp) (heightDp.value * 0.075f).coerceIn(10f, 14f).sp else 12.sp
                 val percentFontSize = if (heightDp > 0.dp) (heightDp.value * 0.07f).coerceIn(9f, 12f).sp else 11.sp
-                val spacerHeight = if (heightDp > 0.dp) (heightDp * 0.04f).coerceIn(2.dp, 8.dp) else 6.dp
+                val spacerHeight = if (heightDp > 0.dp) (heightDp * 0.04f).coerceIn(2.dp, 8.dp) else 4.dp
 
                 Column(
                     Modifier
@@ -176,7 +149,7 @@ fun RestAndSpentBudgetCard(
                     verticalArrangement = Arrangement.Center
                 ) {
                     com.example.vibefinance.ui.components.RollingNumberText(
-                        text = String.format(Locale.US, "$%,.2f", displayAmount),
+                        text = formattedAmount,
                         style = androidx.compose.ui.text.TextStyle(fontSize = amountFontSize),
                         fontWeight = FontWeight.Bold,
                         color = colors.onContainer
@@ -184,13 +157,15 @@ fun RestAndSpentBudgetCard(
                     Text(
                         text = displayLabel,
                         fontSize = labelFontSize,
-                        color = colors.onContainer.copy(alpha = 0.6f),
+                        color = colors.onContainer.copy(alpha = 0.7f),
+                        maxLines = 1
                     )
                     Spacer(modifier = Modifier.height(spacerHeight))
                     Text(
-                        text = "預算的 $percentFormatted",
+                        text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.percent_of_budget, percentFormatted),
                         fontSize = percentFontSize,
-                        color = colors.onContainer.copy(alpha = 0.8f)
+                        color = colors.onContainer.copy(alpha = 0.85f),
+                        maxLines = 1
                     )
                 }
             }

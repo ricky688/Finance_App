@@ -1,5 +1,14 @@
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.common.horizontalFadingEdge
+import com.example.vibefinance.ui.common.verticalFadingEdge
+import com.example.vibefinance.ui.common.responsiveVerticalFadingEdge
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.runtime.mutableFloatStateOf
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -8,8 +17,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -29,6 +46,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.rememberScrollState
@@ -79,6 +97,7 @@ import androidx.compose.ui.zIndex
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.AccountType
+import com.example.vibefinance.data.entity.InterceptableApp
 import com.example.vibefinance.ui.home.CategoryIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.Velocity
@@ -91,8 +110,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -120,7 +142,11 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.outlined.AutoMode
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -128,6 +154,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
@@ -143,6 +170,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
+import com.example.vibefinance.ui.AppLanguage
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.draw.alpha
@@ -150,8 +180,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import com.example.vibefinance.ui.components.KeyboardButton
 import com.example.vibefinance.ui.components.KeyboardButtonType
-import com.example.vibefinance.ui.components.WheelNumberPicker
 import com.example.vibefinance.ui.components.GlassmorphicCard
+import com.example.vibefinance.ui.components.VibeFinanceIcon
 import androidx.compose.material3.Surface
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Check
@@ -192,6 +222,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.theme.ThemeMode
 import com.example.vibefinance.ui.FinanceIntent
+import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.FinanceUiEvent
 import com.example.vibefinance.ui.FinanceViewModel
 import com.example.vibefinance.ui.accounts.AccountsScreen
@@ -224,14 +255,294 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.drawWithContent
 import com.example.vibefinance.ui.recurring.RecurringScreen
 import androidx.compose.runtime.saveable.rememberSaveable
+import dev.chrisbanes.haze.HazeDefaults
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 import com.example.vibefinance.ui.radar.RadarScreen
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.outlined.GpsFixed
 
-enum class TabItem { HOME, ACCOUNTS, RADAR, RECURRING, HISTORY }
+enum class TabItem { HOME, ACCOUNTS, RECURRING, HISTORY }
 
-@OptIn(ExperimentalMaterial3Api::class)
+enum class TransactionMode {
+    EXPENSE,
+    INCOME,
+    TRANSFER
+}
+
+private data class TopBarPageText(val primary: String, val supporting: String)
+
+@Composable
+private fun topBarPageText(tab: TabItem, state: FinanceUiState): TopBarPageText {
+    val primary = when (tab) {
+        TabItem.HOME -> stringResource(R.string.topbar_vibe_overview)
+        TabItem.ACCOUNTS -> stringResource(R.string.topbar_assets_cards)
+        TabItem.RECURRING -> stringResource(R.string.subscriptions_title)
+        TabItem.HISTORY -> stringResource(R.string.topbar_activity_history)
+    }
+    val translation = when (tab) {
+        TabItem.HOME -> stringResource(R.string.topbar_alt_vibe_overview)
+        TabItem.ACCOUNTS -> stringResource(R.string.topbar_alt_assets_cards)
+        TabItem.RECURRING -> stringResource(R.string.topbar_alt_subscriptions)
+        TabItem.HISTORY -> stringResource(R.string.topbar_alt_activity_history)
+    }
+    val detail = when (tab) {
+        TabItem.HOME -> stringResource(R.string.topbar_daily_flow)
+        TabItem.ACCOUNTS -> stringResource(R.string.topbar_cards_assets_count, state.accounts.size)
+        TabItem.RECURRING -> stringResource(R.string.active_count_format, state.subscriptions.size)
+        TabItem.HISTORY -> stringResource(R.string.topbar_transactions_logged, state.transactions.size)
+    }
+    return TopBarPageText(primary, "$translation · $detail")
+}
+
+@Composable
+private fun ExpressiveCollapsingTopBar(
+    selectedTab: TabItem,
+    state: FinanceUiState,
+    isExpanded: Boolean,
+    hazeState: HazeState,
+    onHeightMeasured: (Float) -> Unit,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier = Modifier,
+    canNavigateBack: Boolean = false,
+    onNavigateBack: () -> Unit = {}
+) {
+    val colors = MaterialTheme.colorScheme
+    val topRowHeight = 64.dp +
+        32.dp * (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f)
+    val springFloat = spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow
+    )
+    val specularEdge = Brush.horizontalGradient(
+        0f to Color.Transparent,
+        0.22f to colors.outlineVariant.copy(alpha = 0.40f),
+        0.50f to colors.surfaceTint.copy(alpha = 0.60f),
+        0.78f to colors.outlineVariant.copy(alpha = 0.40f),
+        1f to Color.Transparent
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { onHeightMeasured(it.size.height.toFloat()) }
+            .hazeEffect(
+                state = hazeState,
+                style = HazeDefaults.style(backgroundColor = colors.surface)
+            )
+            .background(colors.surface.copy(alpha = 0.90f))
+            .drawWithContent {
+                drawContent()
+                drawLine(
+                    brush = specularEdge,
+                    start = Offset(0f, size.height - 1.dp.toPx()),
+                    end = Offset(size.width, size.height - 1.dp.toPx()),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            .statusBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(topRowHeight)
+                .padding(start = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (canNavigateBack) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                }
+            } else {
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Surface(
+                        modifier = Modifier.size(36.dp),
+                        shape = CircleShape,
+                        color = colors.primaryContainer,
+                        border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.3f))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            VibeFinanceIcon(
+                                size = 22.dp,
+                                showBackground = false
+                            )
+                        }
+                    }
+                }
+            }
+
+            AnimatedContent(
+                targetState = if (isExpanded) null else selectedTab,
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart,
+                transitionSpec = {
+                    val enter = fadeIn(animationSpec = springFloat) + slideInVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) { -it / 2 }
+                    val exit = fadeOut(animationSpec = springFloat) + slideOutVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    ) { it / 2 }
+                    (enter togetherWith exit).using(
+                        SizeTransform(clip = false) { _, _ ->
+                            spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        }
+                    )
+                },
+                label = "topRowBrandToCompactTitle"
+            ) { compactTab ->
+                if (compactTab == null) {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = colors.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                } else {
+                    val page = topBarPageText(compactTab, state)
+                    Column {
+                        Text(
+                            text = page.primary,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = colors.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = page.supporting,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+            actions()
+        }
+
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically(
+                expandFrom = Alignment.Top,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(animationSpec = springFloat) + slideInVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) { -it / 4 },
+            exit = shrinkVertically(
+                shrinkTowards = Alignment.Top,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeOut(animationSpec = springFloat) + slideOutVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) { -it / 4 }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Line 1: Primary Title (Finance Overview) with energetic medium-bouncy vertical spring
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        val enter = fadeIn(animationSpec = springFloat) + slideInVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) { -it / 2 }
+                        val exit = fadeOut(animationSpec = springFloat) + slideOutVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            )
+                        ) { it / 2 }
+                        enter togetherWith exit
+                    },
+                    label = "largePagePrimaryTitle"
+                ) { tab ->
+                    val page = topBarPageText(tab, state)
+                    Text(
+                        text = page.primary,
+                        fontSize = 26.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = colors.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+
+                // Line 2: Supporting Subtitle (English word / subtext below) with separate, staggered softer spring
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        val enter = fadeIn(
+                            animationSpec = tween(
+                                durationMillis = 260,
+                                delayMillis = 65,
+                                easing = FastOutSlowInEasing
+                            )
+                        ) + slideInVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessLow
+                            )
+                        ) { -it * 3 / 4 }
+                        val exit = fadeOut(
+                            animationSpec = tween(durationMillis = 140)
+                        ) + slideOutVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) { it * 3 / 4 }
+                        enter togetherWith exit
+                    },
+                    label = "largePageSupportingTitle"
+                ) { tab ->
+                    val page = topBarPageText(tab, state)
+                    Text(
+                        text = page.supporting,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MainScreen(
     viewModel: FinanceViewModel,
@@ -243,22 +554,34 @@ fun MainScreen(
     var selectedTab by rememberSaveable { mutableStateOf(TabItem.HOME) }
     var showBudgetDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
-    val addExpenseSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showAddRecurringSheet by remember { mutableStateOf(false) }
+    var showLoadingIndicator by remember { mutableStateOf(false) }
+    var isFabMenuExpanded by remember { mutableStateOf(false) }
+    var activeTransactionMode by remember { mutableStateOf(TransactionMode.EXPENSE) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Scroll state tracking
     val density = LocalDensity.current
-    val topBarHeight = 120.dp
-    val bottomBarHeight = 100.dp
-
-    val topBarHeightPx = remember(density) { with(density) { topBarHeight.toPx() } }
-    val bottomBarHeightPx = remember(density) { with(density) { bottomBarHeight.toPx() } }
-
-    var topBarOffsetHeightPx by remember { mutableStateOf(0f) }
-    var bottomBarOffsetHeightPx by remember { mutableStateOf(0f) }
+    var measuredBottomBarHeightPx by remember { mutableFloatStateOf(0f) }
 
     var isFabExpanded by remember { mutableStateOf(true) }
     var isNavBarVisible by remember { mutableStateOf(true) }
+    var isTopBarExpanded by rememberSaveable { mutableStateOf(true) }
+    var topBarScrollDistancePx by remember { mutableFloatStateOf(0f) }
+    var expandedTopBarHeightPx by remember(density.fontScale) { mutableFloatStateOf(0f) }
+    val topBarCollapseThresholdPx = with(density) { 32.dp.toPx() }
+    val hazeState = rememberHazeState()
+    val overlayTopBar = LocalConfiguration.current.screenWidthDp < 600
+    val pageTopPadding = if (overlayTopBar) {
+        val expandedHeight = if (expandedTopBarHeightPx > 0f) {
+            with(density) { expandedTopBarHeightPx.toDp() }
+        } else {
+            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 152.dp
+        }
+        expandedHeight + 16.dp
+    } else {
+        16.dp
+    }
 
     val navBarOffsetY by animateDpAsState(
         targetValue = if (isNavBarVisible) 0.dp else 140.dp,
@@ -266,20 +589,7 @@ fun MainScreen(
         label = "navBarOffsetY"
     )
 
-    val budgetInfoState = state.budgetInfo
-    val spentToday = if (budgetInfoState != null) budgetInfoState.dailyAllowance - budgetInfoState.dailyRemaining else 0.0
-    val ratioSpent = if (budgetInfoState != null && budgetInfoState.dailyAllowance > 0) spentToday / budgetInfoState.dailyAllowance else 0.0
-    val glowColorAnimated by animateColorAsState(
-        targetValue = when {
-            ratioSpent <= 0.5 -> MaterialTheme.colorScheme.primary
-            ratioSpent <= 1.0 -> MaterialTheme.colorScheme.secondary
-            else -> MaterialTheme.colorScheme.tertiary
-        },
-        animationSpec = tween(durationMillis = 600),
-        label = "glowColor"
-    )
-
-    val nestedScrollConnection = remember(showAddDialog) {
+    val nestedScrollConnection = remember(showAddDialog, topBarCollapseThresholdPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (showAddDialog) {
@@ -296,15 +606,26 @@ fun MainScreen(
                     isNavBarVisible = true
                 }
  
-                topBarOffsetHeightPx = 0f
-                bottomBarOffsetHeightPx = 0f
- 
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (!showAddDialog) {
+                    val scrollY = if (consumed.y != 0f) consumed.y else available.y.coerceAtLeast(0f)
+                    if (scrollY != 0f) {
+                        topBarScrollDistancePx =
+                            (topBarScrollDistancePx - scrollY).coerceAtLeast(0f)
+                        isTopBarExpanded = topBarScrollDistancePx < topBarCollapseThresholdPx
+                    }
+                }
                 return Offset.Zero
             }
  
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                topBarOffsetHeightPx = 0f
-                bottomBarOffsetHeightPx = 0f
                 return super.onPostFling(consumed, available)
             }
         }
@@ -312,9 +633,10 @@ fun MainScreen(
 
     // Reset visibility states when changing tabs
     LaunchedEffect(selectedTab) {
-        topBarOffsetHeightPx = 0f
-        bottomBarOffsetHeightPx = 0f
         isFabExpanded = true
+        isNavBarVisible = true
+        topBarScrollDistancePx = 0f
+        isTopBarExpanded = true
     }
 
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
@@ -331,6 +653,41 @@ fun MainScreen(
     var showRecalcSheet by remember { mutableStateOf(false) }
     var isRecalcSheetMandatory by remember { mutableStateOf(false) }
     var showNewPeriodSheet by remember { mutableStateOf(false) }
+
+    // --- PREDICTIVE BACK NAVIGATION HANDLERS ---
+    // 1. If FAB menu is expanded, predictive back collapses it
+    androidx.activity.compose.PredictiveBackHandler(enabled = isFabMenuExpanded) { progressFlow ->
+        try {
+            progressFlow.collect { }
+            isFabMenuExpanded = false
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // gesture cancelled
+        }
+    }
+
+    // 2. If user is on a secondary tab (History, Recurring, Assets, Radar), predictive back returns to HOME
+    var tabBackProgress by remember { mutableFloatStateOf(0f) }
+    val animatedTabBackProgress by animateFloatAsState(
+        targetValue = tabBackProgress,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tabBackProgress"
+    )
+
+    val isAnyModalActive = showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || isFabMenuExpanded
+    androidx.activity.compose.PredictiveBackHandler(
+        enabled = selectedTab != TabItem.HOME && !isAnyModalActive
+    ) { progressFlow ->
+        try {
+            progressFlow.collect { backEvent ->
+                tabBackProgress = backEvent.progress
+            }
+            selectedTab = TabItem.HOME
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // gesture cancelled
+        } finally {
+            tabBackProgress = 0f
+        }
+    }
 
     val isPeriodEnded = budgetInfo.totalMonthlyBudget > 0 && (budgetInfo.daysLeft <= 0 || (budgetInfo.endDate > 0 && System.currentTimeMillis() >= budgetInfo.endDate))
 
@@ -364,6 +721,15 @@ fun MainScreen(
     LaunchedEffect(state.isLoading, isPeriodEnded) {
         if (!state.isLoading) {
             checkAndTriggerAutoSheets()
+        }
+    }
+
+    // Avoid a loading flash when local data is ready almost immediately.
+    LaunchedEffect(state.isLoading) {
+        showLoadingIndicator = false
+        if (state.isLoading) {
+            delay(250)
+            showLoadingIndicator = true
         }
     }
 
@@ -414,69 +780,205 @@ fun MainScreen(
                 .nestedScroll(nestedScrollConnection),
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            floatingActionButton = {
-                AnimatedVisibility(
-                    visible = selectedTab == TabItem.HOME && !showAddDialog,
-                    enter = fadeIn(animationSpec = tween(durationMillis = 250)) +
-                            scaleIn(
-                                initialScale = 0.4f,
-                                transformOrigin = TransformOrigin(1.0f, 1.0f),
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
-                            ) +
-                            slideInVertically(
-                                initialOffsetY = { it / 2 },
-                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                            ),
-                    exit = fadeOut(animationSpec = tween(durationMillis = 200)) +
-                           scaleOut(
-                               targetScale = 0.4f,
-                               transformOrigin = TransformOrigin(1.0f, 1.0f),
-                               animationSpec = tween(durationMillis = 200)
-                           ) +
-                           slideOutVertically(
-                               targetOffsetY = { it / 2 },
-                               animationSpec = tween(durationMillis = 200)
-                           )
-                ) {
-                    val contentColor = if (glowColorAnimated == MaterialTheme.colorScheme.primary) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else if (glowColorAnimated == MaterialTheme.colorScheme.secondary) {
-                        MaterialTheme.colorScheme.onSecondary
-                    } else {
-                        MaterialTheme.colorScheme.onTertiary
-                    }
-
-                    ExtendedFloatingActionButton(
-                        onClick = { showAddDialog = true },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add Transaction",
-                                modifier = Modifier.size(22.dp)
-                            )
-                        },
-                        text = {
-                            Text(
-                                text = "Add",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        },
-                        expanded = isFabExpanded,
-                        containerColor = glowColorAnimated,
-                        contentColor = contentColor,
-                        shape = RoundedCornerShape(16.dp),
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
-                        modifier = Modifier.graphicsLayer {
-                            translationY = with(density) { navBarOffsetY.toPx() }
+            topBar = {
+                ExpressiveCollapsingTopBar(
+                    selectedTab = selectedTab,
+                    state = state,
+                    isExpanded = isTopBarExpanded,
+                    hazeState = hazeState,
+                    onHeightMeasured = { heightPx ->
+                        if (isTopBarExpanded && heightPx > expandedTopBarHeightPx) {
+                            expandedTopBarHeightPx = heightPx
                         }
-                    )
+                    },
+                    actions = {
+                        val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                        val iconRotation by animateFloatAsState(
+                            targetValue = if (isDarkTheme) 360f else 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            ),
+                            label = "themeIconRotation"
+                        )
+                        val iconTint by animateColorAsState(
+                            targetValue = if (isDarkTheme) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessLow
+                            ),
+                            label = "themeIconTint"
+                        )
+                        IconButton(onClick = {
+                            val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
+                            viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
+                        }) {
+                            AnimatedContent(
+                                targetState = isDarkTheme,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )) + scaleIn(
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    )).togetherWith(
+                                        fadeOut(animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMedium
+                                        )) + scaleOut(animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        ))
+                                    )
+                                },
+                                label = "moonSunIconSwitch"
+                            ) { isDark ->
+                                Icon(
+                                    imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                    contentDescription = stringResource(R.string.theme_mode_label),
+                                    tint = iconTint,
+                                    modifier = Modifier.graphicsLayer { rotationZ = iconRotation }
+                                )
+                            }
+                        }
+                        IconButton(onClick = { showBudgetDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.settings_title)
+                            )
+                        }
+                    }
+                )
+            },
+            floatingActionButton = {
+                val fabTab = when {
+                    selectedTab == TabItem.HOME && !showAddDialog -> TabItem.HOME
+                    selectedTab == TabItem.RECURRING && !showAddRecurringSheet -> TabItem.RECURRING
+                    else -> null
+                }
+                AnimatedContent(
+                    targetState = fabTab,
+                    contentAlignment = Alignment.BottomEnd,
+                    transitionSpec = {
+                        val enter = fadeIn(animationSpec = tween(180)) +
+                            scaleIn(
+                                initialScale = 0.78f,
+                                transformOrigin = TransformOrigin(1f, 1f),
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                        val exit = fadeOut(animationSpec = tween(120)) +
+                            scaleOut(
+                                targetScale = 0.78f,
+                                transformOrigin = TransformOrigin(1f, 1f),
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                        (enter togetherWith exit).using(
+                            SizeTransform(clip = false) { _, _ ->
+                                spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            }
+                        )
+                    },
+                    label = "dailyRecurringFabTransition"
+                ) { targetTab ->
+                    when (targetTab) {
+                        TabItem.HOME -> FloatingActionButtonMenu(
+                            expanded = isFabMenuExpanded,
+                            button = {
+                                ToggleFloatingActionButton(
+                                    checked = isFabMenuExpanded,
+                                    onCheckedChange = {
+                                        if (selectedTab != TabItem.HOME) return@ToggleFloatingActionButton
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        isFabMenuExpanded = !isFabMenuExpanded
+                                    }
+                                ) {
+                                    val imageVector = if (checkedProgress > 0.5f) Icons.Default.Close else Icons.Default.Add
+                                    Icon(
+                                        imageVector = imageVector,
+                                        contentDescription = if (isFabMenuExpanded) "Close Menu" else "Add Transaction",
+                                        modifier = Modifier.animateIcon({ checkedProgress })
+                                    )
+                                }
+                            },
+                            modifier = Modifier.graphicsLayer {
+                                translationY = with(density) { navBarOffsetY.toPx() }
+                            }
+                        ) {
+                            FloatingActionButtonMenuItem(
+                                onClick = {
+                                    if (selectedTab != TabItem.HOME) return@FloatingActionButtonMenuItem
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    activeTransactionMode = TransactionMode.TRANSFER
+                                    isFabMenuExpanded = false
+                                    showAddDialog = true
+                                },
+                                text = { Text(stringResource(R.string.filter_transfer)) },
+                                icon = { Icon(Icons.Default.SwapHoriz, contentDescription = stringResource(R.string.filter_transfer)) }
+                            )
+                            FloatingActionButtonMenuItem(
+                                onClick = {
+                                    if (selectedTab != TabItem.HOME) return@FloatingActionButtonMenuItem
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    activeTransactionMode = TransactionMode.INCOME
+                                    isFabMenuExpanded = false
+                                    showAddDialog = true
+                                },
+                                text = { Text(stringResource(R.string.filter_income)) },
+                                icon = { Icon(Icons.Default.TrendingUp, contentDescription = stringResource(R.string.filter_income)) }
+                            )
+                            FloatingActionButtonMenuItem(
+                                onClick = {
+                                    if (selectedTab != TabItem.HOME) return@FloatingActionButtonMenuItem
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    activeTransactionMode = TransactionMode.EXPENSE
+                                    isFabMenuExpanded = false
+                                    showAddDialog = true
+                                },
+                                text = { Text(stringResource(R.string.filter_expense)) },
+                                icon = { Icon(Icons.Default.TrendingDown, contentDescription = stringResource(R.string.filter_expense)) }
+                            )
+                        }
+                        TabItem.RECURRING -> ExtendedFloatingActionButton(
+                            expanded = isFabExpanded,
+                            onClick = {
+                                if (selectedTab != TabItem.RECURRING) return@ExtendedFloatingActionButton
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showAddRecurringSheet = true
+                            },
+                            icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_add)) },
+                            text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
+                            shape = RoundedCornerShape(16.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.graphicsLayer {
+                                translationY = with(density) { (navBarOffsetY.coerceAtMost(72.dp)).toPx() }
+                            }
+                        )
+                        else -> Unit
+                    }
                 }
             },
             bottomBar = {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onGloballyPositioned { coordinates ->
+                            if (coordinates.size.height > 0) {
+                                measuredBottomBarHeightPx = coordinates.size.height.toFloat()
+                            }
+                        }
                         .graphicsLayer {
                             translationY = with(density) { navBarOffsetY.toPx() }
                         }
@@ -487,16 +989,26 @@ fun MainScreen(
                         isNavBarAppEntered = true
                     }
 
+                    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
                     NavigationBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.96f),
-                        tonalElevation = 6.dp
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .drawBehind {
+                                drawLine(
+                                    color = outlineVariant.copy(alpha = 0.35f),
+                                    start = Offset(0f, 0f),
+                                    end = Offset(size.width, 0f),
+                                    strokeWidth = 1f
+                                )
+                            },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.92f),
+                        tonalElevation = 0.dp
                     ) {
                         val tabs = listOf(
-                            TabItem.HOME to Triple("Daily", Icons.Filled.Home, Icons.Outlined.Home),
-                            TabItem.ACCOUNTS to Triple("Assets", Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
-                            TabItem.RECURRING to Triple("Recurring", Icons.Filled.AutoMode, Icons.Outlined.AutoMode),
-                            TabItem.HISTORY to Triple("History", Icons.AutoMirrored.Filled.List, Icons.AutoMirrored.Outlined.List)
+                            TabItem.HOME to Triple(stringResource(R.string.nav_daily), Icons.Filled.Home, Icons.Outlined.Home),
+                            TabItem.ACCOUNTS to Triple(stringResource(R.string.nav_assets), Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
+                            TabItem.RECURRING to Triple(stringResource(R.string.nav_recurring), Icons.Filled.AutoMode, Icons.Outlined.AutoMode),
+                            TabItem.HISTORY to Triple(stringResource(R.string.nav_history), Icons.AutoMirrored.Filled.List, Icons.AutoMirrored.Outlined.List)
                         )
 
                         tabs.forEachIndexed { index, (tab, tripleInfo) ->
@@ -546,6 +1058,7 @@ fun MainScreen(
                                 onClick = {
                                     if (selectedTab != tab) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        isFabMenuExpanded = false
                                         selectedTab = tab
                                     }
                                 },
@@ -599,7 +1112,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddDialog
+                val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddDialog || showAddRecurringSheet
                 val sheetDepthScale by animateFloatAsState(
                     targetValue = if (isAnySheetOpen) 0.95f else 1.0f,
                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
@@ -611,16 +1124,24 @@ fun MainScreen(
                     label = "sheetDepthCorner"
                 )
 
-                // 1. Screen content (takes up whole screen, padded horizontally)
+                // 1. Screen content (takes up whole screen, padded horizontally and top, bottom extends to screen edge)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
+                        .padding(
+                            top = if (overlayTopBar) 0.dp else paddingValues.calculateTopPadding(),
+                            start = paddingValues.calculateStartPadding(LocalLayoutDirection.current),
+                            end = paddingValues.calculateEndPadding(LocalLayoutDirection.current),
+                            bottom = 0.dp
+                        )
                         .graphicsLayer {
-                            scaleX = sheetDepthScale
-                            scaleY = sheetDepthScale
-                            clip = isAnySheetOpen || sheetDepthCorner > 0.dp
-                            shape = RoundedCornerShape(sheetDepthCorner.coerceAtLeast(0.dp))
+                            val backScale = 1f - (animatedTabBackProgress * 0.08f)
+                            scaleX = sheetDepthScale * backScale
+                            scaleY = sheetDepthScale * backScale
+                            val backCorner = animatedTabBackProgress * 28.dp.toPx()
+                            val totalCorner = (sheetDepthCorner.toPx() + backCorner).coerceAtLeast(0f)
+                            clip = isAnySheetOpen || sheetDepthCorner > 0.dp || animatedTabBackProgress > 0f
+                            shape = RoundedCornerShape(totalCorner)
                         }
                 ) {
                     AnimatedContent(
@@ -642,26 +1163,42 @@ fun MainScreen(
                             )
                             enterTransition togetherWith exitTransition
                         },
-                        modifier = Modifier.fillMaxSize().verticalFadingEdge(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .hazeSource(state = hazeState)
+                            .responsiveVerticalFadingEdge(
+                                topFadeHeight = 0.dp,
+                                bottomFadeHeight = 110.dp,
+                                bottomBarHeightProvider = {
+                                    if (measuredBottomBarHeightPx > 0f) measuredBottomBarHeightPx
+                                    else with(density) { 100.dp.toPx() }
+                                },
+                                navBarOffsetProvider = {
+                                    with(density) { navBarOffsetY.toPx() }
+                                }
+                            ),
                         label = "tabChangeTopLevel"
                     ) { targetTab ->
                         when (targetTab) {
                             TabItem.HOME -> HomeScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                                modifier = Modifier.padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 400) 12.dp else 16.dp),
+                                topContentPadding = pageTopPadding,
                                 onViewAllClick = { selectedTab = TabItem.HISTORY },
                                 showAddDialog = showAddDialog,
                                 onDismissAddDialog = { showAddDialog = false },
                                 onOpenBudgetDialog = {
-                                    if (isPeriodEnded) {
+                                    val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
+                                    if (isPeriodEnded || isBudgetEnd) {
                                         showNewPeriodSheet = true
                                     } else {
                                         showBudgetDialog = true
                                     }
                                 },
                                 onOpenRecalcSheet = {
-                                    if (isPeriodEnded) {
+                                    val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
+                                    if (isPeriodEnded || isBudgetEnd) {
                                         showNewPeriodSheet = true
                                     } else {
                                         isRecalcSheetMandatory = false
@@ -672,229 +1209,62 @@ fun MainScreen(
                             TabItem.ACCOUNTS -> AccountsScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            TabItem.RADAR -> RadarScreen(
-                                state = state,
-                                onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                onLogSpendClick = { shopName, aspect, cardId ->
-                                    showAddDialog = true
-                                }
+                                modifier = Modifier.fillMaxSize(),
+                                topContentPadding = pageTopPadding
                             )
                             TabItem.RECURRING -> RecurringScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.fillMaxSize(),
+                                topContentPadding = pageTopPadding,
+                                showAddSheet = showAddRecurringSheet,
+                                onDismissAddSheet = { showAddRecurringSheet = false }
                             )
                             TabItem.HISTORY -> HistoryScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                topContentPadding = pageTopPadding
                             )
                         }
                     }
                 }
 
-                // 1.5. Floating Pill Top Bar (Permanently Pinned on Screen)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .zIndex(10f)
-                        .padding(start = 20.dp, end = 20.dp, top = 8.dp)
-                        .statusBarsPadding()
+                AnimatedVisibility(
+                    visible = showLoadingIndicator,
+                    modifier = Modifier.align(Alignment.Center),
+                    enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                        scaleIn(initialScale = 0.82f, animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )),
+                    exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                        scaleOut(targetScale = 0.9f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                 ) {
                     Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(58.dp),
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f),
-                        tonalElevation = 10.dp,
-                        shadowElevation = 12.dp,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        shape = RoundedCornerShape(28.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        tonalElevation = 6.dp
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            // Left Brand & Tab Title Pill Section
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                // Vibe Finance Glowing Brand Badge
-                                Surface(
-                                    modifier = Modifier.size(36.dp),
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Savings,
-                                            contentDescription = "Vibe Finance Logo",
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                Column {
-                                    AnimatedContent(
-                                        targetState = selectedTab,
-                                        transitionSpec = {
-                                            (fadeIn(animationSpec = tween(220)) + slideInVertically { -it / 2 })
-                                                .togetherWith(fadeOut(animationSpec = tween(220)) + slideOutVertically { it / 2 })
-                                        },
-                                        label = "topBarTitle"
-                                    ) { currentTab ->
-                                        val titleText = when (currentTab) {
-                                            TabItem.HOME -> "Vibe Overview"
-                                            TabItem.ACCOUNTS -> "Assets & Cards"
-                                            TabItem.RADAR -> "Discount Radar"
-                                            TabItem.RECURRING -> "Subscriptions"
-                                            TabItem.HISTORY -> "Activity History"
-                                        }
-                                        Text(
-                                            text = titleText,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    
-                                    val subtitleText = when (selectedTab) {
-                                        TabItem.HOME -> "Daily Flow"
-                                        TabItem.ACCOUNTS -> "${state.accounts.size} Cards & Assets"
-                                        TabItem.RADAR -> "${state.discountShops.size} Nearby Partners"
-                                        TabItem.RECURRING -> "${state.subscriptions.size} Active"
-                                        TabItem.HISTORY -> "${state.transactions.size} Logged"
-                                    }
-                                    Text(
-                                        text = subtitleText,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-
-                            // Right Action Icons Section (Theme Toggle + Settings Action)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-
-                                val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-
-                                val iconRotation by animateFloatAsState(
-                                    targetValue = if (isDarkTheme) 360f else 0f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    ),
-                                    label = "themeIconRotation"
-                                )
-
-                                val iconTint by animateColorAsState(
-                                    targetValue = if (isDarkTheme) Color(0xFFFFD54F) else Color(0xFF5C6BC0),
-                                    animationSpec = tween(500),
-                                    label = "themeIconTint"
-                                )
-
-                                val buttonBgColor by animateColorAsState(
-                                    targetValue = if (isDarkTheme) Color(0xFF2A2B2D).copy(alpha = 0.9f) else Color(0xFFE2E8F0).copy(alpha = 0.9f),
-                                    animationSpec = tween(500),
-                                    label = "themeButtonBg"
-                                )
-
-                                // Animated Light / Dark Mode Toggle Icon Button with Moon-to-Sun rotation & morph
-                                Surface(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
-                                            viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
-                                        },
-                                    shape = CircleShape,
-                                    color = buttonBgColor,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AnimatedContent(
-                                            targetState = isDarkTheme,
-                                            transitionSpec = {
-                                                (fadeIn(animationSpec = tween(300)) + scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)))
-                                                    .togetherWith(fadeOut(animationSpec = tween(200)) + scaleOut(animationSpec = tween(200)))
-                                            },
-                                            label = "moonSunIconSwitch"
-                                        ) { isDark ->
-                                            Icon(
-                                                imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                                contentDescription = "Theme Toggle",
-                                                tint = iconTint,
-                                                modifier = Modifier
-                                                    .size(18.dp)
-                                                    .graphicsLayer {
-                                                        rotationZ = iconRotation
-                                                    }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Settings & Budget Dialog Launcher
-                                Surface(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .clickable {
-                                            showBudgetDialog = true
-                                        },
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Settings & Budget",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
+                            ContainedLoadingIndicator(modifier = Modifier.size(72.dp))
+                            Text(
+                                text = stringResource(R.string.loading_finances),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }
 
-                // 2. Official Material 3 Navigation Bar with M3 Motion: Slides Off and On Screen during a scroll
-
-
-
-
-
-
-                // 5. Standard Modal Bottom Sheet for Add Expense
+                // 5. Standard Modal Bottom Sheet for Add Transaction
                 if (showAddDialog) {
+                    val addExpenseSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
                     ModalBottomSheet(
                         onDismissRequest = { showAddDialog = false },
                         sheetState = addExpenseSheetState,
@@ -905,9 +1275,29 @@ fun MainScreen(
                             state = state,
                             onIntent = viewModel::dispatch,
                             onDismissAddDialog = { showAddDialog = false },
+                            initialMode = activeTransactionMode,
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
+                }
+
+                // 6. Backdrop Scrim Overlay when Speed Dial FAB Menu is Open
+                AnimatedVisibility(
+                    visible = selectedTab == TabItem.HOME && isFabMenuExpanded && !showAddDialog,
+                    enter = fadeIn(animationSpec = tween(180)),
+                    exit = fadeOut(animationSpec = tween(150))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.48f))
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                isFabMenuExpanded = false
+                            }
+                    )
                 }
 
 
@@ -915,26 +1305,12 @@ fun MainScreen(
         }
     }
 
-    // M3 DatePicker BUDGET SELECTOR DIALOG
+    // M3 Settings & Budget Configuration BottomSheet
     if (showBudgetDialog) {
-        var budgetAmountText by remember {
-            val currentAmt = budgetInfo.totalMonthlyBudget
-            mutableStateOf(if (currentAmt > 0) String.format(Locale.US, "%.2f", currentAmt) else "")
-        }
-        var selectedEndDateMillis by remember {
+        var selectedEndDateMillis by remember(budgetInfo.endDate) {
             mutableStateOf<Long?>(budgetInfo.endDate.takeIf { it > 0 })
         }
-        var selectedRolloverMode by remember {
-            mutableStateOf(budgetInfo.rolloverMode)
-        }
         var showDatePickerModal by remember { mutableStateOf(false) }
-
-        // Category Limits mutable text states
-        var foodLimitText by remember { mutableStateOf(state.categoryLimits["Food"]?.let { String.format(Locale.US, "%.2f", it) } ?: "") }
-        var transportLimitText by remember { mutableStateOf(state.categoryLimits["Transport"]?.let { String.format(Locale.US, "%.2f", it) } ?: "") }
-        var shoppingLimitText by remember { mutableStateOf(state.categoryLimits["Shopping"]?.let { String.format(Locale.US, "%.2f", it) } ?: "") }
-        var utilitiesLimitText by remember { mutableStateOf(state.categoryLimits["Utilities"]?.let { String.format(Locale.US, "%.2f", it) } ?: "") }
-        var otherLimitText by remember { mutableStateOf(state.categoryLimits["Other"]?.let { String.format(Locale.US, "%.2f", it) } ?: "") }
 
         if (showDatePickerModal) {
             val context = LocalContext.current
@@ -954,7 +1330,7 @@ fun MainScreen(
                     disableBeforeDate = startDate,
                 )
             }
-            
+
             AlertDialog(
                 onDismissRequest = { showDatePickerModal = false },
                 confirmButton = {},
@@ -965,7 +1341,6 @@ fun MainScreen(
                             .fillMaxWidth()
                             .height(450.dp)
                     ) {
-                        // Custom Top Bar styled like Buckwheat
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -977,10 +1352,10 @@ fun MainScreen(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     tint = MaterialTheme.colorScheme.onSurface,
-                                    contentDescription = "Close"
+                                    contentDescription = stringResource(R.string.btn_close)
                                 )
                             }
-                            
+
                             Button(
                                 onClick = {
                                     val end = calendarState.calendarUiState.value.selectedEndDate
@@ -999,14 +1374,14 @@ fun MainScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = "Apply",
+                                    contentDescription = stringResource(R.string.btn_confirm),
                                     modifier = Modifier.size(ButtonDefaults.IconSize)
                                 )
                                 Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
-                                Text("Apply")
+                                Text(stringResource(R.string.btn_confirm))
                             }
                         }
-                        
+
                         // Selection info text
                         Column(
                             modifier = Modifier
@@ -1016,7 +1391,7 @@ fun MainScreen(
                             val locale = LocalConfiguration.current.locales[0]
                             val hasSel = calendarState.calendarUiState.value.hasSelectedDates
                             val selectedText = if (!hasSel) {
-                                "Select Finish Date"
+                                stringResource(R.string.settings_select_end_date)
                             } else {
                                 selectedDatesFormatted(calendarState, locale)
                             }
@@ -1026,7 +1401,7 @@ fun MainScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            
+
                             val daysCount = if (hasSel) {
                                 val sDate = calendarState.calendarUiState.value.selectedStartDate ?: startDate
                                 val eDate = calendarState.calendarUiState.value.selectedEndDate ?: sDate
@@ -1036,13 +1411,13 @@ fun MainScreen(
                             }
                             if (daysCount > 0) {
                                 Text(
-                                    text = "$daysCount days total",
+                                    text = stringResource(R.string.days_count_format, daysCount),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
                         }
-                        
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1050,7 +1425,7 @@ fun MainScreen(
                                 .height(1.dp)
                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         )
-                        
+
                         DatePicker(
                             calendarState = calendarState,
                             onDayClicked = { date ->
@@ -1068,726 +1443,17 @@ fun MainScreen(
             )
         }
 
-        AlertDialog(
-            onDismissRequest = { showBudgetDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Settings",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    IconButton(onClick = { showBudgetDialog = false }) {
-                        Icon(
-                            imageVector = Icons.Filled.Close,
-                            contentDescription = "Close settings"
-                        )
-                    }
-                }
+        com.example.vibefinance.ui.settings.SettingsSheet(
+            state = state,
+            budgetInfo = budgetInfo,
+            viewModel = viewModel,
+            onDismiss = { showBudgetDialog = false },
+            onOpenNewPeriod = {
+                showBudgetDialog = false
+                showNewPeriodSheet = true
             },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    // --- SECTION 1: APPEARANCE ---
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "APPEARANCE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "Theme Mode",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        
-                        val themeOptions = listOf("System", "Light", "Dark")
-                        val currentThemeIndex = when (state.themeMode) {
-                            ThemeMode.SYSTEM -> 0
-                            ThemeMode.LIGHT -> 1
-                            ThemeMode.DARK -> 2
-                        }
-                        
-                        ExpressiveSegmentedButtonGroup(
-                            items = themeOptions,
-                            selectedIndex = currentThemeIndex,
-                            onItemSelected = { index ->
-                                val selectedMode = when (index) {
-                                    0 -> ThemeMode.SYSTEM
-                                    1 -> ThemeMode.LIGHT
-                                    else -> ThemeMode.DARK
-                                }
-                                viewModel.dispatch(FinanceIntent.SetThemeMode(selectedMode))
-                            },
-                            labelProvider = { it }
-                        )
-                        
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        // Dynamic Color Switch Row
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .clickable {
-                                    viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(!state.dynamicColorEnabled))
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Palette,
-                                    contentDescription = "Dynamic Color",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Dynamic Colors (Material You)",
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "System coloring (Android 12+)",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = state.dynamicColorEnabled,
-                                onCheckedChange = { enabled ->
-                                    viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(enabled))
-                                },
-                                thumbContent = if (state.dynamicColorEnabled) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Filled.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                                        )
-                                    }
-                                } else {
-                                    null
-                                }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Notification Logging Switch Row
-                        var autoLogEnabled by remember {
-                            mutableStateOf(
-                                InMemoryDatabase.isNotificationLoggingEnabled &&
-                                androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-                            )
-                        }
-
-                        val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-                        DisposableEffect(lifecycleOwner) {
-                            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                                    val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
-                                        .contains(context.packageName)
-                                    autoLogEnabled = InMemoryDatabase.isNotificationLoggingEnabled && isGranted
-                                }
-                            }
-                            lifecycleOwner.lifecycle.addObserver(observer)
-                            onDispose {
-                                lifecycleOwner.lifecycle.removeObserver(observer)
-                            }
-                        }
-                        
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                .clickable {
-                                    val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
-                                        .contains(context.packageName)
-                                    if (!isGranted) {
-                                        try {
-                                            context.startActivity(android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            })
-                                        } catch (e: Exception) {
-                                            // Fallback
-                                        }
-                                    } else {
-                                        val target = !autoLogEnabled
-                                        InMemoryDatabase.isNotificationLoggingEnabled = target
-                                        autoLogEnabled = target
-                                    }
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.NotificationsActive,
-                                    contentDescription = "Notification Logging",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Automatic Transaction Logging",
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Log from Google & Samsung Wallet notifications",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                            Switch(
-                                checked = autoLogEnabled,
-                                onCheckedChange = { checked ->
-                                    val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
-                                        .contains(context.packageName)
-                                    if (!isGranted) {
-                                        try {
-                                            context.startActivity(android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            })
-                                        } catch (e: Exception) {
-                                            // Fallback
-                                        }
-                                    } else {
-                                        InMemoryDatabase.isNotificationLoggingEnabled = checked
-                                        autoLogEnabled = checked
-                                    }
-                                },
-                                thumbContent = if (autoLogEnabled) {
-                                    {
-                                        Icon(
-                                            imageVector = Icons.Filled.Check,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(SwitchDefaults.IconSize)
-                                        )
-                                    }
-                                } else {
-                                    null
-                                }
-                            )
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-                    
-                    // --- SECTION 2: BUDGET LIMITS ---
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "BUDGET PERIOD CONFIGURATION",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        OutlinedTextField(
-                            value = budgetAmountText,
-                            onValueChange = { budgetAmountText = it },
-                            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            prefix = { Text("$", style = MaterialTheme.typography.headlineMedium) },
-                            label = { Text("Budget Limit") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                focusedLabelColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        val today = LocalDate.now()
-                        val endLocalDate = selectedEndDateMillis?.let {
-                            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-                        }
-                        val days = if (endLocalDate != null) {
-                            (ChronoUnit.DAYS.between(today, endLocalDate) + 1).coerceAtLeast(1).toInt()
-                        } else {
-                            0
-                        }
-                        val endTextFormatted = endLocalDate?.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US)) ?: "Select End Date"
-                        val buttonText = if (days > 0) {
-                            "Ends on $endTextFormatted ($days days)"
-                        } else {
-                            endTextFormatted
-                        }
-                        
-                        Button(
-                            onClick = { showDatePickerModal = true },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth().height(56.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DateRange,
-                                contentDescription = "Select End Date",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = buttonText,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-
-                    // --- BUCKWHEAT ROLLOVER MODE SELECTOR ---
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "BUDGET RECALCULATION MODE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "Choose how unused budget or overspending from previous days is recalculated.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        
-                        // Option 1: Distribute Evenly
-                        val isDistribute = selectedRolloverMode == com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isDistribute) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            border = BorderStroke(if (isDistribute) 1.5.dp else 1.dp, if (isDistribute) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable { selectedRolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isDistribute,
-                                    onClick = { selectedRolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "Distribute Over Remaining Days (Default)",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Recalculates and spreads past leftover or overspend evenly over all remaining days in period.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
-                        
-                        // Option 2: Add to Next Day
-                        val isAddNext = selectedRolloverMode == com.example.vibefinance.data.entity.RolloverMode.ADD_TO_NEXT_DAY
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (isAddNext) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            border = BorderStroke(if (isAddNext) 1.5.dp else 1.dp, if (isAddNext) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .clickable { selectedRolloverMode = com.example.vibefinance.data.entity.RolloverMode.ADD_TO_NEXT_DAY }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isAddNext,
-                                    onClick = { selectedRolloverMode = com.example.vibefinance.data.entity.RolloverMode.ADD_TO_NEXT_DAY }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = "Add to Tomorrow's Daily Budget",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Adds yesterday's unused leftover directly into today's daily budget allowance.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-                    
-                    // --- CATEGORY SPENDING CAPS ---
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "CATEGORY SPENDING CAPS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "Set monthly spending limits for transaction categories (leave blank to disable)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        
-                        val categoriesList = listOf(
-                            Triple("Food", foodLimitText, { text: String -> foodLimitText = text }),
-                            Triple("Transport", transportLimitText, { text: String -> transportLimitText = text }),
-                            Triple("Shopping", shoppingLimitText, { text: String -> shoppingLimitText = text }),
-                            Triple("Utilities", utilitiesLimitText, { text: String -> utilitiesLimitText = text }),
-                            Triple("Other", otherLimitText, { text: String -> otherLimitText = text })
-                        )
-                        
-                        categoriesList.forEach { (catName, limitText, setLimitText) ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = catName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                OutlinedTextField(
-                                    value = limitText,
-                                    onValueChange = setLimitText,
-                                    placeholder = { Text("No limit", style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))) },
-                                    prefix = { Text("$", style = MaterialTheme.typography.bodyMedium) },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.width(130.dp),
-                                    textStyle = MaterialTheme.typography.bodyMedium,
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-                    
-                    // --- SECTION: ROLLING PERIOD COMPARISON ---
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "BUDGET PERIOD PACING COMPARISON",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Text(
-                            text = "Visualizes cumulative expenses against target pacing and previous month performance.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        
-                        // Calculations
-                        val budgetStart = budgetInfo.startDate.takeIf { it > 0 } ?: LocalDate.now().minusDays(30).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val budgetEnd = budgetInfo.endDate.takeIf { it > 0 } ?: LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        
-                        val startLocalDate = Instant.ofEpochMilli(budgetStart).atZone(ZoneId.systemDefault()).toLocalDate()
-                        val endLocalDate = Instant.ofEpochMilli(budgetEnd).atZone(ZoneId.systemDefault()).toLocalDate()
-                        val totalDays = (ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1).coerceAtLeast(1).toInt()
-                        
-                        // Group active transactions by day index
-                        val activeCumulativeList = remember(state.transactions, budgetStart, budgetEnd, totalDays) {
-                            val dailySum = DoubleArray(totalDays)
-                            state.transactions.forEach { tx ->
-                                if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0) {
-                                    if (tx.timestamp in budgetStart..budgetEnd) {
-                                        val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
-                                        val dayIdx = ChronoUnit.DAYS.between(startLocalDate, txDate).toInt().coerceIn(0, totalDays - 1)
-                                        dailySum[dayIdx] += tx.amount
-                                    }
-                                }
-                            }
-                            val cumList = mutableListOf<Double>()
-                            var sum = 0.0
-                            for (i in 0 until totalDays) {
-                                sum += dailySum[i]
-                                cumList.add(sum)
-                            }
-                            cumList
-                        }
-                        
-                        // Reference previous period list (e.g. June, seeded with smooth pacing target ending at 85% of monthly budget)
-                        val limitAmt = budgetInfo.totalMonthlyBudget.takeIf { it > 0.0 } ?: 1000.0
-                        val previousCumulativeList = remember(totalDays, limitAmt) {
-                            val list = mutableListOf<Double>()
-                            for (i in 0 until totalDays) {
-                                val progress = i.toDouble() / (totalDays - 1).coerceAtLeast(1)
-                                val baseVal = limitAmt * 0.85 * progress
-                                val variation = limitAmt * 0.04 * kotlin.math.sin(progress * Math.PI * 4)
-                                list.add((baseVal + variation).coerceAtLeast(0.0))
-                            }
-                            list
-                        }
-                        
-                        val maxVal = maxOf(
-                            activeCumulativeList.maxOrNull() ?: 0.0,
-                            previousCumulativeList.maxOrNull() ?: 0.0,
-                            limitAmt
-                        ) * 1.15
-                        
-                        val chartPrimaryColor = MaterialTheme.colorScheme.primary
-                        val chartSecondaryColor = MaterialTheme.colorScheme.secondary
-                        val chartGridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                        
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                                .padding(16.dp)
-                        ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val canvasWidth = size.width
-                                val canvasHeight = size.height
-                                
-                                val stepX = canvasWidth / (totalDays - 1).coerceAtLeast(1)
-                                
-                                // 1. Draw horizontal grid lines
-                                val gridCount = 4
-                                for (i in 0 until gridCount) {
-                                    val gridY = (canvasHeight / (gridCount - 1)) * i
-                                    drawLine(
-                                        color = chartGridColor,
-                                        start = Offset(0f, gridY),
-                                        end = Offset(canvasWidth, gridY),
-                                        strokeWidth = 1.dp.toPx()
-                                    )
-                                }
-                                
-                                // 2. Draw Target Diagonal Pacing Line (Dotted, Secondary)
-                                drawLine(
-                                    color = chartSecondaryColor.copy(alpha = 0.5f),
-                                    start = Offset(0f, canvasHeight),
-                                    end = Offset(canvasWidth, canvasHeight - ((limitAmt / maxVal) * canvasHeight).toFloat()),
-                                    strokeWidth = 2.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                                )
-                                
-                                // 3. Draw Previous Month line (Light Grey/Solid)
-                                val prevPath = Path()
-                                previousCumulativeList.forEachIndexed { idx, valAmt ->
-                                    val x = idx * stepX
-                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                    if (idx == 0) {
-                                        prevPath.moveTo(x, y)
-                                    } else {
-                                        prevPath.lineTo(x, y)
-                                    }
-                                }
-                                drawPath(
-                                    path = prevPath,
-                                    color = Color.Gray.copy(alpha = 0.6f),
-                                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                                
-                                // 4. Draw Active Month line (Bold Primary)
-                                val activePath = Path()
-                                activeCumulativeList.forEachIndexed { idx, valAmt ->
-                                    val x = idx * stepX
-                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                    if (idx == 0) {
-                                        activePath.moveTo(x, y)
-                                    } else {
-                                        activePath.lineTo(x, y)
-                                    }
-                                }
-                                drawPath(
-                                    path = activePath,
-                                    color = chartPrimaryColor,
-                                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                            }
-                        }
-                        
-                        // Legend
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartPrimaryColor))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Active", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Gray))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Prev Month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartSecondaryColor))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Ideal Pacing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-                    
-                    // --- SECTION 3: SYSTEM ACTIONS ---
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "DATABASE ACTIONS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        Button(
-                            onClick = {
-                                viewModel.dispatch(FinanceIntent.SeedMockData)
-                                showBudgetDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Reset",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Reset & Seed Mock Data", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val amt = budgetAmountText.toDoubleOrNull()
-                        val end = selectedEndDateMillis
-                        if (amt != null && end != null) {
-                            val finalStart = if (budgetInfo.startDate > 0) {
-                                budgetInfo.startDate
-                            } else {
-                                LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                            }
-                            viewModel.dispatch(FinanceIntent.SetCustomPeriodBudget(amt, finalStart, end, selectedRolloverMode))
-                            
-                            // Save Category Limits
-                            viewModel.dispatch(FinanceIntent.SetCategoryLimit("Food", foodLimitText.toDoubleOrNull()))
-                            viewModel.dispatch(FinanceIntent.SetCategoryLimit("Transport", transportLimitText.toDoubleOrNull()))
-                            viewModel.dispatch(FinanceIntent.SetCategoryLimit("Shopping", shoppingLimitText.toDoubleOrNull()))
-                            viewModel.dispatch(FinanceIntent.SetCategoryLimit("Utilities", utilitiesLimitText.toDoubleOrNull()))
-                            viewModel.dispatch(FinanceIntent.SetCategoryLimit("Other", otherLimitText.toDoubleOrNull()))
-                            
-                            showBudgetDialog = false
-                        }
-                    }
-                ) {
-                    Text("Save Changes", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            showBudgetDialog = false
-                            showNewPeriodSheet = true
-                        }
-                    ) {
-                        Text("開啟新週期", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = { showBudgetDialog = false }) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                    }
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(32.dp),
-            modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(32.dp))
+            onOpenDatePicker = { showDatePickerModal = true },
+            selectedEndDateMillis = selectedEndDateMillis
         )
     }
 
@@ -1849,7 +1515,8 @@ fun MainScreen(
                     FinanceIntent.SetCustomPeriodBudget(
                         amount = amount,
                         startDate = startDate,
-                        endDate = endDate
+                        endDate = endDate,
+                        showToast = true
                     )
                 )
                 val currentDateStr = java.time.LocalDate.now().toString()
@@ -1875,7 +1542,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
 ) {
     Row(
         modifier = if (isScrollable) {
-            modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).horizontalFadingEdge(12.dp, 12.dp)
         } else {
             modifier.fillMaxWidth()
         },
@@ -1941,7 +1608,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(vertical = 12.dp, horizontal = 12.dp),
+                        .padding(vertical = 12.dp, horizontal = if (isScrollable) 12.dp else 4.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1972,10 +1639,43 @@ fun <T> ExpressiveSegmentedButtonGroup(
     }
 }
 
-enum class TransactionMode {
-    EXPENSE,
-    INCOME,
-    TRANSFER
+@Composable
+fun FabSpeedDialItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        shadowElevation = 6.dp,
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.12f)),
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = contentColor
+            )
+        }
+    }
 }
 
 @Composable
@@ -1983,6 +1683,7 @@ fun AddExpenseSheetContent(
     state: com.example.vibefinance.ui.FinanceUiState,
     onIntent: (com.example.vibefinance.ui.FinanceIntent) -> Unit,
     onDismissAddDialog: () -> Unit,
+    initialMode: TransactionMode = TransactionMode.EXPENSE,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1993,11 +1694,8 @@ fun AddExpenseSheetContent(
     var selectedAccount by remember { mutableStateOf<AccountEntity?>(state.accounts.firstOrNull()) }
     var selectedToAccount by remember { mutableStateOf<AccountEntity?>(null) }
     
-    var isInstallment by remember { mutableStateOf(false) }
-    var installmentCountText by remember { mutableStateOf("12") }
-    
-    var transactionMode by remember { mutableStateOf(TransactionMode.EXPENSE) }
-    var isTransfer by remember { mutableStateOf(false) }
+    val transactionMode = initialMode
+    val isTransfer = initialMode == TransactionMode.TRANSFER
     var selectedCurrency by remember { mutableStateOf("HKD") }
  
     val expenseCategories = remember { mutableStateListOf("Food", "Transport", "Shopping", "Utilities", "Other") }
@@ -2084,115 +1782,117 @@ fun AddExpenseSheetContent(
         ) {
             Spacer(modifier = Modifier.height(68.dp))
 
-            // --- DYNAMIC BUCKWHEAT BUDGET PREVIEW CARD ---
-            val budgetInfo = state.budgetInfo
-            if (budgetInfo != null) {
-                val inputAmount = typedAmount.toDoubleOrNull() ?: 0.0
-                val currentDailyRem = budgetInfo.dailyRemaining
-                val simDailyRem = currentDailyRem - inputAmount
-                val isOverBudget = simDailyRem < 0
+            // --- DYNAMIC BUCKWHEAT BUDGET PREVIEW CARD (Only for Expense) ---
+            if (transactionMode == TransactionMode.EXPENSE) {
+                val budgetInfo = state.budgetInfo
+                if (budgetInfo != null) {
+                    val inputAmount = typedAmount.toDoubleOrNull() ?: 0.0
+                    val currentDailyRem = budgetInfo.dailyRemaining
+                    val simDailyRem = currentDailyRem - inputAmount
+                    val isOverBudget = simDailyRem < 0
 
-                val futureDays = (budgetInfo.daysLeft - 1).coerceAtLeast(1)
-                val newMonthlyRem = (budgetInfo.monthlyRemaining - inputAmount).coerceAtLeast(0.0)
-                val newDailyForRest = newMonthlyRem / futureDays
+                    val futureDays = (budgetInfo.daysLeft - 1).coerceAtLeast(1)
+                    val newMonthlyRem = (budgetInfo.monthlyRemaining - inputAmount).coerceAtLeast(0.0)
+                    val newDailyForRest = newMonthlyRem / futureDays
 
-                val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 14.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = if (isOverBudget) {
-                        if (isDarkTheme) Color(0xFF3B1414) else Color(0xFFFFF0F0)
-                    } else {
-                        if (isDarkTheme) Color(0xFF072A1A) else Color(0xFFE8F5E9)
-                    },
-                    border = BorderStroke(
-                        1.dp,
-                        if (isOverBudget) {
-                            if (isDarkTheme) Color(0xFFFF5252).copy(alpha = 0.5f) else Color(0xFFE57373)
-                        } else {
-                            if (isDarkTheme) Color(0xFF00E676).copy(alpha = 0.5f) else Color(0xFF81C784)
-                        }
-                    ),
-                    tonalElevation = 4.dp
-                ) {
-                    Row(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(bottom = 14.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (isOverBudget) {
+                            if (isDarkTheme) Color(0xFF3B1414) else Color(0xFFFFF0F0)
+                        } else {
+                            if (isDarkTheme) Color(0xFF072A1A) else Color(0xFFE8F5E9)
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            if (isOverBudget) {
+                                if (isDarkTheme) Color(0xFFFF5252).copy(alpha = 0.5f) else Color(0xFFE57373)
+                            } else {
+                                if (isDarkTheme) Color(0xFF00E676).copy(alpha = 0.5f) else Color(0xFF81C784)
+                            }
+                        ),
+                        tonalElevation = 4.dp
                     ) {
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isOverBudget) Color(0xFFFF5252).copy(alpha = 0.2f) else Color(0xFF00E676).copy(alpha = 0.2f),
-                                modifier = Modifier.size(36.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (isOverBudget) Icons.Default.Warning else Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = if (isOverBudget) Color(0xFFFF5252) else Color(0xFF00E676),
-                                        modifier = Modifier.size(20.dp)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isOverBudget) Color(0xFFFF5252).copy(alpha = 0.2f) else Color(0xFF00E676).copy(alpha = 0.2f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (isOverBudget) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = if (isOverBudget) Color(0xFFFF5252) else Color(0xFF00E676),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = if (isOverBudget) "超支！其餘天數新每日預算 (Rest of Days)" else "今日預算剩餘 (Today Remaining)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isOverBudget) {
+                                            if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C)
+                                        } else {
+                                            if (isDarkTheme) Color(0xFF81C784) else Color(0xFF1B5E20)
+                                        }
+                                    )
+                                    Text(
+                                        text = if (isOverBudget) {
+                                            "超出今日預算 \$${String.format(Locale.US, "%.0f", -simDailyRem)}，未來 ${futureDays} 天每日為:"
+                                        } else {
+                                            "扣除本筆消費後今日尚有:"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                     )
                                 }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = if (isOverBudget) "超支！其餘天數新每日預算 (Rest of Days)" else "今日預算剩餘 (Today Remaining)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isOverBudget) {
-                                        if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C)
-                                    } else {
-                                        if (isDarkTheme) Color(0xFF81C784) else Color(0xFF1B5E20)
-                                    }
-                                )
-                                Text(
-                                    text = if (isOverBudget) {
-                                        "超出今日預算 \$${String.format(Locale.US, "%.0f", -simDailyRem)}，未來 ${futureDays} 天每日為:"
-                                    } else {
-                                        "扣除本筆消費後今日尚有:"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                )
-                            }
-                        }
 
-                        // Amount Display with Smooth Animated Transition
-                        AnimatedContent(
-                            targetState = if (isOverBudget) newDailyForRest to true else simDailyRem to false,
-                            transitionSpec = {
-                                (fadeIn(animationSpec = tween(150)) + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut(animationSpec = tween(100)) + scaleOut(targetScale = 1.1f))
-                            },
-                            label = "DynamicBudgetAnim"
-                        ) { (amount, over) ->
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = String.format(Locale.US, "HK$ %,.0f", Math.abs(amount)),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Black,
-                                    color = if (over) {
-                                        if (isDarkTheme) Color(0xFFFF5252) else Color(0xFFC62828)
-                                    } else {
-                                        if (isDarkTheme) Color(0xFF00E676) else Color(0xFF2E7D32)
-                                    }
-                                )
-                                if (over) {
+                            // Amount Display with Smooth Animated Transition
+                            AnimatedContent(
+                                targetState = if (isOverBudget) newDailyForRest to true else simDailyRem to false,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = tween(150)) + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut(animationSpec = tween(100)) + scaleOut(targetScale = 1.1f))
+                                },
+                                label = "DynamicBudgetAnim"
+                            ) { (amount, over) ->
+                                Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = "/ 天 (per day)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C),
-                                        fontWeight = FontWeight.Bold
+                                        text = String.format(Locale.US, "HK$ %,.0f", Math.abs(amount)),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (over) {
+                                            if (isDarkTheme) Color(0xFFFF5252) else Color(0xFFC62828)
+                                        } else {
+                                            if (isDarkTheme) Color(0xFF00E676) else Color(0xFF2E7D32)
+                                        }
                                     )
+                                    if (over) {
+                                        Text(
+                                            text = "/ 天 (per day)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2235,89 +1935,6 @@ fun AddExpenseSheetContent(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // --- 1. MATERIAL 3 CONNECTED BUTTON GROUP (MODE SELECTOR) ---
-        Text(
-            text = "Transaction Type",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
-
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
-        ) {
-            SegmentedButton(
-                selected = transactionMode == TransactionMode.EXPENSE,
-                onClick = {
-                    localFocusManager.clearFocus()
-                    transactionMode = TransactionMode.EXPENSE
-                    isTransfer = false
-                    selectedToAccount = null
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.TrendingDown,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            ) {
-                Text(
-                    text = "Expense",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            SegmentedButton(
-                selected = transactionMode == TransactionMode.INCOME,
-                onClick = {
-                    localFocusManager.clearFocus()
-                    transactionMode = TransactionMode.INCOME
-                    isTransfer = false
-                    selectedToAccount = null
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.TrendingUp,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            ) {
-                Text(
-                    text = "Income",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            SegmentedButton(
-                selected = transactionMode == TransactionMode.TRANSFER,
-                onClick = {
-                    localFocusManager.clearFocus()
-                    transactionMode = TransactionMode.TRANSFER
-                    isTransfer = true
-                },
-                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.SwapHoriz,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            ) {
-                Text(
-                    text = "Transfer",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
 
         AnimatedVisibility(
             visible = !isTransfer,
@@ -2606,113 +2223,6 @@ fun AddExpenseSheetContent(
                 )
             }
         }
-        AnimatedVisibility(
-            visible = !isTransfer,
-            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                expandFrom = Alignment.Top
-            ),
-            exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkVertically(
-                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                shrinkTowards = Alignment.Top
-            )
-        ) {
-            Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                // Installments option (available for all accounts)
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { isInstallment = !isInstallment }
-                        .padding(vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = if (isInstallment) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "分期付費 (Split into Installments)",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "將金額分攤到多個月份 (Divide amount over months)",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = isInstallment,
-                        onCheckedChange = { isInstallment = it },
-                        thumbContent = if (isInstallment) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Filled.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize),
-                                )
-                            }
-                        } else {
-                            null
-                        }
-                    )
-                }
-
-                if (isInstallment) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    GlassmorphicCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 16.dp,
-                        borderWidth = 1.dp,
-                        borderColor = MaterialTheme.colorScheme.outlineVariant
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "分期期數 (Installment Months)",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                WheelNumberPicker(
-                                    selectedValue = installmentCountText.toIntOrNull() ?: 12,
-                                    onValueSelected = { installmentCountText = it.toString() },
-                                    range = 2..36,
-                                    itemHeight = 64.dp
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "期 (Months)",
-                                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -2970,17 +2480,6 @@ fun AddExpenseSheetContent(
                                         description = descWithFx
                                     )
                                 )
-                            } else if (isInstallment) {
-                                val insCount = installmentCountText.toIntOrNull() ?: 12
-                                onIntent(
-                                    com.example.vibefinance.ui.FinanceIntent.AddInstallmentTransaction(
-                                        amount = finalHkdAmt,
-                                        category = expenseCategoryText,
-                                        accountId = accId,
-                                        description = descWithFx,
-                                        installments = insCount
-                                    )
-                                )
                             } else {
                                 onIntent(
                                     com.example.vibefinance.ui.FinanceIntent.AddTransaction(
@@ -3148,38 +2647,194 @@ private fun Modifier.layoutSize(
     }
 }
 
-fun Modifier.verticalFadingEdge(
-    topFadeHeight: Dp = 100.dp,
-    bottomFadeHeight: Dp = 110.dp
-): Modifier = this.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    .drawWithContent {
-        drawContent()
-        
-        val topFadePx = topFadeHeight.toPx()
-        val bottomFadePx = bottomFadeHeight.toPx()
-        
-        // Top fade
-        if (topFadePx > 0f) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, Color.Black),
-                    startY = 0f,
-                    endY = topFadePx
-                ),
-                blendMode = BlendMode.DstIn
-            )
-        }
-        
-        // Bottom fade
-        if (bottomFadePx > 0f) {
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Black, Color.Transparent),
-                    startY = size.height - bottomFadePx,
-                    endY = size.height
-                ),
-                blendMode = BlendMode.DstIn
-            )
+@Composable
+fun AllowedInterceptAppsDialog(
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val selectedApps by InMemoryDatabase.selectedInterceptApps.collectAsStateWithLifecycle()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    var searchQuery by remember { mutableStateOf("") }
+    val installedApps = remember { com.example.vibefinance.util.LocalAppManager.getInstalledApps(context) }
+
+    val filteredApps = remember(searchQuery, installedApps) {
+        if (searchQuery.isBlank()) {
+            installedApps
+        } else {
+            installedApps.filter {
+                it.appName.contains(searchQuery, ignoreCase = true) ||
+                it.packageName.contains(searchQuery, ignoreCase = true)
+            }
         }
     }
 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_dialog_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text(androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_search_hint), fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (filteredApps.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_no_matches),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                } else {
+                    filteredApps.forEach { appInfo ->
+                        val knownApp = InterceptableApp.values().find {
+                            it.packageKeywords.contains(appInfo.packageName) || it.id == appInfo.packageName
+                        }
+                        val identifier = knownApp?.id ?: appInfo.packageName
+
+                        val isChecked = selectedApps.contains(identifier) ||
+                                        selectedApps.contains(appInfo.packageName) ||
+                                        (knownApp != null && selectedApps.contains(knownApp.id))
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { InMemoryDatabase.toggleInterceptApp(identifier) }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (appInfo.iconBitmap != null) {
+                                        Image(
+                                            bitmap = appInfo.iconBitmap.asImageBitmap(),
+                                            contentDescription = appInfo.appName,
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(9.dp))
+                                        )
+                                    } else {
+                                        com.example.vibefinance.ui.components.AppBrandIcon(
+                                            packageOrAppId = identifier,
+                                            size = 36.dp,
+                                            shapeRadius = 9.dp,
+                                            modifier = Modifier.border(
+                                                0.8.dp,
+                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                RoundedCornerShape(9.dp)
+                                            )
+                                        )
+                                    }
+
+                                    Column {
+                                        Text(
+                                            text = appInfo.appName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (appInfo.isSuggestedPaymentApp) androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_recommended_badge) else appInfo.packageName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (appInfo.isSuggestedPaymentApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Switch(
+                                    checked = isChecked,
+                                    onCheckedChange = { InMemoryDatabase.toggleInterceptApp(identifier) },
+                                    thumbContent = if (isChecked) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Filled.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        }
+                                    } else null
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text(androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.btn_confirm))
+            }
+        }
+    )
+}

@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.history
 
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +19,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
@@ -34,7 +35,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,14 +54,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Surface
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import com.example.vibefinance.ui.components.SwipeActions
-import com.example.vibefinance.ui.components.SwipeActionsConfig
+import com.example.vibefinance.ui.components.ExpressiveSwipeRow
 import com.example.vibefinance.ui.home.CategoryIcon
 import androidx.compose.ui.unit.min
 import androidx.compose.runtime.derivedStateOf
@@ -90,8 +86,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.TransactionEntity
+import com.example.vibefinance.theme.LocalIconShape
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.GlassmorphicCard
@@ -107,10 +105,14 @@ import java.util.Locale
 fun HistoryScreen(
     state: FinanceUiState,
     onIntent: (FinanceIntent) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    topContentPadding: Dp = 16.dp
 ) {
     var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
     var periodFilterMode by remember { mutableStateOf(com.example.vibefinance.ui.components.PeriodFilterMode.ALL) }
+
+    val strToday = stringResource(R.string.date_today)
+    val strYesterday = stringResource(R.string.date_yesterday)
 
     val budgetInfo = state.budgetInfo
 
@@ -173,8 +175,23 @@ fun HistoryScreen(
     var editCategoryText by remember { mutableStateOf("") }
     var editDescriptionText by remember { mutableStateOf("") }
 
-    var activeSwipeId by remember { mutableStateOf<Long?>(null) }
-    var activeSwipeOffset by remember { mutableStateOf(0f) }
+    // Predictive back for editing transaction modal
+    androidx.activity.compose.PredictiveBackHandler(enabled = editingTransaction != null) { progressFlow ->
+        try {
+            progressFlow.collect { }
+            editingTransaction = null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+        }
+    }
+
+    // Predictive back for active category filter
+    androidx.activity.compose.PredictiveBackHandler(enabled = selectedCategoryFilter != null && editingTransaction == null) { progressFlow ->
+        try {
+            progressFlow.collect { }
+            selectedCategoryFilter = null
+        } catch (e: kotlinx.coroutines.CancellationException) {
+        }
+    }
 
 
     AnimatedContent(
@@ -186,18 +203,10 @@ fun HistoryScreen(
             com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = modifier)
         } else {
             LazyColumn(
-                modifier = modifier.fillMaxSize(),
+                modifier = modifier.fillMaxSize().testTag("HistoryList"),
+                contentPadding = PaddingValues(top = topContentPadding),
                 verticalArrangement = Arrangement.Top
             ) {
-        item {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(80.dp)
-            )
-        }
-
         // --- 📅 ACTIVE BUDGET PERIOD INDICATOR & FILTER CARD ---
         item {
             com.example.vibefinance.ui.components.BudgetPeriodIndicatorCard(
@@ -237,7 +246,7 @@ fun HistoryScreen(
                     borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                 ) {
                     Text(
-                        text = "No transactions found.",
+                        text = stringResource(R.string.no_transactions),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         textAlign = TextAlign.Center,
@@ -250,10 +259,12 @@ fun HistoryScreen(
             groupedList.forEachIndexed { groupIndex, (localDate, txsForDate) ->
                 // 1. Date Header Group (Muted, Clean Typography)
                 val today = LocalDate.now()
+                val isZh = Locale.getDefault().language.startsWith("zh")
+                val datePattern = if (isZh) "yyyy年M月d日" else "MMM dd, yyyy"
                 val headerText = when (localDate) {
-                    today -> "Today"
-                    today.minusDays(1) -> "Yesterday"
-                    else -> localDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy", Locale.US))
+                    today -> strToday
+                    today.minusDays(1) -> strYesterday
+                    else -> localDate.format(DateTimeFormatter.ofPattern(datePattern, Locale.getDefault()))
                 }
 
                 item {
@@ -270,7 +281,7 @@ fun HistoryScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = headerText.lowercase(Locale.US),
+                            text = headerText,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                             fontWeight = FontWeight.Bold
@@ -283,7 +294,7 @@ fun HistoryScreen(
                                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             ) {
                                 Text(
-                                    text = if (isInActivePeriod) "Active Period" else "Past / Other Period",
+                                    text = if (isInActivePeriod) stringResource(R.string.badge_active_period) else stringResource(R.string.badge_past_period),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (isInActivePeriod) MaterialTheme.colorScheme.primary
                                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
@@ -321,108 +332,38 @@ fun HistoryScreen(
                     AnimatedVisibility(
                         visibleState = transitionState,
                         exit = shrinkVertically(
-                            animationSpec = tween(
-                                durationMillis = 400,
-                                easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
                             )
-                        ) + fadeOut(animationSpec = tween(200)),
-                        modifier = Modifier.animateItem()
+                        ) + fadeOut(animationSpec = tween(150)),
+                        modifier = Modifier.animateItem(
+                            placementSpec = spring(
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            SwipeActions(
+                            val itemShape = RoundedCornerShape(
+                                topStart = if (isFirst) 26.dp else 8.dp,
+                                topEnd = if (isFirst) 26.dp else 8.dp,
+                                bottomStart = if (isLast) 26.dp else 8.dp,
+                                bottomEnd = if (isLast) 26.dp else 8.dp
+                            )
+                            ExpressiveSwipeRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("TransactionRow_${tx.id}"),
-                                startActionsConfig = SwipeActionsConfig(
-                                    threshold = 0.4f,
-                                    background = MaterialTheme.colorScheme.tertiaryContainer,
-                                    backgroundActive = MaterialTheme.colorScheme.tertiary,
-                                    iconTint = MaterialTheme.colorScheme.onTertiary,
-                                    icon = rememberVectorPainter(Icons.Default.Edit),
-                                    stayDismissed = false,
-                                    onDismiss = {
-                                        editingTransaction = tx
-                                        editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
-                                        editCategoryText = tx.category
-                                        editDescriptionText = tx.description
-                                    }
-                                ),
-                                endActionsConfig = SwipeActionsConfig(
-                                    threshold = 0.4f,
-                                    background = MaterialTheme.colorScheme.errorContainer,
-                                    backgroundActive = MaterialTheme.colorScheme.error,
-                                    iconTint = MaterialTheme.colorScheme.onError,
-                                    icon = rememberVectorPainter(Icons.Default.Delete),
-                                    stayDismissed = true,
-                                    onDismiss = {
-                                        transitionState.targetState = false
-                                    }
-                                )
-                            ) { dismissState ->
-                                val offsetVal = runCatching { dismissState.requireOffset() }.getOrDefault(0f)
-
-                                LaunchedEffect(offsetVal) {
-                                    if (abs(offsetVal) > 2f) {
-                                        activeSwipeId = tx.id
-                                        activeSwipeOffset = offsetVal
-                                    } else if (activeSwipeId == tx.id) {
-                                        activeSwipeId = null
-                                        activeSwipeOffset = 0f
-                                    }
-                                }
-
-                                val isSelfSwiping = activeSwipeId == tx.id
-                                val activeIndex = if (activeSwipeId != null) txsForDate.indexOfFirst { it.id == activeSwipeId } else -1
-                                val distFromActive = if (activeIndex != -1 && !isSelfSwiping) abs(index - activeIndex) else 0
-
-                                val neighborDragOffset = if (!isSelfSwiping && activeIndex != -1) {
-                                    when (distFromActive) {
-                                        1 -> activeSwipeOffset * 0.15f
-                                        2 -> activeSwipeOffset * 0.05f
-                                        else -> 0f
-                                    }
-                                } else 0f
-
-                                // Android 16 Corner Morphing Physics: strictly applies to the swiped cell AND its immediate top/bottom neighbor cells (distFromActive == 1)
-                                val shouldMorphCorners = isSelfSwiping || distFromActive == 1
-                                val effectiveOffsetForMorphing = if (isSelfSwiping) offsetVal else if (distFromActive == 1) activeSwipeOffset else 0f
-                                val swipeProgress = if (shouldMorphCorners) (abs(effectiveOffsetForMorphing) / 250f).coerceIn(0f, 1f) else 0f
-
-                                val baseTopStart = if (isFirst) 20.dp else 4.dp
-                                val baseBottomStart = if (isLast) 20.dp else 4.dp
-                                val baseTopEnd = if (isFirst) 20.dp else 4.dp
-                                val baseBottomEnd = if (isLast) 20.dp else 4.dp
-
-                                val morphedTopStart = if (shouldMorphCorners && effectiveOffsetForMorphing > 0) baseTopStart + (28.dp - baseTopStart) * swipeProgress else baseTopStart
-                                val morphedBottomStart = if (shouldMorphCorners && effectiveOffsetForMorphing > 0) baseBottomStart + (28.dp - baseBottomStart) * swipeProgress else baseBottomStart
-                                val morphedTopEnd = if (shouldMorphCorners && effectiveOffsetForMorphing < 0) baseTopEnd + (28.dp - baseTopEnd) * swipeProgress else baseTopEnd
-                                val morphedBottomEnd = if (shouldMorphCorners && effectiveOffsetForMorphing < 0) baseBottomEnd + (28.dp - baseBottomEnd) * swipeProgress else baseBottomEnd
-
-                                val dynamicItemShape = RoundedCornerShape(
-                                    topStart = morphedTopStart,
-                                    topEnd = morphedTopEnd,
-                                    bottomStart = morphedBottomStart,
-                                    bottomEnd = morphedBottomEnd
-                                )
-
-
-
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .graphicsLayer {
-                                            translationX = neighborDragOffset
-                                        }
-                                        .clickable {
-                                            editingTransaction = tx
-                                            editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
-                                            editCategoryText = tx.category
-                                            editDescriptionText = tx.description
-                                        },
-                                    shape = dynamicItemShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                                ) {
+                                shape = itemShape,
+                                onEdit = {
+                                    editingTransaction = tx
+                                    editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
+                                    editCategoryText = tx.category
+                                    editDescriptionText = tx.description
+                                },
+                                onDelete = { transitionState.targetState = false }
+                            ) {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -433,7 +374,7 @@ fun HistoryScreen(
                                         // 1. Leading Avatar Visual Container (M3 Expressive)
                                         Surface(
                                             modifier = Modifier.size(44.dp),
-                                            shape = RoundedCornerShape(14.dp),
+                                            shape = LocalIconShape.current,
                                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                         ) {
@@ -465,7 +406,7 @@ fun HistoryScreen(
                                             )
 
                                             val cardName = sourceAccount?.name ?: "Cash"
-                                            val categoryName = tx.category
+                                            val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                             val cardSubtitle = when {
                                                 isTransfer -> "${sourceAccount?.name ?: "Account"} ➔ ${destAccount?.name ?: "Account"}"
                                                 isInstallment -> "$categoryName • $cardName (${tx.installmentNumber}/${tx.totalInstallments})"
@@ -492,7 +433,7 @@ fun HistoryScreen(
                                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                                 ) {
                                                     Text(
-                                                        text = String.format(Locale.US, "+$%.2f cashback (%s%%)", cbAmount, String.format(Locale.US, "%.1f", rate)),
+                                                        text = stringResource(R.string.cashback_pill_format, cbAmount, String.format(Locale.US, "%.1f", rate)),
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = Color(0xFF2E7D32),
                                                         fontWeight = FontWeight.Bold
@@ -506,7 +447,7 @@ fun HistoryScreen(
                                             horizontalAlignment = Alignment.End,
                                             verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
-                                            val amtString = String.format(Locale.US, if (isIncome) "+$%.2f" else "-$%.2f", Math.abs(tx.amount))
+                                            val amtString = String.format(Locale.US, if (isIncome) "+HK$%,.2f" else "-HK$%,.2f", Math.abs(tx.amount))
                                             val amountColor = when {
                                                 isTransfer -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                                 isIncome -> MaterialTheme.colorScheme.secondary
@@ -544,17 +485,16 @@ fun HistoryScreen(
                                             }
                                         }
                                     }
-                                }
                             }
                             if (!isLast) {
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(5.dp))
                             }
                         }
                     }
                 }
 
-                // 3. Daily Summary Row (Right-Aligned dynamic total spending)
-                val dailyTotal = txsForDate.filter { it.amount > 0 && it.toAccountId == null }.sumOf { it.amount }
+                // 3. Daily summary follows the signed amounts shown in the rows, including transfers.
+                val dailyNet = txsForDate.sumOf { -it.amount }
                 item {
                     Box(
                         modifier = Modifier
@@ -562,7 +502,11 @@ fun HistoryScreen(
                             .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = String.format("Daily Total: $%.2f", dailyTotal),
+                            text = stringResource(
+                                R.string.daily_net_format,
+                                if (dailyNet > 0.0) "+" else "",
+                                kotlin.math.abs(dailyNet)
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = activeVibeColor.copy(alpha = 0.8f),
@@ -587,7 +531,7 @@ fun HistoryScreen(
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(100.dp))
         }
     }
     }
@@ -605,7 +549,7 @@ fun HistoryScreen(
             onDismissRequest = { editingTransaction = null },
             title = {
                 Text(
-                    text = "Edit Transaction",
+                    text = stringResource(R.string.edit_transaction_title),
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleLarge
                 )
@@ -618,7 +562,7 @@ fun HistoryScreen(
                     OutlinedTextField(
                         value = editAmountText,
                         onValueChange = { editAmountText = it },
-                        label = { Text("Amount ($)") },
+                        label = { Text(stringResource(R.string.edit_amount_label) + " (HK$)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -626,14 +570,14 @@ fun HistoryScreen(
                     OutlinedTextField(
                         value = editCategoryText,
                         onValueChange = { editCategoryText = it },
-                        label = { Text("Category") },
+                        label = { Text(stringResource(R.string.edit_category_label)) },
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     OutlinedTextField(
                         value = editDescriptionText,
                         onValueChange = { editDescriptionText = it },
-                        label = { Text("Description") },
+                        label = { Text(stringResource(R.string.edit_description_label)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -657,12 +601,12 @@ fun HistoryScreen(
                         }
                     }
                 ) {
-                    Text("Save", color = MaterialTheme.colorScheme.secondary)
+                    Text(stringResource(R.string.btn_save), color = MaterialTheme.colorScheme.secondary)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editingTransaction = null }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    Text(stringResource(R.string.btn_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface,
@@ -689,4 +633,3 @@ private fun combineColors(color1: Color, color2: Color, weight: Float): Color {
         alpha = color1.alpha * weight + color2.alpha * (1f - weight)
     )
 }
-

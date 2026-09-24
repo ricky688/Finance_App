@@ -12,12 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -86,19 +86,10 @@ fun HomeScreenSkeleton(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         userScrollEnabled = false
     ) {
-        // Top Spacer
-        item {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(72.dp)
-            )
-        }
-
         // Hero Budget Card Skeleton
         item {
             Box(
@@ -168,18 +159,10 @@ fun AccountsScreenSkeleton(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         userScrollEnabled = false
     ) {
-        item {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(72.dp)
-            )
-        }
-
         // Net Asset Value Header Skeleton
         item {
             PulsingSkeletonBox(height = 160.dp, shape = RoundedCornerShape(24.dp))
@@ -230,18 +213,10 @@ fun HistoryScreenSkeleton(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         userScrollEnabled = false
     ) {
-        item {
-            Spacer(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(72.dp)
-            )
-        }
-
         // Search Bar Skeleton
         item {
             PulsingSkeletonBox(height = 56.dp, shape = RoundedCornerShape(28.dp))

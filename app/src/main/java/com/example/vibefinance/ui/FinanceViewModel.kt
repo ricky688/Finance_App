@@ -11,6 +11,8 @@ import com.example.vibefinance.data.repository.BudgetRepository
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.data.repository.TransactionRepository
 import com.example.vibefinance.theme.ThemeMode
+import com.example.vibefinance.theme.AppearancePalette
+import com.example.vibefinance.theme.IconShapeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,9 +27,16 @@ import android.app.Application
 import com.example.vibefinance.data.entity.SubscriptionEntity
 import com.example.vibefinance.data.repository.SubscriptionRepository
 import java.time.YearMonth
+import java.util.Locale
 import javax.inject.Inject
 
 import com.example.vibefinance.data.entity.DiscountShop
+
+enum class AppLanguage {
+    SYSTEM,
+    ENGLISH,
+    TRADITIONAL_CHINESE
+}
 
 // MVI State
 data class FinanceUiState(
@@ -38,6 +47,11 @@ data class FinanceUiState(
     val activeMonth: YearMonth = YearMonth.now(),
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
+    val appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
+    val appearanceContrast: Int = 0,
+    val pureBlackDarkMode: Boolean = false,
+    val iconShape: IconShapeMode = IconShapeMode.CLOVER,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val subscriptions: List<SubscriptionEntity> = emptyList(),
     val categoryLimits: Map<String, Double> = emptyMap(),
     val discountShops: List<DiscountShop> = emptyList(),
@@ -51,7 +65,8 @@ sealed interface FinanceIntent {
         val amount: Double,
         val startDate: Long,
         val endDate: Long,
-        val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY
+        val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY,
+        val showToast: Boolean = false
     ) : FinanceIntent
     data class AddTransaction(
         val amount: Double,
@@ -66,8 +81,10 @@ sealed interface FinanceIntent {
         val category: String,
         val accountId: Long,
         val description: String,
-        val installments: Int
+        val installments: Int,
+        val firstDueDate: Long = System.currentTimeMillis()
     ) : FinanceIntent
+    data class DeleteInstallmentGroup(val groupId: String, val accountId: Long) : FinanceIntent
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
     data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity) : FinanceIntent
     data class RestoreTransaction(val tx: TransactionEntity) : FinanceIntent
@@ -75,8 +92,13 @@ sealed interface FinanceIntent {
     data class DeleteAccount(val account: AccountEntity) : FinanceIntent
     data class SetThemeMode(val themeMode: ThemeMode) : FinanceIntent
     data class SetDynamicColorEnabled(val enabled: Boolean) : FinanceIntent
+    data class SetAppearancePalette(val palette: AppearancePalette) : FinanceIntent
+    data class SetAppearanceContrast(val level: Int) : FinanceIntent
+    data class SetPureBlackDarkMode(val enabled: Boolean) : FinanceIntent
+    data class SetIconShape(val shape: IconShapeMode) : FinanceIntent
+    data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
-    data class DeleteSubscription(val sub: SubscriptionEntity) : FinanceIntent
+    data class DeleteSubscription(val sub: SubscriptionEntity, val deletePastTransactions: Boolean = false) : FinanceIntent
     data class SetCategoryLimit(val category: String, val limit: Double?) : FinanceIntent
     data class SaveDiscountShop(val shop: DiscountShop) : FinanceIntent
     data class DeleteDiscountShop(val shop: DiscountShop) : FinanceIntent
@@ -112,6 +134,36 @@ class FinanceViewModel @Inject constructor(
     private fun loadData() {
         viewModelScope.launch {
             try {
+                // Restore saved preferences
+                val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                val savedLangName = prefs.getString("app_language", AppLanguage.SYSTEM.name) ?: AppLanguage.SYSTEM.name
+                val savedLang = try { AppLanguage.valueOf(savedLangName) } catch (e: Exception) { AppLanguage.SYSTEM }
+
+                val savedThemeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+                val savedTheme = try { ThemeMode.valueOf(savedThemeName) } catch (e: Exception) { ThemeMode.SYSTEM }
+
+                val savedDynamicColor = prefs.getBoolean("dynamic_color_enabled", false) // default false or loaded
+                val savedPalette = runCatching {
+                    AppearancePalette.valueOf(prefs.getString("appearance_palette", AppearancePalette.ORIGINAL.name)!!)
+                }.getOrDefault(AppearancePalette.ORIGINAL)
+                val savedContrast = prefs.getInt("appearance_contrast", 0).coerceIn(-1, 1)
+                val savedPureBlack = prefs.getBoolean("pure_black_dark_mode", false)
+                val savedIconShape = runCatching {
+                    IconShapeMode.valueOf(prefs.getString("icon_shape", IconShapeMode.CLOVER.name)!!)
+                }.getOrDefault(IconShapeMode.CLOVER)
+
+                _uiState.update {
+                    it.copy(
+                        appLanguage = savedLang,
+                        themeMode = savedTheme,
+                        dynamicColorEnabled = savedDynamicColor,
+                        appearancePalette = savedPalette,
+                        appearanceContrast = savedContrast,
+                        pureBlackDarkMode = savedPureBlack,
+                        iconShape = savedIconShape
+                    )
+                }
+
                 // Proactively auto-seed if there are no accounts in the database
                 val existingAccounts = accountRepository.allAccountsFlow.first()
                 if (existingAccounts.isEmpty()) {
@@ -179,6 +231,7 @@ class FinanceViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = true) }
                     try {
                         dataSeeder.seedDatabase()
+                        _uiState.update { it.copy(isLoading = false) }
                         _uiEvents.emit(FinanceUiEvent.SeedCompleted)
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Database successfully re-seeded!"))
                     } catch (e: Exception) {
@@ -196,7 +249,9 @@ class FinanceViewModel @Inject constructor(
                                 rolloverMode = intent.rolloverMode
                             )
                         )
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Custom period budget set successfully!"))
+                        if (intent.showToast) {
+                            _uiEvents.emit(FinanceUiEvent.ShowToast("Custom period budget set successfully!"))
+                        }
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
                     }
@@ -229,12 +284,20 @@ class FinanceViewModel @Inject constructor(
                         val baseTx = TransactionEntity(
                             amount = intent.amount,
                             category = intent.category,
-                            timestamp = System.currentTimeMillis(),
+                            timestamp = intent.firstDueDate,
                             accountId = intent.accountId,
                             description = intent.description
                         )
                         transactionRepository.insertInstallmentTransaction(baseTx, intent.installments)
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Installment plan created with ${intent.installments} entries!"))
+                    } catch (e: Exception) {
+                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                    }
+                }
+                is FinanceIntent.DeleteInstallmentGroup -> {
+                    try {
+                        transactionRepository.deleteInstallmentGroup(intent.groupId, intent.accountId)
+                        _uiEvents.emit(FinanceUiEvent.ShowToast("Installment plan deleted"))
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
                     }
@@ -296,6 +359,8 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.SetThemeMode -> {
                     _uiState.update { it.copy(themeMode = intent.themeMode) }
+                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putString("theme_mode", intent.themeMode.name).apply()
                     val message = when (intent.themeMode) {
                         ThemeMode.SYSTEM -> "Theme: System Default"
                         ThemeMode.LIGHT -> "Theme: Light Mode"
@@ -305,7 +370,45 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.SetDynamicColorEnabled -> {
                     _uiState.update { it.copy(dynamicColorEnabled = intent.enabled) }
+                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putBoolean("dynamic_color_enabled", intent.enabled).apply()
                     val message = if (intent.enabled) "Dynamic Colors Enabled" else "Dynamic Colors Disabled"
+                    _uiEvents.emit(FinanceUiEvent.ShowToast(message))
+                }
+                is FinanceIntent.SetAppearancePalette -> {
+                    _uiState.update { it.copy(appearancePalette = intent.palette, dynamicColorEnabled = false) }
+                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putString("appearance_palette", intent.palette.name)
+                        .putBoolean("dynamic_color_enabled", false).apply()
+                }
+                is FinanceIntent.SetAppearanceContrast -> {
+                    val level = intent.level.coerceIn(-1, 1)
+                    _uiState.update { it.copy(appearanceContrast = level, dynamicColorEnabled = false) }
+                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putInt("appearance_contrast", level)
+                        .putBoolean("dynamic_color_enabled", false).apply()
+                }
+                is FinanceIntent.SetPureBlackDarkMode -> {
+                    _uiState.update { it.copy(pureBlackDarkMode = intent.enabled) }
+                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("pure_black_dark_mode", intent.enabled).apply()
+                }
+                is FinanceIntent.SetIconShape -> {
+                    _uiState.update { it.copy(iconShape = intent.shape) }
+                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                        .edit().putString("icon_shape", intent.shape.name).apply()
+                    val message = "圖示形狀：${intent.shape.title}"
+                    _uiEvents.emit(FinanceUiEvent.ShowToast(message))
+                }
+                is FinanceIntent.SetAppLanguage -> {
+                    _uiState.update { it.copy(appLanguage = intent.language) }
+                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putString("app_language", intent.language.name).apply()
+                    val message = when (intent.language) {
+                        AppLanguage.SYSTEM -> "Language: System Default / 語言：跟隨系統"
+                        AppLanguage.ENGLISH -> "Language: English"
+                        AppLanguage.TRADITIONAL_CHINESE -> "語言：繁體中文"
+                    }
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
                 is FinanceIntent.SaveSubscription -> {
@@ -325,8 +428,28 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.DeleteSubscription -> {
                     try {
+                        val pastTransactions = com.example.vibefinance.ui.recurring.findMatchingTransactionsForSubscription(
+                            intent.sub,
+                            _uiState.value.transactions
+                        )
+
                         subscriptionRepository.deleteSubscription(intent.sub)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription deleted!"))
+
+                        if (intent.deletePastTransactions && pastTransactions.isNotEmpty()) {
+                            for (tx in pastTransactions) {
+                                transactionRepository.deleteTransaction(tx)
+                            }
+                            val count = pastTransactions.size
+                            val sum = pastTransactions.sumOf { it.amount }
+                            val sumFormatted = String.format(Locale.getDefault(), "HK$ %,.2f", sum)
+                            _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription & $count past payment(s) deleted ($sumFormatted)"))
+                        } else {
+                            if (pastTransactions.isNotEmpty()) {
+                                _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription deleted (kept ${pastTransactions.size} past record(s))"))
+                            } else {
+                                _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription deleted!"))
+                            }
+                        }
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
                     }

@@ -1,36 +1,79 @@
 package com.example.vibefinance.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.luminance
+import com.example.vibefinance.theme.ChartColors
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
 import java.util.Locale
 
@@ -42,24 +85,43 @@ fun CategoryBreakdownCard(
     selectedCategory: String? = null,
     onSelectCategory: ((String?) -> Unit)? = null
 ) {
+    val haptic = LocalHapticFeedback.current
     val totalExpense = transactions.filter { it.toAccountId == null && it.amount > 0 }.sumOf { it.amount }
     
     // Group transactions by category
-    val categoryTotals = transactions
-        .filter { it.toAccountId == null && it.amount > 0 }
+    val expenseTransactions = transactions.filter { it.toAccountId == null && it.amount > 0 }
+    val categoryTotals = expenseTransactions
         .groupBy { it.category }
         .mapValues { entry -> entry.value.sumOf { it.amount } }
         .entries
         .sortedByDescending { it.value }
 
-    val categoryColors = listOf(
-        Color(0xFF4CAF50), // Emerald Green
-        Color(0xFF2196F3), // Ocean Blue
-        Color(0xFFFF9800), // Amber Sunset
-        Color(0xFF9C27B0), // Royal Purple
-        Color(0xFFE91E63), // Rose Pink
-        Color(0xFF00BCD4)  // Cyan
-    )
+    val categoryCounts = remember(expenseTransactions) {
+        expenseTransactions.groupBy { it.category }.mapValues { it.value.size }
+    }
+
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val categoryColorMap = remember(categoryTotals, isDark, primaryColor) {
+        ChartColors.buildCategoryColorMap(
+            categories = categoryTotals.map { it.key },
+            isDark = isDark,
+            primaryColor = primaryColor
+        )
+    }
+
+    // Interactive scrub state
+    var scrubbedCategory by remember { mutableStateOf<String?>(null) }
+    var isScrubbing by remember { mutableStateOf(false) }
+    val activeCategory = scrubbedCategory ?: selectedCategory
+    var lastVisibleCategory by remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        if (activeCategory != null) lastVisibleCategory = activeCategory
+    }
+
+    // Calculate cumulative segment fraction thresholds for scrubbing
+    var barWidthPx by remember { mutableFloatStateOf(0f) }
 
     Surface(
         modifier = modifier
@@ -72,7 +134,7 @@ fun CategoryBreakdownCard(
             ),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             1.dp,
             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
         ),
@@ -83,93 +145,129 @@ fun CategoryBreakdownCard(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
+            // Header Row: Category Analytics & CSV Export Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.PieChart,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text(
-                                text = "Category Analytics (分類分析)",
-                                style = MaterialTheme.typography.titleMedium,
+                                text = stringResource(R.string.category_analytics_title),
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
                             AnimatedVisibility(
                                 visible = selectedCategory != null,
-                                enter = fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy)) +
-                                        scaleIn(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)),
-                                exit = fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
-                                       scaleOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy))
+                                enter = expandHorizontally(spring(stiffness = Spring.StiffnessMediumLow)) +
+                                    fadeIn(spring(stiffness = Spring.StiffnessMediumLow)),
+                                exit = shrinkHorizontally(spring(stiffness = Spring.StiffnessMediumLow)) +
+                                    fadeOut(spring(stiffness = Spring.StiffnessMediumLow))
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    modifier = Modifier.padding(horizontal = 2.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .clickable(enabled = selectedCategory != null) {
+                                                onSelectCategory?.invoke(null)
+                                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                            }
                                     ) {
-                                        Text(
-                                            text = "Focused",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .size(12.dp)
-                                                .clickable { onSelectCategory?.invoke(null) }
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.category_analytics_focused),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                        Text(
-                            text = if (selectedCategory != null) "Tap category to clear focus filter" else "Tap any category below to filter transactions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (selectedCategory != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
+                        AnimatedContent(
+                            targetState = selectedCategory,
+                            transitionSpec = {
+                                (slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
+                                    fadeIn(spring(stiffness = Spring.StiffnessMediumLow)))
+                                    .togetherWith(
+                                        slideOutVertically(spring(stiffness = Spring.StiffnessMediumLow)) { -it / 2 } +
+                                            fadeOut(spring(stiffness = Spring.StiffnessMediumLow))
+                                    )
+                            },
+                            label = "category_filter_hint"
+                        ) { category ->
+                            val localizedCategory = category?.let {
+                                com.example.vibefinance.ui.home.getCategoryDisplayName(it)
+                            }
+                            Text(
+                                text = if (localizedCategory != null) stringResource(R.string.category_analytics_filtering, localizedCategory)
+                                       else stringResource(R.string.category_tap_to_filter),
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                                color = if (category != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 FilledTonalButton(
                     onClick = onExportCsv,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.FileDownload,
                         contentDescription = "Export CSV",
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "CSV",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -185,95 +283,253 @@ fun CategoryBreakdownCard(
                     modifier = Modifier.padding(vertical = 12.dp)
                 )
             } else {
-                // Stacked Multi-Segment Progress Bar with Separated Pills & Spring Height Expansion
-                Row(
+                // Interactive Stacked Multi-Segment Progress Bar with Touch & Drag Scrubbing
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(28.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .onGloballyPositioned { barWidthPx = it.size.width.toFloat() }
+                        .pointerInput(categoryTotals, totalExpense) {
+                            detectTapGestures(
+                                onTap = { offset ->
+                                    if (barWidthPx > 0 && totalExpense > 0) {
+                                        val touchRatio = (offset.x / barWidthPx).coerceIn(0f, 1f)
+                                        var cum = 0.0
+                                        var hitCat: String? = null
+                                        for (entry in categoryTotals) {
+                                            cum += (entry.value / totalExpense)
+                                            if (touchRatio <= cum) {
+                                                hitCat = entry.key
+                                                break
+                                            }
+                                        }
+                                        if (hitCat != null) {
+                                            val newCat = if (hitCat.equals(selectedCategory, ignoreCase = true)) null else hitCat
+                                            onSelectCategory?.invoke(newCat)
+                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        .pointerInput(categoryTotals, totalExpense) {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    isScrubbing = true
+                                    if (barWidthPx > 0 && totalExpense > 0) {
+                                        val touchRatio = (offset.x / barWidthPx).coerceIn(0f, 1f)
+                                        var cum = 0.0
+                                        for (entry in categoryTotals) {
+                                            cum += (entry.value / totalExpense)
+                                            if (touchRatio <= cum) {
+                                                scrubbedCategory = entry.key
+                                                break
+                                            }
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    isScrubbing = false
+                                    if (scrubbedCategory != null) {
+                                        onSelectCategory?.invoke(scrubbedCategory)
+                                    }
+                                    scrubbedCategory = null
+                                },
+                                onDragCancel = {
+                                    isScrubbing = false
+                                    scrubbedCategory = null
+                                },
+                                onDrag = { change, _ ->
+                                    if (barWidthPx > 0 && totalExpense > 0) {
+                                        val touchRatio = (change.position.x / barWidthPx).coerceIn(0f, 1f)
+                                        var cum = 0.0
+                                        var hitCat: String? = null
+                                        for (entry in categoryTotals) {
+                                            cum += (entry.value / totalExpense)
+                                            if (touchRatio <= cum) {
+                                                hitCat = entry.key
+                                                break
+                                            }
+                                        }
+                                        if (hitCat != null && hitCat != scrubbedCategory) {
+                                            scrubbedCategory = hitCat
+                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                        }
+                                    }
+                                }
+                            )
+                        }
                 ) {
-                    categoryTotals.forEachIndexed { index, entry ->
-                        val targetFraction = (entry.value / totalExpense).toFloat().coerceIn(0.01f, 1f)
-                        val animatedFraction by animateFloatAsState(
-                            targetValue = targetFraction,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
-                            label = "segment_spring"
-                        )
-                        val color = categoryColors[index % categoryColors.size]
-                        val isSegmentSelected = selectedCategory != null && entry.key.equals(selectedCategory, ignoreCase = true)
-                        val isSegmentDimmed = selectedCategory != null && !isSegmentSelected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        categoryTotals.forEachIndexed { index, entry ->
+                            val targetFraction = (entry.value / totalExpense).toFloat().coerceIn(0.01f, 1f)
+                            val animatedFraction by animateFloatAsState(
+                                targetValue = targetFraction,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "segment_spring_$index"
+                            )
+                            val color = categoryColorMap[entry.key] ?: ChartColors.getCategoryColor(entry.key, isDark, primaryColor)
+                            val isSegmentSelected = activeCategory != null && entry.key.equals(activeCategory, ignoreCase = true)
+                            val isSegmentDimmed = activeCategory != null && !isSegmentSelected
 
-                        // Dynamic spring height expansion when selected (like Daily Spending Chart)
-                        val segmentHeight by animateDpAsState(
-                            targetValue = when {
-                                isSegmentSelected -> 24.dp // Significantly bigger height on selection!
-                                isSegmentDimmed -> 10.dp    // Slightly smaller when dimmed
-                                else -> 14.dp               // Standard default height
-                            },
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
-                            label = "segment_height_spring"
-                        )
+                            val segmentHeight by animateDpAsState(
+                                targetValue = when {
+                                    isSegmentSelected -> 24.dp
+                                    isSegmentDimmed -> 10.dp
+                                    else -> 14.dp
+                                },
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "segment_height_spring_$index"
+                            )
 
-                        val segmentAlpha by animateFloatAsState(
-                            targetValue = if (isSegmentDimmed) 0.35f else 1.0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
-                            label = "segment_alpha_spring"
-                        )
+                            val segmentAlpha by animateFloatAsState(
+                                targetValue = if (isSegmentDimmed) 0.35f else 1.0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "segment_alpha_spring_$index"
+                            )
 
-                        val segmentScale by animateFloatAsState(
-                            targetValue = if (isSegmentSelected) 1.05f else 1.0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ),
-                            label = "segment_scale_spring"
-                        )
+                            val segmentScale by animateFloatAsState(
+                                targetValue = if (isSegmentSelected) 1.05f else 1.0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                ),
+                                label = "segment_scale_spring_$index"
+                            )
 
-                        Box(
-                            modifier = Modifier
-                                .weight(animatedFraction)
-                                .height(segmentHeight)
-                                .graphicsLayer {
-                                    scaleX = segmentScale
-                                    scaleY = segmentScale
-                                }
-                                .clip(CircleShape) // Individually rounded pill for each bar segment!
-                                .background(color.copy(alpha = segmentAlpha))
-                                .clickable {
-                                    onSelectCategory?.invoke(if (isSegmentSelected) null else entry.key)
-                                }
-                        )
+                            Box(
+                                modifier = Modifier
+                                    .weight(animatedFraction)
+                                    .height(segmentHeight)
+                                    .graphicsLayer {
+                                        scaleX = segmentScale
+                                        scaleY = segmentScale
+                                    }
+                                    .clip(CircleShape)
+                                    .background(color.copy(alpha = segmentAlpha))
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Interactive Category Popover / Detail Card
+                AnimatedVisibility(
+                    visible = activeCategory != null,
+                    enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) +
+                        fadeIn(spring(stiffness = Spring.StiffnessMediumLow)),
+                    exit = shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow)) +
+                        fadeOut(spring(stiffness = Spring.StiffnessMediumLow))
+                ) {
+                    (activeCategory ?: lastVisibleCategory)?.let { cat ->
+                        val catTotal = categoryTotals.find { it.key == cat }?.value ?: 0.0
+                        val catCount = categoryCounts[cat] ?: 0
+                        val catPct = if (totalExpense > 0) (catTotal / totalExpense * 100) else 0.0
+                        val catColor = categoryColorMap[cat] ?: ChartColors.getCategoryColor(cat, isDark, primaryColor)
 
-                // Detailed Interactive Legend Grid with Spring Highlight Physics
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
+                            border = BorderStroke(1.dp, catColor.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp)
+                                .clickable(enabled = activeCategory != null) {
+                                    val newCat = if (cat.equals(selectedCategory, ignoreCase = true)) null else cat
+                                    onSelectCategory?.invoke(newCat)
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(catColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = com.example.vibefinance.ui.home.getCategoryDisplayName(cat),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.category_transactions_count, catCount),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = String.format(Locale.US, "HK$ %,.2f", catTotal),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = String.format(Locale.US, "%.1f%% of total", catPct),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (selectedCategory != null && cat.equals(selectedCategory, ignoreCase = true)) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Detailed Interactive Legend List with Spring Highlight Physics
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     categoryTotals.take(5).forEachIndexed { index, entry ->
-                        val color = categoryColors[index % categoryColors.size]
+                        val color = categoryColorMap[entry.key] ?: ChartColors.getCategoryColor(entry.key, isDark, primaryColor)
                         val percentage = if (totalExpense > 0) (entry.value / totalExpense * 100) else 0.0
-                        val isSelected = selectedCategory != null && entry.key.equals(selectedCategory, ignoreCase = true)
-                        val isDimmed = selectedCategory != null && !isSelected
+                        val isSelected = activeCategory != null && entry.key.equals(activeCategory, ignoreCase = true)
+                        val isDimmed = activeCategory != null && !isSelected
 
                         val rowBgColor by animateColorAsState(
-                            targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            targetValue = if (isSelected) color.copy(alpha = 0.18f)
                             else Color.Transparent,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioLowBouncy,
                                 stiffness = Spring.StiffnessMediumLow
                             ),
-                            label = "row_bg_spring"
+                            label = "row_bg_spring_$index"
                         )
 
                         val rowAlpha by animateFloatAsState(
@@ -282,7 +538,7 @@ fun CategoryBreakdownCard(
                                 dampingRatio = Spring.DampingRatioLowBouncy,
                                 stiffness = Spring.StiffnessMediumLow
                             ),
-                            label = "row_alpha_spring"
+                            label = "row_alpha_spring_$index"
                         )
 
                         val dotSize by animateDpAsState(
@@ -291,7 +547,7 @@ fun CategoryBreakdownCard(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
                                 stiffness = Spring.StiffnessLow
                             ),
-                            label = "dot_size_spring"
+                            label = "dot_size_spring_$index"
                         )
 
                         val horizontalPadding by animateDpAsState(
@@ -300,7 +556,7 @@ fun CategoryBreakdownCard(
                                 dampingRatio = Spring.DampingRatioLowBouncy,
                                 stiffness = Spring.StiffnessMediumLow
                             ),
-                            label = "row_h_padding_spring"
+                            label = "row_h_padding_spring_$index"
                         )
 
                         Row(
@@ -309,7 +565,9 @@ fun CategoryBreakdownCard(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(rowBgColor)
                                 .clickable {
-                                    onSelectCategory?.invoke(if (isSelected) null else entry.key)
+                                    val newCat = if (isSelected && selectedCategory != null) null else entry.key
+                                    onSelectCategory?.invoke(newCat)
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                 }
                                 .padding(horizontal = horizontalPadding, vertical = 6.dp)
                                 .alpha(rowAlpha),
@@ -325,7 +583,7 @@ fun CategoryBreakdownCard(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = entry.key,
+                                    text = com.example.vibefinance.ui.home.getCategoryDisplayName(entry.key),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface

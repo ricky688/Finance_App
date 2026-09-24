@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
 import com.example.vibefinance.data.entity.DiscountShop
+import com.example.vibefinance.data.entity.InterceptableApp
+import java.util.Locale
 
 object InMemoryDatabase {
     val accounts = MutableStateFlow<List<AccountEntity>>(emptyList())
@@ -20,6 +22,7 @@ object InMemoryDatabase {
     )
     
     var isNotificationLoggingEnabled = true
+    val selectedInterceptApps = MutableStateFlow<Set<String>>(InterceptableApp.defaultEnabledApps())
 
     private var nextAccountId = 1L
     private var nextTransactionId = 1L
@@ -44,19 +47,67 @@ object InMemoryDatabase {
         sharedPrefs = context.getSharedPreferences("cashback_rules_prefs", android.content.Context.MODE_PRIVATE)
         val rulesMap = mutableMapOf<String, Double>()
         sharedPrefs?.all?.forEach { (key, value) ->
-            val doubleVal = when (value) {
-                is String -> value.toDoubleOrNull()
-                is Float -> value.toDouble()
-                is Double -> value
-                is Int -> value.toDouble()
-                is Long -> value.toDouble()
-                else -> null
-            }
-            if (doubleVal != null) {
-                rulesMap[key] = doubleVal
+            if (key == "selected_intercept_apps") {
+                // Handled separately
+            } else {
+                val doubleVal = when (value) {
+                    is String -> value.toDoubleOrNull()
+                    is Float -> value.toDouble()
+                    is Double -> value
+                    is Int -> value.toDouble()
+                    is Long -> value.toDouble()
+                    else -> null
+                }
+                if (doubleVal != null) {
+                    rulesMap[key] = doubleVal
+                }
             }
         }
         cashbackRules.value = rulesMap
+
+        val savedAppSet = sharedPrefs?.getStringSet("selected_intercept_apps", null)
+        if (savedAppSet != null && savedAppSet.isNotEmpty()) {
+            selectedInterceptApps.value = savedAppSet
+        } else {
+            selectedInterceptApps.value = InterceptableApp.defaultEnabledApps()
+        }
+    }
+
+    fun toggleInterceptApp(appId: String) {
+        selectedInterceptApps.update { current ->
+            val updated = if (current.contains(appId)) {
+                current - appId
+            } else {
+                current + appId
+            }
+            sharedPrefs?.edit()?.putStringSet("selected_intercept_apps", updated)?.apply()
+            updated
+        }
+    }
+
+    fun setInterceptApps(appIds: Set<String>) {
+        selectedInterceptApps.value = appIds
+        sharedPrefs?.edit()?.putStringSet("selected_intercept_apps", appIds)?.apply()
+    }
+
+    fun isAppInterceptEnabled(packageName: String, title: String, text: String): Boolean {
+        if (!isNotificationLoggingEnabled) return false
+        val enabledSet = selectedInterceptApps.value
+        if (enabledSet.isEmpty()) return false
+
+        for (appId in enabledSet) {
+            val app = InterceptableApp.fromId(appId)
+            if (app != null) {
+                if (app.matches(packageName, title, text)) {
+                    return true
+                }
+            } else {
+                if (packageName.equals(appId, ignoreCase = true)) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     fun setCashbackRule(accountId: Long, category: String, rate: Double?) {

@@ -2,57 +2,89 @@ package com.example.vibefinance.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- Refined Financial Tonal Palette (Light Theme) ---
-val GoogleLightPrimary = Color(0xFF10893E)          // Deep Emerald Green (Vibe Financial Primary)
+// --- Refined Financial Tonal Palette (Light Theme - Fresh Emerald Mint) ---
+val GoogleLightPrimary = Color(0xFF006C4C)          // Deep Emerald Green (Vibe Financial Primary)
 val GoogleLightOnPrimary = Color(0xFFFFFFFF)
-val GoogleLightPrimaryContainer = Color(0xFFD3F5DF)   // Soft Mint Container
-val GoogleLightOnPrimaryContainer = Color(0xFF04481E)
+val GoogleLightPrimaryContainer = Color(0xFF8EF7C7)   // Soft Mint Container
+val GoogleLightOnPrimaryContainer = Color(0xFF002114)
+val GoogleLightInversePrimary = Color(0xFF71DAAC)
 
-val GoogleLightSecondary = Color(0xFF1976D2)        // Sapphire Blue (Secondary Asset Focus)
+val GoogleLightSecondary = Color(0xFF4D6356)        // Sophisticated Slate Green
 val GoogleLightOnSecondary = Color(0xFFFFFFFF)
-val GoogleLightSecondaryContainer = Color(0xFFE3F2FD)
-val GoogleLightOnSecondaryContainer = Color(0xFF0D47A1)
+val GoogleLightSecondaryContainer = Color(0xFFCFE9D8)
+val GoogleLightOnSecondaryContainer = Color(0xFF0A1F16)
 
-val GoogleLightTertiary = Color(0xFFE53935)         // Warm Crimson Rose (Overspend Alert)
+val GoogleLightTertiary = Color(0xFF3D6473)         // Deep Ocean Marine
 val GoogleLightOnTertiary = Color(0xFFFFFFFF)
-val GoogleLightTertiaryContainer = Color(0xFFFFEBEE)
-val GoogleLightOnTertiaryContainer = Color(0xFFB71C1C)
+val GoogleLightTertiaryContainer = Color(0xFFC1E9FB)
+val GoogleLightOnTertiaryContainer = Color(0xFF001F29)
 
-val GoogleLightBackground = Color(0xFFF4F6F9)       // Crisp Pearl Neutral Background
-val GoogleLightOnBackground = Color(0xFF1A1C20)     // High-contrast Deep Slate Text
+val GoogleLightBackground = Color(0xFFF7FAF7)       // Crisp Pearl Neutral Background
+val GoogleLightOnBackground = Color(0xFF191C1A)     // High-contrast Deep Slate Text
 val GoogleLightSurface = Color(0xFFFFFFFF)          // Pure White Card Surfaces
-val GoogleLightOnSurface = Color(0xFF1A1C20)
-val GoogleLightSurfaceVariant = Color(0xFFEDF0F5)    // Soft Elevated Variant
-val GoogleLightOnSurfaceVariant = Color(0xFF535866)
+val GoogleLightOnSurface = Color(0xFF191C1A)
+val GoogleLightSurfaceVariant = Color(0xFFDBE5DE)    // Soft Elevated Variant
+val GoogleLightOnSurfaceVariant = Color(0xFF404944)
+val GoogleLightSurfaceTint = Color(0xFF006C4C)
+val GoogleLightInverseSurface = Color(0xFF2D312E)
+val GoogleLightInverseOnSurface = Color(0xFFEFF2ED)
 
-val GoogleLightOutline = Color(0xFFD8DCE6)          // Subtle Glass Outline
-val GoogleLightOutlineVariant = Color(0xFFE5E9F0)
+val GoogleLightSurfaceContainerLowest = Color(0xFFFFFFFF)
+val GoogleLightSurfaceContainerLow = Color(0xFFF1F5F1)
+val GoogleLightSurfaceContainer = Color(0xFFEBF0EB)
+val GoogleLightSurfaceContainerHigh = Color(0xFFE5EAE5)
+val GoogleLightSurfaceContainerHighest = Color(0xFFDFE5DF)
 
-// --- Refined Financial Tonal Palette (Dark Theme - Obsidian Glow) ---
-val GoogleDarkPrimary = Color(0xFF00E676)           // Glowing Vibrant Emerald Mint
-val GoogleDarkOnPrimary = Color(0xFF003816)
-val GoogleDarkPrimaryContainer = Color(0xFF005224)
-val GoogleDarkOnPrimaryContainer = Color(0xFFB9F6CA)
+val GoogleLightError = Color(0xFFBA1A1A)
+val GoogleLightOnError = Color(0xFFFFFFFF)
+val GoogleLightErrorContainer = Color(0xFFFFDAD6)
+val GoogleLightOnErrorContainer = Color(0xFF410002)
 
-val GoogleDarkSecondary = Color(0xFF40C4FF)         // Electric Cyan Blue
-val GoogleDarkOnSecondary = Color(0xFF00344A)
-val GoogleDarkSecondaryContainer = Color(0xFF004D6E)
-val GoogleDarkOnSecondaryContainer = Color(0xFFE0F7FA)
+val GoogleLightOutline = Color(0xFF707973)          // Subtle Glass Outline
+val GoogleLightOutlineVariant = Color(0xFFBFC9C2)
+val GoogleLightScrim = Color(0xFF000000)
 
-val GoogleDarkTertiary = Color(0xFFFF5252)          // Glowing Crimson Red
-val GoogleDarkOnTertiary = Color(0xFF4A0000)
-val GoogleDarkTertiaryContainer = Color(0xFF6E0000)
-val GoogleDarkOnTertiaryContainer = Color(0xFFFFEBEE)
+// --- Refined Financial Tonal Palette (Dark Theme - Midnight Obsidian Emerald) ---
+val GoogleDarkPrimary = Color(0xFF71DAAC)           // Radiant Emerald Mint Glow
+val GoogleDarkOnPrimary = Color(0xFF003825)
+val GoogleDarkPrimaryContainer = Color(0xFF005138)
+val GoogleDarkOnPrimaryContainer = Color(0xFF8EF7C7)
+val GoogleDarkInversePrimary = Color(0xFF006C4C)
 
-val GoogleDarkBackground = Color(0xFF0F1115)        // Deep Midnight Obsidian Background
-val GoogleDarkOnBackground = Color(0xFFF0F2F5)      // Crisp High-Legibility White Text
-val GoogleDarkSurface = Color(0xFF181B22)           // Sleek Card Surface
-val GoogleDarkOnSurface = Color(0xFFF0F2F5)
-val GoogleDarkSurfaceVariant = Color(0xFF232732)     // Elevated Dark Surface
-val GoogleDarkOnSurfaceVariant = Color(0xFFA6ABB8)
+val GoogleDarkSecondary = Color(0xFFB4CCBC)         // Muted Sage Mint
+val GoogleDarkOnSecondary = Color(0xFF20352A)
+val GoogleDarkSecondaryContainer = Color(0xFF364B3F)
+val GoogleDarkOnSecondaryContainer = Color(0xFFCFE9D8)
 
-val GoogleDarkOutline = Color(0xFF333846)          // Subtle Glass Outline
-val GoogleDarkOutlineVariant = Color(0xFF282C38)
+val GoogleDarkTertiary = Color(0xFFA5CDDE)          // Glowing Ice Cyan
+val GoogleDarkOnTertiary = Color(0xFF063543)
+val GoogleDarkTertiaryContainer = Color(0xFF244C5A)
+val GoogleDarkOnTertiaryContainer = Color(0xFFC1E9FB)
+
+val GoogleDarkBackground = Color(0xFF0F1210)        // Deep Midnight Obsidian Background
+val GoogleDarkOnBackground = Color(0xFFE1E3DF)      // Crisp High-Legibility White Text
+val GoogleDarkSurface = Color(0xFF161A18)           // Sleek Midnight Card Surface
+val GoogleDarkOnSurface = Color(0xFFE1E3DF)
+val GoogleDarkSurfaceVariant = Color(0xFF242A27)     // Elevated Dark Surface
+val GoogleDarkOnSurfaceVariant = Color(0xFFBFC9C2)
+val GoogleDarkSurfaceTint = Color(0xFF71DAAC)
+val GoogleDarkInverseSurface = Color(0xFFE1E3DF)
+val GoogleDarkInverseOnSurface = Color(0xFF191C1A)
+
+val GoogleDarkSurfaceContainerLowest = Color(0xFF0A0D0B)
+val GoogleDarkSurfaceContainerLow = Color(0xFF161A18)
+val GoogleDarkSurfaceContainer = Color(0xFF1A1E1C)
+val GoogleDarkSurfaceContainerHigh = Color(0xFF252926)
+val GoogleDarkSurfaceContainerHighest = Color(0xFF2F3431)
+
+val GoogleDarkError = Color(0xFFFFB4AB)
+val GoogleDarkOnError = Color(0xFF690005)
+val GoogleDarkErrorContainer = Color(0xFF93000A)
+val GoogleDarkOnErrorContainer = Color(0xFFFFDAD6)
+
+val GoogleDarkOutline = Color(0xFF8A938C)          // Subtle Glass Outline
+val GoogleDarkOutlineVariant = Color(0xFF404944)
+val GoogleDarkScrim = Color(0xFF000000)
 
 // --- Curated Harmonious Chart & Category Palette ---
 val PaletteEmerald = Color(0xFF00E676)
