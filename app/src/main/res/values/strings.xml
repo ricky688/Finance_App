@@ -60,8 +60,11 @@
     <string name="budget_remaining">Remaining</string>
     <string name="budget_days_left">Days Left</string>
     <string name="btn_recalculate_budget">Recalculate</string>
-    <string name="btn_reset_period">Reset Period</string>
     <string name="btn_new_period">New Period</string>
+    <string name="no_budget_set">No Budget Set</string>
+    <string name="btn_set_budget">Set Budget</string>
+    <string name="no_assets_title">No Accounts or Cards Yet</string>
+    <string name="no_assets_description">Add your cash wallet, bank accounts, or credit cards to begin tracking your finances.</string>
     <string name="spending_trend">Spending Trend</string>
     <string name="spending_breakdown">Spending Breakdown</string>
     <string name="highest_spending_day">Highest Day</string>

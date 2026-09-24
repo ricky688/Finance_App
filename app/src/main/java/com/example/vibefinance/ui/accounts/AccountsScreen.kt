@@ -154,6 +154,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import com.example.vibefinance.ui.components.RollingNumberText
+import com.example.vibefinance.ui.components.GlassmorphicCard
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -746,22 +747,98 @@ fun AccountsScreen(
                 }
             }
 
-            // 4. Edge-to-Edge Full-Bleed Accounts List Items
-            itemsIndexed(filteredAccounts, key = { _, acc -> acc.id }) { index, account ->
-                ExpressiveAccountListItem(
-                    account = account,
-                    transactions = state.transactions,
-                    cashbackRules = cashbackRules,
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        placementSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        fadeOutSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                    ),
-                    onEditClick = {
-                        editingAccount = account
-                        showAddEditDialog = true
+            // 4. Edge-to-Edge Full-Bleed Accounts List Items or Friendly Empty State
+            if (filteredAccounts.isEmpty()) {
+                item {
+                    GlassmorphicCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        cornerRadius = 24.dp,
+                        borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Text(
+                                text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.no_assets_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.no_assets_description),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    editingAccount = null
+                                    showAddEditDialog = true
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.btn_add_account),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
-                )
+                }
+            } else {
+                itemsIndexed(filteredAccounts, key = { _, acc -> acc.id }) { index, account ->
+                    ExpressiveAccountListItem(
+                        account = account,
+                        transactions = state.transactions,
+                        cashbackRules = cashbackRules,
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            placementSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            fadeOutSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                        ),
+                        onEditClick = {
+                            editingAccount = account
+                            showAddEditDialog = true
+                        }
+                    )
+                }
             }
 
             // 5. Generous Bottom Spacer to allow scrolling further down

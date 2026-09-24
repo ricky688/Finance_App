@@ -640,14 +640,14 @@ fun MainScreen(
     }
 
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
-        totalMonthlyBudget = 1500.0,
+        totalMonthlyBudget = 0.0,
         totalSpentThisMonth = 0.0,
-        monthlyRemaining = 1500.0,
-        dailyAllowance = 50.0,
-        dailyRemaining = 50.0,
-        daysLeft = 30,
-        startDate = System.currentTimeMillis(),
-        endDate = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
+        monthlyRemaining = 0.0,
+        dailyAllowance = 0.0,
+        dailyRemaining = 0.0,
+        daysLeft = 0,
+        startDate = 0L,
+        endDate = 0L
     )
 
     var showRecalcSheet by remember { mutableStateOf(false) }

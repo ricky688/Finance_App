@@ -39,17 +39,21 @@ fun WholeBudgetCard(
 ) {
     val formatter = remember { DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault()) }
     val startLocalDate = remember(startDate) {
-        Instant.ofEpochMilli(startDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        if (startDate > 0L) Instant.ofEpochMilli(startDate).atZone(ZoneId.systemDefault()).toLocalDate() else null
     }
     val endLocalDate = remember(endDate) {
-        Instant.ofEpochMilli(endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        if (endDate > 0L) Instant.ofEpochMilli(endDate).atZone(ZoneId.systemDefault()).toLocalDate() else null
     }
     val daysCount = remember(startLocalDate, endLocalDate) {
-        ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1
+        if (startLocalDate != null && endLocalDate != null) {
+            ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1
+        } else {
+            0L
+        }
     }
 
-    val startDateText = remember(startLocalDate) { startLocalDate.format(formatter) }
-    val endDateText = remember(endLocalDate) { endLocalDate.format(formatter) }
+    val startDateText = remember(startLocalDate) { startLocalDate?.format(formatter) ?: "—" }
+    val endDateText = remember(endLocalDate) { endLocalDate?.format(formatter) ?: "—" }
 
     val amountText = remember(budget) { String.format(Locale.US, "$%,.2f", budget) }
 
@@ -117,7 +121,11 @@ fun CountDaysChip(modifier: Modifier = Modifier, daysCount: Int) {
         ) {
             Text(
                 modifier = Modifier.padding(horizontal = 8.dp),
-                text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.days_count_format, daysCount),
+                text = if (daysCount > 0) {
+                    androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.days_count_format, daysCount)
+                } else {
+                    "—"
+                },
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
                 maxLines = 1
             )

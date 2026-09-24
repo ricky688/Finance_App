@@ -164,13 +164,6 @@ class FinanceViewModel @Inject constructor(
                     )
                 }
 
-                // Proactively auto-seed if there are no accounts in the database
-                val existingAccounts = accountRepository.allAccountsFlow.first()
-                if (existingAccounts.isEmpty()) {
-                    dataSeeder.seedDatabase()
-                    _uiEvents.emit(FinanceUiEvent.ShowToast("Database auto-seeded with custom period budget!"))
-                }
-
                 // Reactive subscription to accounts
                 viewModelScope.launch {
                     accountRepository.allAccountsFlow.collect { accountsList ->

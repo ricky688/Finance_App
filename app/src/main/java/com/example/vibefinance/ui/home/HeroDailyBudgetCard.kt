@@ -45,7 +45,8 @@ enum class HeroDailyBudgetState {
     NORMAL,
     OVERDRAFT,
     BUDGET_END,
-    PERIOD_ENDED
+    PERIOD_ENDED,
+    NO_BUDGET
 }
 
 /**
@@ -55,6 +56,7 @@ fun calculateHeroDailyBudgetState(
     info: DailyBudgetInfo,
     currentTimeMillis: Long = System.currentTimeMillis()
 ): HeroDailyBudgetState {
+    if (info.totalMonthlyBudget <= 0.0 || info.endDate <= 0L) return HeroDailyBudgetState.NO_BUDGET
     val isPeriodEnded = info.daysLeft <= 0 || (info.endDate > 0 && currentTimeMillis >= info.endDate)
     if (isPeriodEnded) return HeroDailyBudgetState.PERIOD_ENDED
     val isBudgetEnd = info.monthlyRemaining <= 0.0 || (info.dailyRemaining < 0.0 && info.newDailyBudget <= 0.0)
@@ -103,6 +105,7 @@ fun HeroDailyBudgetCard(
 
     // Buckwheat State Machine
     val budgetState = calculateHeroDailyBudgetState(budgetInfo)
+    val isNoBudget = budgetState == HeroDailyBudgetState.NO_BUDGET
     val isPeriodEnded = budgetState == HeroDailyBudgetState.PERIOD_ENDED
     val isBudgetEnd = budgetState == HeroDailyBudgetState.BUDGET_END
     val isOverdraft = budgetState == HeroDailyBudgetState.OVERDRAFT
@@ -127,6 +130,7 @@ fun HeroDailyBudgetCard(
     val ambientGlowColor = when {
         isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.25f) // Emerald Flow
         isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.18f else 0.25f)                  // Sunset Amber
+        isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.12f else 0.18f)
         else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.22f else 0.30f)                   // Crimson Alert
     }
 
@@ -144,6 +148,7 @@ fun HeroDailyBudgetCard(
 
     // Target amount to display in giant rolling numbers
     val targetAmount = when {
+        isNoBudget -> 0f
         isPeriodEnded -> budgetInfo.monthlyRemaining.toFloat()
         isBudgetEnd -> 0f
         isOverdraft -> budgetInfo.newDailyBudget.toFloat()
@@ -154,31 +159,31 @@ fun HeroDailyBudgetCard(
 
     // Semantic Color tokens adaptation for Light & Dark Mode
     val targetContainerBg = when {
-        isNormal -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.45f)
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.45f)
         else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = if (isDark) 0.35f else 0.45f)
     }
     val containerBg by animateColorAsState(targetContainerBg, colorSpringSpec, label = "containerBg")
 
     val targetWaveFillColor = when {
-        isNormal -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.60f else 0.70f)
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.60f else 0.70f)
         else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = if (isDark) 0.60f else 0.70f)
     }
     val waveFillColor by animateColorAsState(targetWaveFillColor, colorSpringSpec, label = "waveFillColor")
 
     val targetCardBorderColor = when {
-        isNormal -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.25f)
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.25f)
         else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.35f else 0.25f)
     }
     val cardBorderColor by animateColorAsState(targetCardBorderColor, colorSpringSpec, label = "cardBorderColor")
 
     val targetTitleTextColor = when {
-        isNormal -> MaterialTheme.colorScheme.onPrimaryContainer
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onErrorContainer
     }
     val titleTextColor by animateColorAsState(targetTitleTextColor, colorSpringSpec, label = "titleTextColor")
 
     val targetAmountTextColor = when {
-        isNormal -> MaterialTheme.colorScheme.primary
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.error
     }
     val amountTextColor by animateColorAsState(targetAmountTextColor, colorSpringSpec, label = "amountTextColor")
@@ -186,13 +191,13 @@ fun HeroDailyBudgetCard(
     val subtitleTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     val targetActionButtonBg = when {
-        isNormal -> MaterialTheme.colorScheme.primary
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.error
     }
     val actionButtonBg by animateColorAsState(targetActionButtonBg, colorSpringSpec, label = "actionButtonBg")
 
     val actionButtonTextColor = when {
-        isNormal -> MaterialTheme.colorScheme.onPrimary
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.onPrimary
         else -> MaterialTheme.colorScheme.onError
     }
 
@@ -265,6 +270,7 @@ fun HeroDailyBudgetCard(
                                 border = BorderStroke(1.dp, titleTextColor.copy(alpha = 0.3f)),
                                 modifier = Modifier.bouncyClickable {
                                     when {
+                                        isNoBudget -> onOpenBudgetDialog()
                                         isOverdraft -> showNewDayBudgetInfoSheet = true
                                         isBudgetEnd -> showBudgetEndInfoSheet = true
                                         else -> onOpenBudgetDialog()
@@ -278,6 +284,7 @@ fun HeroDailyBudgetCard(
                                 ) {
                                     Icon(
                                         imageVector = when {
+                                            isNoBudget -> Icons.Default.Bolt
                                             isPeriodEnded -> Icons.Default.EventBusy
                                             isBudgetEnd -> Icons.Default.Warning
                                             isOverdraft -> Icons.Default.Info
@@ -289,6 +296,7 @@ fun HeroDailyBudgetCard(
                                     )
                                     Text(
                                         text = when {
+                                            isNoBudget -> stringResource(R.string.no_budget_set)
                                             isPeriodEnded -> stringResource(R.string.period_ended)
                                             isBudgetEnd -> stringResource(R.string.budget_end)
                                             isOverdraft -> stringResource(R.string.new_daily_budget_short)
@@ -322,7 +330,11 @@ fun HeroDailyBudgetCard(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = if (isPeriodEnded) "0 " + stringResource(R.string.period_ended) else stringResource(R.string.days_left_format, budgetInfo.daysLeft),
+                                    text = when {
+                                        isNoBudget -> "—"
+                                        isPeriodEnded -> "0 " + stringResource(R.string.period_ended)
+                                        else -> stringResource(R.string.days_left_format, budgetInfo.daysLeft)
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
@@ -484,7 +496,7 @@ fun HeroDailyBudgetCard(
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .bouncyClickable {
-                                    if (isPeriodEnded || isBudgetEnd) {
+                                    if (isNoBudget || isPeriodEnded || isBudgetEnd) {
                                         onOpenBudgetDialog()
                                     } else {
                                         onOpenRecalcSheet()
@@ -500,14 +512,18 @@ fun HeroDailyBudgetCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Autorenew,
+                                    imageVector = if (isNoBudget) Icons.Default.Bolt else Icons.Default.Autorenew,
                                     contentDescription = null,
                                     tint = actionButtonTextColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isPeriodEnded || isBudgetEnd) stringResource(R.string.btn_new_period) else stringResource(R.string.btn_recalculate_budget),
+                                    text = when {
+                                        isNoBudget -> stringResource(R.string.btn_set_budget)
+                                        isPeriodEnded || isBudgetEnd -> stringResource(R.string.btn_new_period)
+                                        else -> stringResource(R.string.btn_recalculate_budget)
+                                    },
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = actionButtonTextColor

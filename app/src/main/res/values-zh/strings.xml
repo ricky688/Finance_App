@@ -60,8 +60,11 @@
     <string name="budget_remaining">剩餘預算</string>
     <string name="budget_days_left">剩餘天數</string>
     <string name="btn_recalculate_budget">重新計算</string>
-    <string name="btn_reset_period">重設週期</string>
     <string name="btn_new_period">新週期</string>
+    <string name="no_budget_set">尚未设定预算</string>
+    <string name="btn_set_budget">设定预算</string>
+    <string name="no_assets_title">尚未创建任何资产或卡片</string>
+    <string name="no_assets_description">立即添加你的现金钱包、银行账户或信用卡，开始管理你的个人资产与支出。</string>
     <string name="spending_trend">支出趨勢</string>
     <string name="spending_breakdown">支出分析</string>
     <string name="highest_spending_day">最高消費日</string>

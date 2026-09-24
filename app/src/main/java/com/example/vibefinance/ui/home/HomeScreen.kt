@@ -262,14 +262,14 @@ fun HomeScreen(
 ) {
 
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
-        totalMonthlyBudget = 1500.0,
+        totalMonthlyBudget = 0.0,
         totalSpentThisMonth = 0.0,
-        monthlyRemaining = 1500.0,
-        dailyAllowance = 50.0,
-        dailyRemaining = 50.0,
-        daysLeft = 30,
-        startDate = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-        endDate = LocalDate.now().plusMonths(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        monthlyRemaining = 0.0,
+        dailyAllowance = 0.0,
+        dailyRemaining = 0.0,
+        daysLeft = 0,
+        startDate = 0L,
+        endDate = 0L
     )
 
     // Dynamic glow color based on Daily Spent ratio

@@ -15,6 +15,19 @@ class HomeScreenBentoTest {
         val now = System.currentTimeMillis()
         val tomorrow = now + 86400000L
 
+        // State 0: No budget set (brand new / fresh launch)
+        val noBudgetInfo = DailyBudgetInfo(
+            totalMonthlyBudget = 0.0,
+            totalSpentThisMonth = 0.0,
+            monthlyRemaining = 0.0,
+            dailyAllowance = 0.0,
+            dailyRemaining = 0.0,
+            daysLeft = 0,
+            startDate = 0L,
+            endDate = 0L
+        )
+        assertEquals(HeroDailyBudgetState.NO_BUDGET, calculateHeroDailyBudgetState(noBudgetInfo, now))
+
         // State 1: Normal healthy budget
         val normalInfo = DailyBudgetInfo(
             totalMonthlyBudget = 3000.0,

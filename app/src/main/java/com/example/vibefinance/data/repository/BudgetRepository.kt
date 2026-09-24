@@ -35,7 +35,7 @@ class BudgetRepository @Inject constructor() {
                     monthlyRemaining = 0.0,
                     dailyAllowance = 0.0,
                     dailyRemaining = 0.0,
-                    daysLeft = 1,
+                    daysLeft = 0,
                     startDate = 0L,
                     endDate = 0L
                 )
