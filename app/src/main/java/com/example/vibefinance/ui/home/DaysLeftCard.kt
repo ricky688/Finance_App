@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ fun DaysLeftCard(
     daysLeft: Int,
     totalDays: Int,
 ) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     var indicatorShape by remember { mutableStateOf(IndicatorShape.WAVY) }
 
     // Percentage = Days Left / Total Period Days
@@ -60,16 +62,15 @@ fun DaysLeftCard(
     Card(
         modifier = modifier
             .fillMaxHeight()
-            .clip(BentoCardShape)
             .bouncyClickable {
                 // Toggle between Flat and Wavy M3 Expressive shapes on tap
                 indicatorShape = if (indicatorShape == IndicatorShape.FLAT) IndicatorShape.WAVY else IndicatorShape.FLAT
             },
         shape = BentoCardShape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 2.dp else 0.dp)
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -77,7 +78,7 @@ fun DaysLeftCard(
                 .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
-            val circleDiameter = minOf(maxWidth, maxHeight).coerceAtMost(124.dp)
+            val circleDiameter = (minOf(maxWidth, maxHeight) - 8.dp).coerceAtMost(116.dp).coerceAtLeast(72.dp)
 
             Box(
                 modifier = Modifier.size(circleDiameter),

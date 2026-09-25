@@ -101,7 +101,7 @@ fun HeroDailyBudgetCard(
     onOpenBudgetDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     // Buckwheat State Machine
     val budgetState = calculateHeroDailyBudgetState(budgetInfo)
@@ -126,12 +126,13 @@ fun HeroDailyBudgetCard(
         shiftState.animateTo(1f, tween(durationMillis = 5000, easing = LinearEasing))
     }
 
-    // Ambient Financial Health Mood Glow Color
+    // Ambient Financial Health Mood Glow Color (active in dark mode only)
     val ambientGlowColor = when {
-        isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.25f) // Emerald Flow
-        isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.18f else 0.25f)                  // Sunset Amber
-        isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.12f else 0.18f)
-        else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.22f else 0.30f)                   // Crimson Alert
+        !isDark -> Color.Transparent
+        isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) // Emerald Flow
+        isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)                  // Sunset Amber
+        isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else -> MaterialTheme.colorScheme.error.copy(alpha = 0.22f)                   // Crimson Alert
     }
 
     // Spring Physics animation specs
@@ -139,7 +140,7 @@ fun HeroDailyBudgetCard(
     val ratioSpringSpec = spring<Float>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
 
     // Animated ratio fill with Spring physics
-    val targetRatio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0.05f
+    val targetRatio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
     val animatedRatio by animateFloatAsState(
         targetValue = targetRatio,
         animationSpec = ratioSpringSpec,
@@ -171,8 +172,8 @@ fun HeroDailyBudgetCard(
     val waveFillColor by animateColorAsState(targetWaveFillColor, colorSpringSpec, label = "waveFillColor")
 
     val targetCardBorderColor = when {
-        isNormal || isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.35f else 0.25f)
-        else -> MaterialTheme.colorScheme.error.copy(alpha = if (isDark) 0.35f else 0.25f)
+        isNormal || isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+        else -> MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
     }
     val cardBorderColor by animateColorAsState(targetCardBorderColor, colorSpringSpec, label = "cardBorderColor")
 
@@ -202,51 +203,53 @@ fun HeroDailyBudgetCard(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(HeroCardShape)
+        modifier = modifier.fillMaxWidth()
     ) {
-        // Ambient Mood Glow Layer
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .padding(4.dp)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(ambientGlowColor, Color.Transparent),
-                        radius = 400f
-                    ),
-                    shape = RoundedCornerShape(32.dp)
-                )
-                .blur(16.dp)
-        )
+        // Ambient Mood Glow Layer (Dark Mode only)
+        if (isDark && ambientGlowColor != Color.Transparent) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(4.dp)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(ambientGlowColor, Color.Transparent),
+                            radius = 400f
+                        ),
+                        shape = RoundedCornerShape(32.dp)
+                    )
+                    .blur(16.dp)
+            )
+        }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = HeroCardShape,
             color = containerBg,
-            border = BorderStroke(1.5.dp, cardBorderColor),
-            shadowElevation = if (isDark) 8.dp else 4.dp
+            border = if (isDark) BorderStroke(1.dp, cardBorderColor) else null,
+            shadowElevation = if (isDark) 4.dp else 0.dp
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Background Liquid Wavy Filler with Spring Motion
-                Box(
-                    modifier = Modifier.matchParentSize()
-                ) {
+                if (animatedRatio > 0.005f) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(animatedRatio.coerceIn(0.001f, 1.0f))
-                            .graphicsLayer {
-                                shape = WavyShape(
-                                    period = 36.dp,
-                                    amplitude = 4.dp,
-                                    shift = shiftState.value
-                                )
-                                clip = true
-                            }
-                            .background(waveFillColor)
-                    )
+                        modifier = Modifier.matchParentSize()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(animatedRatio.coerceIn(0.001f, 1.0f))
+                                .graphicsLayer {
+                                    shape = WavyShape(
+                                        period = 36.dp,
+                                        amplitude = 4.dp,
+                                        shift = shiftState.value
+                                    )
+                                    clip = true
+                                }
+                                .background(waveFillColor)
+                        )
+                    }
                 }
 
                 Column(

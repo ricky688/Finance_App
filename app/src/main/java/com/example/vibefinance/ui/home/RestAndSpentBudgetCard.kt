@@ -106,7 +106,7 @@ fun RestAndSpentBudgetCard(
                 containerColor = colors.container,
                 contentColor = colors.onContainer,
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkTheme) 2.dp else 0.dp)
         ) {
             Box(
                 Modifier.fillMaxSize()
