@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.SubscriptionEntity
@@ -102,10 +103,22 @@ class SubscriptionRepository @Inject constructor(
             manager.createNotificationChannel(channel)
         }
 
+        val intent = Intent(context, com.example.vibefinance.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_tab", "recurring")
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            name.hashCode(),
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = Notification.Builder(context, channelId)
             .setContentTitle("Subscription Charged")
             .setContentText("Automatically charged $${String.format("%.2f", amount)} for $name from $cardName")
             .setSmallIcon(android.R.drawable.ic_menu_save)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 

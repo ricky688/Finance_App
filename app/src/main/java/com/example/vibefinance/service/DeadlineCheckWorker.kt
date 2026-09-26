@@ -73,11 +73,23 @@ class DeadlineCheckWorker(
             "Your payment deadline is in $days days. Tap to manage your assets and log payments."
         }
 
+        val intent = android.content.Intent(applicationContext, com.example.vibefinance.MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("navigate_tab", "recurring")
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            applicationContext,
+            cardName.hashCode(),
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat) // Robust system asset to ensure no resource build resolution failures
             .setContentTitle("🚨 Red Alert: $cardName Due!")
             .setContentText(textContent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
 
         notificationManager.notify(cardName.hashCode(), builder.build())

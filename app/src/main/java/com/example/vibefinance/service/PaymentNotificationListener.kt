@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
@@ -394,10 +395,22 @@ class PaymentNotificationListener : NotificationListenerService() {
                 manager.createNotificationChannel(channel)
             }
 
+            val intent = Intent(context, com.example.vibefinance.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("navigate_tab", "history")
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context,
+                (merchant + amount).hashCode(),
+                intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+
             val notification = Notification.Builder(context, channelId)
                 .setContentTitle("Automatically Logged Expense")
                 .setContentText("Logged $${String.format("%.2f", amount)} at $merchant to $assetName")
                 .setSmallIcon(android.R.drawable.ic_menu_save)
+                .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .build()
 

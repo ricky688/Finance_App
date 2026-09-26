@@ -27,3 +27,4 @@ skill/
 .agents/explorer_*
 .agents/orchestrator_*
 .agents/sentinel/
+*.apk

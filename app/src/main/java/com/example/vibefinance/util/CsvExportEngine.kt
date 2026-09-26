@@ -38,23 +38,30 @@ object CsvExportEngine {
     }
 
     fun shareCsvFile(context: Context, csvContent: String) {
-        val file = File(context.cacheDir, "VibeFinance_Transactions_${System.currentTimeMillis()}.csv")
-        file.writeText(csvContent)
+        try {
+            val file = File(context.cacheDir, "VibeFinance_Transactions_${System.currentTimeMillis()}.csv")
+            file.writeText(csvContent)
 
-        val uri: Uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
+            val uri: Uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
 
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
-            putExtra(Intent.EXTRA_SUBJECT, "VibeFinance Expense Export")
-            putExtra(Intent.EXTRA_TEXT, "Here is your exported transaction history from VibeFinance.")
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_SUBJECT, "VibeFinance Expense Export")
+                putExtra(Intent.EXTRA_TEXT, "Here is your exported transaction history from VibeFinance.")
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooser = Intent.createChooser(intent, "Export Transactions CSV").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            android.util.Log.e("CsvExportEngine", "Failed to share CSV file", e)
         }
-
-        context.startActivity(Intent.createChooser(intent, "Export Transactions CSV"))
     }
 }

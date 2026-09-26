@@ -86,6 +86,8 @@ class MainActivity : ComponentActivity() {
             e.printStackTrace()
         }
 
+        handleIntent(intent)
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -151,33 +153,53 @@ class MainActivity : ComponentActivity() {
                 LocalContext provides localizedContext,
                 LocalActivityResultRegistryOwner provides this@MainActivity
             ) {
-                com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay {
-                    androidx.compose.animation.Crossfade(
-                        targetState = isDark,
-                        animationSpec = androidx.compose.animation.core.tween(
-                            durationMillis = 450,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing
-                        ),
-                        label = "screenThemeCrossfade"
-                    ) { targetIsDark ->
-                        VibeFinanceTheme(
-                            darkTheme = targetIsDark,
-                            dynamicColorEnabled = state.dynamicColorEnabled,
-                            appearancePalette = state.appearancePalette,
-                            appearanceContrast = state.appearanceContrast,
-                            pureBlackDarkMode = state.pureBlackDarkMode,
-                            iconShape = state.iconShape.shape
+                androidx.compose.animation.Crossfade(
+                    targetState = isDark,
+                    animationSpec = androidx.compose.animation.core.tween(
+                        durationMillis = 450,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    ),
+                    label = "screenThemeCrossfade"
+                ) { targetIsDark ->
+                    VibeFinanceTheme(
+                        darkTheme = targetIsDark,
+                        dynamicColorEnabled = state.dynamicColorEnabled,
+                        appearancePalette = state.appearancePalette,
+                        appearanceContrast = state.appearanceContrast,
+                        pureBlackDarkMode = state.pureBlackDarkMode,
+                        iconShape = state.iconShape.shape
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background
                         ) {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.background
-                            ) {
+                            com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay {
                                 MainScreen(viewModel = viewModel)
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: android.content.Intent?) {
+        val targetTabStr = intent?.getStringExtra("navigate_tab") ?: return
+        val targetTab = when (targetTabStr.lowercase(Locale.US)) {
+            "history" -> com.example.vibefinance.ui.main.TabItem.HISTORY
+            "recurring" -> com.example.vibefinance.ui.main.TabItem.RECURRING
+            "assets", "accounts" -> com.example.vibefinance.ui.main.TabItem.ACCOUNTS
+            "home", "daily" -> com.example.vibefinance.ui.main.TabItem.HOME
+            else -> null
+        }
+        if (targetTab != null) {
+            viewModel.requestTab(targetTab)
         }
     }
 }

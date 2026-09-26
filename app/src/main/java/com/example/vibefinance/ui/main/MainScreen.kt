@@ -551,6 +551,13 @@ fun MainScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var selectedTab by rememberSaveable { mutableStateOf(TabItem.HOME) }
+    val requestedTab by viewModel.requestedTab.collectAsStateWithLifecycle()
+    LaunchedEffect(requestedTab) {
+        requestedTab?.let {
+            selectedTab = it
+            viewModel.clearRequestedTab()
+        }
+    }
     var showBudgetDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showAddRecurringSheet by remember { mutableStateOf(false) }
@@ -960,10 +967,7 @@ fun MainScreen(
                             text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
                             shape = RoundedCornerShape(16.dp),
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.graphicsLayer {
-                                translationY = with(density) { (navBarOffsetY.coerceAtMost(72.dp)).toPx() }
-                            }
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         else -> Unit
                     }

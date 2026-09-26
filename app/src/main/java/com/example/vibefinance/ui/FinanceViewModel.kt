@@ -124,6 +124,17 @@ class FinanceViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(FinanceUiState())
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
+    private val _requestedTab = MutableStateFlow<com.example.vibefinance.ui.main.TabItem?>(null)
+    val requestedTab: StateFlow<com.example.vibefinance.ui.main.TabItem?> = _requestedTab.asStateFlow()
+
+    fun requestTab(tab: com.example.vibefinance.ui.main.TabItem) {
+        _requestedTab.value = tab
+    }
+
+    fun clearRequestedTab() {
+        _requestedTab.value = null
+    }
+
     private val _uiEvents = MutableSharedFlow<FinanceUiEvent>()
     val uiEvents: SharedFlow<FinanceUiEvent> = _uiEvents.asSharedFlow()
 
