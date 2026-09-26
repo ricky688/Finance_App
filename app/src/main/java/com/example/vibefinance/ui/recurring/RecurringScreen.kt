@@ -763,10 +763,12 @@ fun PresetsCarousel(
                             shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                            modifier = Modifier.bouncyClickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onPresetClick(preset)
-                            }
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .bouncyClickable(shape = RoundedCornerShape(16.dp)) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onPresetClick(preset)
+                                }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -874,6 +876,7 @@ fun FilterAndControlsRow(
                 onToggleTimeline()
             },
             shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.clip(RoundedCornerShape(12.dp)),
             color = if (isTimelineView) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             border = BorderStroke(
                 1.dp,
@@ -1991,6 +1994,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                 }
                             }
                         )
+                        .clip(itemShape)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = ripple()
@@ -2603,7 +2607,9 @@ fun EmptyRecurringCard(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surface,
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.bouncyClickable { onAddPreset(preset) }
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .bouncyClickable(shape = RoundedCornerShape(12.dp)) { onAddPreset(preset) }
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -3134,7 +3140,9 @@ fun AddEditSubscriptionSheet(
                                                             1.dp,
                                                             if (isPresetActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                                         ),
-                                                        modifier = Modifier.bouncyClickable {
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(12.dp))
+                                                            .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             nameText = preset.name
                                                             amountText = preset.defaultAmount.toString()
@@ -3255,7 +3263,9 @@ fun AddEditSubscriptionSheet(
                                                     shape = RoundedCornerShape(10.dp),
                                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                                    modifier = Modifier.bouncyClickable {
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .bouncyClickable(shape = RoundedCornerShape(10.dp)) {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         val current = amountText.toDoubleOrNull() ?: 0.0
                                                         amountText = String.format(Locale.US, "%.2f", current + inc)
@@ -3349,7 +3359,9 @@ fun AddEditSubscriptionSheet(
                                                             1.dp,
                                                             if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                                         ),
-                                                        modifier = Modifier.bouncyClickable {
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .bouncyClickable(shape = RoundedCornerShape(14.dp)) {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             accountIdText = acc.id
                                                         }
@@ -3407,7 +3419,8 @@ fun AddEditSubscriptionSheet(
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .bouncyClickable { showDatePicker = true }
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .bouncyClickable(shape = RoundedCornerShape(14.dp)) { showDatePicker = true }
                                             ) {
                                                 Row(
                                                     modifier = Modifier
@@ -3576,7 +3589,9 @@ fun AddEditSubscriptionSheet(
                                                     shape = RoundedCornerShape(10.dp),
                                                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                                    modifier = Modifier.bouncyClickable {
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .bouncyClickable(shape = RoundedCornerShape(10.dp)) {
                                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                         val current = installmentTotalAmountText.toDoubleOrNull() ?: 0.0
                                                         installmentTotalAmountText = String.format(Locale.US, "%.0f", current + inc)
@@ -3737,7 +3752,9 @@ fun AddEditSubscriptionSheet(
                                                             1.dp,
                                                             if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                                         ),
-                                                        modifier = Modifier.bouncyClickable {
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(14.dp))
+                                                            .bouncyClickable(shape = RoundedCornerShape(14.dp)) {
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             installmentAccountId = acc.id
                                                         }
@@ -3795,7 +3812,8 @@ fun AddEditSubscriptionSheet(
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .bouncyClickable { showInstallmentDatePicker = true }
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .bouncyClickable(shape = RoundedCornerShape(14.dp)) { showInstallmentDatePicker = true }
                                             ) {
                                                 Row(
                                                     modifier = Modifier
@@ -4122,7 +4140,7 @@ fun <T> ConnectedButtonGroup(
                 modifier = Modifier
                     .weight(1f)
                     .clip(shape)
-                    .bouncyClickable {
+                    .bouncyClickable(shape = shape) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onItemSelected(index)
                     }

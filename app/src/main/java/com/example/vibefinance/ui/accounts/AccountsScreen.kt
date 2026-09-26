@@ -251,7 +251,7 @@ fun AssetCardItem(
             .width(248.dp)
             .height(152.dp)
             .clip(RoundedCornerShape(20.dp))
-            .bouncyClickable { onClick() },
+            .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onClick() },
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)

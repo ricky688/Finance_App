@@ -91,7 +91,7 @@ fun RestAndSpentBudgetCard(
     Box(
         modifier = modifier
             .clip(shape = BentoCardShape)
-            .bouncyClickable { showSpentCard = !showSpentCard }
+            .bouncyClickable(shape = BentoCardShape) { showSpentCard = !showSpentCard }
             .onGloballyPositioned {
                 heightDp = with(localDensity) { it.size.height.toDp() }
                 widthDp = with(localDensity) { it.size.width.toDp() }

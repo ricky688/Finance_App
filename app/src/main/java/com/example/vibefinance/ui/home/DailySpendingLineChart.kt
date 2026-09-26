@@ -584,6 +584,7 @@ fun DailySpendingLineChart(
                                 scaleX = labelScale
                                 scaleY = labelScale
                             }
+                            .clip(RoundedCornerShape(4.dp))
                             .clickable {
                                 selectedIndex = idx
                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)

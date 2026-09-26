@@ -202,6 +202,7 @@ fun ExpressiveSwipeRow(
                         }
                     }
                 )
+                .clip(shape)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = ripple()

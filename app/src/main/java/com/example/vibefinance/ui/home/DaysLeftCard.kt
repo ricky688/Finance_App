@@ -62,7 +62,8 @@ fun DaysLeftCard(
     Card(
         modifier = modifier
             .fillMaxHeight()
-            .bouncyClickable {
+            .clip(BentoCardShape)
+            .bouncyClickable(shape = BentoCardShape) {
                 // Toggle between Flat and Wavy M3 Expressive shapes on tap
                 indicatorShape = if (indicatorShape == IndicatorShape.FLAT) IndicatorShape.WAVY else IndicatorShape.FLAT
             },

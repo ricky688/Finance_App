@@ -674,7 +674,8 @@ private fun DiscountShopCardItem(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .bouncyClickable { onClick() },
+            .clip(RoundedCornerShape(20.dp))
+            .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onClick() },
         shape = RoundedCornerShape(20.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         border = androidx.compose.foundation.BorderStroke(

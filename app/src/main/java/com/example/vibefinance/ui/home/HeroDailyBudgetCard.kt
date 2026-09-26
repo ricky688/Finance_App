@@ -271,14 +271,16 @@ fun HeroDailyBudgetCard(
                                 shape = CircleShape,
                                 color = titleTextColor.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, titleTextColor.copy(alpha = 0.3f)),
-                                modifier = Modifier.bouncyClickable {
-                                    when {
-                                        isNoBudget -> onOpenBudgetDialog()
-                                        isOverdraft -> showNewDayBudgetInfoSheet = true
-                                        isBudgetEnd -> showBudgetEndInfoSheet = true
-                                        else -> onOpenBudgetDialog()
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .bouncyClickable(shape = CircleShape) {
+                                        when {
+                                            isNoBudget -> onOpenBudgetDialog()
+                                            isOverdraft -> showNewDayBudgetInfoSheet = true
+                                            isBudgetEnd -> showBudgetEndInfoSheet = true
+                                            else -> onOpenBudgetDialog()
+                                        }
                                     }
-                                }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -325,7 +327,9 @@ fun HeroDailyBudgetCard(
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                            modifier = Modifier.bouncyClickable { onOpenBudgetDialog() }
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .bouncyClickable(shape = CircleShape) { onOpenBudgetDialog() }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -498,7 +502,7 @@ fun HeroDailyBudgetCard(
                                 .weight(1f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .bouncyClickable {
+                                .bouncyClickable(shape = RoundedCornerShape(16.dp)) {
                                     if (isNoBudget || isPeriodEnded || isBudgetEnd) {
                                         onOpenBudgetDialog()
                                     } else {

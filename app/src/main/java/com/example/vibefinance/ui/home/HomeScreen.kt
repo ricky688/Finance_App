@@ -350,7 +350,7 @@ fun HomeScreen(
                 WholeBudgetCard(
                     modifier = Modifier
                         .clip(BentoCardShape)
-                        .bouncyClickable { onOpenBudgetDialog() },
+                        .bouncyClickable(shape = BentoCardShape) { onOpenBudgetDialog() },
                     budget = budgetInfo.totalMonthlyBudget,
                     startDate = budgetInfo.startDate,
                     endDate = budgetInfo.endDate,
@@ -470,7 +470,7 @@ fun TotalExpensesRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(BentoCardShape)
-            .bouncyClickable { onViewAllClick() }
+            .bouncyClickable(shape = BentoCardShape) { onViewAllClick() }
     ) {
         Row(
             modifier = Modifier

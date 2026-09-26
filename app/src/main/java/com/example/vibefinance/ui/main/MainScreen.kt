@@ -965,6 +965,7 @@ fun MainScreen(
                             },
                             icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_add)) },
                             text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp)),
                             shape = RoundedCornerShape(16.dp),
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1597,12 +1598,18 @@ fun <T> ExpressiveSegmentedButtonGroup(
             
             val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
             
+            val haptic = LocalHapticFeedback.current
+
             Surface(
-                onClick = { onItemSelected(index) },
                 color = containerColor,
                 contentColor = contentColor,
                 shape = shape,
-                modifier = itemModifier.clip(shape)
+                modifier = itemModifier
+                    .clip(shape)
+                    .bouncyClickable(shape = shape) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onItemSelected(index)
+                    }
             ) {
                 Row(
                     modifier = Modifier
@@ -1961,7 +1968,10 @@ fun AddExpenseSheetContent(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { showInlineAddCategory = !showInlineAddCategory }
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showInlineAddCategory = !showInlineAddCategory }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
                 
@@ -2060,7 +2070,10 @@ fun AddExpenseSheetContent(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { showInlineAddAsset = !showInlineAddAsset }
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showInlineAddAsset = !showInlineAddAsset }
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
             

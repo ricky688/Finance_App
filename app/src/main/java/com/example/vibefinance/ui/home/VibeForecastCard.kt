@@ -63,7 +63,7 @@ fun VibeForecastCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .bouncyClickable { /* Info tap */ }
+            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { /* Info tap */ }
             .border(cardBorder.width, cardBorder.brush, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         color = cardBg

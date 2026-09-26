@@ -75,7 +75,7 @@ fun MinMaxSpentCard(
     StatCard(
         modifier = modifier
             .clip(BentoCardShape)
-            .bouncyClickable {},
+            .bouncyClickable(shape = BentoCardShape) {},
         value = amountText,
         label = label,
         colors = colors,

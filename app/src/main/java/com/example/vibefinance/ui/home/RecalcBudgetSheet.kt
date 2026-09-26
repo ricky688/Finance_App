@@ -319,7 +319,7 @@ fun RecalcBudgetSheet(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .bouncyClickable { /* Info link */ }
+                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) { /* Info link */ }
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Icon(
@@ -347,7 +347,7 @@ fun RecalcBudgetSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(18.dp))
-                        .bouncyClickable { rememberChoice = !rememberChoice }
+                        .bouncyClickable(shape = RoundedCornerShape(18.dp)) { rememberChoice = !rememberChoice }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
@@ -391,7 +391,7 @@ fun RecalcBudgetSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .bouncyClickable {
+                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                             onSelectMode(RolloverMode.DISTRIBUTE_EVENLY, rememberChoice)
                             onDismiss()
                         }
@@ -435,7 +435,7 @@ fun RecalcBudgetSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .bouncyClickable {
+                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
                             onSelectMode(RolloverMode.ADD_TO_NEXT_DAY, rememberChoice)
                             onDismiss()
                         }
