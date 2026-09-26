@@ -447,6 +447,7 @@ fun CategoryBreakdownCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 10.dp)
+                                .clip(RoundedCornerShape(16.dp))
                                 .clickable(enabled = activeCategory != null) {
                                     val newCat = if (cat.equals(selectedCategory, ignoreCase = true)) null else cat
                                     onSelectCategory?.invoke(newCat)

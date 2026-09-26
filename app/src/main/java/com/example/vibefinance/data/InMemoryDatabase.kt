@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 
 import com.example.vibefinance.data.entity.DiscountShop
 import com.example.vibefinance.data.entity.InterceptableApp
+import com.example.vibefinance.util.LocalAppManager
 import java.util.Locale
 
 object InMemoryDatabase {
@@ -22,7 +23,7 @@ object InMemoryDatabase {
     )
     
     var isNotificationLoggingEnabled = true
-    val selectedInterceptApps = MutableStateFlow<Set<String>>(InterceptableApp.defaultEnabledApps())
+    val selectedInterceptApps = MutableStateFlow<Set<String>>(emptySet())
 
     private var nextAccountId = 1L
     private var nextTransactionId = 1L
@@ -66,10 +67,29 @@ object InMemoryDatabase {
         cashbackRules.value = rulesMap
 
         val savedAppSet = sharedPrefs?.getStringSet("selected_intercept_apps", null)
-        if (savedAppSet != null && savedAppSet.isNotEmpty()) {
-            selectedInterceptApps.value = savedAppSet
-        } else {
-            selectedInterceptApps.value = InterceptableApp.defaultEnabledApps()
+        val initialSelection = savedAppSet ?: InterceptableApp.defaultEnabledApps()
+        val installedPackages = LocalAppManager.getInstalledPackageNames(context)
+        val selectedPackages = migrateInterceptAppSelections(initialSelection, installedPackages)
+        selectedInterceptApps.value = selectedPackages
+        if (savedAppSet != selectedPackages) {
+            sharedPrefs?.edit()?.putStringSet("selected_intercept_apps", selectedPackages)?.apply()
+        }
+    }
+
+    internal fun migrateInterceptAppSelections(
+        selection: Set<String>,
+        installedPackages: Set<String>
+    ): Set<String> {
+        val installedByName = installedPackages.associateBy { it.lowercase(Locale.US) }
+        return selection.flatMapTo(linkedSetOf()) { selected ->
+            val knownApp = InterceptableApp.fromId(selected)
+            if (knownApp != null) {
+                knownApp.packageKeywords.mapNotNull { keyword ->
+                    installedByName[keyword.lowercase(Locale.US)]
+                }
+            } else {
+                listOfNotNull(installedByName[selected.lowercase(Locale.US)])
+            }
         }
     }
 
@@ -94,20 +114,16 @@ object InMemoryDatabase {
         if (!isNotificationLoggingEnabled) return false
         val enabledSet = selectedInterceptApps.value
         if (enabledSet.isEmpty()) return false
+        if (enabledSet.none { packageName.equals(it, ignoreCase = true) }) return false
 
-        for (appId in enabledSet) {
-            val app = InterceptableApp.fromId(appId)
-            if (app != null) {
-                if (app.matches(packageName, title, text)) {
-                    return true
-                }
-            } else {
-                if (packageName.equals(appId, ignoreCase = true)) {
-                    return true
-                }
+        // A selected chat app still needs to pass its payment-only notification rules.
+        val knownApp = InterceptableApp.values().firstOrNull { app ->
+            app.packageKeywords.any { keyword ->
+                packageName.equals(keyword, ignoreCase = true) ||
+                    packageName.startsWith("$keyword.", ignoreCase = true)
             }
         }
-        return false
+        return knownApp?.matches(packageName, title, text) ?: true
     }
 
     fun setCashbackRule(accountId: Long, category: String, rate: Double?) {

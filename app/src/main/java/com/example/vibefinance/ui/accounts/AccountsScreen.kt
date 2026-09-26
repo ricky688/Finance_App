@@ -3141,6 +3141,7 @@ fun ExpressiveAccountListItem(
                 scaleY = itemScale
             }
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .clip(RoundedCornerShape(20.dp))
             .clickable {
                 isPressed = true
                 onEditClick()

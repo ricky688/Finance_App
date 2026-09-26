@@ -154,6 +154,7 @@ internal fun ScallopColorSwatchItem(
             .size(66.dp)
             .background(color = badgeBgColor, shape = ScallopBadgeShape)
             .border(width = borderWidth, color = borderColor, shape = ScallopBadgeShape)
+            .clip(ScallopBadgeShape)
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onClick()
@@ -577,6 +578,7 @@ internal fun AppearancePickerSheet(
                         Box(
                             modifier = Modifier
                                 .size(66.dp)
+                                .clip(ScallopBadgeShape)
                                 .background(
                                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                                     ScallopBadgeShape

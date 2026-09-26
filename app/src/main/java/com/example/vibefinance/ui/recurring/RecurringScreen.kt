@@ -4121,6 +4121,7 @@ fun <T> ConnectedButtonGroup(
                 shape = shape,
                 modifier = Modifier
                     .weight(1f)
+                    .clip(shape)
                     .bouncyClickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onItemSelected(index)

@@ -97,7 +97,6 @@ import androidx.compose.ui.zIndex
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.AccountType
-import com.example.vibefinance.data.entity.InterceptableApp
 import com.example.vibefinance.ui.home.CategoryIcon
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.unit.Velocity
@@ -1592,19 +1591,14 @@ fun <T> ExpressiveSegmentedButtonGroup(
                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
             )
             
+            val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
+            
             Surface(
+                onClick = { onItemSelected(index) },
                 color = containerColor,
                 contentColor = contentColor,
                 shape = shape,
-                modifier = Modifier
-                    .then(
-                        if (isScrollable) {
-                            Modifier
-                        } else {
-                            Modifier.weight(1f)
-                        }
-                    )
-                    .clickable { onItemSelected(index) }
+                modifier = itemModifier.clip(shape)
             ) {
                 Row(
                     modifier = Modifier
@@ -2656,7 +2650,7 @@ fun AllowedInterceptAppsDialog(
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     var searchQuery by remember { mutableStateOf("") }
-    val installedApps = remember { com.example.vibefinance.util.LocalAppManager.getInstalledApps(context) }
+    val installedApps = remember(context) { com.example.vibefinance.util.LocalAppManager.getInstalledApps(context) }
 
     val filteredApps = remember(searchQuery, installedApps) {
         if (searchQuery.isBlank()) {
@@ -2736,25 +2730,17 @@ fun AllowedInterceptAppsDialog(
                     }
                 } else {
                     filteredApps.forEach { appInfo ->
-                        val knownApp = InterceptableApp.values().find {
-                            it.packageKeywords.contains(appInfo.packageName) || it.id == appInfo.packageName
-                        }
-                        val identifier = knownApp?.id ?: appInfo.packageName
-
-                        val isChecked = selectedApps.contains(identifier) ||
-                                        selectedApps.contains(appInfo.packageName) ||
-                                        (knownApp != null && selectedApps.contains(knownApp.id))
+                        val isChecked = selectedApps.contains(appInfo.packageName)
 
                         Surface(
+                            onClick = { InMemoryDatabase.toggleInterceptApp(appInfo.packageName) },
                             shape = RoundedCornerShape(14.dp),
                             color = if (isChecked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
                             border = BorderStroke(
                                 1.dp,
                                 if (isChecked) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                             ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { InMemoryDatabase.toggleInterceptApp(identifier) }
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
@@ -2777,17 +2763,6 @@ fun AllowedInterceptAppsDialog(
                                                 .clip(RoundedCornerShape(9.dp))
                                                 .border(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(9.dp))
                                         )
-                                    } else {
-                                        com.example.vibefinance.ui.components.AppBrandIcon(
-                                            packageOrAppId = identifier,
-                                            size = 36.dp,
-                                            shapeRadius = 9.dp,
-                                            modifier = Modifier.border(
-                                                0.8.dp,
-                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                RoundedCornerShape(9.dp)
-                                            )
-                                        )
                                     }
 
                                     Column {
@@ -2800,9 +2775,9 @@ fun AllowedInterceptAppsDialog(
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = if (appInfo.isSuggestedPaymentApp) androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.allowed_apps_recommended_badge) else appInfo.packageName,
+                                            text = appInfo.packageName,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (appInfo.isSuggestedPaymentApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
@@ -2811,7 +2786,7 @@ fun AllowedInterceptAppsDialog(
 
                                 Switch(
                                     checked = isChecked,
-                                    onCheckedChange = { InMemoryDatabase.toggleInterceptApp(identifier) },
+                                    onCheckedChange = { InMemoryDatabase.toggleInterceptApp(appInfo.packageName) },
                                     thumbContent = if (isChecked) {
                                         {
                                             Icon(

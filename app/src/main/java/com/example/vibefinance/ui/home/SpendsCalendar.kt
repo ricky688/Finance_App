@@ -320,6 +320,7 @@ fun SpendsCalendar(
                                     .height(CELL_SIZE)
                                     .fillMaxWidth()
                                     .zIndex(zIndexVal)
+                                    .clip(RoundedCornerShape(10.dp))
                                     .clickable {
                                         selectedDate = if (isSelected) null else cellDay
                                     },
@@ -673,4 +674,3 @@ private fun DayCell(
         }
     }
 }
-

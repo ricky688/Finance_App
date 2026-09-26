@@ -4,18 +4,12 @@ import java.util.Locale
 
 enum class InterceptableApp(
     val id: String,
-    val displayName: String,
-    val iconEmoji: String,
-    val brandColorHex: Long,
     val defaultEnabled: Boolean,
     val packageKeywords: List<String>,
     val requiredTitleKeywords: List<String> = emptyList()
 ) {
     GOOGLE_PAY(
         id = "google_pay",
-        displayName = "Google Pay / Wallet",
-        iconEmoji = "💳",
-        brandColorHex = 0xFF4285F4,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.google.android.apps.walletnfcrel",
@@ -25,9 +19,6 @@ enum class InterceptableApp(
     ),
     SAMSUNG_PAY(
         id = "samsung_pay",
-        displayName = "Samsung Pay / Wallet",
-        iconEmoji = "📱",
-        brandColorHex = 0xFF1428A0,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.samsung.android.spay",
@@ -38,9 +29,6 @@ enum class InterceptableApp(
     ),
     OCTOPUS(
         id = "octopus",
-        displayName = "Octopus Card",
-        iconEmoji = "🐙",
-        brandColorHex = 0xFFFF7A00,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.octopuscards.nfc_reader",
@@ -50,9 +38,6 @@ enum class InterceptableApp(
     ),
     PAYME(
         id = "payme",
-        displayName = "PayMe by HSBC",
-        iconEmoji = "🔴",
-        brandColorHex = 0xFFE60028,
         defaultEnabled = true,
         packageKeywords = listOf(
             "hk.com.hsbc.payme",
@@ -61,9 +46,6 @@ enum class InterceptableApp(
     ),
     ALIPAY(
         id = "alipay",
-        displayName = "Alipay / AlipayHK",
-        iconEmoji = "🔵",
-        brandColorHex = 0xFF1677FF,
         defaultEnabled = true,
         packageKeywords = listOf(
             "hk.alipay.payment",
@@ -73,9 +55,6 @@ enum class InterceptableApp(
     ),
     WECHAT_PAY(
         id = "wechat_pay",
-        displayName = "WeChat Pay",
-        iconEmoji = "🟢",
-        brandColorHex = 0xFF07C160,
         defaultEnabled = false,
         packageKeywords = listOf(
             "com.tencent.mm"
@@ -86,9 +65,6 @@ enum class InterceptableApp(
     ),
     LINE_PAY(
         id = "line_pay",
-        displayName = "LINE Pay",
-        iconEmoji = "💚",
-        brandColorHex = 0xFF00C300,
         defaultEnabled = false,
         packageKeywords = listOf(
             "com.linepayplus.paa",
@@ -100,9 +76,6 @@ enum class InterceptableApp(
     ),
     HSBC(
         id = "hsbc_bank",
-        displayName = "HSBC HK Mobile Banking",
-        iconEmoji = "🏦",
-        brandColorHex = 0xFFDB0011,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.hsbc.hbap.mobilebanking",
@@ -112,9 +85,6 @@ enum class InterceptableApp(
     ),
     HANG_SENG(
         id = "hang_seng_bank",
-        displayName = "Hang Seng Mobile Banking",
-        iconEmoji = "🟢",
-        brandColorHex = 0xFF008559,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.hangseng.rbmobile"
@@ -122,9 +92,6 @@ enum class InterceptableApp(
     ),
     BOCHK(
         id = "bochk",
-        displayName = "BOCHK 中銀香港",
-        iconEmoji = "🔴",
-        brandColorHex = 0xFFB71C1C,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.bankofchina.bochk.mobileapplication",
@@ -133,9 +100,6 @@ enum class InterceptableApp(
     ),
     MOX_BANK(
         id = "mox_bank",
-        displayName = "Mox Bank by SC",
-        iconEmoji = "🖤",
-        brandColorHex = 0xFF111111,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.mox.bank"
@@ -143,9 +107,6 @@ enum class InterceptableApp(
     ),
     CITIBANK(
         id = "citibank",
-        displayName = "Citi Mobile HK",
-        iconEmoji = "🔵",
-        brandColorHex = 0xFF003B70,
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.citibank.mobile.hk",

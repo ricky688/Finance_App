@@ -270,8 +270,9 @@
     <string name="settings_section_smart_logging">Smart logging &amp; notifications</string>
     <string name="settings_auto_logging_title">Automatic Transaction Logging</string>
     <string name="settings_auto_logging_desc">Capture payment notifications on-device with privacy-first AI</string>
-    <string name="settings_manage_apps_label">Supported Payment Apps</string>
+    <string name="settings_manage_apps_label">Apps allowed to auto-log</string>
     <string name="settings_apps_enabled_count">%d apps active • Tap to manage</string>
+    <string name="settings_apps_enabled_one">1 app active • Tap to manage</string>
     <string name="settings_apps_none_enabled">None active • Tap to select</string>
     <string name="settings_section_budget_mgmt">Budget &amp; period</string>
     <string name="settings_budget_limit_label">Total Period Budget Limit</string>
@@ -301,11 +302,10 @@
     <string name="settings_saved_success">Settings saved successfully</string>
 
     <!-- Allowed Intercept Apps Dialog -->
-    <string name="allowed_apps_dialog_title">Allowed Payment Apps</string>
+    <string name="allowed_apps_dialog_title">Choose apps for auto-logging</string>
     <string name="allowed_apps_dialog_desc">Select from local installed apps to automatically log transactions</string>
     <string name="allowed_apps_search_hint">Search installed apps...</string>
     <string name="allowed_apps_no_matches">No matching apps found</string>
-    <string name="allowed_apps_recommended_badge">Recommended Wallet</string>
 
     <!-- Common Actions & Labels -->
     <string name="btn_save">Save</string>

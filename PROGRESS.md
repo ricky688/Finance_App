@@ -7,6 +7,13 @@ This document details all recent features, architectural changes, modified files
 ## 1. Executive Summary & Current Status
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
+
+### 2026-09-25: Real Installed Apps and Shape-Clipped Press Feedback
+- **Automatic transaction logging**: The allowed-app picker now lists only packages confirmed by Android's PackageManager. It shows the installed app's actual label, icon, and package name; an icon that cannot be loaded is omitted. Removed the synthetic payment-app branding and fabricated preview icons. The Settings preview counts only installed selected packages, and the English one-app count is grammatically correct.
+- **Selection migration**: Existing saved payment-app group IDs are converted to installed package names, unavailable packages are removed, and an intentionally empty selection stays empty. Notification interception now checks the exact selected package, while retaining payment-only checks for chat apps.
+- **Press feedback**: Rounded custom controls now clip their ripple to their visible shapes, including the allowed-app rows, Settings sections and rows, account cards, calendar cells, category analytics, and appearance/shape pickers. The connected selection buttons use clickable shaped surfaces.
+- **Verification**: Focused app-selection unit tests and debug/release builds passed. Installed the signed release APK over the existing Waydroid app and confirmed the picker shows real installed apps only, the Settings preview shows "None active" with no fabricated logos, and selecting/deselecting a real app updates the preview. Restored the empty selection after testing.
+
 ### 2026-09-25: VibeFinance v1.0.0 Release APK Build & GitHub Deployment
 - **Release Build (`assembleRelease`)**: Built minified and resource-shrunk production APK (`2.9 MB`) configured with Proguard / R8 optimization rules in `proguard-rules.pro`.
 - **Git Synchronization**: Committed 70 files spanning all recent M3 Expressive UI components, unified chart palettes, subscription deletion decision flow, and 77 unit tests to `main` branch. Pushed cleanly to GitHub remote `https://github.com/ricky688/Finance_App.git`.

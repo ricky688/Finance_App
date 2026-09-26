@@ -2,6 +2,7 @@ package com.example.vibefinance.util
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.drawable.BitmapDrawable
@@ -20,40 +21,18 @@ object LocalAppManager {
 
     fun getInstalledApps(context: Context): List<InstalledAppInfo> {
         val pm = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val resolveInfos = pm.queryIntentActivities(intent, 0)
-        
-        val apps = mutableListOf<InstalledAppInfo>()
-        val seen = mutableSetOf<String>()
-        
-        for (resolveInfo in resolveInfos) {
-            val pkg = resolveInfo.activityInfo.packageName
-            if (seen.contains(pkg) || pkg == context.packageName) continue
-            seen.add(pkg)
-            
-            val appName = resolveInfo.loadLabel(pm).toString()
-            val drawable = resolveInfo.loadIcon(pm)
-            val bitmap = drawableToBitmap(drawable, 96, 96)
-            val isSuggested = isPaymentRelated(pkg, appName)
-            
-            apps.add(InstalledAppInfo(pkg, appName, bitmap, isSuggested))
-        }
-        
-        // Also ensure known payment apps are represented in the list if not installed
-        for (known in InterceptableApp.values()) {
-            val isAlreadyPresent = apps.any { it.packageName == known.packageKeywords.first() || it.appName.equals(known.displayName, ignoreCase = true) }
-            if (!isAlreadyPresent) {
-                apps.add(
-                    InstalledAppInfo(
-                        packageName = known.packageKeywords.first(),
-                        appName = known.displayName,
-                        iconBitmap = null,
-                        isSuggestedPaymentApp = true
-                    )
-                )
-            }
+        val apps = installedApplications(context).map { appInfo ->
+            val packageName = appInfo.packageName
+            val appName = pm.getApplicationLabel(appInfo).toString().ifBlank { packageName }
+            val bitmap = runCatching {
+                drawableToBitmap(pm.getApplicationIcon(appInfo), 96, 96)
+            }.getOrNull()
+            InstalledAppInfo(
+                packageName = packageName,
+                appName = appName,
+                iconBitmap = bitmap,
+                isSuggestedPaymentApp = isPaymentRelated(packageName, appName)
+            )
         }
 
         // Sort: Suggested payment apps first, then alphabetically
@@ -61,6 +40,29 @@ object LocalAppManager {
             compareByDescending<InstalledAppInfo> { it.isSuggestedPaymentApp }
                 .thenBy { it.appName.lowercase(Locale.getDefault()) }
         )
+    }
+
+    fun getInstalledPackageNames(context: Context): Set<String> =
+        installedApplications(context).mapTo(linkedSetOf()) { it.packageName }
+
+    private fun installedApplications(context: Context): List<ApplicationInfo> {
+        val pm = context.packageManager
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val packageNames = linkedSetOf<String>()
+        pm.queryIntentActivities(launcherIntent, 0).forEach { resolveInfo ->
+            resolveInfo.activityInfo?.packageName?.let(packageNames::add)
+        }
+        // These packages can post payment notifications without exposing a launcher activity.
+        // PackageManager still has to confirm each package is installed and visible.
+        InterceptableApp.values().forEach { known ->
+            packageNames.addAll(known.packageKeywords)
+        }
+        packageNames.remove(context.packageName)
+        return packageNames.mapNotNull { packageName ->
+            runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
+        }
     }
 
     fun getAppIcon(context: Context, packageName: String): Bitmap? {
@@ -79,8 +81,7 @@ object LocalAppManager {
             val appInfo = pm.getApplicationInfo(packageName, 0)
             pm.getApplicationLabel(appInfo).toString()
         } catch (e: Exception) {
-            val known = InterceptableApp.values().find { it.packageKeywords.contains(packageName) || it.id == packageName }
-            known?.displayName ?: packageName.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+            packageName
         }
     }
 

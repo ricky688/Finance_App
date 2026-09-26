@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -93,6 +94,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -120,7 +122,7 @@ import com.example.vibefinance.ui.AppLanguage
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.FinanceViewModel
-import com.example.vibefinance.ui.components.AppBrandIcon
+import com.example.vibefinance.util.LocalAppManager
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -516,6 +518,7 @@ fun SettingsSheet(
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
                                 .clickable {
                                     viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(!state.dynamicColorEnabled))
                                 }
@@ -782,6 +785,7 @@ fun SettingsSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
                                             .contains(context.packageName)
@@ -858,6 +862,12 @@ fun SettingsSheet(
 
                             // App Selection Chips Preview
                             if (autoLogEnabled) {
+                                val installedPackages = remember(context, selectedApps) {
+                                    LocalAppManager.getInstalledPackageNames(context)
+                                }
+                                val selectedInstalledPackages = remember(installedPackages, selectedApps) {
+                                    selectedApps.filter { it in installedPackages }.sorted()
+                                }
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Box(
                                     modifier = Modifier
@@ -884,8 +894,10 @@ fun SettingsSheet(
                                             color = MaterialTheme.colorScheme.primary
                                         )
                                         Text(
-                                            text = if (selectedApps.isNotEmpty()) {
-                                                stringResource(R.string.settings_apps_enabled_count, selectedApps.size)
+                                            text = if (selectedInstalledPackages.size == 1) {
+                                                stringResource(R.string.settings_apps_enabled_one)
+                                            } else if (selectedInstalledPackages.isNotEmpty()) {
+                                                stringResource(R.string.settings_apps_enabled_count, selectedInstalledPackages.size)
                                             } else {
                                                 stringResource(R.string.settings_apps_none_enabled)
                                             },
@@ -899,17 +911,26 @@ fun SettingsSheet(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         modifier = Modifier.horizontalScroll(rememberScrollState())
                                     ) {
-                                        selectedApps.take(5).forEach { packageOrId ->
-                                            AppBrandIcon(
-                                                packageOrAppId = packageOrId,
-                                                size = 28.dp,
-                                                shapeRadius = 7.dp,
-                                                modifier = Modifier.border(
-                                                    0.8.dp,
-                                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                                    RoundedCornerShape(7.dp)
+                                        selectedInstalledPackages.take(5).forEach { packageName ->
+                                            val bitmap = remember(context, packageName) {
+                                                LocalAppManager.getAppIcon(context, packageName)
+                                            }
+                                            bitmap?.let {
+                                                Image(
+                                                    bitmap = it.asImageBitmap(),
+                                                    contentDescription = remember(context, packageName) {
+                                                        LocalAppManager.getAppLabel(context, packageName)
+                                                    },
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(RoundedCornerShape(7.dp))
+                                                        .border(
+                                                            0.8.dp,
+                                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                                            RoundedCornerShape(7.dp)
+                                                        )
                                                 )
-                                            )
+                                            }
                                         }
 
                                         Surface(
@@ -1383,6 +1404,11 @@ private fun SettingsSectionContainer(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "settingsSectionCorner"
     )
+    val headerBottomCorner by animateDpAsState(
+        targetValue = if (expanded) 0.dp else 24.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "settingsHeaderBottomCorner"
+    )
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
@@ -1396,6 +1422,12 @@ private fun SettingsSectionContainer(
     val stateLabel = stringResource(
         if (expanded) R.string.settings_section_expanded else R.string.settings_section_collapsed
     )
+    val headerShape = RoundedCornerShape(
+        topStart = corner,
+        topEnd = corner,
+        bottomStart = headerBottomCorner,
+        bottomEnd = headerBottomCorner
+    )
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(corner),
@@ -1406,6 +1438,7 @@ private fun SettingsSectionContainer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clip(headerShape)
                     .semantics { stateDescription = stateLabel }
                     .clickable(onClick = onToggle)
                     .padding(horizontal = 16.dp, vertical = 14.dp),

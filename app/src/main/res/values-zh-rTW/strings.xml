@@ -270,8 +270,9 @@
     <string name="settings_section_smart_logging">智能記帳與通知</string>
     <string name="settings_auto_logging_title">自動交易記帳</string>
     <string name="settings_auto_logging_desc">以端側隱私 AI 自動解析支付通知</string>
-    <string name="settings_manage_apps_label">支援的支付應用程式</string>
+    <string name="settings_manage_apps_label">允許自動記帳的應用程式</string>
     <string name="settings_apps_enabled_count">已啟用 %d 個應用程式 • 點擊管理</string>
+    <string name="settings_apps_enabled_one">已啟用 1 個應用程式 • 點擊管理</string>
     <string name="settings_apps_none_enabled">未啟用任何應用程式 • 點擊選擇</string>
     <string name="settings_section_budget_mgmt">預算與週期設定</string>
     <string name="settings_budget_limit_label">本週期預算總上限</string>
@@ -301,11 +302,10 @@
     <string name="settings_saved_success">設定已成功儲存</string>
 
     <!-- Allowed Intercept Apps Dialog -->
-    <string name="allowed_apps_dialog_title">已允許的支付應用程式</string>
+    <string name="allowed_apps_dialog_title">選擇自動記帳應用程式</string>
     <string name="allowed_apps_dialog_desc">從本機已安裝的應用中選取以自動解析交易記帳</string>
     <string name="allowed_apps_search_hint">搜尋已安裝應用程式...</string>
     <string name="allowed_apps_no_matches">找不到相符的應用程式</string>
-    <string name="allowed_apps_recommended_badge">常用推薦支付</string>
 
     <!-- Common Actions & Labels -->
     <string name="btn_save">儲存</string>
