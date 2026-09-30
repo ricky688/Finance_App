@@ -11,7 +11,8 @@ data class RawNotificationItem(
     val packageName: String,
     val title: String,
     val text: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val notificationKey: String = ""
 )
 
 /**
@@ -36,7 +37,7 @@ class GeminiNanoSynthesizer(private val context: Context) {
 
     /**
      * Synthesizes a batch of raw notifications into clean, deduplicated payment receipts.
-     * Guaranteed to produce 1 single canonical transaction for duplicate receipts of the same purchase.
+     * Conservatively combines receipts that identify the same amount, merchant, and account hint.
      */
     suspend fun synthesizeBatch(batch: List<RawNotificationItem>): List<PaymentNotificationListener.ParsedPayment> {
         cleanupOldFingerprints()
@@ -50,12 +51,20 @@ class GeminiNanoSynthesizer(private val context: Context) {
         for (item in batch) {
             val parsed = PaymentNotificationListener.parseNotification(item.title, item.text, item.packageName)
             if (parsed != null && parsed.amount > 0) {
-                val fingerprint = generateFingerprint(parsed.amount, parsed.merchant, item.timestamp)
+                val fingerprint = generateFingerprint(
+                    parsed.amount, parsed.merchant, parsed.assetName, item.packageName, item.timestamp
+                )
                 if (processedFingerprints.containsKey(fingerprint)) {
                     Log.d(TAG, "Duplicate fingerprint detected locally for '${parsed.merchant}', amount: $${parsed.amount}. Skipping.")
                     continue
                 }
-                parsedCandidates.add(parsed)
+                parsedCandidates.add(
+                    parsed.copy(
+                        sourcePackage = item.packageName,
+                        detectedAt = item.timestamp,
+                        notificationKey = item.notificationKey
+                    )
+                )
             }
         }
 
@@ -70,7 +79,7 @@ class GeminiNanoSynthesizer(private val context: Context) {
         // 3. Mark Fingerprints in Cache
         val now = System.currentTimeMillis()
         for (res in consolidatedResults) {
-            val fp = generateFingerprint(res.amount, res.merchant, now)
+            val fp = generateFingerprint(res.amount, res.merchant, res.assetName, res.sourcePackage, now)
             processedFingerprints[fp] = now
         }
 
@@ -87,11 +96,18 @@ class GeminiNanoSynthesizer(private val context: Context) {
     ): List<PaymentNotificationListener.ParsedPayment> {
         if (candidates.size <= 1) return candidates
 
-        // Group candidates by matching amount (tolerance within $0.05 for currency exchange differences)
-        val groupedByAmount = candidates.groupBy { Math.round(it.amount * 100) / 100.0 }
+        // Equal amounts can be separate purchases. Only merge when merchant and account hint match.
+        val groupedByAmount = candidates.groupBy {
+            Triple(
+                Math.round(it.amount * 100) / 100.0,
+                it.merchant.trim().lowercase(Locale.US),
+                it.assetName.trim().lowercase(Locale.US)
+            )
+        }
         val finalConsolidated = mutableListOf<PaymentNotificationListener.ParsedPayment>()
 
-        for ((amount, group) in groupedByAmount) {
+        for ((identity, group) in groupedByAmount) {
+            val amount = identity.first
             if (group.size == 1) {
                 finalConsolidated.add(group.first())
             } else {
@@ -103,17 +119,19 @@ class GeminiNanoSynthesizer(private val context: Context) {
                     .filter { !it.contains("Merchant", ignoreCase = true) && !it.contains("Payment", ignoreCase = true) }
                     .maxByOrNull { it.length } ?: group.first().merchant
 
-                val bestAsset = group.map { it.assetName }
-                    .filter { !it.contains("Wallet", ignoreCase = true) }
-                    .firstOrNull() ?: group.first().assetName
+                val bestAssetCandidate = group.firstOrNull {
+                    !it.assetName.contains("Wallet", ignoreCase = true)
+                } ?: group.first()
 
-                val canonical = PaymentNotificationListener.ParsedPayment(
+                val bestCardLast4 = group.mapNotNull { it.cardLast4 }.firstOrNull()
+
+                val canonical = bestAssetCandidate.copy(
                     amount = amount,
                     merchant = bestMerchant,
-                    assetName = bestAsset
+                    cardLast4 = bestCardLast4 ?: bestAssetCandidate.cardLast4
                 )
 
-                Log.d(TAG, "Synthesized Canonical Receipt: merchant='$bestMerchant', amount=$$amount, asset='$bestAsset'")
+                Log.d(TAG, "Synthesized Canonical Receipt: merchant='$bestMerchant', amount=$$amount, asset='${canonical.assetName}'")
                 finalConsolidated.add(canonical)
             }
         }
@@ -121,10 +139,17 @@ class GeminiNanoSynthesizer(private val context: Context) {
         return finalConsolidated
     }
 
-    private fun generateFingerprint(amount: Double, merchant: String, timestamp: Long): String {
+    private fun generateFingerprint(
+        amount: Double,
+        merchant: String,
+        assetName: String,
+        sourcePackage: String,
+        timestamp: Long
+    ): String {
         val roundedAmt = (Math.round(amount * 100) / 100.0).toString()
         val cleanMerchant = merchant.lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "")
+        val cleanAsset = assetName.lowercase(Locale.US).replace(Regex("[^a-z0-9]"), "")
         val timeBucket = timestamp / 120_000L // 2-minute time bucket
-        return "$roundedAmt-$cleanMerchant-$timeBucket"
+        return "$roundedAmt-$cleanMerchant-$cleanAsset-$sourcePackage-$timeBucket"
     }
 }

@@ -49,6 +49,7 @@ enum class InterceptableApp(
         defaultEnabled = true,
         packageKeywords = listOf(
             "hk.alipay.payment",
+            "hk.alipay.wallet",
             "com.alipay.hk",
             "com.eg.android.AlipayGphone"
         )

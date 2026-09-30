@@ -79,7 +79,7 @@ object LocalAppManager {
         return try {
             val pm = context.packageManager
             val appInfo = pm.getApplicationInfo(packageName, 0)
-            pm.getApplicationLabel(appInfo).toString()
+            pm.getApplicationLabel(appInfo).toString().takeIf { it.isNotBlank() } ?: packageName
         } catch (e: Exception) {
             packageName
         }
@@ -88,10 +88,7 @@ object LocalAppManager {
     private fun isPaymentRelated(pkg: String, name: String): Boolean {
         val lower = "$pkg $name".lowercase(Locale.US)
         return lower.contains("pay") || lower.contains("wallet") || lower.contains("bank") ||
-               lower.contains("money") || lower.contains("octopus") || lower.contains("alipay") ||
-               lower.contains("wechat") || lower.contains("card") || lower.contains("finance") ||
-               lower.contains("hsbc") || lower.contains("chase") || lower.contains("citi") ||
-               lower.contains("boc") || lower.contains("hangseng") || lower.contains("dbs")
+               lower.contains("money") || lower.contains("finance") || lower.contains("card")
     }
 
     fun drawableToBitmap(drawable: Drawable, width: Int = 96, height: Int = 96): Bitmap? {
@@ -110,5 +107,42 @@ object LocalAppManager {
         } catch (e: Exception) {
             null
         }
+    }
+
+    fun launchApp(context: Context, packageName: String): Boolean {
+        return try {
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(launchIntent)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun isAppInstalled(context: Context, packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun resolveTargetAppPackage(
+        context: Context,
+        linkedAppPackage: String?,
+        @Suppress("UNUSED_PARAMETER") accountName: String? = null,
+        @Suppress("UNUSED_PARAMETER") nickname: String? = null,
+        @Suppress("UNUSED_PARAMETER") issuer: String? = null
+    ): String? {
+        if (linkedAppPackage.isNullOrBlank() || linkedAppPackage.equals("none", ignoreCase = true)) {
+            return null
+        }
+        return if (isAppInstalled(context, linkedAppPackage)) linkedAppPackage else null
     }
 }

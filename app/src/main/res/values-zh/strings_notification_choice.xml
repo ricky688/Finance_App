@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pending_payment_title">选择账户</string>
+    <string name="pending_payment_intro">检测到来自 %1$s 的付款。使用了哪项资产或卡片？</string>
+    <string name="pending_payment_detected_hint">识别到的卡片或钱包：%1$s</string>
+    <string name="pending_payment_choose_account">将这笔支出记入</string>
+    <string name="pending_payment_no_accounts">请先添加资产或卡片，再返回处理这条通知。</string>
+    <string name="pending_payment_account_cash">现金</string>
+    <string name="pending_payment_account_bank">银行账户</string>
+    <string name="pending_payment_account_card">信用卡</string>
+    <string name="pending_payment_account_debit">借记卡</string>
+    <string name="pending_payment_remember_choice">记住 %1$s 中标记为“%2$s”的通知所用账户</string>
+    <string name="pending_payment_record">记录支出</string>
+    <string name="pending_payment_ignore">忽略</string>
+    <string name="pending_payment_later">稍后</string>
+    <string name="pending_payment_recorded">已记录支出</string>
+    <string name="pending_payment_failed">无法记录这笔支出，请重试。</string>
+    <string name="pending_payment_remember_unavailable">未能辨識指定卡片，因此每次均會詢問。</string>
+</resources>

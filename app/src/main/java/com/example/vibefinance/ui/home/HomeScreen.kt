@@ -307,12 +307,15 @@ fun HomeScreen(
 
     // Dynamic extraction of lowest and highest expense values
     val periodExpenses = remember(state.transactions, budgetInfo.startDate, budgetInfo.endDate) {
+        val endExclusive = Instant.ofEpochMilli(budgetInfo.endDate)
+            .atZone(ZoneId.systemDefault()).toLocalDate().plusDays(1)
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         state.transactions.filter {
             it.toAccountId == null &&
             !it.isExcludedFromDailyBudget &&
             it.amount > 0 &&
             it.timestamp >= budgetInfo.startDate &&
-            it.timestamp <= budgetInfo.endDate
+            budgetInfo.endDate > 0L && it.timestamp < endExclusive
         }.sortedBy { it.timestamp }
     }
     val lowestExpense = remember(periodExpenses) {

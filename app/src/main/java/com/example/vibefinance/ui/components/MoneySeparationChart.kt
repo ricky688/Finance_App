@@ -65,6 +65,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,14 +93,16 @@ fun MoneySeparationChart(
     val totalAssets = accounts.filter { it.type != AccountType.CC }.sumOf { it.balance }
     val cashTotal = accounts.filter { it.type == AccountType.CASH }.sumOf { it.balance }
     val bankTotal = accounts.filter { it.type == AccountType.BANK }.sumOf { it.balance }
+    val debitTotal = accounts.filter { it.type == AccountType.DEBIT }.sumOf { it.balance }
     val debtTotal = accounts.filter { it.type == AccountType.CC }.sumOf { it.balance }
+    val debitLabel = stringResource(com.example.vibefinance.R.string.assets_type_debit)
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val segments = remember(accounts, totalAssets, isDark, primaryColor) {
+    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -120,6 +123,17 @@ fun MoneySeparationChart(
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
                     color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)
+                )
+            )
+        }
+        if (debitTotal > 0) {
+            list.add(
+                MoneySegment(
+                    id = "debit",
+                    name = debitLabel,
+                    amount = debitTotal,
+                    percentage = (debitTotal / validTotal).toFloat(),
+                    color = ChartColors.getAssetSegmentColor("debit", isDark, primaryColor)
                 )
             )
         }
@@ -255,14 +269,14 @@ fun MoneySeparationChart(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Top Section: Cash & Bank Assets Bar
+            // Top Section: Positive Assets Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Cash & Bank Assets",
+                    text = stringResource(com.example.vibefinance.R.string.assets_total_assets),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -522,13 +536,15 @@ fun InteractiveDonutChart(
     val totalAssets = accounts.filter { it.type != AccountType.CC }.sumOf { it.balance }
     val cashTotal = accounts.filter { it.type == AccountType.CASH }.sumOf { it.balance }
     val bankTotal = accounts.filter { it.type == AccountType.BANK }.sumOf { it.balance }
+    val debitTotal = accounts.filter { it.type == AccountType.DEBIT }.sumOf { it.balance }
+    val debitLabel = stringResource(com.example.vibefinance.R.string.assets_type_debit)
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val segments = remember(accounts, totalAssets, isDark, primaryColor) {
+    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -549,6 +565,17 @@ fun InteractiveDonutChart(
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
                     color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)
+                )
+            )
+        }
+        if (debitTotal > 0) {
+            list.add(
+                MoneySegment(
+                    id = "debit",
+                    name = debitLabel,
+                    amount = debitTotal,
+                    percentage = (debitTotal / validTotal).toFloat(),
+                    color = ChartColors.getAssetSegmentColor("debit", isDark, primaryColor)
                 )
             )
         }
@@ -710,7 +737,7 @@ fun InteractiveDonutChart(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = activeSeg?.name ?: "Total Cash",
+                text = activeSeg?.name ?: stringResource(com.example.vibefinance.R.string.assets_total_assets),
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 9.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),

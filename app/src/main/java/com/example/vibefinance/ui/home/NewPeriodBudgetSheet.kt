@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.home
 
 import androidx.compose.animation.animateContentSize
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -440,6 +444,7 @@ fun NewPeriodBudgetSheet(
 
                 // 7. Confirm Button
                 item {
+                    val confirmInteraction = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
                             if (baseBudget > 0 && calculatedEndDateMillis > startDateMillis) {
@@ -449,10 +454,13 @@ fun NewPeriodBudgetSheet(
                             }
                         },
                         enabled = baseBudget > 0,
-                        shape = RoundedCornerShape(16.dp),
+                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(27.dp), pressedShape = RoundedCornerShape(16.dp)),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+                        interactionSource = confirmInteraction,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
+                            .pressBounce(interactionSource = confirmInteraction)
                     ) {
                         Text(
                             text = "開啟新預算週期 (Start New Period)",
@@ -475,20 +483,34 @@ fun NewPeriodBudgetSheet(
         DatePickerDialog(
             onDismissRequest = { showDatePickerModal = false },
             confirmButton = {
+                val dateConfirmInteraction = remember { MutableInteractionSource() }
                 TextButton(
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         datePickerState.selectedDateMillis?.let {
                             customEndDateMillis = it
                             selectedDaysPreset = -1
                         }
                         showDatePickerModal = false
-                    }
+                    },
+                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    interactionSource = dateConfirmInteraction,
+                    modifier = Modifier.pressBounce(interactionSource = dateConfirmInteraction)
                 ) {
                     Text("確定 Select")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePickerModal = false }) {
+                val dateDismissInteraction = remember { MutableInteractionSource() }
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showDatePickerModal = false
+                    },
+                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    interactionSource = dateDismissInteraction,
+                    modifier = Modifier.pressBounce(interactionSource = dateDismissInteraction)
+                ) {
                     Text("取消 Cancel")
                 }
             }

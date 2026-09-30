@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -190,16 +192,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: android.content.Intent?) {
-        val targetTabStr = intent?.getStringExtra("navigate_tab") ?: return
-        val targetTab = when (targetTabStr.lowercase(Locale.US)) {
-            "history" -> com.example.vibefinance.ui.main.TabItem.HISTORY
-            "recurring" -> com.example.vibefinance.ui.main.TabItem.RECURRING
-            "assets", "accounts" -> com.example.vibefinance.ui.main.TabItem.ACCOUNTS
-            "home", "daily" -> com.example.vibefinance.ui.main.TabItem.HOME
-            else -> null
+        val targetTabStr = intent?.getStringExtra("navigate_tab")
+        if (targetTabStr != null) {
+            val targetTab = when (targetTabStr.lowercase(Locale.US)) {
+                "history" -> com.example.vibefinance.ui.main.TabItem.HISTORY
+                "recurring" -> com.example.vibefinance.ui.main.TabItem.RECURRING
+                "assets", "accounts" -> com.example.vibefinance.ui.main.TabItem.ACCOUNTS
+                "home", "daily" -> com.example.vibefinance.ui.main.TabItem.HOME
+                else -> null
+            }
+            if (targetTab != null) {
+                viewModel.requestTab(targetTab)
+            }
         }
-        if (targetTab != null) {
-            viewModel.requestTab(targetTab)
+
+        val testTitle = intent?.getStringExtra("test_notif_title")
+        val testText = intent?.getStringExtra("test_notif_text")
+        val testPkg = intent?.getStringExtra("test_notif_pkg")
+        if (!testTitle.isNullOrBlank() && !testText.isNullOrBlank() && !testPkg.isNullOrBlank()) {
+            lifecycleScope.launch {
+                com.example.vibefinance.service.PaymentNotificationListener.processNotificationForTest(
+                    this@MainActivity,
+                    testTitle,
+                    testText,
+                    testPkg
+                )
+            }
         }
     }
 }

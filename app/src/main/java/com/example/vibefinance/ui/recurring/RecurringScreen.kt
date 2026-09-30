@@ -3372,6 +3372,7 @@ fun AddEditSubscriptionSheet(
                                                         ) {
                                                             val accIcon = when (acc.type) {
                                                                 AccountType.CC -> Icons.Default.CreditCard
+                                                                AccountType.DEBIT -> Icons.Default.CreditCard
                                                                 AccountType.BANK -> Icons.Default.AccountBalance
                                                                 else -> Icons.Default.Payments
                                                             }
@@ -3384,12 +3385,13 @@ fun AddEditSubscriptionSheet(
                                                             Spacer(modifier = Modifier.width(8.dp))
                                                             Column {
                                                                 Text(
-                                                                    text = acc.name,
+                                                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
                                                                     style = MaterialTheme.typography.labelMedium,
                                                                     fontWeight = FontWeight.Bold,
                                                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
-                                                                val balLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balanceLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
                                                                 Text(
                                                                     text = balLabel,
                                                                     style = MaterialTheme.typography.labelSmall,
@@ -3765,6 +3767,7 @@ fun AddEditSubscriptionSheet(
                                                         ) {
                                                             val accIcon = when (acc.type) {
                                                                 AccountType.CC -> Icons.Default.CreditCard
+                                                                AccountType.DEBIT -> Icons.Default.CreditCard
                                                                 AccountType.BANK -> Icons.Default.AccountBalance
                                                                 else -> Icons.Default.Payments
                                                             }
@@ -3777,12 +3780,13 @@ fun AddEditSubscriptionSheet(
                                                             Spacer(modifier = Modifier.width(8.dp))
                                                             Column {
                                                                 Text(
-                                                                    text = acc.name,
+                                                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
                                                                     style = MaterialTheme.typography.labelMedium,
                                                                     fontWeight = FontWeight.Bold,
                                                                     color = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
-                                                                val balLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balanceLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
                                                                 Text(
                                                                     text = balLabel,
                                                                     style = MaterialTheme.typography.labelSmall,
@@ -4464,4 +4468,3 @@ fun DeleteSubscriptionConfirmDialog(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }
-

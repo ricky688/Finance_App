@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assets_total_assets">Total assets</string>
+    <string name="assets_type_debit">Debit cards</string>
+    <string name="assets_identity_nickname">Nickname (optional)</string>
+    <string name="assets_identity_nickname_hint">Shown in account lists and pickers. The account name stays unchanged.</string>
+    <string name="assets_identity_last_four">Real last four digits (optional)</string>
+    <string name="assets_identity_last_four_error">Enter exactly four digits or leave this blank.</string>
+    <string name="assets_identity_accent">Account accent</string>
+    <string name="assets_identity_accent_default">Auto</string>
+    <string name="assets_identity_accent_primary">Color 1</string>
+    <string name="assets_identity_accent_secondary">Color 2</string>
+    <string name="assets_identity_accent_tertiary">Color 3</string>
+    <string name="assets_linked_app_title">App Quick Launch</string>
+    <string name="assets_linked_app_desc">Tap icon on card to quickly open the app</string>
+    <string name="assets_linked_app_none">None (Do not link app)</string>
+    <string name="assets_linked_app_none_desc">Do not display redirect icon on card</string>
+    <string name="assets_linked_app_dialog_title">Select App to Launch</string>
+    <string name="assets_linked_app_not_installed">App is not installed on this device</string>
+    <string name="assets_linked_app_open">Open %s</string>
+    <string name="assets_linked_app_installed_list">Installed Applications</string>
+    <string name="assets_linked_app_search_placeholder">Search installed apps...</string>
+    <string name="assets_linked_app_empty">No matching applications found</string>
+    <string name="assets_linked_app_choose">Choose linked app</string>
+    <string name="assets_linked_app_long_press_tip">Long press redirect icon on card to change app</string>
+</resources>

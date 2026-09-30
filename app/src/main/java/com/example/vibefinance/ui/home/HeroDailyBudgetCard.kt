@@ -36,6 +36,8 @@ import com.example.vibefinance.R
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.theme.HeroCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
+import java.time.Instant
+import java.time.ZoneId
 import java.util.Locale
 
 /**
@@ -57,7 +59,9 @@ fun calculateHeroDailyBudgetState(
     currentTimeMillis: Long = System.currentTimeMillis()
 ): HeroDailyBudgetState {
     if (info.totalMonthlyBudget <= 0.0 || info.endDate <= 0L) return HeroDailyBudgetState.NO_BUDGET
-    val isPeriodEnded = info.daysLeft <= 0 || (info.endDate > 0 && currentTimeMillis >= info.endDate)
+    val endExclusive = Instant.ofEpochMilli(info.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        .plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val isPeriodEnded = info.daysLeft <= 0 || currentTimeMillis >= endExclusive
     if (isPeriodEnded) return HeroDailyBudgetState.PERIOD_ENDED
     val isBudgetEnd = info.monthlyRemaining <= 0.0 || (info.dailyRemaining < 0.0 && info.newDailyBudget <= 0.0)
     if (isBudgetEnd) return HeroDailyBudgetState.BUDGET_END

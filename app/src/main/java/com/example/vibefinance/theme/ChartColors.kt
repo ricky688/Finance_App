@@ -183,6 +183,7 @@ object ChartColors {
         return when (segmentId.lowercase(Locale.US).trim()) {
             "cash", "wallet" -> Color(0xFF10B981) // Emerald Mint (Matches Cash)
             "bank", "bank accounts" -> Color(0xFF3B82F6) // Ocean Blue (Matches Bank)
+            "debit", "debit card", "debit cards" -> Color(0xFF8B5CF6) // Violet (Debit Assets)
             "debt", "credit debt", "credit card", "cc" -> Color(0xFFF43F5E) // Crimson Rose (Debt)
             "investment", "crypto", "stock" -> Color(0xFFEAB308) // Sunflower Gold
             else -> Color(0xFF8B5CF6)

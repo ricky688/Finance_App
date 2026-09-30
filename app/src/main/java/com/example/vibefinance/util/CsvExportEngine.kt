@@ -28,7 +28,13 @@ object CsvExportEngine {
             val dateStr = dateFormat.format(Date(tx.timestamp))
             val accountName = accountMap[tx.accountId]?.name ?: "Unknown"
             val destName = if (tx.toAccountId != null) accountMap[tx.toAccountId]?.name ?: "Unknown" else ""
-            val typeStr = if (tx.toAccountId != null) "Transfer" else if (tx.installmentNumber != null) "Installment (${tx.installmentNumber}/${tx.totalInstallments})" else "Expense"
+            val typeStr = when {
+                tx.isBalanceAdjustment -> "Balance adjustment"
+                tx.toAccountId != null -> "Transfer"
+                tx.installmentNumber != null -> "Installment (${tx.installmentNumber}/${tx.totalInstallments})"
+                tx.amount < 0 -> "Income"
+                else -> "Expense"
+            }
             val cleanDesc = tx.description.replace(",", " ")
 
             sb.append("${tx.id},\"${dateStr}\",\"${tx.category}\",\"${typeStr}\",${tx.amount},\"${accountName}\",\"${destName}\",\"${cleanDesc}\"\n")

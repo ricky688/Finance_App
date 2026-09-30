@@ -76,8 +76,8 @@
     <string name="safe_to_spend">安全消費額度</string>
 
     <!-- Assets / Accounts Screen -->
-    <string name="asset_filter_all">全部資產</string>
-    <string name="asset_filter_cash_bank">現金與銀行</string>
+    <string name="asset_filter_all">全部帳戶</string>
+    <string name="asset_filter_cash_bank">資產</string>
     <string name="asset_filter_credit_cards">信用卡</string>
     <string name="net_worth_title">總淨資產</string>
     <string name="liquid_assets">流動資產</string>
@@ -91,7 +91,26 @@
     <string name="acc_name_label">帳戶名稱</string>
     <string name="acc_balance_label">當前餘額</string>
     <string name="acc_credit_limit">信用額度</string>
-    <string name="acc_statement_date">帳單結帳日</string>
+    <string name="acc_statement_date">結算日</string>
+    <string name="acc_statement_day_select">選擇日期</string>
+    <string name="acc_statement_day_clear">未設定</string>
+    <string name="acc_statement_day_value">結算日 · 每月 %1$d 日</string>
+    <string name="acc_statement_day_unset">結算日 · 未設定</string>
+    <string name="assets_compact_mode">精簡模式</string>
+    <string name="assets_detailed_mode">詳細模式</string>
+    <string name="assets_net_worth">資產淨值</string>
+    <string name="assets_type_cash">現金</string>
+    <string name="assets_type_bank">銀行帳戶</string>
+    <string name="assets_type_credit">信用卡</string>
+    <string name="assets_compact_closing_day">結算日 %1$d 日</string>
+    <string name="assets_compact_closing_unset">結算日未設定</string>
+    <string name="assets_edit_balance">修改結餘</string>
+    <string name="assets_view_history">紀錄</string>
+    <string name="assets_current_balance">目前結餘：%1$s</string>
+    <string name="assets_new_balance">新結餘</string>
+    <string name="assets_balance_change">變動：%1$s</string>
+    <string name="assets_balance_history_hint">結餘調整會顯示在歷史紀錄，並且不計入支出預算。</string>
+    <string name="assets_save_balance">儲存結餘</string>
     <string name="acc_payment_due_date">繳款截止日</string>
     <string name="btn_add_account">新增帳戶</string>
     <string name="btn_edit_account">編輯帳戶</string>
@@ -179,6 +198,11 @@
     <string name="category_analytics_subtitle">點擊類別以篩選</string>
     <string name="category_analytics_filtering">正在篩選：%s • 點擊重置</string>
     <string name="category_analytics_focused">已篩選</string>
+    <string name="category_analytics_month">月份</string>
+    <string name="category_analytics_budget_period">預算週期</string>
+    <string name="category_analytics_previous_month">上個月</string>
+    <string name="category_analytics_next_month">下個月</string>
+    <string name="category_analytics_no_expenses_period">此期間沒有支出</string>
     <string name="reset_filter">重設篩選</string>
     <string name="total_monthly_short">每月總計</string>
     <string name="daily_net_format">當日淨額：%1$sHK$%2$,.2f</string>
@@ -329,4 +353,37 @@
     <string name="delete_sub_delete_all_btn">連同付款紀錄一併刪除</string>
     <string name="delete_sub_delete_all_desc">刪除定期訂閱，並從記帳明細中移除 %d 筆過往扣款紀錄。</string>
     <string name="delete_sub_confirm_single">確認刪除訂閱</string>
+
+    <!-- Native Data Import Strings -->
+    <string name="import_title">匯入數據</string>
+    <string name="import_preview_title">數據匯入預覽</string>
+    <string name="import_file_label">檔案：%s</string>
+    <string name="import_btn_select_file">匯入數據 (Excel / CSV)</string>
+    <string name="import_btn_select_desc">從財務管家 (.xlsx) 或 CSV 備份匯入收支與帳戶</string>
+    <string name="import_expenses_count">%d 筆支出</string>
+    <string name="import_income_count">%d 筆收入</string>
+    <string name="import_transfers_count">%d 筆轉帳</string>
+    <string name="import_detected_accounts">偵測到的帳戶 (%d)</string>
+    <string name="import_mode_title">匯入方式</string>
+    <string name="import_mode_merge">合併至現有數據</string>
+    <string name="import_mode_merge_desc">保留目前現有的帳戶與交易記錄，自動新增缺少的帳戶並匯入新記錄。</string>
+    <string name="import_mode_replace">清除並替換現有數據</string>
+    <string name="import_mode_replace_desc">清除本機所有帳戶與交易紀錄，完全依據備份重新建構帳戶與餘額。</string>
+    <string name="import_btn_confirm">確認並匯入</string>
+    <string name="import_btn_importing">匯入中...</string>
+    <string name="import_date_range">%1$s — %2$s</string>
+    <string name="import_transactions_total">共 %d 筆交易</string>
+    <string name="account_history_filter">紀錄 · %1$s</string>
+    <string name="show_all_history">顯示所有紀錄</string>
+    <string name="balance_adjustment_title">餘額調整</string>
+    <string name="balance_adjustment_detail">%1$s 餘額變動 %2$s</string>
+
+    <!-- Daily Budget Toggle (Non-daily / Big Purchase) -->
+    <string name="daily_budget_toggle_title">計入每日預算</string>
+    <string name="daily_budget_toggle_desc_on">從今日日常預算中扣減每日津貼</string>
+    <string name="daily_budget_toggle_desc_off">非日常大額專案（如買手機、電視），不佔用每日預算</string>
+    <string name="non_daily_expense_badge">非日常</string>
+    <string name="non_daily_preview_title">非日常獨立支出</string>
+    <string name="non_daily_preview_desc">此筆消費不計入今日生活預算，不影響每日津貼</string>
+    <string name="non_daily_preview_preserved">今日每日預算保持不變</string>
 </resources>

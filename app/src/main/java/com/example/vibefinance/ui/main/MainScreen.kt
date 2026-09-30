@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.main
 
 import com.example.vibefinance.ui.common.horizontalFadingEdge
@@ -9,6 +11,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -52,10 +55,12 @@ import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.example.vibefinance.ui.components.ExpressiveSwitch
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.TrendingDown
@@ -67,6 +72,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.draw.shadow
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.common.pressBounce
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalView
@@ -83,6 +90,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -96,6 +104,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.InMemoryDatabase
+import com.example.vibefinance.service.PendingPaymentStore
 import com.example.vibefinance.data.entity.AccountType
 import com.example.vibefinance.ui.home.CategoryIcon
 import androidx.compose.foundation.clickable
@@ -551,6 +560,7 @@ fun MainScreen(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var selectedTab by rememberSaveable { mutableStateOf(TabItem.HOME) }
+    var historyAccountFilterId by rememberSaveable { mutableStateOf<Long?>(null) }
     val requestedTab by viewModel.requestedTab.collectAsStateWithLifecycle()
     LaunchedEffect(requestedTab) {
         requestedTab?.let {
@@ -565,6 +575,12 @@ fun MainScreen(
     var isFabMenuExpanded by remember { mutableStateOf(false) }
     var activeTransactionMode by remember { mutableStateOf(TransactionMode.EXPENSE) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val pendingPayments by PendingPaymentStore.pending.collectAsStateWithLifecycle()
+    var deferredPaymentIds by remember { mutableStateOf(emptySet<String>()) }
+    var savingPaymentId by remember { mutableStateOf<String?>(null) }
+    val pendingChoiceScope = rememberCoroutineScope()
+    LaunchedEffect(context) { PendingPaymentStore.initialize(context) }
+    val paymentToChoose = pendingPayments.firstOrNull { it.id !in deferredPaymentIds }
 
     // Scroll state tracking
     val density = LocalDensity.current
@@ -695,13 +711,29 @@ fun MainScreen(
         }
     }
 
-    val isPeriodEnded = budgetInfo.totalMonthlyBudget > 0 && (budgetInfo.daysLeft <= 0 || (budgetInfo.endDate > 0 && System.currentTimeMillis() >= budgetInfo.endDate))
+    val periodEndExclusive = remember(budgetInfo.endDate) {
+        if (budgetInfo.endDate > 0L) {
+            Instant.ofEpochMilli(budgetInfo.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+                .plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        } else 0L
+    }
+    val isPeriodEnded = budgetInfo.totalMonthlyBudget > 0 &&
+        (budgetInfo.daysLeft <= 0 || (periodEndExclusive > 0L && System.currentTimeMillis() >= periodEndExclusive))
 
     // Automatic New-Day Rollover Recalculation & Period Ended Trigger
     // Waits for app launch/loading to complete, then adds an 800ms smooth delay so the splash screen is gone and user sees Daily page first
     val prefs = remember(context) { context.getSharedPreferences("vibefinance_prefs", android.content.Context.MODE_PRIVATE) }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val autoSheetScope = rememberCoroutineScope()
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                deferredPaymentIds = emptySet()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var hasAutoTriggeredForSession by remember { mutableStateOf(false) }
 
@@ -1063,6 +1095,7 @@ fun MainScreen(
                                     if (selectedTab != tab) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         isFabMenuExpanded = false
+                                        if (tab == TabItem.HISTORY) historyAccountFilterId = null
                                         selectedTab = tab
                                     }
                                 },
@@ -1189,7 +1222,10 @@ fun MainScreen(
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 400) 12.dp else 16.dp),
                                 topContentPadding = pageTopPadding,
-                                onViewAllClick = { selectedTab = TabItem.HISTORY },
+                                onViewAllClick = {
+                                    historyAccountFilterId = null
+                                    selectedTab = TabItem.HISTORY
+                                },
                                 showAddDialog = showAddDialog,
                                 onDismissAddDialog = { showAddDialog = false },
                                 onOpenBudgetDialog = {
@@ -1214,7 +1250,11 @@ fun MainScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.fillMaxSize(),
-                                topContentPadding = pageTopPadding
+                                topContentPadding = pageTopPadding,
+                                onViewAccountHistory = { accountId ->
+                                    historyAccountFilterId = accountId
+                                    selectedTab = TabItem.HISTORY
+                                }
                             )
                             TabItem.RECURRING -> RecurringScreen(
                                 state = state,
@@ -1228,7 +1268,9 @@ fun MainScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.padding(horizontal = 16.dp),
-                                topContentPadding = pageTopPadding
+                                topContentPadding = pageTopPadding,
+                                accountFilterId = historyAccountFilterId,
+                                onClearAccountFilter = { historyAccountFilterId = null }
                             )
                         }
                     }
@@ -1309,6 +1351,31 @@ fun MainScreen(
         }
     }
 
+    paymentToChoose?.let { payment ->
+        PendingPaymentChoiceDialog(
+            payment = payment,
+            accounts = state.accounts,
+            saving = savingPaymentId == payment.id,
+            onRecord = { accountId, rememberChoice ->
+                savingPaymentId = payment.id
+                pendingChoiceScope.launch {
+                    val recorded = runCatching {
+                        PendingPaymentStore.accept(context, payment.id, accountId, rememberChoice)
+                    }.getOrDefault(false)
+                    savingPaymentId = null
+                    snackbarHostState.showSnackbar(
+                        context.getString(
+                            if (recorded) R.string.pending_payment_recorded
+                            else R.string.pending_payment_failed
+                        )
+                    )
+                }
+            },
+            onLater = { deferredPaymentIds = deferredPaymentIds + payment.id },
+            onIgnore = { PendingPaymentStore.ignore(context, payment.id) }
+        )
+    }
+
     // M3 Settings & Budget Configuration BottomSheet
     if (showBudgetDialog) {
         var selectedEndDateMillis by remember(budgetInfo.endDate) {
@@ -1360,8 +1427,10 @@ fun MainScreen(
                                 )
                             }
 
+                            val dateConfirmInteraction = remember { MutableInteractionSource() }
                             Button(
                                 onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val end = calendarState.calendarUiState.value.selectedEndDate
                                     if (end != null) {
                                         selectedEndDateMillis = end.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -1369,6 +1438,9 @@ fun MainScreen(
                                     showDatePickerModal = false
                                 },
                                 enabled = calendarState.calendarUiState.value.hasSelectedDates,
+                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                interactionSource = dateConfirmInteraction,
+                                modifier = Modifier.pressBounce(interactionSource = dateConfirmInteraction),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1532,6 +1604,20 @@ fun MainScreen(
             }
         )
     }
+
+    val importPreview = state.importPreview
+    if (importPreview != null) {
+        com.example.vibefinance.ui.settings.ImportDataPreviewSheet(
+            preview = importPreview,
+            isImporting = state.isImporting,
+            onConfirm = { replaceExisting ->
+                viewModel.dispatch(FinanceIntent.ConfirmImport(replaceExisting))
+            },
+            onDismiss = {
+                viewModel.dispatch(FinanceIntent.DismissImportPreview)
+            }
+        )
+    }
 }
 
 @Composable
@@ -1613,7 +1699,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(vertical = 12.dp, horizontal = if (isScrollable) 12.dp else 4.dp),
+                        .padding(vertical = 8.dp, horizontal = if (isScrollable) 12.dp else 4.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1693,11 +1779,13 @@ fun AddExpenseSheetContent(
 ) {
     val context = LocalContext.current
     val localFocusManager = LocalFocusManager.current
+    val haptic = LocalHapticFeedback.current
     var typedAmount by remember { mutableStateOf("0.00") }
     var descriptionText by remember { mutableStateOf("") }
     var categoryText by remember { mutableStateOf("Food") }
     var selectedAccount by remember { mutableStateOf<AccountEntity?>(state.accounts.firstOrNull()) }
     var selectedToAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var isDailyBudget by remember { mutableStateOf(true) }
     
     val transactionMode = initialMode
     val isTransfer = initialMode == TransactionMode.TRANSFER
@@ -1713,6 +1801,7 @@ fun AddExpenseSheetContent(
 
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
+    var headerHeightPx by remember { mutableIntStateOf(0) }
     val maxScrollPx = with(density) { 150.dp.toPx() }
     val targetFraction = if (scrollState.value > with(density) { 12.dp.toPx() }) 1f else 0f
     val fraction by androidx.compose.animation.core.animateFloatAsState(
@@ -1785,10 +1874,63 @@ fun AddExpenseSheetContent(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            Spacer(modifier = Modifier.height(68.dp))
+            val headerHeightDp = with(density) { if (headerHeightPx > 0) headerHeightPx.toDp() else 68.dp }
+            Spacer(modifier = Modifier.height(headerHeightDp + 10.dp))
 
-            // --- DYNAMIC BUCKWHEAT BUDGET PREVIEW CARD (Only for Expense) ---
             if (transactionMode == TransactionMode.EXPENSE) {
+                // 1. Count in Daily Budget Switch Card
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                isDailyBudget = !isDailyBudget
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.daily_budget_toggle_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isDailyBudget) stringResource(R.string.daily_budget_toggle_desc_on) else stringResource(R.string.daily_budget_toggle_desc_off),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isDailyBudget,
+                            onCheckedChange = {
+                                isDailyBudget = it
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            },
+                            thumbContent = if (isDailyBudget) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+                }
+
+                // 2. Budget Preview Card (Dynamic calculation / Non-daily notice)
                 val budgetInfo = state.budgetInfo
                 if (budgetInfo != null) {
                     val inputAmount = typedAmount.toDoubleOrNull() ?: 0.0
@@ -1802,100 +1944,113 @@ fun AddExpenseSheetContent(
 
                     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 14.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        color = if (isOverBudget) {
-                            if (isDarkTheme) Color(0xFF3B1414) else Color(0xFFFFF0F0)
-                        } else {
-                            if (isDarkTheme) Color(0xFF072A1A) else Color(0xFFE8F5E9)
+                    AnimatedContent(
+                        targetState = isDailyBudget,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                             expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)))
+                                .togetherWith(fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                                 shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
                         },
-                        border = BorderStroke(
-                            1.dp,
-                            if (isOverBudget) {
-                                if (isDarkTheme) Color(0xFFFF5252).copy(alpha = 0.5f) else Color(0xFFE57373)
-                            } else {
-                                if (isDarkTheme) Color(0xFF00E676).copy(alpha = 0.5f) else Color(0xFF81C784)
-                            }
-                        ),
-                        tonalElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                        label = "budgetPreviewTransition"
+                    ) { isDaily ->
+                        if (isDaily) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isOverBudget) {
+                                    if (isDarkTheme) Color(0xFF3B1414) else Color(0xFFFFF0F0)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerLow
+                                },
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isOverBudget) {
+                                        if (isDarkTheme) Color(0xFFFF5252).copy(alpha = 0.5f) else Color(0xFFE57373)
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    }
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isOverBudget) Color(0xFFFF5252).copy(alpha = 0.2f) else Color(0xFF00E676).copy(alpha = 0.2f),
-                                    modifier = Modifier.size(36.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = if (isOverBudget) Icons.Default.Warning else Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = if (isOverBudget) Color(0xFFFF5252) else Color(0xFF00E676),
-                                            modifier = Modifier.size(20.dp)
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isOverBudget) Color(0xFFFF5252).copy(alpha = 0.18f) else Color(0xFF00E676).copy(alpha = 0.18f),
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (isOverBudget) Icons.Default.Warning else Icons.Default.TrendingDown,
+                                                contentDescription = null,
+                                                tint = if (isOverBudget) Color(0xFFFF5252) else Color(0xFF00E676),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = if (isOverBudget) "超支警告！" else "預算試算",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isOverBudget) (if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C)) else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = if (isOverBudget) {
+                                                "此筆支出超出今日剩餘！今日將超支 $${String.format(Locale.US, "%.0f", -simDailyRem)}，其餘每天可用降為 $${String.format(Locale.US, "%.0f", newDailyForRest)}"
+                                            } else {
+                                                "扣除後今日尚餘 $${String.format(Locale.US, "%.0f", simDailyRem)}"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = if (isOverBudget) "超支！其餘天數新每日預算 (Rest of Days)" else "今日預算剩餘 (Today Remaining)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isOverBudget) {
-                                            if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C)
-                                        } else {
-                                            if (isDarkTheme) Color(0xFF81C784) else Color(0xFF1B5E20)
-                                        }
-                                    )
-                                    Text(
-                                        text = if (isOverBudget) {
-                                            "超出今日預算 \$${String.format(Locale.US, "%.0f", -simDailyRem)}，未來 ${futureDays} 天每日為:"
-                                        } else {
-                                            "扣除本筆消費後今日尚有:"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                                    )
-                                }
                             }
-
-                            // Amount Display with Smooth Animated Transition
-                            AnimatedContent(
-                                targetState = if (isOverBudget) newDailyForRest to true else simDailyRem to false,
-                                transitionSpec = {
-                                    (fadeIn(animationSpec = tween(150)) + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut(animationSpec = tween(100)) + scaleOut(targetScale = 1.1f))
-                                },
-                                label = "DynamicBudgetAnim"
-                            ) { (amount, over) ->
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = String.format(Locale.US, "HK$ %,.0f", Math.abs(amount)),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (over) {
-                                            if (isDarkTheme) Color(0xFFFF5252) else Color(0xFFC62828)
-                                        } else {
-                                            if (isDarkTheme) Color(0xFF00E676) else Color(0xFF2E7D32)
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (isDarkTheme) 0.35f else 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.ShoppingCart,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.secondary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
-                                    )
-                                    if (over) {
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
                                         Text(
-                                            text = "/ 天 (per day)",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C),
-                                            fontWeight = FontWeight.Bold
+                                            text = stringResource(R.string.non_daily_preview_title),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.non_daily_preview_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 }
@@ -1920,7 +2075,8 @@ fun AddExpenseSheetContent(
                     }
                 }
             },
-            placeholder = { Text("Note / Merchant Description (e.g. Starbucks)", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)) },
+            placeholder = { Text("Note / Merchant (e.g. Starbucks)", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f), style = MaterialTheme.typography.bodyMedium) },
+            singleLine = true,
             trailingIcon = {
                 IconButton(onClick = { receiptPickerLauncher.launch("image/*") }) {
                     Icon(
@@ -1939,7 +2095,7 @@ fun AddExpenseSheetContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         AnimatedVisibility(
             visible = !isTransfer,
@@ -1954,7 +2110,7 @@ fun AddExpenseSheetContent(
         ) {
             Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1970,7 +2126,10 @@ fun AddExpenseSheetContent(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { showInlineAddCategory = !showInlineAddCategory }
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showInlineAddCategory = !showInlineAddCategory
+                            }
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -2004,8 +2163,10 @@ fun AddExpenseSheetContent(
                                 modifier = Modifier.weight(1f),
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
+                            val addCatInteraction = remember { MutableInteractionSource() }
                             Button(
                                 onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val name = newCatName.trim()
                                     if (transactionMode == TransactionMode.INCOME) {
                                         if (name.isNotEmpty() && !incomeCategories.contains(name)) {
@@ -2020,8 +2181,13 @@ fun AddExpenseSheetContent(
                                     }
                                     newCatName = ""
                                     showInlineAddCategory = false
-                                }
+                                },
+                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                interactionSource = addCatInteraction,
+                                modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
                             ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text("Add")
                             }
                         }
@@ -2047,16 +2213,16 @@ fun AddExpenseSheetContent(
                     },
                     labelProvider = { cat -> cat }
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(4.dp))
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         // 3. Asset Selection Horizontal Grid
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -2072,7 +2238,10 @@ fun AddExpenseSheetContent(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { showInlineAddAsset = !showInlineAddAsset }
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showInlineAddAsset = !showInlineAddAsset
+                        }
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
@@ -2112,15 +2281,17 @@ fun AddExpenseSheetContent(
                     ) {
                         Text("Type:", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.2f))
                         ExpressiveSegmentedButtonGroup(
-                            items = listOf(AccountType.CASH, AccountType.BANK, AccountType.CC),
-                            selectedIndex = listOf(AccountType.CASH, AccountType.BANK, AccountType.CC).indexOf(selectedType),
-                            onItemSelected = { selectedType = listOf(AccountType.CASH, AccountType.BANK, AccountType.CC)[it] },
+                            items = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC),
+                            selectedIndex = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC).indexOf(selectedType),
+                            onItemSelected = { selectedType = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC)[it] },
                             modifier = Modifier.weight(1f),
+                            isScrollable = true,
                             labelProvider = {
                                 when (it) {
                                     AccountType.CASH -> "Cash"
                                     AccountType.BANK -> "Bank"
-                                    AccountType.CC -> "Card"
+                                    AccountType.DEBIT -> "Debit"
+                                    AccountType.CC -> "Credit"
                                 }
                             }
                         )
@@ -2138,18 +2309,21 @@ fun AddExpenseSheetContent(
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
+                        val addAccountInteraction = remember { MutableInteractionSource() }
                         Button(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val name = newAssetName.trim()
                                 val bal = initialBalanceText.toDoubleOrNull() ?: 0.0
                                 if (name.isNotEmpty()) {
                                     val newAccount = AccountEntity(
                                         name = name,
                                         type = selectedType,
-                                        balance = if (selectedType == AccountType.CASH) bal else 0.0,
+                                        balance = if (selectedType == AccountType.CC) 0.0 else bal,
                                         icon = when (selectedType) {
                                             AccountType.CASH -> "wallet"
                                             AccountType.BANK -> "bank"
+                                            AccountType.DEBIT -> "debit_card"
                                             AccountType.CC -> "credit_card"
                                         },
                                         creditLimit = if (selectedType == AccountType.CC) bal else null
@@ -2159,8 +2333,13 @@ fun AddExpenseSheetContent(
                                 newAssetName = ""
                                 initialBalanceText = ""
                                 showInlineAddAsset = false
-                            }
+                            },
+                            shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                            interactionSource = addAccountInteraction,
+                            modifier = Modifier.pressBounce(interactionSource = addAccountInteraction)
                         ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text("Save")
                         }
                     }
@@ -2176,6 +2355,7 @@ fun AddExpenseSheetContent(
                     val accIcon = when (acc.type) {
                         AccountType.CASH -> Icons.Default.Savings
                         AccountType.BANK -> Icons.Default.AccountBalance
+                        AccountType.DEBIT -> Icons.Default.CreditCard
                         AccountType.CC -> Icons.Default.ShoppingCart
                     }
                     Icon(
@@ -2185,7 +2365,7 @@ fun AddExpenseSheetContent(
                         tint = tintColor
                     )
                 },
-                labelProvider = { acc -> acc.name }
+                labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
             )
         }
 
@@ -2221,6 +2401,7 @@ fun AddExpenseSheetContent(
                         val accIcon = when (acc.type) {
                             AccountType.CASH -> Icons.Default.Savings
                             AccountType.BANK -> Icons.Default.AccountBalance
+                            AccountType.DEBIT -> Icons.Default.CreditCard
                             AccountType.CC -> Icons.Default.ShoppingCart
                         }
                         Icon(
@@ -2230,88 +2411,15 @@ fun AddExpenseSheetContent(
                             tint = tintColor
                         )
                     },
-                    labelProvider = { acc -> acc.name }
+                    labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        val view = LocalView.current
-        
-        // --- ⚡ ONE-TAP QUICK EXPENSE PRESET CHIPS ---
-        val quickPresets = remember {
-            listOf(
-                Triple("☕", "Coffee", "24"),
-                Triple("🚇", "MTR", "10"),
-                Triple("🍱", "Lunch", "65"),
-                Triple("🥤", "Drink", "18"),
-                Triple("🛒", "Groceries", "120")
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "⚡ Quick Presets (一鍵快捷)",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
-
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
-        ) {
-            items(quickPresets) { (emoji, label, amtStr) ->
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        view.playSoundEffect(SoundEffectConstants.CLICK)
-                        typedAmount = amtStr
-                        descriptionText = "$emoji $label"
-                        val suggestedCat = if (label == "MTR") "Transport" else if (label == "Groceries") "Shopping" else "Food"
-                        if (expenseCategories.contains(suggestedCat)) {
-                            expenseCategoryText = suggestedCat
-                        }
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = emoji, style = MaterialTheme.typography.bodySmall)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "HK$ $amtStr",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 5. Buckwheat-Style Custom Numeric Keypad
-        val buttonHeight = 60.dp
+        val buttonHeight = 50.dp
         val gap = 6.dp
 
         Column(
@@ -2497,7 +2605,8 @@ fun AddExpenseSheetContent(
                                         amount = finalHkdAmt,
                                         category = expenseCategoryText,
                                         accountId = accId,
-                                        description = descWithFx
+                                        description = descWithFx,
+                                        isExcludedFromDailyBudget = !isDailyBudget
                                     )
                                 )
                             }
@@ -2516,6 +2625,7 @@ fun AddExpenseSheetContent(
                 .fillMaxWidth()
                 .zIndex(10f)
                 .background(MaterialTheme.colorScheme.surface)
+                .onGloballyPositioned { headerHeightPx = it.size.height }
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Row(
@@ -2821,9 +2931,16 @@ fun AllowedInterceptAppsDialog(
             }
         },
         confirmButton = {
+            val confirmInteraction = remember { MutableInteractionSource() }
+            val haptic = LocalHapticFeedback.current
             Button(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp)
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onDismiss()
+                },
+                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                interactionSource = confirmInteraction,
+                modifier = Modifier.pressBounce(interactionSource = confirmInteraction)
             ) {
                 Text(androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.btn_confirm))
             }

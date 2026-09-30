@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
@@ -13,6 +15,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.vibefinance.ui.common.pressBounce
 import com.example.vibefinance.ui.components.ExpressiveSwitch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -628,13 +632,22 @@ internal fun AppearancePickerSheet(
                     )
                 }
 
+                val closeInteraction = remember { MutableInteractionSource() }
+                val haptic = LocalHapticFeedback.current
                 Button(
-                    onClick = onDismiss,
-                    shape = CircleShape,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onDismiss()
+                    },
+                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+                    interactionSource = closeInteraction,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
-                    modifier = Modifier.height(48.dp)
+                    modifier = Modifier
+                        .height(48.dp)
+                        .pressBounce(interactionSource = closeInteraction)
                 ) {
                     Text(
                         text = stringResource(R.string.btn_close),

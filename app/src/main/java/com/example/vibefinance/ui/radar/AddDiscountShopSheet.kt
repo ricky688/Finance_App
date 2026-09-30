@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.radar
 
 import androidx.compose.animation.AnimatedVisibility
@@ -26,6 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,6 +52,7 @@ fun AddDiscountShopSheet(
     onSaveShop: (DiscountShop) -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var shopName by remember { mutableStateOf("") }
     var aspect by remember { mutableStateOf("Coffee & Cafe") }
     var address by remember { mutableStateOf("") }
@@ -349,8 +356,10 @@ fun AddDiscountShopSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Submit Button
+            val submitInteraction = remember { MutableInteractionSource() }
             Button(
                 onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     val lat = if (useCurrentGnss) currentGnssPoint.latitude else customLat.toDoubleOrNull() ?: currentGnssPoint.latitude
                     val lng = if (useCurrentGnss) currentGnssPoint.longitude else customLng.toDoubleOrNull() ?: currentGnssPoint.longitude
                     val rate = discountRateText.toDoubleOrNull() ?: 5.0
@@ -379,8 +388,11 @@ fun AddDiscountShopSheet(
                 enabled = shopName.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp),
-                shape = RoundedCornerShape(16.dp),
+                    .height(54.dp)
+                    .pressBounce(interactionSource = submitInteraction),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(27.dp), pressedShape = RoundedCornerShape(16.dp)),
+                interactionSource = submitInteraction,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )

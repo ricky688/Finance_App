@@ -23,8 +23,16 @@ class AccountRepository @Inject constructor() {
         return InMemoryDatabase.insertAccount(account)
     }
 
+    suspend fun insertAccounts(accounts: List<AccountEntity>): Map<String, Long> {
+        return InMemoryDatabase.insertAccounts(accounts)
+    }
+
     suspend fun updateAccount(account: AccountEntity) {
         InMemoryDatabase.updateAccount(account)
+    }
+
+    suspend fun updateAccountWithBalanceAdjustment(account: AccountEntity): Long? {
+        return InMemoryDatabase.updateAccountWithBalanceAdjustment(account)
     }
 
     suspend fun updateBalance(id: Long, newBalance: Double) {

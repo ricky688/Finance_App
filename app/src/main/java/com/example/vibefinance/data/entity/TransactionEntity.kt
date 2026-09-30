@@ -37,5 +37,12 @@ data class TransactionEntity(
     val description: String = "",
     val installmentNumber: Int? = null, // Current installment index (e.g. 1 for 1st installment)
     val totalInstallments: Int? = null, // Total installment count (e.g. 12)
-    val groupId: String? = null // Groups related installment transactions
+    val groupId: String? = null, // Groups related installment transactions
+    val isBalanceAdjustment: Boolean = false,
+    val balanceAdjustmentDelta: Double? = null, // Exact account-balance change, independent of account type
+    // A credit-card balance is debt, so its signed change differs from Cash/Bank/Debit.
+    // Keep the account types used when this entry affected balances: editing an account's
+    // type later must not reinterpret its earlier History entries or reversal amounts.
+    val sourceWasCreditCard: Boolean? = null,
+    val destinationWasCreditCard: Boolean? = null
 )

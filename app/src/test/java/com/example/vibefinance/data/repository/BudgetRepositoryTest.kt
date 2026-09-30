@@ -176,4 +176,54 @@ class BudgetRepositoryTest {
         assertEquals(80.0, result.newDailyBudget, 0.01)
         assertEquals(80.0, result.tomorrowAllowance, 0.01)
     }
+
+    @Test
+    fun testNonDailyExpense_excludedFromDailyBudget() = runTest {
+        val today = LocalDate.now()
+        val startDate = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endDate = today.plusDays(9).atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        InMemoryDatabase.clearAllTables()
+        InMemoryDatabase.insertBudget(
+            BudgetEntity(
+                id = "ACTIVE_PERIOD",
+                totalBudgetAmount = 1000.0,
+                startDate = startDate,
+                endDate = endDate
+            )
+        )
+
+        val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        // Daily expense: Lunch $50
+        val dailyExpense = TransactionEntity(
+            id = 1,
+            amount = 50.0,
+            category = "Food",
+            timestamp = todayStart + 1000,
+            accountId = 1,
+            isExcludedFromDailyBudget = false
+        )
+        // Non-daily / one-off purchase: iPhone $8000
+        val nonDailyExpense = TransactionEntity(
+            id = 2,
+            amount = 8000.0,
+            category = "Shopping",
+            description = "iPhone 16 Pro",
+            timestamp = todayStart + 2000,
+            accountId = 1,
+            isExcludedFromDailyBudget = true
+        )
+
+        InMemoryDatabase.insertTransaction(dailyExpense)
+        InMemoryDatabase.insertTransaction(nonDailyExpense)
+
+        val repository = BudgetRepository()
+        val result = repository.getDailyAllowanceFlow().first()
+
+        // Daily allowance for 10 days = 100.0
+        // Daily remaining should ONLY deduct the $50 lunch, leaving $50.0. The $8000 iPhone must NOT affect daily allowance!
+        assertEquals(100.0, result.dailyAllowance, 0.01)
+        assertEquals(50.0, result.dailyRemaining, 0.01)
+        assertEquals(50.0, result.totalSpentThisMonth, 0.01)
+    }
 }

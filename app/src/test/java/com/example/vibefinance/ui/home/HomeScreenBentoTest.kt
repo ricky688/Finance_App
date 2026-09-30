@@ -140,12 +140,13 @@ class HomeScreenBentoTest {
 
     @Test
     fun testDaysLeftProgressCalculation() {
-        assertEquals(1.0f, calculateDaysLeftProgress(30, 30), 0.001f)
+        // Reversed progress (elapsed ratio)
+        assertEquals(0.0f, calculateDaysLeftProgress(30, 30), 0.001f)
         assertEquals(0.5f, calculateDaysLeftProgress(15, 30), 0.001f)
-        assertEquals(0.1f, calculateDaysLeftProgress(3, 30), 0.001f)
-        assertEquals(0.0f, calculateDaysLeftProgress(0, 30), 0.001f)
-        assertEquals(0.0f, calculateDaysLeftProgress(-2, 30), 0.001f)
-        assertEquals(1.0f, calculateDaysLeftProgress(35, 30), 0.001f)
+        assertEquals(0.9f, calculateDaysLeftProgress(3, 30), 0.001f)
+        assertEquals(1.0f, calculateDaysLeftProgress(0, 30), 0.001f)
+        assertEquals(1.0f, calculateDaysLeftProgress(-2, 30), 0.001f)
+        assertEquals(0.0f, calculateDaysLeftProgress(35, 30), 0.001f)
         assertEquals(0.0f, calculateDaysLeftProgress(10, 0), 0.001f)
     }
 

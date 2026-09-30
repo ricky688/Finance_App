@@ -28,3 +28,5 @@ skill/
 .agents/orchestrator_*
 .agents/sentinel/
 *.apk
+*.xlsx
+*.xls

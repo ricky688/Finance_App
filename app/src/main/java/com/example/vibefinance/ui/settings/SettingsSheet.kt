@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.settings
 
 import android.content.Context
@@ -17,6 +19,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +64,11 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material3.FilledTonalButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import com.example.vibefinance.theme.IconShapeMode
 import com.example.vibefinance.theme.LocalIconShape
 import com.example.vibefinance.theme.ScallopBadgeShape
@@ -147,6 +158,17 @@ fun SettingsSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onDismiss()
+            val fileName = com.example.vibefinance.util.FinancialDataImportEngine.getFileNameFromUri(context, uri)
+            viewModel.dispatch(FinanceIntent.AnalyzeImportFile(uri, fileName))
+        }
+    }
 
     // Local mutable state for editing budget limits and category caps
     var budgetAmountText by remember(budgetInfo.totalMonthlyBudget) {
@@ -216,19 +238,35 @@ fun SettingsSheet(
                 )
             },
             confirmButton = {
+                val confirmInteraction = remember { MutableInteractionSource() }
+                val haptic = LocalHapticFeedback.current
                 Button(
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         viewModel.dispatch(FinanceIntent.SeedMockData)
                         showResetConfirmDialog = false
                         onDismiss()
                     },
+                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    interactionSource = confirmInteraction,
+                    modifier = Modifier.pressBounce(interactionSource = confirmInteraction),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.btn_confirm), color = MaterialTheme.colorScheme.onError, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showResetConfirmDialog = false }) {
+                val dismissInteraction = remember { MutableInteractionSource() }
+                val haptic = LocalHapticFeedback.current
+                TextButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showResetConfirmDialog = false
+                    },
+                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    interactionSource = dismissInteraction,
+                    modifier = Modifier.pressBounce(interactionSource = dismissInteraction)
+                ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
             },
@@ -799,7 +837,7 @@ fun SettingsSheet(
                                             }
                                         } else {
                                             val target = !autoLogEnabled
-                                            InMemoryDatabase.isNotificationLoggingEnabled = target
+                                            InMemoryDatabase.updateNotificationLoggingEnabled(target)
                                             autoLogEnabled = target
                                         }
                                     },
@@ -853,7 +891,7 @@ fun SettingsSheet(
                                                 // Fallback
                                             }
                                         } else {
-                                            InMemoryDatabase.isNotificationLoggingEnabled = checked
+                                            InMemoryDatabase.updateNotificationLoggingEnabled(checked)
                                             autoLogEnabled = checked
                                         }
                                     }
@@ -1136,13 +1174,14 @@ fun SettingsSheet(
 
                     val startLocalDate = Instant.ofEpochMilli(budgetStart).atZone(ZoneId.systemDefault()).toLocalDate()
                     val endLocalDate = Instant.ofEpochMilli(budgetEnd).atZone(ZoneId.systemDefault()).toLocalDate()
+                    val endExclusive = endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val totalDays = (ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1).coerceAtLeast(1).toInt()
 
-                    val activeCumulativeList = remember(state.transactions, budgetStart, budgetEnd, totalDays) {
+                    val activeCumulativeList = remember(state.transactions, budgetStart, endExclusive, totalDays) {
                         val dailySum = DoubleArray(totalDays)
                         state.transactions.forEach { tx ->
                             if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0.0) {
-                                if (tx.timestamp in budgetStart..budgetEnd) {
+                                if (tx.timestamp >= budgetStart && tx.timestamp < endExclusive) {
                                     val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
                                     val dayIdx = ChronoUnit.DAYS.between(startLocalDate, txDate).toInt().coerceIn(0, totalDays - 1)
                                     dailySum[dayIdx] += tx.amount
@@ -1304,6 +1343,37 @@ fun SettingsSheet(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val importInteraction = remember { MutableInteractionSource() }
+                    FilledTonalButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            filePickerLauncher.launch("*/*")
+                        },
+                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        interactionSource = importInteraction,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .pressBounce(interactionSource = importInteraction)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.UploadFile,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.import_btn_select_file),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))

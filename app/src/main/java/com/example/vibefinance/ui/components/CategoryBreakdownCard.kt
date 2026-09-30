@@ -42,13 +42,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -75,7 +79,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
+import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
 import java.util.Locale
+
+enum class CategoryAnalyticsPeriodMode { MONTH, BUDGET_PERIOD }
 
 @Composable
 fun CategoryBreakdownCard(
@@ -83,18 +90,26 @@ fun CategoryBreakdownCard(
     onExportCsv: () -> Unit,
     modifier: Modifier = Modifier,
     selectedCategory: String? = null,
-    onSelectCategory: ((String?) -> Unit)? = null
+    onSelectCategory: ((String?) -> Unit)? = null,
+    onImportData: (() -> Unit)? = null,
+    periodMode: CategoryAnalyticsPeriodMode = CategoryAnalyticsPeriodMode.MONTH,
+    periodLabel: String = "",
+    hasBudgetPeriod: Boolean = false,
+    onSelectPeriod: ((CategoryAnalyticsPeriodMode) -> Unit)? = null,
+    onPreviousMonth: (() -> Unit)? = null,
+    onNextMonth: (() -> Unit)? = null,
+    canGoToNextMonth: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
-    val totalExpense = transactions.filter { it.toAccountId == null && it.amount > 0 }.sumOf { it.amount }
-    
-    // Group transactions by category
-    val expenseTransactions = transactions.filter { it.toAccountId == null && it.amount > 0 }
-    val categoryTotals = expenseTransactions
-        .groupBy { it.category }
-        .mapValues { entry -> entry.value.sumOf { it.amount } }
-        .entries
-        .sortedByDescending { it.value }
+    val expenseTransactions = remember(transactions) {
+        transactions.filter { it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 }
+    }
+    val totalExpense = remember(expenseTransactions) { expenseTransactions.sumOf { it.amount } }
+    val categoryTotals = remember(expenseTransactions) {
+        expenseTransactions.groupBy { it.category }
+            .mapValues { entry -> entry.value.sumOf { it.amount } }
+            .entries.sortedByDescending { it.value }
+    }
 
     val categoryCounts = remember(expenseTransactions) {
         expenseTransactions.groupBy { it.category }.mapValues { it.value.size }
@@ -202,22 +217,15 @@ fun CategoryBreakdownCard(
                                                 haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                             }
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        Box(
+                                            modifier = Modifier.padding(4.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = stringResource(R.string.category_analytics_focused),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.width(3.dp))
                                             Icon(
                                                 imageVector = Icons.Default.Close,
                                                 contentDescription = "Clear",
                                                 tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(10.dp)
+                                                modifier = Modifier.size(12.dp)
                                             )
                                         }
                                     }
@@ -253,23 +261,128 @@ fun CategoryBreakdownCard(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                FilledTonalButton(
-                    onClick = onExportCsv,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.height(32.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.FileDownload,
-                        contentDescription = "Export CSV",
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "CSV",
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (onImportData != null) {
+                        FilledTonalButton(
+                            onClick = onImportData,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileUpload,
+                                contentDescription = "Import Data",
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.import_title),
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    FilledTonalButton(
+                        onClick = onExportCsv,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Export CSV",
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "CSV",
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (onSelectPeriod != null && hasBudgetPeriod) {
+                Spacer(modifier = Modifier.height(12.dp))
+                val modes = CategoryAnalyticsPeriodMode.entries
+                ExpressiveSegmentedButtonGroup(
+                    items = modes,
+                    selectedIndex = modes.indexOf(periodMode),
+                    onItemSelected = { index -> onSelectPeriod(modes[index]) },
+                    labelProvider = { mode ->
+                        stringResource(
+                            if (mode == CategoryAnalyticsPeriodMode.MONTH) {
+                                R.string.category_analytics_month
+                            } else {
+                                R.string.category_analytics_budget_period
+                            }
+                        )
+                    }
+                )
+            }
+
+            if (periodLabel.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (periodMode == CategoryAnalyticsPeriodMode.MONTH && onPreviousMonth != null) {
+                            IconButton(onClick = onPreviousMonth, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronLeft,
+                                    contentDescription = stringResource(R.string.category_analytics_previous_month)
+                                )
+                            }
+                        }
+                        AnimatedContent(
+                            targetState = periodLabel,
+                            modifier = Modifier.weight(1f),
+                            transitionSpec = {
+                                (slideInVertically(spring(stiffness = Spring.StiffnessMediumLow)) { it / 2 } +
+                                    fadeIn(spring(stiffness = Spring.StiffnessMediumLow)))
+                                    .togetherWith(
+                                        slideOutVertically(spring(stiffness = Spring.StiffnessMediumLow)) { -it / 2 } +
+                                            fadeOut(spring(stiffness = Spring.StiffnessMediumLow))
+                                    )
+                            },
+                            label = "categoryAnalyticsPeriod"
+                        ) { label ->
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        if (periodMode == CategoryAnalyticsPeriodMode.MONTH && onNextMonth != null) {
+                            IconButton(
+                                onClick = onNextMonth,
+                                enabled = canGoToNextMonth,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = stringResource(R.string.category_analytics_next_month)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -277,7 +390,7 @@ fun CategoryBreakdownCard(
 
             if (categoryTotals.isEmpty() || totalExpense == 0.0) {
                 Text(
-                    text = "No expenses logged yet",
+                    text = stringResource(R.string.category_analytics_no_expenses_period),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 12.dp)

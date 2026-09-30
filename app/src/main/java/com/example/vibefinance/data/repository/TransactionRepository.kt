@@ -24,14 +24,59 @@ class TransactionRepository @Inject constructor() {
     }
 
     suspend fun insertTransaction(transaction: TransactionEntity): Long {
-        val txId = InMemoryDatabase.insertTransaction(transaction)
+        val recordedTransaction = withAccountTypeSnapshot(transaction)
+        val txId = InMemoryDatabase.insertTransaction(recordedTransaction)
         
         // Update account balances if the transaction timestamp is in the past or present
-        if (transaction.timestamp <= System.currentTimeMillis()) {
-            updateAccountBalancesForTransaction(transaction)
+        if (recordedTransaction.timestamp <= System.currentTimeMillis()) {
+            updateAccountBalancesForTransaction(recordedTransaction)
         }
         
         return txId
+    }
+
+    suspend fun insertTransactions(transactions: List<TransactionEntity>, updateBalances: Boolean = true) {
+        val recordedTransactions = transactions.map(::withAccountTypeSnapshot)
+        InMemoryDatabase.insertTransactions(recordedTransactions)
+        if (updateBalances) {
+            val now = System.currentTimeMillis()
+            val deltas = mutableMapOf<Long, Double>()
+            val currentAccounts = InMemoryDatabase.accounts.value.associateBy { it.id }
+
+            for (tx in recordedTransactions) {
+                if (tx.timestamp <= now) {
+                    if (tx.isBalanceAdjustment) {
+                        val delta = requireNotNull(tx.balanceAdjustmentDelta) {
+                            "Balance adjustment is missing its delta"
+                        }
+                        deltas[tx.accountId] = (deltas[tx.accountId] ?: 0.0) + delta
+                    } else if (tx.toAccountId != null) {
+                        deltas[tx.accountId] = (deltas[tx.accountId] ?: 0.0) +
+                            transferSourceBalanceDelta(tx.amount, tx.sourceWasCreditCard)
+                        val toAccount = currentAccounts[tx.toAccountId]
+                        if (toAccount != null) {
+                            if (tx.destinationWasCreditCard == true) {
+                                deltas[tx.toAccountId] = (deltas[tx.toAccountId] ?: 0.0) - tx.amount
+                            } else {
+                                deltas[tx.toAccountId] = (deltas[tx.toAccountId] ?: 0.0) + tx.amount
+                            }
+                        }
+                    } else {
+                        val account = currentAccounts[tx.accountId]
+                        if (account != null) {
+                            if (tx.sourceWasCreditCard == true) {
+                                deltas[tx.accountId] = (deltas[tx.accountId] ?: 0.0) + tx.amount
+                            } else {
+                                deltas[tx.accountId] = (deltas[tx.accountId] ?: 0.0) - tx.amount
+                            }
+                        }
+                    }
+                }
+            }
+            if (deltas.isNotEmpty()) {
+                InMemoryDatabase.batchUpdateBalances(deltas)
+            }
+        }
     }
 
     suspend fun insertInstallmentTransaction(
@@ -40,11 +85,12 @@ class TransactionRepository @Inject constructor() {
     ) {
         val groupId = UUID.randomUUID().toString()
         val installmentAmount = baseTransaction.amount / installments
+        val recordedBase = withAccountTypeSnapshot(baseTransaction)
         val now = System.currentTimeMillis()
 
         for (i in 1..installments) {
             val futureTimestamp = addMonthsToTimestamp(baseTransaction.timestamp, i - 1)
-            val installmentTx = baseTransaction.copy(
+            val installmentTx = recordedBase.copy(
                 amount = installmentAmount,
                 timestamp = futureTimestamp,
                 installmentNumber = i,
@@ -75,10 +121,16 @@ class TransactionRepository @Inject constructor() {
             reverseAccountBalancesForTransaction(oldTx)
         }
         // 2. Update in database.
-        InMemoryDatabase.updateTransaction(newTx)
+        val updatedTransaction = withAccountTypeSnapshot(
+            newTx.copy(
+                sourceWasCreditCard = if (newTx.accountId == oldTx.accountId) newTx.sourceWasCreditCard else null,
+                destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null
+            )
+        )
+        InMemoryDatabase.updateTransaction(updatedTransaction)
         // 3. Apply the effect of the new transaction on account balances.
-        if (newTx.timestamp <= System.currentTimeMillis()) {
-            updateAccountBalancesForTransaction(newTx)
+        if (updatedTransaction.timestamp <= System.currentTimeMillis()) {
+            updateAccountBalancesForTransaction(updatedTransaction)
         }
     }
 
@@ -87,15 +139,22 @@ class TransactionRepository @Inject constructor() {
     }
 
     private suspend fun updateAccountBalancesForTransaction(tx: TransactionEntity) {
+        if (tx.isBalanceAdjustment) {
+            adjustAccountBalance(tx.accountId, requireNotNull(tx.balanceAdjustmentDelta))
+            return
+        }
         if (tx.toAccountId != null) {
             // It's a transfer!
-            adjustAccountBalance(tx.accountId, -tx.amount) // decrease source
+            val source = getAccountByIdSync(tx.accountId)
+            // Moving money from a credit card increases its debt; moving it from
+            // cash, bank, or debit decreases its available balance.
+            adjustAccountBalance(tx.accountId, transferSourceBalanceDelta(tx.amount, tx.sourceWasCreditCard ?: (source?.type == AccountType.CC)))
             
             // For destination: if it is CC, we pay off debt (which decreases outstanding balance).
-            // If it is BANK/CASH, we increase asset balance.
+            // If it is BANK/CASH/DEBIT, we increase asset balance.
             val toAccount = getAccountByIdSync(tx.toAccountId)
             if (toAccount != null) {
-                if (toAccount.type == AccountType.CC) {
+                if (tx.destinationWasCreditCard ?: (toAccount.type == AccountType.CC)) {
                     adjustAccountBalance(tx.toAccountId, -tx.amount) // pay off CC debt
                 } else {
                     adjustAccountBalance(tx.toAccountId, tx.amount) // increase asset balance
@@ -105,11 +164,11 @@ class TransactionRepository @Inject constructor() {
             // Regular income or expense
             // If amount > 0, it's an expense (outflow). If amount < 0, it's an income (inflow).
             val account = getAccountByIdSync(tx.accountId) ?: return
-            if (account.type == AccountType.CC) {
+            if (tx.sourceWasCreditCard ?: (account.type == AccountType.CC)) {
                 // For CC: expense increases debt (balance). Income decreases debt.
                 adjustAccountBalance(tx.accountId, tx.amount)
             } else {
-                // For Cash/Bank: expense decreases balance. Income increases balance.
+                // For Cash/Bank/Debit: expense decreases balance. Income increases balance.
                 adjustAccountBalance(tx.accountId, -tx.amount)
             }
         }
@@ -117,11 +176,16 @@ class TransactionRepository @Inject constructor() {
 
     private suspend fun reverseAccountBalancesForTransaction(tx: TransactionEntity) {
         // Reversing balance changes is the exact opposite of applying them
+        if (tx.isBalanceAdjustment) {
+            adjustAccountBalance(tx.accountId, -requireNotNull(tx.balanceAdjustmentDelta))
+            return
+        }
         if (tx.toAccountId != null) {
-            adjustAccountBalance(tx.accountId, tx.amount)
+            val source = getAccountByIdSync(tx.accountId)
+            adjustAccountBalance(tx.accountId, -transferSourceBalanceDelta(tx.amount, tx.sourceWasCreditCard ?: (source?.type == AccountType.CC)))
             val toAccount = getAccountByIdSync(tx.toAccountId)
             if (toAccount != null) {
-                if (toAccount.type == AccountType.CC) {
+                if (tx.destinationWasCreditCard ?: (toAccount.type == AccountType.CC)) {
                     adjustAccountBalance(tx.toAccountId, tx.amount)
                 } else {
                     adjustAccountBalance(tx.toAccountId, -tx.amount)
@@ -129,7 +193,7 @@ class TransactionRepository @Inject constructor() {
             }
         } else {
             val account = getAccountByIdSync(tx.accountId) ?: return
-            if (account.type == AccountType.CC) {
+            if (tx.sourceWasCreditCard ?: (account.type == AccountType.CC)) {
                 adjustAccountBalance(tx.accountId, -tx.amount)
             } else {
                 adjustAccountBalance(tx.accountId, tx.amount)
@@ -138,13 +202,25 @@ class TransactionRepository @Inject constructor() {
     }
 
     private suspend fun adjustAccountBalance(accountId: Long, amount: Double) {
-        val account = getAccountByIdSync(accountId) ?: return
-        val newBalance = account.balance + amount
-        InMemoryDatabase.updateBalance(accountId, newBalance)
+        InMemoryDatabase.adjustAccountBalance(accountId, amount)
     }
 
     private suspend fun getAccountByIdSync(id: Long): AccountEntity? {
         return InMemoryDatabase.accounts.value.find { it.id == id }
+    }
+
+    private fun transferSourceBalanceDelta(amount: Double, sourceWasCreditCard: Boolean?): Double =
+        if (sourceWasCreditCard == true) amount else -amount
+
+    private fun withAccountTypeSnapshot(tx: TransactionEntity): TransactionEntity {
+        val currentAccounts = InMemoryDatabase.accounts.value.associateBy { it.id }
+        return tx.copy(
+            sourceWasCreditCard = tx.sourceWasCreditCard
+                ?: (currentAccounts[tx.accountId]?.type == AccountType.CC),
+            destinationWasCreditCard = if (tx.toAccountId == null) null else (
+                tx.destinationWasCreditCard ?: (currentAccounts[tx.toAccountId]?.type == AccountType.CC)
+            )
+        )
     }
 
     private fun addMonthsToTimestamp(timestamp: Long, monthsToAdd: Int): Long {

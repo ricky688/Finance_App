@@ -1,6 +1,12 @@
 package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.interaction.PressInteraction
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -48,18 +54,38 @@ fun KeyboardButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed = interactionSource.collectIsPressedAsState()
     
+    var isPulsing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var releaseJob by remember { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> {
+                    releaseJob?.cancel()
+                    isPulsing = true
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    releaseJob?.cancel()
+                    releaseJob = coroutineScope.launch {
+                        delay(140)
+                        isPulsing = false
+                    }
+                }
+            }
+        }
+    }
+
+    val isShapeActive = isPressed.value || isPulsing
     val initialRadius = if (minSize == MAX_VALUE.dp) 28.dp else minSize / 2
-    val radius = animateDpAsState(
-        targetValue = if (isPressed.value) 20.dp else initialRadius,
-        label = "buttonRadius"
-    )
-    val buttonScale = androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isPressed.value) 0.88f else 1.0f,
-        animationSpec = androidx.compose.animation.core.spring(
-            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+    val pressedRadius = 10.dp
+    val radius by animateDpAsState(
+        targetValue = if (isShapeActive) pressedRadius else initialRadius,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
         ),
-        label = "buttonScale"
+        label = "buttonRadius"
     )
 
     val color = when (type) {
@@ -79,30 +105,33 @@ fun KeyboardButton(
     }
 
     Surface(
-        tonalElevation = 10.dp,
+        tonalElevation = 6.dp,
+        shape = RoundedCornerShape(radius),
         modifier = modifier
             .fillMaxSize()
             .onGloballyPositioned {
                 minSize = with(localDensity) { min(it.size.height, it.size.width).toDp() }
                 minSizeFloat = min(it.size.height, it.size.width).toFloat()
             }
-            .graphicsLayer {
-                scaleX = buttonScale.value
-                scaleY = buttonScale.value
-            }
-            .clip(RoundedCornerShape(radius.value))
+            .clip(RoundedCornerShape(radius))
     ) {
         Box(
             modifier = Modifier
                 .background(color = color)
                 .fillMaxSize()
-                .clip(RoundedCornerShape(radius.value))
+                .clip(RoundedCornerShape(radius))
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = ripple(),
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         view.playSoundEffect(SoundEffectConstants.CLICK)
+                        releaseJob?.cancel()
+                        isPulsing = true
+                        releaseJob = coroutineScope.launch {
+                            delay(140)
+                            isPulsing = false
+                        }
                         onClick.invoke()
                     },
                     onLongClick = {

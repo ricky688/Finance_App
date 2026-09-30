@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pending_payment_title">Choose an account</string>
+    <string name="pending_payment_intro">Payment detected from %1$s. Which asset or card paid for it?</string>
+    <string name="pending_payment_detected_hint">Detected card or wallet: %1$s</string>
+    <string name="pending_payment_choose_account">Record this expense to</string>
+    <string name="pending_payment_no_accounts">Add an asset or card first, then return to this alert.</string>
+    <string name="pending_payment_account_cash">Cash</string>
+    <string name="pending_payment_account_bank">Bank account</string>
+    <string name="pending_payment_account_card">Credit card</string>
+    <string name="pending_payment_account_debit">Debit card</string>
+    <string name="pending_payment_remember_choice">Remember for %1$s alerts marked “%2$s”</string>
+    <string name="pending_payment_record">Record expense</string>
+    <string name="pending_payment_ignore">Ignore</string>
+    <string name="pending_payment_later">Later</string>
+    <string name="pending_payment_recorded">Expense recorded</string>
+    <string name="pending_payment_failed">Could not record this expense. Try again.</string>
+    <string name="pending_payment_remember_unavailable">No specific card was identified, so you will choose each time.</string>
+</resources>

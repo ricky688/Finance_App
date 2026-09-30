@@ -31,6 +31,10 @@ import java.util.Locale
 import javax.inject.Inject
 
 import com.example.vibefinance.data.entity.DiscountShop
+import com.example.vibefinance.util.FinancialDataImportEngine
+import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class AppLanguage {
     SYSTEM,
@@ -55,6 +59,8 @@ data class FinanceUiState(
     val subscriptions: List<SubscriptionEntity> = emptyList(),
     val categoryLimits: Map<String, Double> = emptyMap(),
     val discountShops: List<DiscountShop> = emptyList(),
+    val importPreview: FinancialDataImportEngine.ImportDataPreview? = null,
+    val isImporting: Boolean = false,
     val error: String? = null
 )
 
@@ -88,7 +94,10 @@ sealed interface FinanceIntent {
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
     data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity) : FinanceIntent
     data class RestoreTransaction(val tx: TransactionEntity) : FinanceIntent
-    data class SaveAccount(val account: AccountEntity, val cashbackRates: Map<String, Double> = emptyMap()) : FinanceIntent
+    data class SaveAccount(
+        val account: AccountEntity,
+        val originalBalance: Double? = null
+    ) : FinanceIntent
     data class DeleteAccount(val account: AccountEntity) : FinanceIntent
     data class SetThemeMode(val themeMode: ThemeMode) : FinanceIntent
     data class SetDynamicColorEnabled(val enabled: Boolean) : FinanceIntent
@@ -102,6 +111,9 @@ sealed interface FinanceIntent {
     data class SetCategoryLimit(val category: String, val limit: Double?) : FinanceIntent
     data class SaveDiscountShop(val shop: DiscountShop) : FinanceIntent
     data class DeleteDiscountShop(val shop: DiscountShop) : FinanceIntent
+    data class AnalyzeImportFile(val uri: Uri, val filename: String) : FinanceIntent
+    data class ConfirmImport(val replaceExisting: Boolean = false) : FinanceIntent
+    data object DismissImportPreview : FinanceIntent
 }
 
 // MVI Single-use Events (for toasts/actions)
@@ -333,15 +345,20 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.SaveAccount -> {
                     try {
-                        val savedId = if (intent.account.id == 0L) {
+                        require(intent.account.balance.isFinite()) { "Balance must be a finite amount" }
+                        if (intent.account.id == 0L) {
                             accountRepository.insertAccount(intent.account)
                         } else {
-                            accountRepository.updateAccount(intent.account)
-                            intent.account.id
-                        }
-
-                        intent.cashbackRates.forEach { (category, rate) ->
-                            com.example.vibefinance.data.InMemoryDatabase.setCashbackRule(savedId, category, rate)
+                            val current = accountRepository.getAccountByIdSync(intent.account.id)
+                                ?: throw IllegalArgumentException("Account ${intent.account.id} no longer exists")
+                            val accountToSave = if (intent.originalBalance != null &&
+                                intent.account.balance == intent.originalBalance
+                            ) {
+                                intent.account.copy(balance = current.balance)
+                            } else {
+                                intent.account
+                            }
+                            accountRepository.updateAccountWithBalanceAdjustment(accountToSave)
                         }
 
                         if (intent.account.id == 0L) {
@@ -490,6 +507,65 @@ class FinanceViewModel @Inject constructor(
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
                     }
+                }
+                is FinanceIntent.AnalyzeImportFile -> {
+                    _uiState.update { it.copy(isImporting = true) }
+                    try {
+                        val preview = withContext(Dispatchers.IO) {
+                            FinancialDataImportEngine.parseUri(application, intent.uri)
+                        }
+                        _uiState.update { it.copy(importPreview = preview, isImporting = false) }
+                        if (preview.error != null) {
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(preview.error))
+                        }
+                    } catch (e: Exception) {
+                        _uiState.update { it.copy(isImporting = false) }
+                        _uiEvents.emit(FinanceUiEvent.ShowToast("Failed to parse file: ${e.localizedMessage}"))
+                    }
+                }
+                is FinanceIntent.ConfirmImport -> {
+                    if (_uiState.value.isImporting) return@launch
+                    val preview = _uiState.value.importPreview ?: return@launch
+                    _uiState.update { it.copy(isImporting = true) }
+                    try {
+                        val count = withContext(Dispatchers.IO) {
+                            check(preview.error == null) { preview.error ?: "Invalid import preview" }
+                            val accountEntities = preview.detectedAccounts.map { detected ->
+                                AccountEntity(
+                                    name = detected.name,
+                                    type = detected.detectedType,
+                                    balance = 0.0,
+                                    icon = FinancialDataImportEngine.detectAccountIcon(detected.detectedType)
+                                )
+                            }
+                            val drafts = preview.rawTransactions.map { raw ->
+                                com.example.vibefinance.data.InMemoryDatabase.ImportTransactionDraft(
+                                    amount = raw.amount,
+                                    category = raw.category,
+                                    timestamp = raw.timestamp,
+                                    sourceAccountName = raw.sourceAccountName,
+                                    destinationAccountName = raw.destinationAccountName,
+                                    isTransfer = raw.isTransfer,
+                                    isIncome = raw.isIncome,
+                                    description = raw.description
+                                )
+                            }
+                            com.example.vibefinance.data.InMemoryDatabase.importFinancialData(
+                                accountTemplates = accountEntities,
+                                drafts = drafts,
+                                replaceExisting = intent.replaceExisting
+                            )
+                        }
+                        val modeText = if (intent.replaceExisting) "replaced & imported" else "merged & imported"
+                        _uiState.update { it.copy(importPreview = null, isImporting = false) }
+                        _uiEvents.emit(FinanceUiEvent.ShowToast("Successfully $modeText $count transactions!"))
+                    } catch (e: Exception) {
+                        _uiState.update { it.copy(isImporting = false) }
+                        _uiEvents.emit(FinanceUiEvent.ShowToast("Import failed: ${e.localizedMessage}"))
+                    }
+                }
+                FinanceIntent.DismissImportPreview -> {
+                    _uiState.update { it.copy(importPreview = null) }
                 }
             }
         }

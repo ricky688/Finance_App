@@ -8,6 +8,338 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-01: Add Expense UI/UX Redesign, Short-Press Spring Shape Morphing & Header Clipping Fix
+- **Short-Press Spring Shape Morphing (`KeyboardButton.kt`)**:
+  - **Issue Resolved**: Previously, `isPressed` was too transient during a normal quick tap (~20–30ms), causing the spring animation to cancel before the button could visibly morph into a squircle. As a result, shape changing was only perceived when users pressed and held the button.
+  - **Coroutine-Powered Shape Pulse Mechanism**:
+    - Listens to `interactionSource.interactions` (`PressInteraction.Press`, `Release`, `Cancel`) and handles `onClick`.
+    - On press: cancels any active release job and immediately engages squircle shape morphing (`targetValue = 10.dp`, `Spring.StiffnessMedium`).
+    - On release / click: launches a coroutine job holding the squircle shape for a perceptible 140ms pulse duration before triggering the release animation.
+    - On release return: corners spring back to 28dp pill shape with `Spring.DampingRatioMediumBouncy` (0.5) and `Spring.StiffnessMediumLow` (400), creating a delightful, organic spring bounce and overshoot.
+    - Guarantees that **every single tap—no matter how brief—visibly executes the authentic Material 3 Expressive spring shape-changing motion**!
+- **Separated Budget Cards Layout (`MainScreen.kt`)**:
+  - Re-separated the budget components into two distinct, dedicated cards now that removing Quick Presets freed sufficient vertical space:
+    1. **Count in Daily Budget Switch Card**: Elegant surface card featuring title, explanatory description (`Deducted from today's daily allowance` vs `Non-daily / big item...`), and an `ExpressiveSwitch` with checkmark thumb icon.
+    2. **Budget Preview Card**: Dedicated container dynamically morphing between:
+       - **Daily Budget ON**: Displays `超支警告！` (with Warning icon and red tint) or `預算試算` with real-time recalculations (`今日將超支 $...，其餘每天可用降為 $...`).
+       - **Daily Budget OFF (Non-Daily)**: Calm secondary container with Shopping Cart icon explaining that the expense is excluded from the daily allowance calculation.
+- **Fixed Header Clipping ("Thing under Add Expense is cut")**:
+  - **Root Cause**: The sticky overlay header (`IconButton`, title, amount badge, currency selector) had a physical height of ~68dp, but the content spacer was only `58.dp`, causing the top ~10dp of the first card to be cut off behind the solid header surface.
+  - **Fix**: Added dynamic header measurement via `.onGloballyPositioned { headerHeightPx = it.size.height }` and applied a safe dynamic top spacer: `Spacer(modifier = Modifier.height(headerHeightDp + 10.dp))`.
+  - The first card now renders with perfect breathing room below the header, ensuring rounded corners and borders are 100% visible and pristine on all screen densities.
+- **Verification on Live Device (Waydroid `192.168.240.112:5555`) with ARTEMIS**:
+  - Verified no scrolling is required: Header, Switch Card, Preview Card, Note field, Category row, Asset row, and full 4x4 keypad fit comfortably within the viewport.
+  - Verified the top border of the Count in Daily Budget card is completely clear and not clipped.
+  - Verified toggling the switch updates the preview card between Daily Overdraft calculation and Non-Daily purchase notice.
+  - Verified typing numbers ($50) updates the amount and preview card instantly.
+  - Verified KeyboardButton spring shape morphing triggers visibly on every quick tap.
+
+### 2026-10-01: Non-Daily / One-Off Expense Toggle & Dynamic Budget Preview Adaptation
+- **Non-Daily / One-Off Expense Toggle (`isExcludedFromDailyBudget`)**:
+  - Implemented an M3 Expressive toggle in the Add Expense Sheet (`AddExpenseSheetContent` in `MainScreen.kt`) allowing users to choose whether an expense counts towards the "Daily Budget" or represents a "Non-Daily / One-Off" purchase (such as buying a phone, computer, or TV).
+  - Designed with an `ExpressiveSwitch` in a clean, elevated Material 3 card container (`Count in Daily Budget` / `計入每日預算`).
+  - When marked as non-daily (`isExcludedFromDailyBudget = true`):
+    - The expense is recorded accurately in transactions, account balances, and category analytics.
+    - It is completely excluded from the daily allowance calculation (`BudgetRepository.getDailyAllowanceFlow()`), preserving the day's regular allowance without deducting from today's daily remaining or causing an artificial overdraft.
+- **Dynamic Budget Preview Card Adaptation**:
+  - In `MainScreen.kt`, dynamically branches based on the Daily Budget toggle state:
+    - **Daily Budget ON**: Displays real-time simulated daily remaining (`simDailyRem`), dynamic overdraft warning (`超支！其餘天數新每日預算`), and recalculated daily budget for remaining days.
+    - **Daily Budget OFF (Non-Daily)**: Morphs into a calm, secondary-container preview card with Shopping Cart icon (`非日常大額消費` / `Non-Daily Purchase`), showing that the expense is excluded from the daily budget calculation and today's daily allowance remains unchanged (`今日每日額度保持不變`).
+  - When quick preset chips (☕ Coffee, 🚇 MTR, 🍱 Lunch, etc.) are tapped, the toggle automatically resets to `Daily Budget = ON`.
+- **History Screen & Edit Dialog Integration**:
+  - In `HistoryScreen.kt` list view: Non-daily expenses display a distinctive, rounded `[Non-Daily]` (`[非日常]`) pill badge next to the transaction title.
+  - In the "Edit Transaction" dialog (`editingTransaction`): Included the `Count in Daily Budget` toggle with `ExpressiveSwitch`, allowing users to toggle an expense between daily and non-daily retroactively, instantly updating budget calculations.
+- **Multi-language Localization**:
+  - Added localized string resources across all 5 language files (`values`, `values-zh`, `values-zh-rHK`, `values-zh-rTW`, `values-b+zh+Hant`): `daily_budget_toggle_title`, `daily_budget_toggle_desc_on`, `daily_budget_toggle_desc_off`, `non_daily_expense_badge`, `non_daily_preview_title`, `non_daily_preview_desc`, `non_daily_preview_preserved`.
+- **Automated & Live Verification**:
+  - Added unit test `testNonDailyExpense_excludedFromDailyBudget()` in `BudgetRepositoryTest.kt` verifying that high-value one-off purchases do not affect daily allowance or monthly daily spending.
+  - All unit tests passed (`./gradlew testDebugUnitTest`).
+  - Built Release APK (`./gradlew :app:assembleRelease`) and installed on live Waydroid hardware (`192.168.240.112:5555`).
+  - Explored and verified live with ARTEMIS MCP tools:
+    1. Opened Add Expense sheet, verified initial state shows "Count in Daily Budget = ON".
+    2. Input amount exceeding daily allowance: Dynamic preview card turned red with overdraft alert.
+    3. Toggled "Count in Daily Budget" to OFF: Preview card smoothly transitioned to the calm "Non-Daily Purchase" preview showing daily allowance untouched.
+    4. Saved a non-daily transaction: Confirmed today's spent amount remained `HK$ 0.00` and daily allowance remained `HK$ 50.00`.
+    5. Navigated to History: Confirmed the `[Non-Daily]` badge was displayed, and Budget Period spent showed `HK$ 0.00`.
+    6. Edited transaction via edit dialog to toggle back ON: Confirmed `[Non-Daily]` badge disappeared, Spent became `HK$ 65.00`, and Daily Overview recalculated to `HK$ 49/day`.
+
+### 2026-10-01: Days Left Wavy Progress Indicator Dynamic Wave Motion Restoration & Reversed Elapsed Calculation
+- **Material 3 Expressive `CircularWavyProgressIndicator` Dynamic Motion & Reversed Elapsed Ratio**:
+  - Restored wave speed animation for `DaysLeftCard` in the Daily Overview page (`HomeScreen.kt` / `DaysLeftCard.kt`).
+  - Configured `waveSpeed = if (indicatorShape == IndicatorShape.WAVY) WavyProgressIndicatorDefaults.CircularWavelength else 0.dp` so that in `WAVY` mode, the indicator continuously rotates and flows along its sinusoidal perimeter at Material 3 Expressive speed (1 wavelength per second).
+  - Tapping `DaysLeftCard` smoothly transitions between `WAVY` and `FLAT` mode:
+    - In `WAVY` mode: Sinusoidal waves smoothly morph and continuously animate along the circle perimeter.
+    - In `FLAT` mode: The wave amplitude flattens into a perfect geometric circle and stops wave phase motion.
+  - **Reversed Elapsed Progress Calculation**:
+    - Reversed `calculateDaysLeftProgress(daysLeft: Int, totalDays: Int)` to reflect period elapsed progress:
+      `((totalDays - daysLeft).toFloat() / totalDays).coerceIn(0f, 1f)`.
+    - E.g., when 30 days left out of a 30-day period (start of budget cycle), progress is `0%` (0.0f).
+    - When 0 days left out of 30 days (end of cycle), progress is `100%` (1.0f).
+    - Updated test suite in `HomeScreenBentoTest.kt` verifying all boundary conditions (`0.0f`, `0.5f`, `0.9f`, `1.0f`, zero period, negative days).
+  - Verified on live Waydroid hardware (`192.168.240.112:5555`) with ARTEMIS:
+    - Confirmed 30 Days Left indicator displays clean 0% base circle in both Wavy and Flat modes.
+    - Frame-to-frame pixel analysis verified active motion in Wavy mode (`diff_pixels: 6424` -> `6903`).
+    - Flat mode verified completely static and perfectly round (`diff_pixels: 0`).
+    - Verified bidirectional interactive toggling between Flat and Wavy modes.
+
+### 2026-10-01: Card Background X & Y Axis Modification, Scaling, & Fine-Tuning Alignment Controls
+- **Card Background X & Y Axis Customization**:
+  - Added `cardBgOffsetX: Float = 0f`, `cardBgOffsetY: Float = 0f`, and `cardBgScale: Float = 1f` to `AccountEntity.kt`.
+  - Added full serialization and deserialization in `InMemoryDatabase.kt` for persistent JSON storage and bumped Room `VibeFinanceDatabase` to `version = 2`.
+  - Updated `Modifier.drawCardBackground` to dynamically calculate `ContentScale.Crop` scale factor, translations along X and Y axes (`transX`, `transY`), and apply `IntOffset` positioning.
+  - Updated `ExpressiveAccountListItem` to apply `graphicsLayer` scaling and translation along X and Y axes within a cleanly rounded bento container (`RoundedCornerShape(20.dp)`), allowing seamless visual pan without edge bleeding.
+- **Card Design Tab & Interactive Positioning UI**:
+  - Added dedicated **"POSITION (X & Y AXIS)"** Material 3 control panel in the Card Design tab:
+    - **X Axis Slider & Micro-Steppers**: Continuous `-100%` to `+100%` slider, left/right fine-tuning buttons (`◀` / `▶`), and status badge (`Center (0%)`, `-15% Left`, `+20% Right`).
+    - **Y Axis Slider & Micro-Steppers**: Continuous `-100%` to `+100%` slider, up/down fine-tuning buttons (`▲` / `▼`), and status badge (`Center (0%)`, `-15% Up`, `+20% Down`).
+    - **Zoom / Scale Slider**: Continuous `0.5x` to `2.5x` zoom factor with zoom out/in micro-steppers.
+    - **Quick Preset Alignment Chips**: Instant one-tap alignment to `Center`, `Top`, `Bottom`, `Left`, and `Right`.
+    - **Reset Button**: Instant reset to `(0, 0)` center with `1.0x` scale.
+    - **Crop / Reposition Button**: Re-open interactive crop dialog directly from the Card Design tab on the active image.
+  - Added micro pan and reset buttons to `InteractiveImageCropDialog`.
+- **ARTEMIS Mobile Verification**:
+  - Live verified on Waydroid (`192.168.240.112:5555`):
+    1. Opened "Modify Mox" -> switched to "Card Design" tab.
+    2. Inspected "POSITION (X & Y AXIS)" panel and verified sliders, steppers, and presets.
+    3. Shifted Y-axis to `+20% Down`, verified in real-time on `previewCard` that the "mox" lettering and card artwork shifted smoothly downward into full view.
+    4. Tapped "Save Changes" and verified on the main Assets & Cards screen that Mox card displays the adjusted background position cleanly.
+  - Screenshots archived to artifacts: `waydroid_card_bg_xy_controls.png`, `waydroid_card_bg_xy_preview.png`, and `waydroid_card_bg_xy_saved.png`.
+
+### 2026-09-30: Translucent Card Background & Material 3 Expressive Typography Enhancement
+- **Translucent custom card background in Detailed View (`ExpressiveAccountListItem`)**:
+  - When an account has a custom card image (`account.cardImageUri` / `customImage != null`), the entire account card container renders the full-bleed card art with a frosted glassmorphic effect (`ContentScale.Crop`, `alpha = 0.24f ~ 0.28f`).
+  - Added a subtle vertical frosted gradient scrim (`Brush.verticalGradient`) optimized for both light and dark themes to guarantee **WCAG AAA legibility** for foreground text and actions.
+  - Dynamically balanced container background opacity (`alpha = 0.35f ~ 0.45f` when an image is present) so the card art and textures shine through elegantly without overwhelming content.
+- **Material 3 Expressive typography, JetBrains Mono font family & 3D text depth**:
+  - **Financial figures in JetBrains Mono (`JetBrainsMonoFontFamily`)**:
+    - Detailed View: Upgraded `balance` to **`headlineSmall` (22sp) + `JetBrainsMonoFontFamily` + `FontWeight.ExtraBold` + `letterSpacing = (-0.4).sp`**.
+    - Detailed View: Upgraded credit limit utilization text (`%d%% Used • Avail $%,.0f`) to `JetBrainsMonoFontFamily` (`letterSpacing = (-0.15).sp`).
+    - Compact View: Upgraded `balance` to **`titleMedium` (16.5sp) + `JetBrainsMonoFontFamily` + `FontWeight.ExtraBold` + `letterSpacing = (-0.3).sp`**.
+    - All financial numbers, dollar signs, and decimal points now feature perfectly proportioned, tabular-spaced FinTech monospace styling.
+  - **Glassmorphic 3D text depth shadow**:
+    - Added subtle multi-theme `Shadow` (`color = Color.Black.copy(alpha = if (isDark) 0.55f else 0.22f), offset = Offset(0f, 1.5f), blurRadius = 4f`) to `displayName` and `balance` in Detailed View when a card backdrop image is present.
+    - Prevents background patterns and textures from interfering with text, giving text a physical "floating" 3D elevation over the frosted card glass.
+  - **Detailed View (`ExpressiveAccountListItem`)**:
+    - Upgraded account `displayName` to **`titleLarge` (18.5sp) + `FontWeight.ExtraBold` + `letterSpacing = (-0.3).sp`**.
+    - Converted card type and card number into micro-pill badges: `[CREDIT CARDS]` (styled in accent container) and `[•••• 2101]` (styled in `FontFamily.Monospace` capsule).
+    - Strictly maintained header order: `[name , card image , custom app icon]`.
+  - **Compact View (`CompactAccountRow`)**:
+    - Added a left-side 3.5dp rounded **Accent Indicator Strip** (`CircleShape`), providing instant color-coded visual weight for card and account types.
+    - Upgraded account `displayName` to **`15.5sp` + `FontWeight.ExtraBold`**.
+    - Replaced the bland subtitle string with structured micro-badges: `[•••• 2101]` monospace capsule + clearly separated closing day text.
+    - Strictly maintained header order: `[name , card image , custom app icon]`.
+- **Verification & Deployment**:
+  - All 104+ unit tests passed with 0 errors (`./gradlew testDebugUnitTest`).
+  - Release APK built successfully (`./gradlew :app:assembleRelease`) and installed on Waydroid (`192.168.240.112:5555`).
+  - Live verification on Waydroid:
+    1. Uploaded/bound cyan Mox card image to `MOX card`.
+    2. Detailed View: Confirmed the card container displays the translucent frosted Mox card background with 3D text shadows on name and JetBrains Mono balance (`$-13.20`), and micro-pill badges `[CREDIT CARDS]` and `[•••• 2101]`.
+    3. Compact View: Confirmed left 3.5dp accent indicator strip, 15.5sp extra-bold text, monospace `[•••• 2101]` micro-badge, and JetBrains Mono extra-bold balance (`$672.54`, `$-13.20`, `$642.24`, etc.).
+    4. Captured and archived live screenshots.
+
+### 2026-09-30: Authentic Card Last-4 Notification Interception (Zero Randomness) & History Chart Minimalist Filter
+- **Authentic card last-4 extraction (Strictly non-random)**:
+  - Added deterministic, privacy-first regex extraction `extractCardLast4` in `PaymentNotificationListener.kt` supporting diverse English and Chinese SMS/push formats (e.g. `ending in 1234`, `尾號1234`, `末4位1234`, `•••• 1234`, `Visa 1234`, etc.).
+  - Under no circumstances are pseudo-random 4 digits generated. If no card number was intercepted and none entered by the user, `cardLast4` strictly remains `null`.
+  - Added `cardLast4: String? = null` to `ParsedPayment` and `PendingPayment`.
+  - Updated `PendingPaymentStore.accept()`: When a pending payment is recorded to an account without `cardLast4`, the authentic intercepted card number is automatically bound to the account (`InMemoryDatabase.updateAccount`).
+  - Updated `PendingPaymentChoiceDialog`:
+    - Priority matching in `suggestedId`: Prioritizes accounts where `account.cardLast4 == payment.cardLast4`.
+    - Payment summary card displays `卡號末四位：•••• $cardLast4`.
+    - Account list highlights matching card with `(相符)` badge.
+- **History category breakdown chart "已篩選" wording removed**:
+  - Removed redundant `Text(stringResource(R.string.category_analytics_focused))` ("已篩選") from `CategoryBreakdownCard.kt`.
+  - Replaced with a minimal, responsive circular ✕ close icon button (12.dp icon in 20.dp circle), preserving the subtitle ("Filtering: %s • Tap to reset") for a clean, modern aesthetic.
+- **Verification**:
+  - Unit tests updated and verified passing: `./gradlew testDebugUnitTest` (all tests passed with 0 errors).
+  - Built Release APK (`./gradlew :app:assembleRelease`) and deployed to Waydroid (`192.168.240.112:5555`).
+  - Verified live on Waydroid:
+    1. History tab: Tapped "Food" category in Category Analytics chart. The "已篩選" badge was gone, showing a clean circular ✕ button. Tapped ✕ button and verified filter cleanly reset.
+    2. Simulated notification: Sent payment alert with `Card: Visa ••2101`. `PendingPaymentChoiceDialog` displayed `卡號末四位：•••• 2101`.
+    3. Selected `MOX card` (previously having no card number) and recorded expense. Switched to Assets > Credit Cards, verified `MOX card` now shows authentic `•••• 2101`, while all other cards remain with no card numbers (strictly non-random).
+    4. Sent subsequent payment with `Visa ••2101`: `PendingPaymentChoiceDialog` automatically pre-selected `MOX card` with `•••• 2101 (相符)` highlighted.
+
+### 2026-09-30: Removal of Synthetic Bank Data & Pure Installed-App Custom Linking
+- **Removed synthetic banks and fake badge icons**: Completely removed `KNOWN_FINANCIAL_APPS`, synthetic brand badge letters ("支", "八", "P", "HSBC", "mox", "中銀", "恒生", "ZA", "AEON", etc.), colored box badges, and automatic name-guessing heuristics from `LocalAppManager`.
+- **Pure real installed applications**: Only actual applications installed on the user's Android device/environment (`PackageManager`) are displayed in `AppPickerDialog`, rendering their authentic native icons (`appIcon.asImageBitmap()`), actual labels, and package names.
+- **Clean card display without placeholder clutter**:
+  - Removed `AccountAppAddButton` (`+` button) from unlinked cards to prevent visual clutter and placeholder confusion. Unlinked cards cleanly display `[name, card image]`.
+  - When an installed app is linked to a card, the card renders its real native app icon in the 3rd slot: strictly `[name , card image , custom app icon]` in both Compact View (`CompactAccountRow`) and Detailed View (`ExpressiveAccountListItem`).
+- **Flexible app binding & instant launch**:
+  - In Edit Account sheet, users can choose any installed app via the "App Quick Launch" selector, or select "None (Do not link app)" to unlink.
+  - On the card row, short-tapping the app icon directly launches the app. **Long-pressing** the icon opens `AppPickerDialog` directly from the card to re-bind or unlink.
+- **Multi-language localization**: Updated string resources across all 5 language files (`values`, `values-zh`, `values-zh-rHK`, `values-zh-rTW`, `values-b+zh+Hant`) to reflect authentic app selection without auto-detection or synthetic bank catalogs.
+- **Verification**:
+  - Unit tests updated and verified passing: `./gradlew testDebugUnitTest` (all tests passed with 0 errors).
+  - Built Release APK (`./gradlew :app:assembleRelease`) and deployed to Waydroid (`192.168.240.112:5555`).
+  - Verified live on Waydroid:
+    1. Unlinked cards (`BOC`, `HSBC`, `za`, `brother`, `Cash`, etc.) show no fake badges and no `+` buttons.
+    2. Selected "Calculator" for `alipay`, card showed `[alipay, Calculator icon]`.
+    3. Tapped Calculator icon: Calculator app launched immediately on Waydroid.
+    4. Long-pressed Calculator icon: `AppPickerDialog` opened directly, selected "None", card unlinked cleanly.
+    5. Linked "Browser" to `Mox`, verified both Compact View and Detailed View: ordering strictly `[name (Mox), card image (Mox card), custom app icon (Browser)]`.
+    6. Tapped Browser icon in Compact view: Browser launched immediately on Waydroid.
+
+### 2026-09-30: Asset Card Custom App Redirection and Verified [name, card image, custom app icon] Order
+- **App Quick Launch redirection**: Added direct redirection from asset cards to their corresponding mobile banking or wallet applications (e.g., Alipay HK, Octopus, PayMe, HSBC, Mox, BOCHK, Hang Seng, WeChat Pay, Citibank). Clicking the redirect button immediately launches the external app, or displays a friendly Toast notification (`應用程式尚未安裝`) if the app is not installed.
+- **Strict visual ordering**: In both Compact View (`CompactAccountRow`) and Detail View (`ExpressiveAccountListItem`), the account card row layout strictly follows the requested order: `[name , card image , custom app icon]`. The card image/issuer avatar was moved to the right of the account name, immediately followed by the custom app redirect button.
+- **Configuration & auto-detection**: In the account edit sheet, added an "App Quick Launch" (`App Quick Launch / 快速啟動應用程式`) Bento card with a dedicated dialog (`AppPickerDialog`) supporting: 1) Auto-detect by account name, 2) None (disable redirect button on card), and 3) Searchable list of all installed applications on the device.
+- **Data persistence**: Stored `linkedAppPackage` in `AccountEntity` and updated `InMemoryDatabase` JSON serialization to save and load linked app packages seamlessly across app launches.
+- **Localization**: Added full localized string resources across all 5 language files (`values`, `values-zh`, `values-zh-rHK`, `values-zh-rTW`, `values-b+zh+Hant`).
+- **Verification**: Built and verified unit tests (`104 tests` passed with 0 errors). Assembled release APK and deployed live to Waydroid (`192.168.240.112:5555`). Verified visual layout, auto-detection for Alipay/Mox/Octopus/BOC/HangSeng/HSBC, app picker dialog, and strict `[name , card image , custom app icon]` ordering in both Compact and Detail views. Captured and archived live screenshots.
+
+### 2026-09-29: Transfer-Free Daily Net and Shape-First Button Presses
+- **History daily net**: Transfers remain visible as individual History rows but are omitted from the per-day net calculation in both all-account and account-filtered views. A day containing only transfers no longer shows a misleading Daily Net footer. The existing all-account exclusion for balance corrections remains, while account-specific balance adjustments continue to show their account movement.
+- **Shape-first controls**: Shaped `bouncyClickable` controls no longer scale down on press; their spring-driven pressed outline, clipping, and bounded ripple remain. Shared `pressBounce` now defaults to no scale, letting standard Material buttons use their own clipped indication; custom-shaped buttons can still morph their clipped outline. Explicit scale-down remains available as an opt-in parameter. The shape animation no longer overshoots on release.
+- **Verification**: The release build and all 99 existing unit tests passed with no failures. Installed the release APK in place on Waydroid (`192.168.240.112:5555`). September 27 retained two transfer rows with no Daily Net footer, and History still showed 868 entries. Holding the clipped Daily budget card changed its outline without shrinking the card; release still opened the budget sheet, which was dismissed without saving.
+
+### 2026-09-29: History Swipe Press Highlight and Release Motion
+- **Bounded press state**: Replaced the History transaction row's clickable ripple with a subtle pressed overlay clipped to each row's actual grouped shape. The overlay clears as horizontal dragging begins, so the swipe action background remains clean and the press highlight does not appear as a rectangular ripple during the gesture.
+- **Settling motion**: A released swipe now returns with a 240 ms eased animation that does not overshoot. The action icon and backdrop use eased animations as well, and History row removal and neighbor placement use non-bouncy springs. Beginning a new drag stops any in-progress return so the row follows the finger smoothly.
+- **Waydroid verification**: The release APK built successfully and was installed in place on Waydroid (`192.168.240.112:5555`). A held expense showed a shape-bounded highlight; a partial swipe showed the action background without that highlight and settled back without opening an action. A normal tap still opened Edit Transaction; it was canceled without saving. History remained at 868 entries.
+
+### 2026-09-29: Smart Octopus MTR Notification Investigation
+- **Device findings**: Connected to the user's Samsung phone over wireless ADB, first at `10.9.144.59:39207` and then `10.9.144.59:43957` after its debugging connection dropped. Android initially showed a `Smart Octopus HK$12.6 港鐵` notification. The finance notification listener has access; automatic transaction logging is enabled; the Octopus app and both Samsung Wallet entries are selected. After the connection drop, the alert was no longer in Android's active notification list, and a fresh app launch showed no pending-payment choice. History contained only the existing HK$29 McDonald's entry, and Assets contained one credit-card account with no Octopus asset. The exact reason this individual notification was missed cannot be established from the remaining device logs, and it was not inserted into the user's ledger.
+- **Parser correction**: A canonical `Smart Octopus HK$… merchant` title now supplies the fare and merchant regardless of whether the selected Octopus app or Samsung Wallet posted it. The remaining-value amount in the notification body cannot replace the fare. Remembered account choices now accept an explicitly chosen Octopus/八達通 account for a `Smart Octopus` hint; unrelated accounts still cannot be remembered through that alias.
+- **Verification**: Added a focused regression using the observed HK$12.6 港鐵 title with a different remaining-value amount and the installed Octopus package; the focused notification test suite passed. The full unit suite passed 99 tests across 13 suites with no failures, and the release build passed. The old alert cannot be replayed after it disappears, and no transaction or app setting was changed on the phone. The new APK has not been installed on that phone.
+
+### 2026-09-28: Period-Aware Category Analytics and Weekday History Headings
+- **Category Analytics range**: The History chart now uses the current calendar month when no budget period exists, and defaults to the period configured through Settings or Daily when one exists. A connected Month/Budget Period control switches ranges; month arrows browse earlier months, and a date label makes the chart's range explicit. The History list's All/Active/Past period selector remains separate. Selecting a chart category shows matching expense entries from the chart's displayed range.
+- **Full final day**: Budget periods saved with an end date at local midnight now include that entire final calendar day in History, Daily budget calculations and summaries, Settings pacing, and period-ended states. The start timestamp, transfer handling, and budget-exclusion rules remain unchanged.
+- **Date headings**: History date groups now include the weekday in the app's selected language, including Today and Yesterday headings.
+- **Verification**: All 98 unit tests in 13 suites passed, and the release build passed. Installed the APK in place on Waydroid (`192.168.240.112:5555`). With no configured budget period on that device, Category Analytics showed September 2026 rather than all-time totals, switched to August 2026 with different category totals, and a tapped August Food category showed August Food entries. History displayed `Yesterday · Sunday` and `Aug 31, 2026 · Monday`. Cleared the category focus and returned analytics to September. The imported ledger still showed 868 History entries. The Budget Period selector path was verified in code/build but could not be opened on this device without creating a budget period and changing its saved data.
+
+### 2026-09-28: Detailed Account Rows and Card Perks Removal
+- **No repeated type in detailed rows**: Cash, bank, debit, and credit card sections already identify their account type. Detailed rows no longer repeat a type badge or generic type icon. Uploaded card artwork and selected issuer logos still identify individual accounts, while credit cards retain their 結算日, credit utilization, and configured payment due information. Compact rows are unchanged.
+- **Removed card perks controls**: Credit card editing now has a `Billing & Due` tab with the existing statement and payment schedule controls. Removed cashback presets and rate inputs, the minimum-spend field and cashback target display, the Linked Stores panel and its add/edit dialogs, and the calculated cashback badge in History. Account saving no longer writes cashback rules. Existing saved cashback/shop values and the account's legacy threshold remain stored for compatibility; payment notification cashback exclusions and payment-deadline reminders remain active.
+- **Verification**: The release build passed and its APK was installed in place on Waydroid (`192.168.240.112:5555`). In detailed view, cash/bank/credit rows had no duplicate type badge or generic avatar; the uploaded Mox card artwork remained visible. A credit card retained its unset 結算日 indicator; its editor showed only statement closing day, payment due, and payment deadline on `Billing & Due`. History expense rows had no cashback badge. The imported ledger still showed 14 accounts, 868 History entries, and HK$18,281.93 net asset value. ARTEMIS diagnosis passed, but its autonomous verification stalled on a model-service 503; the visual checks used ADB screenshots instead.
+
+### 2026-09-28: Expressive Grouped Compact Account List
+- **Less repeated text**: Compact account rows no longer repeat Cash, Bank, or Debit type beneath every name; the group header supplies that context. Rows keep useful account-specific details only: user-entered last four digits, the original name when a nickname is shown, and each credit card's 結算日 or unset state. Rows without those details use one line and a 58 dp minimum height.
+- **Grouped Material 3 motion**: Compact rows now use History-style 26 dp outer group corners and 8 dp inner corners. The existing spring press tightens and clips the row shape and ripple. Balance and History actions retain 48 dp touch targets and receive separate rounded, spring-clipped press surfaces. The compact/detailed spring transition, custom card thumbnails beside account names, and account sorting remain in place.
+- **Verification**: The release build passed and was installed in place on Waydroid (`192.168.240.112:5555`). Cash/Bank rows showed no duplicate type subtitles; the Mox card image stayed beside its name, and credit cards still showed closing-day status. Captured row and action-button pressed states to verify the clipped motion. Tapping a row opened its editor, the balance action opened the balance dialog, and History opened filtered to that account; the dialog/filter were cleared without changes. The ledger remained at 14 accounts, 868 History entries, and HK$18,281.93 net asset value.
+
+### 2026-09-28: Compact Account Artwork and Detailed Card Thumbnails
+- **Compact Assets & Cards**: Removed the repeated generic account-type icon from each compact row; the grouped type heading still identifies the section. A saved custom card image now appears immediately to the right of the account name, and a selected issuer logo can appear there when no uploaded image exists. Missing or unreadable image files leave the compact row text-only.
+- **Detailed Assets & Cards**: The uploaded card image occupies the account avatar position, preserving the chosen card/square/wide/circle crop shape. When custom artwork or an issuer logo is displayed, the type badge no longer repeats a generic icon. Both list modes use the same sampled image loader so thumbnails avoid decoding the full image each time.
+- **Verification**: The release build passed and was installed in place on Waydroid (`192.168.240.112:5555`). Imported accounts without artwork showed clean compact text rows. The user-supplied Mox card image was uploaded through the existing picker/crop flow to the Waydroid Mox bank asset; it appeared beside “Mox” in compact mode and in place of the avatar icon in detailed mode, including after an app restart. Account count (14), Mox balance (HK$14,800.35), and net asset value (HK$18,281.93) stayed unchanged. The image was saved in the app's device storage, not bundled into the repository.
+
+### 2026-09-28: Account Identity Options and Debit Cards
+- **Recognizable accounts**: The account editor now offers an optional nickname and a theme-adaptive accent choice (Auto or three color roles). Nicknames appear in Assets lists, transaction and Recurring account pickers, payment-notification choices, and account labels in History; the original name remains available as supporting text. Compact and detailed rows use the chosen accent. The card preview and rows display the last four digits only when the user enters four real digits. New edits reject partial last-four values, and generated account-number placeholders were removed.
+- **Debit card type**: Added Debit cards as a separate type in the account editor, inline add flows, selectors, grouped Assets lists, import preview, and Money Allocation chart. Debit balances behave as assets: expenses and notification payments reduce available balance, income adds to it, transfers and credit-card payments keep their existing signs, and balance corrections remain in History. Debit type, nickname, last four, and accent persist in the existing JSON snapshot and load older snapshots with empty identity fields. Explicit debit labels are detected during import; card networks alone do not guess debit. The standalone imported `go` wallet remains Cash, while a longer BOC Go UnionPay title is no longer mistaken for Cash.
+- **Labels and localization**: Asset totals now say “Total assets” because they include debit cards. Added debit and identity strings for English, Simplified Chinese, Hong Kong Traditional Chinese, Taiwan Traditional Chinese, and generic Traditional Chinese resources.
+- **Verification**: All 98 unit tests in 13 suites passed with no failures, and the release build passed. The final release APK was installed in place on Waydroid (`192.168.240.112:5555`). A temporary debit card showed its own group, selected accent, real last four digits, and nickname with the original name below; it was then deleted. The imported ledger returned to 14 accounts, 868 History entries, and HK$18,281.93 net asset value. Live debit-card bank notifications were not available on Waydroid; their balance handling is covered by tests.
+
+### 2026-09-28: Grouped Asset Views, Spring Switching, and UnionPay Transit Alerts
+- **Assets & Cards in both views**: Detailed and compact mode now keep the same full net-asset-value card, donut chart, cash/bank and card-debt totals, Money Allocation chart, and connected asset filter. Both modes group accounts by Cash, Bank, then Credit Card; names are sorted within each group. Localized, count-bearing group headers and stable account keys make the list easier to scan without changing individual account/card identity styling.
+- **Visible view transition**: The compact/detailed control sits directly above the account groups. Visible rows switch through medium-low spring height, slide, and fade motion with clipped bounds; list placement keeps stable keys. A detailed card's press state now releases with the actual touch instead of remaining scaled after its editor opens. The compact preference and balance/history actions remain available.
+- **BOC Go UnionPay alerts**: A `Transit-ticket ... HK$3.60` alert with a BOC Go UnionPay card title is recognized as a Transport payment, keeps the card title for the account-choice prompt, and reads fuller expanded notification text when present. Refunds, promotions, balances, extra amounts, foreign currency, and missing merchant details remain excluded. An ellipsis-truncated card title cannot be remembered for automatic future routing; the user must choose an account. Only actual installed, selected posting apps may trigger interception.
+- **Verification**: All 95 unit tests across 12 suites passed with no failures. The release build passed and was installed in place on Waydroid (`192.168.240.112:5555`). The detailed and compact account layouts showed the retained NAV figures (HK$18,281.93 net worth, HK$18,821.31 cash/bank, HK$539.38 card debt), chart, connected filter, and type groups. A real BOC posting app/notification was unavailable on Waydroid, and VibeFinance notification access there is off, so live interception was not verified. Account/card identity styling awaits the user's preference.
+
+### 2026-10-01: Material 3 Expressive Emphasized Typographic Watermarks for Cards & Assets
+- **Ambient Typographic Backdrop (`AccountEntity.watermarkText()`)**:
+  - Implemented smart branding watermark resolution based on Google Material 3 Expressive `md.sys.typescale.emphasized` principles (`Display Large Emphasized` / `FontWeight.Black` 900 / `JetBrainsMonoFontFamily` / tight tracking `-2.sp`).
+  - Automatically extracts concise brand acronyms (e.g., `alipay` -> `ALIPAY`, `enjoy` -> `ENJOY`, `AEON card` -> `AEON`, `wakuwaku` -> `WAKUWAKU`, `octopus card` -> `OCTOPUS`, `恆生` -> `恆生`, `BOC` -> `BOC`, `HSBC` -> `HSBC`), falling back to uppercase category types (`CREDIT`, `CASH`, `BANK`, `DEBIT`).
+- **Comprehensive Viewport Integration**:
+  - **Detailed View (`ExpressiveAccountListItem`)**: When an account lacks a custom image, renders a giant 64sp emphasized typographic watermark softly bleeding off the right edge (`alpha = 0.08f` in dark mode, `accent.foreground` with `alpha = 0.09f` in light mode), completely eliminating plain/empty card surfaces while preserving 100% foreground readability.
+  - **Top Card Carousel (`AssetCardItem`) & Edit Preview (`previewCard`)**: Embedded 58sp emphasized watermark directly into the card canvas behind the foreground content when no custom art is uploaded.
+  - **Compact View (`CompactAccountRow`)**: Embedded miniature 36sp watermark along the trailing side of each row (`alpha = 0.05f`), maintaining visual hierarchy and subtle brand identity across compact mode.
+  - **Custom Image Priority**: Accounts with uploaded custom images (e.g. `MOX card`) automatically retain priority and render custom artwork without watermark collision.
+- **Verification on Waydroid (`192.168.240.112:5555`)**:
+  - Passed `:app:testDebugUnitTest` (28/28 tasks).
+  - Built and deployed production release APK (`:app:assembleRelease`).
+  - Verified via ARTEMIS in both Detailed View and Compact View: `ALIPAY`, `BROTHER`, `CASH`, `GO`, `OCTOPUS`, `恆生`, `AEON`, `ENJOY`, `WAKUWAKU` watermarks rendered with perfect contrast, while `MOX card` smoothly displayed its custom turquoise background image.
+
+### 2026-10-01: Card Background Edge-to-Edge Zero-Cutout Formula & Pinned Live Preview
+- **Sticky Pinned Live Preview & Direct Gesture Manipulation (`AddEditAccountDialog`)**:
+  - Pinned `previewCard()` and the tab selector (`tabSelector()`) above the scrollable `tabContent()` column in portrait mode (`!isWide`), completely resolving the problem where preview card was scrolled off-screen when users adjusted X/Y sliders or presets.
+  - Implemented 1:1 direct finger drag-to-reposition and pinch-to-zoom directly on `previewCard()` using Compose `detectTransformGestures`. Live gestures dynamically update `cardBgOffsetX`, `cardBgOffsetY`, and `cardBgScale` with instant visual feedback on both the card and the synchronized sliders below.
+  - Added interactive banner in Card Design tab informing users of direct gesture support on the preview card.
+- **Scale-to-Cover Zero-Cutout Math (`drawCardBackground` & `ExpressiveAccountListItem`)**:
+  - Replaced the previous `ContentScale.Crop` + `graphicsLayer.translationY` pattern that produced blank/white gaps (cut-outs) at the top or edges of cards when translated.
+  - Applied the exact scale-to-cover formula:
+    $$s_{\text{reqX}} = \frac{W + 2|\text{transX}|}{w}, \quad s_{\text{reqY}} = \frac{H + 2|\text{transY}|}{h}$$
+    $$s_{\text{cover}} = \max(s_{\text{reqX}}, s_{\text{reqY}}), \quad s_{\text{final}} = s_{\text{cover}} \cdot \text{scale}$$
+    $$\text{transLeft} = \frac{W - w \cdot s_{\text{final}}}{2} + \text{transX} \le 0$$
+    $$\text{transTop} = \frac{H - h \cdot s_{\text{final}}}{2} + \text{transY} \le 0$$
+  - Mathematically guarantees that the background image bounds strictly cover $[0, W] \times [0, H]$ under any translation or aspect ratio, completely eliminating edge cut-outs in both the Live Preview and the Detailed View.
+  - Upgraded `createCroppedBitmap` to apply the same required-dimension expansion to eliminate transparent borders during crop export.
+- **Verification on Waydroid (`192.168.240.112:5555`)**:
+  - Unit tests passed cleanly (`:app:testDebugUnitTest`).
+  - Production release APK (`:app:assembleRelease`) built and installed via ADB.
+  - Verified with ARTEMIS:
+    1. Sticky pinned preview card in dialog: remained fixed at top while scrolling down to X/Y sliders.
+    2. Real-time updates: slider and stepper adjustments immediately reflected on preview card.
+    3. Direct 1:1 touch drag gesture: dragging directly on preview card panned the background image in real time and synchronized slider labels.
+    4. Reset button: instantly restored center alignment and 1.0x scale.
+    5. Zero cut-out verified: Mox card in Detailed View displayed edge-to-edge background without any gap or cutout at the top.
+
+### 2026-09-27: Compact Assets, Balance History, Notification Account Choice, and Import Reconciliation
+- **Compact Assets & Cards**: Added a compact-mode toggle backed by display preferences, so the chosen mode survives tab changes and app restarts. The initial compact layout used a slim net-worth strip; the 2026-09-28 update above restored the full overview and selector in both modes. Short account rows are grouped and sorted by Cash, Bank, and Credit Card type. Each row keeps its balance visible and offers direct balance editing and account History; the detailed cards have the same actions. Credit-card rows retain their 結算日 display, including an unset state for imported cards.
+- **Balance changes and per-account History**: A balance edit now creates a dedicated adjustment transaction with the exact signed delta, updates the account balance together with that transaction, and appears in History. The account History action opens History filtered to that account, including its side of transfers, with a clear-filter control. Adjustments do not count as spending in budget and category analytics. Saving from a stale editor uses the account's current balance to calculate the adjustment; cents-aware comparison avoids empty HK$0.00 adjustments. Transaction type snapshots preserve historical signs if an account is reclassified. Deleting an account now removes its linked History entries and reverses linked transfers on surviving accounts.
+- **Payment notification account choice**: A detected payment waits in a persistent inbox until the app opens and the user chooses one of their actual accounts or ignores it. A remembered choice can automatically route later alerts when the alert contains a specific card/account hint, or the user selects a dedicated wallet account with the same name. A generic bank-app name cannot route payments from multiple cards. The posting app's real installed label is used. Alert identity and a staged transaction-plus-balance write guard against duplicate recording. Replacing imported data clears pending alerts and remembered account mappings, and deleting an account clears mappings. Foreign-currency, refund, incoming-funds, failed-payment, balance-only, and ambiguous multiple-amount alerts are not recorded as HKD expenses.
+- **Workbook reconciliation**: Audited `財務管家_27-9-2026.xlsx`: 868 rows and 14 account names, comprising 647 expenses (HK$52,831.49), 140 incomes (HK$71,113.42), and 81 transfers (HK$53,462.08). Three HK$300 transfers from the `enjoy` credit card to `octopus card` exposed an inverted credit-card source sign. Corrected import preview and transaction balance handling, and added a one-time persisted repair for existing imported data. The corrected ledger-derived totals are **cash/bank HK$18,821.31, signed card debt HK$539.38, and net worth HK$18,281.93**. The workbook does not contain opening account balances, so these figures reconstruct movements in the file rather than bank-statement balances. The inferred 10 non-card / 4 credit-card split comes from account names, not an explicit workbook type field; subcategory/content are flattened into description, and source timestamps have second-level precision.
+- **Import safety**: Replacement and merge now validate and stage all accounts, rows, and derived balances before writing one `AtomicFile` snapshot and publishing the new ledger. Failed staging or saving leaves the prior ledger intact. Account IDs remain monotonic across replacement so old notification choices cannot accidentally point to reused IDs. Malformed workbook rows are still omitted by the parser before preview; this workflow does not yet show a skipped-row count.
+- **Verification status (2026-09-28)**: Compact grouping, the account History filter, and corrected totals were checked on Waydroid (`192.168.240.112:5555`). A temporary account changed from HK$0 to HK$25, and its +HK$25 adjustment appeared in account History. A later temporary-account check confirmed that deleting the account also removed its adjustment without a manual History deletion. Each check returned the ledger to 14 accounts, 868 entries, and HK$18,281.93. The final in-place release APK install succeeded; after restart, compact mode remained selected with 14 accounts and HK$18,281.93 net worth, and History showed 868 entries. The integrated unit suite passed 92 tests, including 27 focused notification parser tests, and the release build passed. A real incoming payment notification from an allowed app was not available for end-to-end device verification; the prompt wiring was reviewed in code, and parser/remember eligibility logic was tested.
+
+### 2026-09-27: Credit-Card Settlement Day and Expressive Press Shapes
+- **Per-card 結算日**: The Assets & Cards list now shows each credit card's monthly statement closing day from its existing `AccountEntity.billingDate` field. Imported cards with no known day show `未設定` instead of an invented date. The card editor labels this field 結算日, offers an explicit unset choice and days 1–31, and preserves `null` when editing a card without selecting a day. Cash and bank accounts do not show a settlement day. Added English and Chinese strings across all five locale resources.
+- **Unknown payment deadlines**: Imported cards without a saved payment deadline no longer show a fabricated countdown. Their editor fields remain unset, and valid deadline days 29–31 are clamped to the last day of shorter months when calculating the next due date.
+- **Pressed button shape**: 35 Material 3 buttons across the app now use Compose `ButtonDefaults.shapes` to spring from their resting pill or rounded shape into a tighter pressed shape, with the bounded ripple clipped by the button surface. The shared custom click modifier uses a spring-animated outline and clip for non-Button surfaces. Existing button roles, scale response, haptics, and click behavior remain in place.
+- **Verification**: `:app:testDebugUnitTest` passed 85 tests across 12 suites; `:app:assembleRelease` passed. Installed the signed release APK in place on Waydroid (`192.168.240.112:5555`). The 14 imported accounts and asset totals were retained. All four credit cards display the unset closing-day chip without an invented payment countdown. Opened an imported card editor and confirmed its closing day is blank; visually checked the pressed shape of the Add Asset button. No imported record was changed during verification.
+
+### 2026-09-27: Native Excel / CSV In-App Import Feature & Atomic Disk Persistence Engine
+- **Native OpenXML (.xlsx) & CSV Parser Engine (`FinancialDataImportEngine.kt`)**:
+  - Implemented zero-bloat, 100% native Android streaming parser using `XmlPullParser` + `java.util.zip.ZipFile` on temporary file stream (eliminates Dalvik/ART `ZipInputStream` data descriptor size mismatch bugs).
+  - Multi-fallback URI resolver: `openInputStream` -> `openFileDescriptor` AutoCloseInputStream -> `openAssetFileDescriptor` -> direct file system access.
+  - Automatically identifies header schema from user's `財務管家` Excel exports (Date, Account, Category / Transfer Destination, Subcategory, Description, HKD Amount, Type, Memo) as well as generic CSV format.
+  - Smart account detection: identifies Cash, Bank, and Credit Card accounts from transaction records and maps them to application account types.
+- **Atomic Disk Persistence (`InMemoryDatabase.kt`)**:
+  - Implemented automatic, crash-safe JSON disk persistence (`vibefinance_data.json`) via `android.util.AtomicFile` in internal private storage (`context.filesDir`).
+  - Automatically persists all state mutations (`accounts`, `transactions`, `budgets`, `subscriptions`, `discountShops`, `categoryLimits`, `savedAspects`) synchronously with thread-safe locking.
+  - Automatically restores all records upon cold launch.
+  - Guarantees 100% data retention across app restarts, system memory pressure kills, OS reboots, and app updates/reinstalls (`adb install -r`).
+- **Material 3 Expressive Import Preview Modal Bottom Sheet (`ImportDataPreviewSheet.kt`)**:
+  - Displays file summary chip, detected date range, and 3-column Bento metrics: Total Expenses (with count), Total Income (with count), Total Transfers (with count).
+  - Detected accounts list with card/bank/cash icons, record counts, and net balance delta.
+  - Import strategy selector: "Merge with existing data" vs "Replace all existing data ⚠️".
+  - M3 Pill action button ("Confirm & Import") with `Modifier.pressBounce`, haptic feedback, and confirmation toast.
+- **Entry Points & Navigation**:
+  - **HistoryScreen**: Added companion `[ ⬆ Import Data ]` button side-by-side with `[ ⬇ CSV ]` in `CategoryBreakdownCard.kt`.
+  - **SettingsSheet**: Added `Import Data (Excel / CSV)` in Section 7 (Data & Privacy).
+  - Uses `ActivityResultContracts.GetContent()` with universal MIME filter `*/*` for maximum compatibility across Android devices and file pickers.
+- **Multi-Language Localization**:
+  - Added localized strings for import preview, Bento metrics, import strategies, and confirmation messages across `values/strings.xml`, `values-zh/strings.xml`, `values-zh-rHK/strings.xml`, `values-zh-rTW/strings.xml`, and `values-b+zh+Hant/strings.xml`.
+- **Live Device Verification**:
+  - Successfully parsed user's actual `財務管家_27-9-2026.xlsx` on device:
+    - 868 transactions total (647 expenses, 140 income, 81 transfers).
+    - 14 detected account names, inferred as Cash & Bank (10) and Credit Cards (4) from their names; the workbook does not supply explicit account types.
+    - The initial net asset value shown here was HK$20,081.93. This was superseded by the credit-card transfer correction above; the corrected ledger-derived value is HK$18,281.93. Category analytics dynamically updated.
+  - Executed cold kill (`am force-stop`) and restart: verified 100% of 868 transactions and 14 accounts persist and reload immediately.
+- **Physical Device Deployment**:
+  - Deployed updated release APK to user's physical **Samsung Galaxy S24 Ultra** (`SM-S9280`, `adb-R5CX22YGH7A-LIJF6v._adb-tls-connect._tcp`) via `adb install -r`, performing an in-place upgrade that preserved all user data and preferences while enabling persistent in-app Excel/CSV imports.
+
+### 2026-09-26: VibeFinance v1.0.4 Material 3 Button Optimization, Spring Press Feedback & Physical Device Deployment
+- **Tactile Touch Feedback Engine (`Modifier.pressBounce`)**:
+  - Implemented `Modifier.pressBounce(scaleDown: Float = 0.96f, interactionSource: MutableInteractionSource)` in `ui/common/BouncyClickable.kt`.
+  - Integrates directly with Compose's `interactionSource.collectIsPressedAsState()` and spring physics (`DampingRatioMediumBouncy`, `StiffnessMediumLow`) to provide instantaneous 0.96x elastic depression on press down without blocking bounded ripples, haptics, or click handlers.
+- **Material 3 Button Guidelines Parity (`m3.material.io/components/buttons/overview`)**:
+  - Upgraded buttons across dialogs, popup windows, and bottom sheets to strict Material 3 hierarchy and shapes:
+    - **Primary / Confirm Actions**: Upgraded to Filled Pill Buttons (`shape = CircleShape` or `RoundedCornerShape(26.dp)` / `27.dp`), `elevation = buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp)`, `pressBounce`, leading icons, and `TextHandleMove` haptic ticks.
+    - **Secondary / Quick Adjustments**: Upgraded to M3 `FilledTonalButton` with `RoundedCornerShape(16.dp)`, `pressBounce`, and haptics (e.g. `+` and `-` custom adjust buttons in Add Asset sheet).
+    - **Art & Outlined Actions**: Upgraded "Upload Image" to M3 `OutlinedButton` with `RoundedCornerShape(16.dp)` and leading icon.
+    - **Destructive / Dismiss Actions**: Upgraded "Delete" to M3 `OutlinedButton` with `RoundedCornerShape(26.dp)` and `LongPress` haptics; upgraded "Cancel" / "Close" to `TextButton` or `IconButton` with `CircleShape` and `pressBounce`.
+  - **Add Asset / Card Bottom Sheet (`AccountsScreen.kt`)**: Empty state "Add Account" pill button, filter chips haptics, 1-tap quick adjust suggestion chips haptics, `+`/`-` FilledTonalButtons, Upload/Remove image buttons, crop dialog buttons, account delete dialog, and anchored sticky bottom action bar ("Create Asset" / "Save Changes").
+  - **Inline Add Category & Add Card Sheets (`MainScreen.kt`)**: Inline "+ Add Category" button with leading `Icons.Default.Add` icon, `CircleShape`, and `pressBounce`; inline "+ Add Card / Account" button with leading `Icons.Default.Add` icon, `CircleShape`, and `pressBounce`.
+  - **Auxiliary Sheets & Dialogs**: Transaction Edit Dialog in `HistoryScreen.kt` (filled Save and text Cancel), `AddDiscountShopSheet.kt` (pill Save button), `NewPeriodBudgetSheet.kt` (pill Start New Period button), and `SettingsSheet.kt` / `AppearancePickerSheet.kt` dialog buttons.
+- **Strict Scope Preservation**:
+  - Components already implementing Material 3 Expressive design (`ExtendedFloatingActionButton`, `ConnectedButtonGroup`, `ExpressiveSegmentedButtonGroup`, `DaysLeftCard`, `HeroDailyBudgetCard`) were strictly preserved without modification.
+- **Production Build & Physical Hardware Deployment**:
+  - Built production release APK `VibeFinance-v1.0.4.apk` (`3,118,522 bytes`, Version Code `5`, Version Name `1.0.4`).
+  - Unit tests passed cleanly (`28/28` testDebugUnitTest tasks passed).
+  - Deployed to local Waydroid emulator (`192.168.240.112:5555`) and visually verified across all tabs, sheets, and inline popups.
+  - Successfully deployed to the user's physical phone **Samsung Galaxy S24 Ultra** (`SM-S9280`, `adb-R5CX22YGH7A-LIJF6v._adb-tls-connect._tcp`) using `adb install -r`, performing an in-place upgrade that fully preserved all user transactions, accounts, and settings.
+
 ### 2026-09-26: VibeFinance v1.0.3 Fixes & Enhancements
 - **Notification Redirection**: Added `android:launchMode="singleTask"` to `MainActivity` in `AndroidManifest.xml`. Configured PendingIntents with `navigate_tab` extra across `DeadlineCheckWorker` (recurring), `SubscriptionRepository` (recurring), and `PaymentNotificationListener` (history). Implemented `FinanceViewModel.requestedTab` StateFlow and connected `LaunchedEffect` in `MainScreen` to seamlessly transition to the targeted tab on cold launch or `onNewIntent`.
 - **CSV Export Crash Prevention**: Configured `androidx.core.content.FileProvider` in `AndroidManifest.xml` backed by `res/xml/file_paths.xml` (`cache-path`). Added safe error handling and `FLAG_ACTIVITY_NEW_TASK` to the export chooser in `CsvExportEngine.kt`, resolving the unhandled `IllegalArgumentException` and app quit.
@@ -452,6 +784,7 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
 ### UI: Components & Shared Elements (Material 3 Expressive)
 | File Path | Action | Description |
 | :--- | :---: | :--- |
+| `app/src/main/java/com/example/vibefinance/ui/common/BouncyClickable.kt` | **MODIFIED** | Implemented `Modifier.pressBounce(scaleDown = 0.96f, interactionSource)` with spring physics (`DampingRatioMediumBouncy`, `StiffnessMediumLow`) to provide tactile button compression on press without disrupting bounded ripples or click events. |
 | `app/src/main/java/com/example/vibefinance/theme/ChartColors.kt` | **NEW** | Centralized 12-color high-contrast wide-spectrum palette authority (`UNIFIED_PALETTE`), deterministic bilingual category semantic mapping, two-pass collision-free assignment algorithm with 12% dynamic primary tint blending, and unified asset segment tokens. |
 | `app/src/main/java/com/example/vibefinance/ui/components/ExpressiveSwipeRow.kt` | **NEW** | Reusable Gmail-style swipe-to-action component featuring 1:1 translation, 4dp floating elevation, dynamic spring icon pop (`1.0f -> 1.25f`), 44dp translucent circular backdrop disc, haptic feedback, and two-direction actions (Delete vs Edit). |
 | `app/src/main/java/com/example/vibefinance/ui/components/ExpressiveSwitch.kt` | **NEW** | Material 3 Expressive switch with 52x32dp pill track, morphing thumb (18dp to 24dp), spring translation overshoot, animated checkmark icon, and tactile haptic feedback. |
@@ -459,20 +792,23 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
 | `app/src/main/java/com/example/vibefinance/ui/components/BudgetPeriodIndicatorCard.kt` | **MODIFIED** | Full-width connected filter buttons eliminating edge shadow artifacts; replaced custom Box track with flat Material 3 `LinearProgressIndicator`. |
 | `app/src/main/java/com/example/vibefinance/ui/components/CategoryBreakdownCard.kt` | **MODIFIED** | Integrated unified `ChartColors`, touch drag scrubbing with spring segment expansion, interactive summary card, and spring exit motion. |
 | `app/src/main/java/com/example/vibefinance/ui/components/MoneySeparationChart.kt` | **MODIFIED** | Consumes `ChartColors.getAssetSegmentColor` for harmonized cash, bank, and credit/debt segment styling. |
+| `app/src/main/java/com/example/vibefinance/ui/components/KeyboardButton.kt` | **MODIFIED** | Implemented Material 3 Expressive spring shape-morphing (pill 28dp -> squircle 10dp -> bouncy pill overshoot); eliminated scale shrinkage; implemented coroutine-driven 140ms pulse duration so that even a short tap triggers the full organic spring shape motion. |
 | `app/src/main/java/com/example/vibefinance/ui/components/RollingNumberText.kt` | **MODIFIED** | Smooth animated number and currency transitions without recomposition jitter. |
 
 ### UI: Screens & Navigation
 | File Path | Action | Description |
 | :--- | :---: | :--- |
-| `app/src/main/java/com/example/vibefinance/ui/main/MainScreen.kt` | **MODIFIED** | Two-tier `ExpressiveCollapsingTopBar` with separated two-line spring kinetics; predictive back navigation across tabs and FAB menu; integrated native Compose `VibeFinanceIcon`; `ContainedLoadingIndicator`; clean 3-second daily logging sheet. |
+| `app/src/main/java/com/example/vibefinance/ui/main/MainScreen.kt` | **MODIFIED** | Upgraded Add Expense sheet: removed Quick Presets; separated "Count in Daily Budget" toggle switch card and real-time Budget Preview card; added dynamic header height measurement (`onGloballyPositioned`) and safe spacer eliminating card clipping under header; compacted vertical spacing so full numeric keypad and confirm button fit on screen without scrolling; two-tier `ExpressiveCollapsingTopBar` with separated two-line spring kinetics; predictive back navigation across tabs and FAB menu; integrated native Compose `VibeFinanceIcon`. |
 | `app/src/main/java/com/example/vibefinance/ui/home/HomeScreen.kt` | **MODIFIED** | Material 3 Expressive daily dashboard with responsive Bento grid scaffolding; integrated unified `ChartColors` in `CategoryDonutChart`. |
 | `app/src/main/java/com/example/vibefinance/ui/home/DailySpendingLineChart.kt` | **MODIFIED** | Dual mode toggle (`CUMULATIVE` vs `DAILY`), interactive drag scrubbing, pulsating glow nodes, rolling numbers, and expressive floating tooltip badge. |
 | `app/src/main/java/com/example/vibefinance/ui/home/DaysLeftCard.kt` | **MODIFIED** | Deterministic `CircularWavyProgressIndicator` with tap-to-toggle Flat/Wavy mode, 5dp stroke, 0% idle CPU settle. |
 | `app/src/main/java/com/example/vibefinance/ui/home/HeroDailyBudgetCard.kt` | **MODIFIED** | Fluid liquid dynamic budget indicator with single 4-5s entrance wave settling to 0% idle CPU; 3-column Bento metrics row. |
 | `app/src/main/java/com/example/vibefinance/ui/home/RecalcBudgetSheet.kt` | **MODIFIED** | Overdraft recalculation sheet with spring adjustments and non-looping canvas confetti. |
-| `app/src/main/java/com/example/vibefinance/ui/accounts/AccountsScreen.kt` | **MODIFIED** | Native M3 Expressive connected `ToggleButton` group (`ALL`, `CASH_BANK`, `CREDIT_CARDS`), sliding spring accent indicator, and `LazyColumn.animateItem` transitions. |
-| `app/src/main/java/com/example/vibefinance/ui/history/HistoryScreen.kt` | **MODIFIED** | Gmail-style `ExpressiveSwipeRow` parity for transaction rows; corrected signed Daily Net footer calculation (+HK$2,300.00 for seeded Yesterday); predictive back handling for category filters and edit sheet. |
+| `app/src/main/java/com/example/vibefinance/ui/home/NewPeriodBudgetSheet.kt` | **MODIFIED** | Upgraded "Start New Period" button to M3 Pill Button (`RoundedCornerShape(27.dp)`), `buttonElevation(2.dp, 1.dp)`, and `pressBounce`; DatePickerDialog confirm/dismiss buttons to `CircleShape` with `pressBounce`. |
+| `app/src/main/java/com/example/vibefinance/ui/accounts/AccountsScreen.kt` | **MODIFIED** | Native M3 Expressive connected `ToggleButton` group (`ALL`, `CASH_BANK`, `CREDIT_CARDS`), sliding spring accent indicator, and `LazyColumn.animateItem` transitions; comprehensive M3 Button overhaul for Add Asset / Card bottom sheet: empty state "+ Add Account" pill button, filter & suggestion chips haptics, `+`/`-` FilledTonalButtons (`RoundedCornerShape(16.dp)`), Outlined "Upload Image" and Text "Remove Image" buttons, InteractiveImageCropDialog buttons, delete alert dialog, and sticky bottom action bar (pill "Create Asset / Save Changes" and Outlined "Delete"). |
+| `app/src/main/java/com/example/vibefinance/ui/history/HistoryScreen.kt` | **MODIFIED** | Gmail-style `ExpressiveSwipeRow` parity for transaction rows; corrected signed Daily Net footer calculation (+HK$2,300.00 for seeded Yesterday); predictive back handling for category filters and edit sheet; upgraded Transaction Edit Dialog Save to M3 Filled Button (`CircleShape`, `pressBounce`, haptics) and Cancel (`CircleShape`, `pressBounce`, haptics). |
 | `app/src/main/java/com/example/vibefinance/ui/recurring/RecurringScreen.kt` | **MODIFIED** | Added `findMatchingTransactionsForSubscription` and `DeleteSubscriptionConfirmDialog` (Keep records / Delete records also / Cancel); Gmail-style `ExpressiveSwipeRow` swipe actions; unified `ChartColors` category donut; installment plan aggregation, preview card, and `AddEditSubscriptionSheet`. |
+| `app/src/main/java/com/example/vibefinance/ui/radar/AddDiscountShopSheet.kt` | **MODIFIED** | Upgraded "Save Discount Shop" button to M3 Pill Button (`RoundedCornerShape(27.dp)`), `buttonElevation(2.dp, 1.dp)`, `pressBounce`, and haptics. |
 
 ### Theme & Settings (Image Toolbox-Inspired & Expressive Components)
 | File Path | Action | Description |
@@ -587,7 +923,22 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
   - Verified on Waydroid emulator (`192.168.240.112:5555`) with `pm clear` cold boot: verified all 4 tabs start with 0 data, 0 crashes, and clean UI transitions upon setting a budget.
   - 77 unit tests pass with 100% success (`./gradlew testDebugUnitTest`).
   - Assembled production release APK (`./gradlew assembleRelease`).
-  - Published and updated GitHub Release asset `VibeFinance-v1.0.0.apk` on `v1.0.0` (`https://github.com/ricky688/Finance_App/releases/tag/v1.0.0`).
+
+### 9. Material 3 Button Architecture & Tactile Press Feedback (m3.material.io)
+- **Official Material 3 Button Roles**:
+  - **Filled Button (`Button`)**: High-emphasis primary action (e.g. `Create Asset`, `Save Changes`, `+ Add` in inline sheets). Styled with full pill geometry (`shape = CircleShape` or `RoundedCornerShape(26.dp)` / `27.dp`), `elevation = buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp)`, and leading action icons.
+  - **Filled Tonal Button (`FilledTonalButton`)**: Mid-emphasis secondary operations and incremental adjustment controls (e.g., custom adjust `+` and `-` buttons in the Add Asset sheet). Styled with `RoundedCornerShape(16.dp)` and container/content color tokens.
+  - **Outlined Button (`OutlinedButton`)**: Medium-emphasis actions, art attachment, or non-primary destructive triggers (e.g., "Upload Image" with `RoundedCornerShape(16.dp)`, "Delete Account" with `RoundedCornerShape(26.dp)` and error tint).
+  - **Text Button (`TextButton`)**: Low-emphasis dismiss or auxiliary triggers (e.g. "Cancel", "Remove Image") styled with `CircleShape` and bounded ripples.
+- **Spring-Driven Elastic Press Feedback (`Modifier.pressBounce`)**:
+  - Implemented in `BouncyClickable.kt` via `interactionSource.collectIsPressedAsState()`.
+  - Animates a 0.96x compression using `spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)` on touch down and releases elastically upon finger lift.
+  - Operates alongside Compose's standard touch handling without intercepting `onClick` callbacks or obstructing ripple indications.
+- **Bounded Touch Target Ripples & Haptics**:
+  - Applied explicit clipping (`Modifier.clip(shape)`) across all custom and standard button surfaces to prevent rectangular ripple bleed.
+  - Paired touch activations with tactile haptics (`HapticFeedbackType.TextHandleMove` for selections/increments, `HapticFeedbackType.LongPress` for destructive actions).
+- **Preserved Material 3 Expressive Controls**:
+  - Existing expressive controls (`ExtendedFloatingActionButton`, `ConnectedButtonGroup`, `ExpressiveSegmentedButtonGroup`, `DaysLeftCard`, `HeroDailyBudgetCard`) were strictly protected against unintended modifications.
 
 ---
 
@@ -630,9 +981,10 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
   ```bash
   ./gradlew assembleDebug
   ```
-- Install to Waydroid:
+- Install over the release-signed app on Waydroid (preserves its data):
   ```bash
-  adb -s 192.168.240.112:5555 install -r app/build/outputs/apk/debug/app-debug.apk
+  ./gradlew :app:assembleRelease
+  adb -s 192.168.240.112:5555 install -r app/build/outputs/apk/release/app-release.apk
   ```
 - Launch app:
   ```bash

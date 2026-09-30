@@ -2,6 +2,7 @@ package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -14,6 +15,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,7 +28,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -49,7 +50,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** The same two-direction swipe surface and spring motion used by recurring subscription rows. */
+/** Two-direction swipe surface shared by History and other transaction lists. */
 @Composable
 fun ExpressiveSwipeRow(
     shape: RoundedCornerShape,
@@ -64,6 +65,14 @@ fun ExpressiveSwipeRow(
     val dragOffsetX = remember { Animatable(0f) }
     var rawDragX by remember { mutableFloatStateOf(0f) }
     var isPastThreshold by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val isPressed by rowInteractionSource.collectIsPressedAsState()
+    val pressHighlightAlpha by animateFloatAsState(
+        targetValue = if (isPressed && !isDragging) 1f else 0f,
+        animationSpec = tween(durationMillis = 100),
+        label = "SwipePressHighlight"
+    )
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -72,18 +81,12 @@ fun ExpressiveSwipeRow(
     val isDeleteAction = currentOffset < 0f
     val iconScale by animateFloatAsState(
         targetValue = if (isPastThreshold) 1.25f else (0.8f + 0.2f * (absOffset / detachmentThresholdPx)).coerceIn(0.8f, 1f),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
         label = "SwipeIconScale"
     )
     val backdropScale by animateFloatAsState(
         targetValue = if (isPastThreshold) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
         label = "SwipeBackdropScale"
     )
     val targetBgColor = if (isDeleteAction) {
@@ -181,7 +184,11 @@ fun ExpressiveSwipeRow(
                 .draggable(
                     state = draggableState,
                     orientation = Orientation.Horizontal,
-                    onDragStarted = { rawDragX = 0f },
+                    onDragStarted = {
+                        isDragging = true
+                        dragOffsetX.stop()
+                        rawDragX = dragOffsetX.value
+                    },
                     onDragStopped = { velocity ->
                         val pastThreshold = isPastThreshold ||
                             (abs(velocity) > 1200f && abs(rawDragX) >= detachmentThresholdPx * 0.45f)
@@ -189,13 +196,11 @@ fun ExpressiveSwipeRow(
                         coroutineScope.launch {
                             dragOffsetX.animateTo(
                                 targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
                             )
                             rawDragX = 0f
                             isPastThreshold = false
+                            isDragging = false
                             if (pastThreshold) {
                                 if (delete) onDelete() else onEdit()
                             }
@@ -204,13 +209,28 @@ fun ExpressiveSwipeRow(
                 )
                 .clip(shape)
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple()
+                    interactionSource = rowInteractionSource,
+                    indication = null
                 ) { onEdit() },
             shape = shape,
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-            content = content
-        )
+        ) {
+            Box {
+                content()
+                if (pressHighlightAlpha > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(shape)
+                            .background(
+                                MaterialTheme.colorScheme.onSurface.copy(
+                                    alpha = 0.08f * pressHighlightAlpha
+                                )
+                            )
+                    )
+                }
+            }
+        }
     }
 }

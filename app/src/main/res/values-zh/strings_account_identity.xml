@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assets_total_assets">总资产</string>
+    <string name="assets_type_debit">借记卡</string>
+    <string name="assets_identity_nickname">昵称（选填）</string>
+    <string name="assets_identity_nickname_hint">显示在账户列表和选择器中，原账户名称保持不变。</string>
+    <string name="assets_identity_last_four">真实尾号四位（选填）</string>
+    <string name="assets_identity_last_four_error">请输入恰好四位数字，或留空。</string>
+    <string name="assets_identity_accent">账户强调色</string>
+    <string name="assets_identity_accent_default">自动</string>
+    <string name="assets_identity_accent_primary">颜色 1</string>
+    <string name="assets_identity_accent_secondary">颜色 2</string>
+    <string name="assets_identity_accent_tertiary">颜色 3</string>
+    <string name="assets_linked_app_title">快捷跳转应用</string>
+    <string name="assets_linked_app_desc">点击卡片图标快速打开应用</string>
+    <string name="assets_linked_app_none">无 (不关联应用)</string>
+    <string name="assets_linked_app_none_desc">不在此卡片上显示跳转图标</string>
+    <string name="assets_linked_app_dialog_title">选择快捷打开的应用</string>
+    <string name="assets_linked_app_not_installed">此设备尚未安装该应用程序</string>
+    <string name="assets_linked_app_open">打开 %s</string>
+    <string name="assets_linked_app_installed_list">已安装应用程序</string>
+    <string name="assets_linked_app_search_placeholder">搜索已安装应用程序...</string>
+    <string name="assets_linked_app_empty">找不到相符的应用程序</string>
+    <string name="assets_linked_app_choose">选择关联应用</string>
+    <string name="assets_linked_app_long_press_tip">长按卡片上的跳转图标可更换应用</string>
+</resources>

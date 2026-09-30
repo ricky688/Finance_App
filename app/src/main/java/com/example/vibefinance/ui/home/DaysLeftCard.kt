@@ -26,9 +26,12 @@ enum class IndicatorShape {
 /**
  * Remaining budget-period days, shown with a determinate Material 3 circular indicator.
  * Tapping the card springs between the flat and wavy shapes.
+ *
+ * The progress indicator is reversed to indicate elapsed time through the period:
+ * e.g., 30 days left out of 30 days = 0.0f (0%), 0 days left = 1.0f (100%).
  */
 fun calculateDaysLeftProgress(daysLeft: Int, totalDays: Int): Float =
-    if (totalDays > 0) (daysLeft.toFloat() / totalDays).coerceIn(0f, 1f) else 0f
+    if (totalDays > 0) ((totalDays - daysLeft).toFloat() / totalDays).coerceIn(0f, 1f) else 0f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -93,7 +96,7 @@ fun DaysLeftCard(
                     stroke = ringStroke,
                     trackStroke = ringStroke,
                     amplitude = { if (indicatorShape == IndicatorShape.WAVY) 1f else 0f },
-                    waveSpeed = 0.dp
+                    waveSpeed = if (indicatorShape == IndicatorShape.WAVY) WavyProgressIndicatorDefaults.CircularWavelength else 0.dp
                 )
 
                 // Center Text: Days Left, Label & M3 Shape Mode Pill

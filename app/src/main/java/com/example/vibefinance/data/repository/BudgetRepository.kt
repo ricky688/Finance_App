@@ -43,14 +43,17 @@ class BudgetRepository @Inject constructor() {
 
             val today = LocalDate.now()
             val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val endLocal = Instant.ofEpochMilli(budget.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+            val endExclusive = endLocal.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             
             // Filter non-transfer, non-excluded expenses within the custom budget period
             val periodExpenses = transactions.filter {
                 it.toAccountId == null && 
                 !it.isExcludedFromDailyBudget && 
+                !it.isBalanceAdjustment &&
                 it.amount > 0 &&
                 it.timestamp >= budget.startDate &&
-                it.timestamp <= budget.endDate
+                it.timestamp < endExclusive
             }
 
             val tomorrowStart = today.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -64,7 +67,6 @@ class BudgetRepository @Inject constructor() {
             val periodRemainingBeforeToday = (budget.totalBudgetAmount - pastExpensesSum).coerceAtLeast(0.0)
 
             val startLocal = Instant.ofEpochMilli(budget.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
-            val endLocal = Instant.ofEpochMilli(budget.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
             val totalDaysInPeriod = (ChronoUnit.DAYS.between(startLocal, endLocal) + 1).coerceAtLeast(1).toDouble()
             val daysLeft = (ChronoUnit.DAYS.between(today, endLocal) + 1).coerceAtLeast(1).toInt()
 

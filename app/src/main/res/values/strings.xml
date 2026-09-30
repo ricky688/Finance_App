@@ -76,8 +76,8 @@
     <string name="safe_to_spend">Safe to Spend</string>
 
     <!-- Assets / Accounts Screen -->
-    <string name="asset_filter_all">All Assets</string>
-    <string name="asset_filter_cash_bank">Cash &amp; Bank</string>
+    <string name="asset_filter_all">All accounts</string>
+    <string name="asset_filter_cash_bank">Assets</string>
     <string name="asset_filter_credit_cards">Credit Cards</string>
     <string name="net_worth_title">Total Net Worth</string>
     <string name="liquid_assets">Liquid Assets</string>
@@ -91,7 +91,26 @@
     <string name="acc_name_label">Account Name</string>
     <string name="acc_balance_label">Current Balance</string>
     <string name="acc_credit_limit">Credit Limit</string>
-    <string name="acc_statement_date">Statement Date</string>
+    <string name="acc_statement_date">Statement closing day</string>
+    <string name="acc_statement_day_select">Select a day</string>
+    <string name="acc_statement_day_clear">Not set</string>
+    <string name="acc_statement_day_value">Closes on day %1$d</string>
+    <string name="acc_statement_day_unset">Closing day not set</string>
+    <string name="assets_compact_mode">Compact view</string>
+    <string name="assets_detailed_mode">Detailed view</string>
+    <string name="assets_net_worth">Net worth</string>
+    <string name="assets_type_cash">Cash</string>
+    <string name="assets_type_bank">Bank accounts</string>
+    <string name="assets_type_credit">Credit cards</string>
+    <string name="assets_compact_closing_day">Closing day %1$d</string>
+    <string name="assets_compact_closing_unset">Closing day not set</string>
+    <string name="assets_edit_balance">Change balance</string>
+    <string name="assets_view_history">History</string>
+    <string name="assets_current_balance">Current balance: %1$s</string>
+    <string name="assets_new_balance">New balance</string>
+    <string name="assets_balance_change">Change: %1$s</string>
+    <string name="assets_balance_history_hint">This adjustment appears in History and does not count toward your spending budget.</string>
+    <string name="assets_save_balance">Save balance</string>
     <string name="acc_payment_due_date">Payment Due Date</string>
     <string name="btn_add_account">Add Account</string>
     <string name="btn_edit_account">Edit Account</string>
@@ -179,6 +198,11 @@
     <string name="category_analytics_subtitle">Tap category to filter</string>
     <string name="category_analytics_filtering">Filtering: %s • Tap to reset</string>
     <string name="category_analytics_focused">Focused</string>
+    <string name="category_analytics_month">Month</string>
+    <string name="category_analytics_budget_period">Budget period</string>
+    <string name="category_analytics_previous_month">Previous month</string>
+    <string name="category_analytics_next_month">Next month</string>
+    <string name="category_analytics_no_expenses_period">No expenses in this period</string>
     <string name="reset_filter">Reset Filter</string>
     <string name="total_monthly_short">Total Monthly</string>
     <string name="daily_net_format">Daily Net: %1$sHK$%2$,.2f</string>
@@ -344,4 +368,37 @@
     <string name="delete_sub_delete_all_btn">Delete Records Too</string>
     <string name="delete_sub_delete_all_desc">Delete subscription and remove %d past payment record(s) from history.</string>
     <string name="delete_sub_confirm_single">Delete Subscription</string>
+
+    <!-- Native Data Import Strings -->
+    <string name="import_title">Import Data</string>
+    <string name="import_preview_title">Import Data Preview</string>
+    <string name="import_file_label">File: %s</string>
+    <string name="import_btn_select_file">Import Data (Excel / CSV)</string>
+    <string name="import_btn_select_desc">Import transactions &amp; accounts from 財務管家 (.xlsx) or CSV backups</string>
+    <string name="import_expenses_count">%d Expenses</string>
+    <string name="import_income_count">%d Income</string>
+    <string name="import_transfers_count">%d Transfers</string>
+    <string name="import_detected_accounts">Detected Accounts (%d)</string>
+    <string name="import_mode_title">Import Strategy</string>
+    <string name="import_mode_merge">Merge with existing data</string>
+    <string name="import_mode_merge_desc">Preserves current accounts and records, automatically adding new accounts and transactions.</string>
+    <string name="import_mode_replace">Replace all existing data</string>
+    <string name="import_mode_replace_desc">Wipes current local records and reconstructs accounts &amp; exact balances from the backup.</string>
+    <string name="import_btn_confirm">Confirm &amp; Import</string>
+    <string name="import_btn_importing">Importing...</string>
+    <string name="import_date_range">%1$s — %2$s</string>
+    <string name="import_transactions_total">%d transactions total</string>
+    <string name="account_history_filter">History · %1$s</string>
+    <string name="show_all_history">Show all history</string>
+    <string name="balance_adjustment_title">Balance adjustment</string>
+    <string name="balance_adjustment_detail">%1$s balance changed by %2$s</string>
+
+    <!-- Daily Budget Toggle (Non-daily / Big Purchase) -->
+    <string name="daily_budget_toggle_title">Count in Daily Budget</string>
+    <string name="daily_budget_toggle_desc_on">Deducted from today\'s daily allowance</string>
+    <string name="daily_budget_toggle_desc_off">Non-daily / big item (e.g. phone, TV); won\'t affect daily allowance</string>
+    <string name="non_daily_expense_badge">Non-Daily</string>
+    <string name="non_daily_preview_title">Non-Daily Purchase</string>
+    <string name="non_daily_preview_desc">Excluded from daily budget calculation; does not affect daily allowance</string>
+    <string name="non_daily_preview_preserved">Daily allowance unchanged</string>
 </resources>
