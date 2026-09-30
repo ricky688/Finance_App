@@ -36,6 +36,10 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,6 +142,9 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
+import android.view.SoundEffectConstants
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -4076,37 +4083,68 @@ fun <T> ConnectedButtonGroup(
     ) {
         items.forEachIndexed { index, item ->
             val isSelected = index == selectedIndex
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed = interactionSource.collectIsPressedAsState()
+            var isPulsing by remember { mutableStateOf(false) }
+            val coroutineScope = rememberCoroutineScope()
+            var releaseJob by remember { mutableStateOf<Job?>(null) }
 
-            // Dynamic connected shape morphing
+            LaunchedEffect(interactionSource) {
+                interactionSource.interactions.collect { interaction ->
+                    when (interaction) {
+                        is PressInteraction.Press -> {
+                            releaseJob?.cancel()
+                            isPulsing = true
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> {
+                            releaseJob?.cancel()
+                            releaseJob = coroutineScope.launch {
+                                delay(140)
+                                isPulsing = false
+                            }
+                        }
+                    }
+                }
+            }
+
+            val isShapeActive = isPressed.value || isPulsing
+
+            val restingTopStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
+            val restingBottomStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
+            val restingTopEnd = if (isSelected) 18.dp else (if (index == items.size - 1) 18.dp else 4.dp)
+            val restingBottomEnd = if (isSelected) 18.dp else (if (index == items.size - 1) 18.dp else 4.dp)
+
+            val pressedCorner = 6.dp
+
             val topStart by animateDpAsState(
-                targetValue = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp),
+                targetValue = if (isShapeActive) pressedCorner else restingTopStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                 ),
                 label = "topStart_$index"
             )
             val bottomStart by animateDpAsState(
-                targetValue = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp),
+                targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                 ),
                 label = "bottomStart_$index"
             )
             val topEnd by animateDpAsState(
-                targetValue = if (isSelected) 18.dp else (if (index == items.size - 1) 18.dp else 4.dp),
+                targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                 ),
                 label = "topEnd_$index"
             )
             val bottomEnd by animateDpAsState(
-                targetValue = if (isSelected) 18.dp else (if (index == items.size - 1) 18.dp else 4.dp),
+                targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                 ),
                 label = "bottomEnd_$index"
             )
@@ -4137,6 +4175,8 @@ fun <T> ConnectedButtonGroup(
                 label = "contentColor_$index"
             )
 
+            val view = LocalView.current
+
             Surface(
                 color = containerColor,
                 contentColor = contentColor,
@@ -4144,10 +4184,22 @@ fun <T> ConnectedButtonGroup(
                 modifier = Modifier
                     .weight(1f)
                     .clip(shape)
-                    .bouncyClickable(shape = shape) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onItemSelected(index)
-                    }
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = ripple(),
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            view.playSoundEffect(SoundEffectConstants.CLICK)
+                            releaseJob?.cancel()
+                            isPulsing = true
+                            releaseJob = coroutineScope.launch {
+                                delay(140)
+                                isPulsing = false
+                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onItemSelected(index)
+                        }
+                    )
             ) {
                 Box(
                     modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),

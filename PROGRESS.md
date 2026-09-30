@@ -8,6 +8,25 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-01: Connected Button Groups Spring Shape Morphing (`MainScreen.kt` & `RecurringScreen.kt`)
+- **Connected Button Group Spring Shape Morphing (`ExpressiveSegmentedButtonGroup` & `ConnectedButtonGroup`)**:
+  - **Identical Material 3 Expressive Press Motion**:
+    - Applied the verified short-press spring shape-morphing physics from `KeyboardButton.kt` to the connected button groups on the Add Expense / Transfer page (`ExpressiveSegmentedButtonGroup` in `MainScreen.kt` for Categories, Asset Selection, and Account Types) and the Recurring screen (`ConnectedButtonGroup` in `RecurringScreen.kt`).
+    - **Corner Morphing Dynamics**:
+      - Resting State: Pill shape with asymmetric rounded corners (18dp/24dp on ends or selected button, 4dp/8dp on shared inner boundaries).
+      - Pressed State (`isPressed || isPulsing`): Corners rapidly morph towards a rounded squircle (`8.dp` in `MainScreen.kt`, `6.dp` in `RecurringScreen.kt`) with `Spring.StiffnessMedium` (1500) and no scaling/shrinking.
+      - Return Spring Physics: Corners bounce back outwards to resting pill shape with `Spring.DampingRatioMediumBouncy` (0.5) and `Spring.StiffnessMediumLow` (400), creating a tactile, organic bounce.
+    - **Short-Press Guarantee via Coroutine Pulse**:
+      - Tracks `PressInteraction.Press`, `Release`, and `Cancel` through `MutableInteractionSource`.
+      - On quick tap (touch down & up within 20–30ms), a coroutine holds `isPulsing = true` for a 140ms pulse duration before returning, guaranteeing that every tap visibly demonstrates the spring shape-morphing effect.
+    - **Haptic Feedback & Sound**:
+      - Integrated `view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)`, `view.playSoundEffect(SoundEffectConstants.CLICK)`, and `haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)`.
+      - Replaced scale-reduction modifiers (`bouncyClickable`) with pure shape-morphing `Modifier.clickable(indication = ripple())` clipped to `shape`.
+- **Live Device Verification (Waydroid `192.168.240.112:5555`) with ARTEMIS**:
+  - Tested category selection (Food -> Transport -> Shopping) and asset selection (AEON card -> Cash).
+  - Verified instant squircle morphing and bouncy spring return on quick taps without any scale shrinking.
+  - Captured live screenshot `waydroid_connected_button_spring.jpg`.
+
 ### 2026-10-01: Add Expense UI/UX Redesign, Short-Press Spring Shape Morphing & Header Clipping Fix
 - **Short-Press Spring Shape Morphing (`KeyboardButton.kt`)**:
   - **Issue Resolved**: Previously, `isPressed` was too transient during a normal quick tap (~20–30ms), causing the spring animation to cancel before the button could visibly morph into a squircle. As a result, shape changing was only perceived when users pressed and held the button.

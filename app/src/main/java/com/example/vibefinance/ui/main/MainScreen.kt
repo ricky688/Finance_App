@@ -60,6 +60,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.ExpressiveSwitch
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -74,6 +75,9 @@ import androidx.compose.ui.draw.shadow
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import kotlinx.coroutines.Job
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalView
@@ -1640,22 +1644,70 @@ fun <T> ExpressiveSegmentedButtonGroup(
     ) {
         items.forEachIndexed { index, item ->
             val isSelected = index == selectedIndex
-            
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed = interactionSource.collectIsPressedAsState()
+            var isPulsing by remember { mutableStateOf(false) }
+            val coroutineScope = rememberCoroutineScope()
+            var releaseJob by remember { mutableStateOf<Job?>(null) }
+
+            LaunchedEffect(interactionSource) {
+                interactionSource.interactions.collect { interaction ->
+                    when (interaction) {
+                        is PressInteraction.Press -> {
+                            releaseJob?.cancel()
+                            isPulsing = true
+                        }
+                        is PressInteraction.Release, is PressInteraction.Cancel -> {
+                            releaseJob?.cancel()
+                            releaseJob = coroutineScope.launch {
+                                delay(140)
+                                isPulsing = false
+                            }
+                        }
+                    }
+                }
+            }
+
+            val isShapeActive = isPressed.value || isPulsing
+
+            val restingTopStart = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp)
+            val restingBottomStart = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp)
+            val restingTopEnd = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp)
+            val restingBottomEnd = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp)
+
+            val pressedCorner = 8.dp
+
             val topStart by animateDpAsState(
-                targetValue = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp),
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                targetValue = if (isShapeActive) pressedCorner else restingTopStart,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                ),
+                label = "topStart_$index"
             )
             val bottomStart by animateDpAsState(
-                targetValue = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp),
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                ),
+                label = "bottomStart_$index"
             )
             val topEnd by animateDpAsState(
-                targetValue = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp),
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                ),
+                label = "topEnd_$index"
             )
             val bottomEnd by animateDpAsState(
-                targetValue = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp),
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                ),
+                label = "bottomEnd_$index"
             )
             
             val shape = RoundedCornerShape(
@@ -1685,6 +1737,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
             
             val haptic = LocalHapticFeedback.current
+            val view = LocalView.current
 
             Surface(
                 color = containerColor,
@@ -1692,10 +1745,22 @@ fun <T> ExpressiveSegmentedButtonGroup(
                 shape = shape,
                 modifier = itemModifier
                     .clip(shape)
-                    .bouncyClickable(shape = shape) {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onItemSelected(index)
-                    }
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = ripple(),
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            view.playSoundEffect(SoundEffectConstants.CLICK)
+                            releaseJob?.cancel()
+                            isPulsing = true
+                            releaseJob = coroutineScope.launch {
+                                delay(140)
+                                isPulsing = false
+                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onItemSelected(index)
+                        }
+                    )
             ) {
                 Row(
                     modifier = Modifier
