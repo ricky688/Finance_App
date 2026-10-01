@@ -8,6 +8,24 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-01: History Row Swipe UI/UX Optimization (Elimination of Gray Highlight / Film Overlay)
+- **Elimination of Muddy Gray Highlight / Overlay on History Swipe Rows (`ExpressiveSwipeRow.kt`)**:
+  - **Root Cause Identified**:
+    1. `ExpressiveSwipeRow` previously contained a manual overlay `Box` animating `pressHighlightAlpha` with `MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f * pressHighlightAlpha)`. Because `clickable` captures touch-down before `draggable` consumes horizontal drag slop, `isPressed` became `true` on initial touch, drawing a dark gray overlay rectangle over the entire card during swipes.
+    2. The sliding `Surface` used a semi-transparent color `color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)`. When swiping, `cardElevation` elevated to `4.dp`. In Android's rendering pipeline, an elevation shadow beneath a translucent surface shines directly through the surface pixels. Combined with the revealed action canvas behind it, this blended the card into a dark, muddy brownish-gray block.
+  - **Architecture Improvements & Fixes**:
+    1. **Removed Manual Gray Box & Press States**: Stripped away `pressHighlightAlpha` and the overlay `Box` entirely.
+    2. **Opaque Physical Surface (`MaterialTheme.colorScheme.surfaceContainer`)**: Upgraded `Surface` color from translucent `surfaceVariant.copy(alpha = 0.45f)` to opaque `MaterialTheme.colorScheme.surfaceContainer` (`0xFFEBF0EB` in light mode, `0xFF1A1E1C` in dark mode).
+       - Card face is 100% opaque: the underlying action canvas (`errorContainer` for delete, `tertiaryContainer` for edit) only reveals where the card slides away, never bleeding through the card body.
+       - The `4.dp` elevation drop shadow renders cleanly behind the card onto the background, producing a real 3D floating effect while keeping the card face pristine and bright.
+       - Swiping left and right maintains a 100% clean, crisp card face with zero gray tint or mud.
+    3. **Responsive Tap & Edit Action**: Tapping a transaction triggers `haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)` and opens the `EditTransactionDialog` immediately without unwanted visual artifacts.
+- **Live Device Verification (Waydroid `192.168.240.112:5555`) with ARTEMIS**:
+  - Left Swipe (Delete): Verified card slides smoothly over soft pink/red delete background with trash icon; card face remains pristine white/mint with zero gray tint (`mid_swipe_verified.png`).
+  - Right Swipe (Edit): Verified card slides smoothly over cyan edit background with pencil icon; card face remains pristine with zero gray tint (`mid_swipe_right_verified.png`).
+  - Tap: Verified tapping opens `EditTransactionDialog` immediately with tactile haptics; Cancel closes dialog cleanly (`tap_edit_dialog_verified.png`, `history_closed_dialog.png`).
+  - Preserved artifact: `waydroid_history_clean_swipe.jpg`.
+
 ### 2026-10-01: Category & Asset Selection UI/UX Overhaul (Icon Preservation, Floating Pill Symmetry, Trailing Add Chip & Smart Frequency Sorting)
 - **Visual Identity & Icon Preservation on Selection**:
   - Previously, selecting a category or asset replaced its icon with a generic checkmark (`Icons.Filled.Check`), stripping away the visual anchor (e.g. food, transport, wallet).

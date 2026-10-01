@@ -15,7 +15,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -65,14 +64,6 @@ fun ExpressiveSwipeRow(
     val dragOffsetX = remember { Animatable(0f) }
     var rawDragX by remember { mutableFloatStateOf(0f) }
     var isPastThreshold by remember { mutableStateOf(false) }
-    var isDragging by remember { mutableStateOf(false) }
-    val rowInteractionSource = remember { MutableInteractionSource() }
-    val isPressed by rowInteractionSource.collectIsPressedAsState()
-    val pressHighlightAlpha by animateFloatAsState(
-        targetValue = if (isPressed && !isDragging) 1f else 0f,
-        animationSpec = tween(durationMillis = 100),
-        label = "SwipePressHighlight"
-    )
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -185,7 +176,6 @@ fun ExpressiveSwipeRow(
                     state = draggableState,
                     orientation = Orientation.Horizontal,
                     onDragStarted = {
-                        isDragging = true
                         dragOffsetX.stop()
                         rawDragX = dragOffsetX.value
                     },
@@ -200,7 +190,6 @@ fun ExpressiveSwipeRow(
                             )
                             rawDragX = 0f
                             isPastThreshold = false
-                            isDragging = false
                             if (pastThreshold) {
                                 if (delete) onDelete() else onEdit()
                             }
@@ -209,28 +198,16 @@ fun ExpressiveSwipeRow(
                 )
                 .clip(shape)
                 .clickable(
-                    interactionSource = rowInteractionSource,
+                    interactionSource = remember { MutableInteractionSource() },
                     indication = null
-                ) { onEdit() },
+                ) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onEdit()
+                },
             shape = shape,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            color = MaterialTheme.colorScheme.surfaceContainer,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
-        ) {
-            Box {
-                content()
-                if (pressHighlightAlpha > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clip(shape)
-                            .background(
-                                MaterialTheme.colorScheme.onSurface.copy(
-                                    alpha = 0.08f * pressHighlightAlpha
-                                )
-                            )
-                    )
-                }
-            }
-        }
+            content = content
+        )
     }
 }
