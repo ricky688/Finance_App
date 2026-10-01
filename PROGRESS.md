@@ -8,6 +8,26 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-01: Category & Asset Selection UI/UX Overhaul (Icon Preservation, Floating Pill Symmetry, Trailing Add Chip & Smart Frequency Sorting)
+- **Visual Identity & Icon Preservation on Selection**:
+  - Previously, selecting a category or asset replaced its icon with a generic checkmark (`Icons.Filled.Check`), stripping away the visual anchor (e.g. food, transport, wallet).
+  - Now, `iconProvider` remains permanently visible. When selected, an elegant mini checkmark (`14.dp`) smoothly springs into view alongside the icon via `AnimatedVisibility(fadeIn() + expandHorizontally())`, giving both immediate positive selection feedback and preserving instant icon recognition.
+- **Floating Expressive Pill Symmetry (`20.dp` Resting Corners)**:
+  - Since scrollable chips are spaced by `8.dp`, asymmetric segmented corners (24dp on first, 8dp on middle) caused floating items to look uneven.
+  - Now, when `isScrollable = true`, all four corners have a uniform `20.dp` resting radius. When pressed, all four corners morph into `8.dp` squircle with `Spring.StiffnessMedium` (1500) and spring back with bouncy overshoot (`Spring.DampingRatioMediumBouncy`), creating consistent visual rhythm across the horizontal scroll strip.
+- **Trailing `[ + Add ]` Expressive Chip**:
+  - Removed cluttered `+ Add Category` and `+ Add Card / Account` text links from section headers, leaving clean, minimalist category and account labels.
+  - Added a dedicated, reusable `ExpressiveAddButton` chip at the tail of the horizontal scrollable lists. When clicked, it smoothly toggles open the inline creation form with spring haptic feedback.
+- **Smart Usage Frequency Sorting (LRU / Frequency Ranking)**:
+  - Dynamically calculates category and account usage frequency from `state.transactions`.
+  - Automatically sorts `sortedExpenseCategories`, `sortedIncomeCategories`, and `sortedAccounts` with the user's most frequently used items positioned at index 0, 1, 2!
+  - Automatically initializes selection to the user's #1 most frequent category and account, eliminating repetitive scrolling and hunting for regular expenses.
+- **Live Device Verification (Waydroid `192.168.240.112:5555`) with ARTEMIS**:
+  - Verified `Other` (user's most frequent category) and `octopus card` (user's most frequent account) naturally bubbled to position #1 and defaulted.
+  - Verified `[ ✓ ... Other ]` and `[ ✓ 👛 octopus card ]` keep icons perfectly intact.
+  - Swiped to the end of both rows, verified `[ + Add ]` chips exist and expand the inline add form.
+  - Captured live screenshot `waydroid_optimized_category_asset.jpg`.
+
 ### 2026-10-01: Connected Button Groups Spring Shape Morphing (`MainScreen.kt` & `RecurringScreen.kt`)
 - **Connected Button Group Spring Shape Morphing (`ExpressiveSegmentedButtonGroup` & `ConnectedButtonGroup`)**:
   - **Identical Material 3 Expressive Press Motion**:

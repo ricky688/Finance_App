@@ -1632,6 +1632,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
     modifier: Modifier = Modifier,
     isScrollable: Boolean = false,
     iconProvider: @Composable ((T, Color) -> Unit)? = null,
+    trailingContent: @Composable (() -> Unit)? = null,
     labelProvider: @Composable (T) -> String
 ) {
     Row(
@@ -1640,7 +1641,8 @@ fun <T> ExpressiveSegmentedButtonGroup(
         } else {
             modifier.fillMaxWidth()
         },
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEachIndexed { index, item ->
             val isSelected = index == selectedIndex
@@ -1670,10 +1672,11 @@ fun <T> ExpressiveSegmentedButtonGroup(
 
             val isShapeActive = isPressed.value || isPulsing
 
-            val restingTopStart = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp)
-            val restingBottomStart = if (isSelected) 24.dp else (if (index == 0) 24.dp else 8.dp)
-            val restingTopEnd = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp)
-            val restingBottomEnd = if (isSelected) 24.dp else (if (index == items.size - 1) 24.dp else 8.dp)
+            val restingCorner = 20.dp
+            val restingTopStart = if (isScrollable || isSelected) restingCorner else (if (index == 0) 24.dp else 8.dp)
+            val restingBottomStart = if (isScrollable || isSelected) restingCorner else (if (index == 0) 24.dp else 8.dp)
+            val restingTopEnd = if (isScrollable || isSelected) restingCorner else (if (index == items.size - 1) 24.dp else 8.dp)
+            val restingBottomEnd = if (isScrollable || isSelected) restingCorner else (if (index == items.size - 1) 24.dp else 8.dp)
 
             val pressedCorner = 8.dp
 
@@ -1768,15 +1771,27 @@ fun <T> ExpressiveSegmentedButtonGroup(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = contentColor
+                    AnimatedVisibility(
+                        visible = isSelected,
+                        enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                        ),
+                        exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    } else if (iconProvider != null) {
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = contentColor
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+                    }
+                    
+                    if (iconProvider != null) {
                         iconProvider(item, contentColor)
                         Spacer(modifier = Modifier.width(4.dp))
                     }
@@ -1791,6 +1806,97 @@ fun <T> ExpressiveSegmentedButtonGroup(
                     )
                 }
             }
+        }
+        trailingContent?.invoke()
+    }
+}
+
+@Composable
+fun ExpressiveAddButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed = interactionSource.collectIsPressedAsState()
+    var isPulsing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var releaseJob by remember { mutableStateOf<Job?>(null) }
+    val view = LocalView.current
+    val haptic = LocalHapticFeedback.current
+
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is PressInteraction.Press -> {
+                    releaseJob?.cancel()
+                    isPulsing = true
+                }
+                is PressInteraction.Release, is PressInteraction.Cancel -> {
+                    releaseJob?.cancel()
+                    releaseJob = coroutineScope.launch {
+                        delay(140)
+                        isPulsing = false
+                    }
+                }
+            }
+        }
+    }
+
+    val isShapeActive = isPressed.value || isPulsing
+    val cornerRadius by animateDpAsState(
+        targetValue = if (isShapeActive) 8.dp else 20.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+        ),
+        label = "addBtnCorner"
+    )
+    val shape = RoundedCornerShape(cornerRadius)
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = shape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        modifier = modifier
+            .clip(shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(),
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                    releaseJob?.cancel()
+                    isPulsing = true
+                    releaseJob = coroutineScope.launch {
+                        delay(140)
+                        isPulsing = false
+                    }
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1
+            )
         }
     }
 }
@@ -1847,19 +1953,47 @@ fun AddExpenseSheetContent(
     val haptic = LocalHapticFeedback.current
     var typedAmount by remember { mutableStateOf("0.00") }
     var descriptionText by remember { mutableStateOf("") }
-    var categoryText by remember { mutableStateOf("Food") }
-    var selectedAccount by remember { mutableStateOf<AccountEntity?>(state.accounts.firstOrNull()) }
-    var selectedToAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var isDailyBudget by remember { mutableStateOf(true) }
     
     val transactionMode = initialMode
     val isTransfer = initialMode == TransactionMode.TRANSFER
     var selectedCurrency by remember { mutableStateOf("HKD") }
  
+    // Smart Frequency Sorting based on transaction history
+    val categoryFrequency = remember(state.transactions) {
+        state.transactions.groupingBy { it.category }.eachCount()
+    }
+    val accountFrequency = remember(state.transactions) {
+        state.transactions.groupingBy { it.accountId }.eachCount()
+    }
+
     val expenseCategories = remember { mutableStateListOf("Food", "Transport", "Shopping", "Utilities", "Other") }
     val incomeCategories = remember { mutableStateListOf("Salary", "Bonus", "Investment", "Part-Time", "Gift", "Other Income") }
-    var expenseCategoryText by remember { mutableStateOf("Food") }
-    var incomeCategoryText by remember { mutableStateOf("Salary") }
+
+    val sortedExpenseCategories = remember(expenseCategories.toList(), categoryFrequency) {
+        expenseCategories.sortedWith(
+            compareByDescending<String> { categoryFrequency[it] ?: 0 }
+        )
+    }
+    val sortedIncomeCategories = remember(incomeCategories.toList(), categoryFrequency) {
+        incomeCategories.sortedWith(
+            compareByDescending<String> { categoryFrequency[it] ?: 0 }
+        )
+    }
+    val sortedAccounts = remember(state.accounts, accountFrequency) {
+        state.accounts.sortedWith(
+            compareByDescending { accountFrequency[it.id] ?: 0 }
+        )
+    }
+
+    val initialExpenseCat = remember { sortedExpenseCategories.firstOrNull() ?: "Food" }
+    val initialIncomeCat = remember { sortedIncomeCategories.firstOrNull() ?: "Salary" }
+    var expenseCategoryText by remember { mutableStateOf(initialExpenseCat) }
+    var incomeCategoryText by remember { mutableStateOf(initialIncomeCat) }
+
+    val initialAccount = remember { sortedAccounts.firstOrNull() ?: state.accounts.firstOrNull() }
+    var selectedAccount by remember { mutableStateOf(initialAccount) }
+    var selectedToAccount by remember { mutableStateOf<AccountEntity?>(null) }
 
     var showInlineAddCategory by remember { mutableStateOf(false) }
     var showInlineAddAsset by remember { mutableStateOf(false) }
@@ -2174,30 +2308,12 @@ fun AddExpenseSheetContent(
             )
         ) {
             Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Category",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                    Text(
-                        text = "+ Add Category",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                showInlineAddCategory = !showInlineAddCategory
-                            }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
+                Text(
+                    text = if (transactionMode == TransactionMode.INCOME) "Category (Income)" else "Category",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
                 
                 AnimatedVisibility(
                     visible = showInlineAddCategory && !isTransfer,
@@ -2235,12 +2351,12 @@ fun AddExpenseSheetContent(
                                     val name = newCatName.trim()
                                     if (transactionMode == TransactionMode.INCOME) {
                                         if (name.isNotEmpty() && !incomeCategories.contains(name)) {
-                                            incomeCategories.add(name)
+                                            incomeCategories.add(0, name)
                                             incomeCategoryText = name
                                         }
                                     } else {
                                         if (name.isNotEmpty() && !expenseCategories.contains(name)) {
-                                            expenseCategories.add(name)
+                                            expenseCategories.add(0, name)
                                             expenseCategoryText = name
                                         }
                                     }
@@ -2259,7 +2375,7 @@ fun AddExpenseSheetContent(
                     }
                 }
                 
-                val currentCategories = if (transactionMode == TransactionMode.INCOME) incomeCategories else expenseCategories
+                val currentCategories = if (transactionMode == TransactionMode.INCOME) sortedIncomeCategories else sortedExpenseCategories
                 val currentCategoryText = if (transactionMode == TransactionMode.INCOME) incomeCategoryText else expenseCategoryText
 
                 ExpressiveSegmentedButtonGroup(
@@ -2267,14 +2383,22 @@ fun AddExpenseSheetContent(
                     selectedIndex = currentCategories.indexOf(currentCategoryText),
                     onItemSelected = { index ->
                         if (transactionMode == TransactionMode.INCOME) {
-                            incomeCategoryText = incomeCategories[index]
+                            incomeCategoryText = currentCategories[index]
                         } else {
-                            expenseCategoryText = expenseCategories[index]
+                            expenseCategoryText = currentCategories[index]
                         }
                     },
                     isScrollable = true,
                     iconProvider = { cat, tintColor ->
                         CategoryIcon(category = cat, tint = tintColor, modifier = Modifier.size(16.dp))
+                    },
+                    trailingContent = {
+                        ExpressiveAddButton(
+                            text = "Add",
+                            onClick = {
+                                showInlineAddCategory = !showInlineAddCategory
+                            }
+                        )
                     },
                     labelProvider = { cat -> cat }
                 )
@@ -2286,30 +2410,12 @@ fun AddExpenseSheetContent(
 
         // 3. Asset Selection Horizontal Grid
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isTransfer) "From Account" else "Asset Selection",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-                Text(
-                    text = "+ Add Card / Account",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showInlineAddAsset = !showInlineAddAsset
-                        }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
+            Text(
+                text = if (isTransfer) "From Account" else "Asset Selection",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
             
             AnimatedVisibility(
                 visible = showInlineAddAsset,
@@ -2412,9 +2518,9 @@ fun AddExpenseSheetContent(
             }
             
             ExpressiveSegmentedButtonGroup(
-                items = state.accounts,
-                selectedIndex = state.accounts.indexOfFirst { it.id == selectedAccount?.id },
-                onItemSelected = { index -> selectedAccount = state.accounts[index] },
+                items = sortedAccounts,
+                selectedIndex = sortedAccounts.indexOfFirst { it.id == selectedAccount?.id },
+                onItemSelected = { index -> selectedAccount = sortedAccounts[index] },
                 isScrollable = true,
                 iconProvider = { acc, tintColor ->
                     val accIcon = when (acc.type) {
@@ -2428,6 +2534,14 @@ fun AddExpenseSheetContent(
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = tintColor
+                    )
+                },
+                trailingContent = {
+                    ExpressiveAddButton(
+                        text = "Add",
+                        onClick = {
+                            showInlineAddAsset = !showInlineAddAsset
+                        }
                     )
                 },
                 labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
@@ -2454,8 +2568,8 @@ fun AddExpenseSheetContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                val destAccounts = remember(state.accounts, selectedAccount) {
-                    state.accounts.filter { it.id != selectedAccount?.id }
+                val destAccounts = remember(sortedAccounts, selectedAccount) {
+                    sortedAccounts.filter { it.id != selectedAccount?.id }
                 }
                 ExpressiveSegmentedButtonGroup(
                     items = destAccounts,
