@@ -1,14 +1,22 @@
 package com.example.vibefinance.ui.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,9 +24,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Warning
@@ -28,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -48,6 +59,111 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.pow
+
+enum class CalendarDisplayMode {
+    HEATMAP,
+    CALENDAR
+}
+
+@Composable
+fun ExpressiveDualViewSwitcher(
+    currentMode: CalendarDisplayMode,
+    onModeSelected: (CalendarDisplayMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+        ),
+        modifier = modifier.height(34.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ExpressiveCapsuleTab(
+                selected = currentMode == CalendarDisplayMode.HEATMAP,
+                icon = Icons.Default.GridView,
+                label = "Habit",
+                onClick = { onModeSelected(CalendarDisplayMode.HEATMAP) }
+            )
+            ExpressiveCapsuleTab(
+                selected = currentMode == CalendarDisplayMode.CALENDAR,
+                icon = Icons.Default.CalendarMonth,
+                label = "Month",
+                onClick = { onModeSelected(CalendarDisplayMode.CALENDAR) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExpressiveCapsuleTab(
+    selected: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "capsuleScale"
+    )
+
+    val bgColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "capsuleBg"
+    )
+
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "capsuleContentColor"
+    )
+
+    Box(
+        modifier = Modifier
+            .scale(scale)
+            .clip(RoundedCornerShape(50))
+            .background(bgColor, RoundedCornerShape(50))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null
+            ) { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
 
 private val CELL_SIZE = 48.dp
 
@@ -180,7 +296,9 @@ fun SpendsCalendar(
         map
     }
 
+    var displayMode by remember { mutableStateOf(CalendarDisplayMode.HEATMAP) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showDetailSheet by remember { mutableStateOf(false) }
     val today = remember { LocalDate.now() }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -204,7 +322,7 @@ fun SpendsCalendar(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            // Header Title & Legend
+            // Header: Title & Expressive Dual-View Switcher
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -212,152 +330,185 @@ fun SpendsCalendar(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.CalendarToday,
+                        imageVector = if (displayMode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarToday,
                         tint = MaterialTheme.colorScheme.primary,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Spending Calendar Heatmap",
+                        text = if (displayMode == CalendarDisplayMode.HEATMAP) "Financial Rhythm" else "Spending Calendar",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Text(
-                    text = "Tap date for details",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+
+                // Expressive Dual-View Switcher Capsule
+                ExpressiveDualViewSwitcher(
+                    currentMode = displayMode,
+                    onModeSelected = { displayMode = it }
                 )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Visual Heatmap Legend Key Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                LegendChip(color = Color(0xFF40AC02), label = "Healthy (≤100%)")
-                LegendChip(color = Color(0xFFFABC20), label = "Moderate")
-                LegendChip(color = Color(0xFFC70909), label = "Over Limit (>100%)")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Layout(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                measurePolicy = verticalGridMeasurePolicy(7),
-                content = {
-                    months.forEach { month ->
-                        // 1. Month Header
-                        Box(
-                            modifier = Modifier
-                                .layoutId("fullWidth")
-                                .height(CELL_SIZE),
-                            contentAlignment = Alignment.BottomStart
-                        ) {
-                            val monthStr = remember(month) {
-                                month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US))
+            AnimatedContent(
+                targetState = displayMode,
+                transitionSpec = {
+                    if (targetState == CalendarDisplayMode.CALENDAR) {
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> width / 3 } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> -width / 3 } + fadeOut())
+                    } else {
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> -width / 3 } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> width / 3 } + fadeOut())
+                    }
+                },
+                label = "dualViewModeTransition"
+            ) { mode ->
+                when (mode) {
+                    CalendarDisplayMode.HEATMAP -> {
+                        M3ExpressiveHeatmap(
+                            transactions = state.transactions,
+                            dailyBudget = dailyBudget,
+                            selectedDate = selectedDate,
+                            onDateSelected = { selectedDate = it },
+                            onViewTransactionsForDate = { date ->
+                                selectedDate = date
+                                showDetailSheet = true
                             }
-                            Text(
-                                text = monthStr,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-
-                        // 2. Weekday Headers
-                        val headers = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-                        headers.forEach { h ->
-                            Box(
+                        )
+                    }
+                    CalendarDisplayMode.CALENDAR -> {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // Visual Heatmap Legend Key Bar
+                            Row(
                                 modifier = Modifier
-                                    .height(CELL_SIZE)
-                                    .fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = h,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-
-                        // 3. Days Grid
-                        val daysInMonth = month.lengthOfMonth()
-                        val firstDayOfWeek = month.atDay(1).dayOfWeek.value // Mon = 1, ..., Sun = 7
-                        val blanksCount = firstDayOfWeek % 7
-
-                        // Blanks at start
-                        repeat(blanksCount) {
-                            Box(modifier = Modifier.size(CELL_SIZE))
-                        }
-
-                        // Month Days
-                        for (dayNum in 1..daysInMonth) {
-                            val cellDay = month.atDay(dayNum)
-                            val spent = daySpending[cellDay] ?: 0.0
-                            val percent = if (dailyBudget > 0.0) (spent / dailyBudget).toFloat() else 0f
-                            val zIndexVal = if (spent > 0.0) -percent + 1000f else 0f
-                            val isSelected = selectedDate == cellDay
-                            val isToday = cellDay == today
-                            val isInPeriod = !cellDay.isBefore(startLocal) && !cellDay.isAfter(endLocal)
-
-                            Box(
-                                modifier = Modifier
-                                    .height(CELL_SIZE)
                                     .fillMaxWidth()
-                                    .zIndex(zIndexVal)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        selectedDate = if (isSelected) null else cellDay
-                                    },
-                                contentAlignment = Alignment.Center
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                DayCell(
-                                    day = cellDay,
-                                    spent = spent,
-                                    dailyBudget = dailyBudget,
-                                    isDarkTheme = isDark,
-                                    percent = percent,
-                                    isSelected = isSelected,
-                                    isToday = isToday,
-                                    isInPeriod = isInPeriod
-                                )
+                                LegendChip(color = Color(0xFF40AC02), label = "Healthy (≤100%)")
+                                LegendChip(color = Color(0xFFFABC20), label = "Moderate")
+                                LegendChip(color = Color(0xFFC70909), label = "Over Limit (>100%)")
                             }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Layout(
+                                modifier = Modifier.fillMaxWidth(),
+                                measurePolicy = verticalGridMeasurePolicy(7),
+                                content = {
+                                    months.forEach { month ->
+                                        // 1. Month Header
+                                        Box(
+                                            modifier = Modifier
+                                                .layoutId("fullWidth")
+                                                .height(CELL_SIZE),
+                                            contentAlignment = Alignment.BottomStart
+                                        ) {
+                                            val monthStr = remember(month) {
+                                                month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US))
+                                            }
+                                            Text(
+                                                text = monthStr,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
+                                        }
+
+                                        // 2. Weekday Headers
+                                        val headers = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                                        headers.forEach { h ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(CELL_SIZE)
+                                                    .fillMaxWidth(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = h,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+
+                                        // 3. Days Grid
+                                        val daysInMonth = month.lengthOfMonth()
+                                        val firstDayOfWeek = month.atDay(1).dayOfWeek.value // Mon = 1, ..., Sun = 7
+                                        val blanksCount = firstDayOfWeek % 7
+
+                                        // Blanks at start
+                                        repeat(blanksCount) {
+                                            Box(modifier = Modifier.size(CELL_SIZE))
+                                        }
+
+                                        // Month Days
+                                        for (dayNum in 1..daysInMonth) {
+                                            val cellDay = month.atDay(dayNum)
+                                            val spent = daySpending[cellDay] ?: 0.0
+                                            val percent = if (dailyBudget > 0.0) (spent / dailyBudget).toFloat() else 0f
+                                            val zIndexVal = if (spent > 0.0) -percent + 1000f else 0f
+                                            val isSelected = selectedDate == cellDay
+                                            val isToday = cellDay == today
+                                            val isInPeriod = !cellDay.isBefore(startLocal) && !cellDay.isAfter(endLocal)
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(CELL_SIZE)
+                                                    .fillMaxWidth()
+                                                    .zIndex(zIndexVal)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .clickable {
+                                                        selectedDate = cellDay
+                                                        showDetailSheet = true
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                DayCell(
+                                                    day = cellDay,
+                                                    spent = spent,
+                                                    dailyBudget = dailyBudget,
+                                                    isDarkTheme = isDark,
+                                                    percent = percent,
+                                                    isSelected = isSelected,
+                                                    isToday = isToday,
+                                                    isInPeriod = isInPeriod
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
                 }
-            )
+            }
         }
     }
 
     // Modal Bottom Sheet for Day Expense Details
-    if (selectedDate != null) {
+    if (showDetailSheet && selectedDate != null) {
         val date = selectedDate!!
-        val dateSpent = daySpending[date] ?: 0.0
         val dayTxList = remember(state.transactions, date) {
             state.transactions.filter { tx ->
                 val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
                 txDate == date && tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0
             }
         }
+        val dateSpent = remember(dayTxList) { dayTxList.sumOf { it.amount } }
         val sheetState = rememberModalBottomSheetState()
 
         ModalBottomSheet(
-            onDismissRequest = { selectedDate = null },
+            onDismissRequest = { showDetailSheet = false },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 10.dp
@@ -387,7 +538,7 @@ fun SpendsCalendar(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    IconButton(onClick = { selectedDate = null }) {
+                    IconButton(onClick = { showDetailSheet = false }) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
                     }
                 }
