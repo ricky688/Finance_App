@@ -127,6 +127,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -616,6 +617,19 @@ fun MainScreen(
         label = "navBarOffsetY"
     )
 
+    val navBarInsetsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val fabMaxTranslation = if (measuredBottomBarHeightPx > 0f) {
+        (with(density) { measuredBottomBarHeightPx.toDp() } - navBarInsetsBottom).coerceIn(60.dp, 96.dp)
+    } else {
+        80.dp
+    }
+
+    val fabOffsetY by animateDpAsState(
+        targetValue = if (isNavBarVisible) 0.dp else fabMaxTranslation,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy),
+        label = "fabOffsetY"
+    )
+
     val nestedScrollConnection = remember(showAddDialog, topBarCollapseThresholdPx) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -988,6 +1002,9 @@ fun MainScreen(
                                         modifier = Modifier.animateIcon({ checkedProgress })
                                     )
                                 }
+                            },
+                            modifier = Modifier.graphicsLayer {
+                                translationY = with(density) { fabOffsetY.toPx() }
                             }
                         ) {
                             FloatingActionButtonMenuItem(
@@ -1033,7 +1050,11 @@ fun MainScreen(
                             },
                             icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_add)) },
                             text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.clip(RoundedCornerShape(16.dp)),
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    translationY = with(density) { fabOffsetY.toPx() }
+                                }
+                                .clip(RoundedCornerShape(16.dp)),
                             shape = RoundedCornerShape(16.dp),
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
