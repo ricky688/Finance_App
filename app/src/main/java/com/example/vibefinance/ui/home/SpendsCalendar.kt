@@ -7,8 +7,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -16,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -26,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
@@ -42,6 +46,14 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
+import android.view.SoundEffectConstants
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.layoutId
@@ -71,96 +83,202 @@ fun ExpressiveDualViewSwitcher(
     onModeSelected: (CalendarDisplayMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val modes = remember { listOf(CalendarDisplayMode.HEATMAP, CalendarDisplayMode.CALENDAR) }
+    val selectedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
+    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
+
     Surface(
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.35f),
         border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
         ),
-        modifier = modifier.height(34.dp)
+        modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ExpressiveCapsuleTab(
-                selected = currentMode == CalendarDisplayMode.HEATMAP,
-                icon = Icons.Default.GridView,
-                label = "Habit",
-                onClick = { onModeSelected(CalendarDisplayMode.HEATMAP) }
-            )
-            ExpressiveCapsuleTab(
-                selected = currentMode == CalendarDisplayMode.CALENDAR,
-                icon = Icons.Default.CalendarMonth,
-                label = "Month",
-                onClick = { onModeSelected(CalendarDisplayMode.CALENDAR) }
-            )
-        }
-    }
-}
+            modes.forEachIndexed { index, mode ->
+                val isSelected = index == selectedIndex
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed = interactionSource.collectIsPressedAsState()
+                var isPulsing by remember { mutableStateOf(false) }
+                val coroutineScope = rememberCoroutineScope()
+                var releaseJob by remember { mutableStateOf<Job?>(null) }
 
-@Composable
-private fun ExpressiveCapsuleTab(
-    selected: Boolean,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+                LaunchedEffect(interactionSource) {
+                    interactionSource.interactions.collect { interaction ->
+                        when (interaction) {
+                            is PressInteraction.Press -> {
+                                releaseJob?.cancel()
+                                isPulsing = true
+                            }
+                            is PressInteraction.Release, is PressInteraction.Cancel -> {
+                                releaseJob?.cancel()
+                                releaseJob = coroutineScope.launch {
+                                    delay(140)
+                                    isPulsing = false
+                                }
+                            }
+                        }
+                    }
+                }
 
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "capsuleScale"
-    )
+                val isShapeActive = isPressed.value || isPulsing
 
-    val bgColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "capsuleBg"
-    )
+                // Material 3 Expressive Connected Button Geometry:
+                // Outer corners retain 18.dp rounding; inner adjacent corners are 4.dp when unselected.
+                // When selected, inner corners smoothly expand to 18.dp for a distinct expressive pill!
+                // When pressed / pulsing, all 4 corners morph to 6.dp with snappy bouncy spring physics.
+                val restingTopStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
+                val restingBottomStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
+                val restingTopEnd = if (isSelected) 18.dp else (if (index == modes.size - 1) 18.dp else 4.dp)
+                val restingBottomEnd = if (isSelected) 18.dp else (if (index == modes.size - 1) 18.dp else 4.dp)
 
-    val contentColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "capsuleContentColor"
-    )
+                val pressedCorner = 6.dp
 
-    Box(
-        modifier = Modifier
-            .scale(scale)
-            .clip(RoundedCornerShape(50))
-            .background(bgColor, RoundedCornerShape(50))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null
-            ) { onClick() }
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(13.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor,
-                fontSize = 11.sp
-            )
+                val topStart by animateDpAsState(
+                    targetValue = if (isShapeActive) pressedCorner else restingTopStart,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherTopStart_$index"
+                )
+                val bottomStart by animateDpAsState(
+                    targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherBottomStart_$index"
+                )
+                val topEnd by animateDpAsState(
+                    targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherTopEnd_$index"
+                )
+                val bottomEnd by animateDpAsState(
+                    targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherBottomEnd_$index"
+                )
+
+                val buttonShape = RoundedCornerShape(
+                    topStart = topStart,
+                    bottomStart = bottomStart,
+                    topEnd = topEnd,
+                    bottomEnd = bottomEnd
+                )
+
+                val scale by animateFloatAsState(
+                    targetValue = if (isShapeActive) 0.94f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherScale_$index"
+                )
+
+                val containerColor by animateColorAsState(
+                    targetValue = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        Color.Transparent
+                    },
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "switcherContainerColor_$index"
+                )
+
+                val contentColor by animateColorAsState(
+                    targetValue = if (isSelected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "switcherContentColor_$index"
+                )
+
+                Surface(
+                    color = containerColor,
+                    contentColor = contentColor,
+                    shape = buttonShape,
+                    modifier = Modifier
+                        .scale(scale)
+                        .clip(buttonShape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = ripple(),
+                            onClick = {
+                                if (!isSelected) {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    view.playSoundEffect(SoundEffectConstants.CLICK)
+                                    releaseJob?.cancel()
+                                    isPulsing = true
+                                    releaseJob = coroutineScope.launch {
+                                        delay(140)
+                                        isPulsing = false
+                                    }
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onModeSelected(mode)
+                                }
+                            }
+                        )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        AnimatedVisibility(
+                            visible = isSelected,
+                            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                                    expandHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)),
+                            exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
+                                    shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp),
+                                    tint = contentColor
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
+                        }
+
+                        Icon(
+                            imageVector = if (mode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = if (mode == CalendarDisplayMode.HEATMAP) "Habit" else "Month",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            color = contentColor,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -328,7 +446,10 @@ fun SpendsCalendar(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = if (displayMode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarToday,
                         tint = MaterialTheme.colorScheme.primary,
@@ -340,11 +461,15 @@ fun SpendsCalendar(
                         text = if (displayMode == CalendarDisplayMode.HEATMAP) "Financial Rhythm" else "Spending Calendar",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
 
-                // Expressive Dual-View Switcher Capsule
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Expressive Dual-View Switcher Connected Button Group
                 ExpressiveDualViewSwitcher(
                     currentMode = displayMode,
                     onModeSelected = { displayMode = it }
