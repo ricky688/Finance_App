@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.RolloverMode
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.components.ExpressiveSwitch
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.abs
@@ -368,15 +369,9 @@ fun RecalcBudgetSheet(
                                 color = secondaryTextColor
                             )
                         }
-                        Switch(
+                        ExpressiveSwitch(
                             checked = rememberChoice,
-                            onCheckedChange = { rememberChoice = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF00E676),
-                                uncheckedThumbColor = primaryTextColor.copy(alpha = 0.6f),
-                                uncheckedTrackColor = primaryTextColor.copy(alpha = 0.15f)
-                            )
+                            onCheckedChange = { rememberChoice = it }
                         )
                     }
                 }

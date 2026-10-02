@@ -8,6 +8,28 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-02: Daily Recalculate Rollover Optimization (Material 3 Expressive Switch & Zero Leftover Auto-Bypass)
+- **Material 3 Expressive Switch Integration (`RecalcBudgetSheet.kt`)**:
+  - Replaced the legacy, standard `Switch` in the "記住選擇" (Remember Choice) card with the app's standard `ExpressiveSwitch`.
+  - **OFF (Unselected) State**: 2dp solid outline border (`MaterialTheme.colorScheme.outline`), `surfaceContainerHighest` track fill, 24dp outline thumb with subtle Close (`✕`) icon.
+  - **ON (Selected) State**: Filled emerald track (`MaterialTheme.colorScheme.primary`), 24dp `onPrimary` white thumb with sharp Check (`✓`) icon.
+  - **Kinetic Physics**: 28dp horizontal press stretch with bouncy spring kinetics (`Spring.DampingRatioMediumBouncy`), 48dp accessible touch target, and tactile haptics.
+- **Zero Yesterday Leftover Auto-Bypass (`MainScreen.kt`)**:
+  - **Problem Solved**: Previously, whenever a new day began, `MainScreen.kt` unconditionally popped up the "昨日結餘" (Recalculate Budget) sheet even when yesterday's leftover balance was `HK$0` (spent completely or overspent). Distributing `HK$0` between "Split by remaining days" and "Leave for Today" is functionally redundant and disrupted user flow upon opening the app.
+  - **Intelligent Leftover Calculation (`computeYesterdayRemainingBudget()`)**:
+    - Dynamically evaluates standard base daily allowance against actual logged yesterday expenses within the active budget period.
+    - If yesterday was before the period start date, returns `0.0`.
+  - **Zero-Bypass on Morning App Launch (`checkAndTriggerAutoSheets()`)**:
+    - If `yesterdayLeft <= 0.001`, the system silently marks `last_daily_recalc_date` in `SharedPreferences` and **bypasses the pop-up entirely**.
+    - The user opens the app and lands directly on their clean Daily overview without interruption.
+    - If yesterday had positive leftover (`> HK$0`), the prompt displays normally (unless the user enabled "記住選擇", which automatically applies their saved mode).
+    - Users can still manually launch the recalculation sheet at any time via the "Recalculate" button on `HeroDailyBudgetCard`.
+- **Live Device Verification (Waydroid `192.168.240.112:5555`) with ARTEMIS**:
+  - Fresh app launch with `yesterdayLeft == 0`: Verified app launches directly into Daily screen without pop-up (`waydroid_no_popup_verified.png`).
+  - Manual recalculation sheet open: Verified `ExpressiveSwitch` in OFF state displays outline + Close icon (`recalc_sheet_expressive_switch.png`).
+  - Toggled `ExpressiveSwitch` to ON: Verified filled emerald track + Check icon + spring animation (`recalc_sheet_expressive_switch_on.png`).
+  - Dismissed sheet via close button: Verified return to Daily overview (`recalc_sheet_closed.png`).
+
 ### 2026-10-01: History Row Swipe UI/UX Optimization (Elimination of Gray Highlight / Film Overlay)
 - **Elimination of Muddy Gray Highlight / Overlay on History Swipe Rows (`ExpressiveSwipeRow.kt`)**:
   - **Root Cause Identified**:

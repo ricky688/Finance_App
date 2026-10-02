@@ -741,6 +741,33 @@ fun MainScreen(
 
     var hasAutoTriggeredForSession by remember { mutableStateOf(false) }
 
+    fun computeYesterdayRemainingBudget(): Double {
+        if (budgetInfo.totalMonthlyBudget <= 0 || budgetInfo.startDate <= 0 || budgetInfo.endDate <= 0) return 0.0
+        val today = LocalDate.now()
+        val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val yesterdayStart = today.minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val startLocal = Instant.ofEpochMilli(budgetInfo.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        val endLocal = Instant.ofEpochMilli(budgetInfo.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
+
+        if (today.minusDays(1).isBefore(startLocal)) {
+            return 0.0
+        }
+
+        val totalDaysInPeriod = (java.time.temporal.ChronoUnit.DAYS.between(startLocal, endLocal) + 1).coerceAtLeast(1).toDouble()
+        val standardBaseDaily = if (totalDaysInPeriod > 0) budgetInfo.totalMonthlyBudget / totalDaysInPeriod else 0.0
+
+        val yesterdayExpenses = state.transactions.filter {
+            it.toAccountId == null &&
+            !it.isExcludedFromDailyBudget &&
+            it.amount > 0 &&
+            it.timestamp >= yesterdayStart &&
+            it.timestamp < todayStart
+        }.sumOf { it.amount }
+
+        return (standardBaseDaily - yesterdayExpenses).coerceAtLeast(0.0)
+    }
+
     fun checkAndTriggerAutoSheets() {
         if (hasAutoTriggeredForSession) return
         autoSheetScope.launch {
@@ -752,9 +779,16 @@ fun MainScreen(
                 val currentDateStr = java.time.LocalDate.now().toString()
                 val lastCheckedDate = prefs.getString("last_daily_recalc_date", "")
                 if (lastCheckedDate != currentDateStr && budgetInfo.totalMonthlyBudget > 0 && budgetInfo.daysLeft > 0) {
-                    hasAutoTriggeredForSession = true
-                    isRecalcSheetMandatory = true
-                    showRecalcSheet = true
+                    val yesterdayLeft = computeYesterdayRemainingBudget()
+                    val autoRemember = prefs.getBoolean("auto_apply_recalc_choice", false)
+                    if (yesterdayLeft <= 0.001 || autoRemember) {
+                        hasAutoTriggeredForSession = true
+                        prefs.edit().putString("last_daily_recalc_date", currentDateStr).apply()
+                    } else {
+                        hasAutoTriggeredForSession = true
+                        isRecalcSheetMandatory = true
+                        showRecalcSheet = true
+                    }
                 }
             }
         }
@@ -1538,45 +1572,20 @@ fun MainScreen(
     }
 
     if (showRecalcSheet) {
-        val todayStart = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val yesterdayStart = LocalDate.now().minusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val tomorrowStart = LocalDate.now().plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-        val yesterdayExpenses = state.transactions.filter {
-            it.toAccountId == null &&
-            !it.isExcludedFromDailyBudget &&
-            it.amount > 0 &&
-            it.timestamp >= yesterdayStart &&
-            it.timestamp < todayStart
-        }.sumOf { it.amount }
-
-        val todayExpenses = state.transactions.filter {
-            it.toAccountId == null &&
-            !it.isExcludedFromDailyBudget &&
-            it.amount > 0 &&
-            it.timestamp >= todayStart &&
-            it.timestamp < tomorrowStart
-        }.sumOf { it.amount }
-
-        // Standard base daily allowance for single day in custom period
-        val startLocal = java.time.Instant.ofEpochMilli(budgetInfo.startDate).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-        val endLocal = java.time.Instant.ofEpochMilli(budgetInfo.endDate).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-        val totalDaysInPeriod = (java.time.temporal.ChronoUnit.DAYS.between(startLocal, endLocal) + 1).coerceAtLeast(1).toDouble()
-        val standardBaseDaily = if (totalDaysInPeriod > 0) budgetInfo.totalMonthlyBudget / totalDaysInPeriod else 0.0
-
-        // Yesterday's actual remaining daily budget = standard base daily - yesterday's expenses
-        val yesterdayRemainingBudget = (standardBaseDaily - yesterdayExpenses).coerceAtLeast(0.0)
-
+        val yesterdayRemainingBudget = computeYesterdayRemainingBudget()
         val currentDateStr = java.time.LocalDate.now().toString()
         RecalcBudgetSheet(
             budgetInfo = budgetInfo,
             yesterdayLeftover = yesterdayRemainingBudget,
             isMandatory = isRecalcSheetMandatory,
             isToday = false,
-            onSelectMode = { selectedMode, _ ->
+            onSelectMode = { selectedMode, rememberChoice ->
                 val finalStart = if (budgetInfo.startDate > 0) budgetInfo.startDate else System.currentTimeMillis()
                 viewModel.dispatch(FinanceIntent.SetCustomPeriodBudget(budgetInfo.totalMonthlyBudget, finalStart, budgetInfo.endDate, selectedMode))
                 prefs.edit().putString("last_daily_recalc_date", currentDateStr).apply()
+                if (rememberChoice) {
+                    prefs.edit().putBoolean("auto_apply_recalc_choice", true).apply()
+                }
                 showRecalcSheet = false
             },
             onDismiss = {
