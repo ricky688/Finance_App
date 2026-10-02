@@ -47,8 +47,8 @@ import java.util.Locale
 
 enum class HeatmapTileShape(val label: String) {
     SQUIRCLE("Squircle"),
-    PEBBLE_PILL("Pebble Pill"),
-    SMOOTH_GLOW("Smooth Glow")
+    PEBBLE_PILL("Pill"),
+    SMOOTH_GLOW("Glow")
 }
 
 enum class DaySpendingVibe {
@@ -427,11 +427,6 @@ private fun HeatmapGridSection(
 ) {
     val scrollState = rememberScrollState()
 
-    // Auto-scroll to the right (most recent weeks) on initial composition
-    LaunchedEffect(Unit) {
-        scrollState.scrollTo(scrollState.maxValue)
-    }
-
     val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -492,14 +487,16 @@ private fun HeatmapGridSection(
                     .weight(1f)
                     .drawWithContent {
                         drawContent()
-                        // Left edge fade hint
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                0.0f to Color.Transparent,
-                                0.04f to Color.Black
-                            ),
-                            blendMode = BlendMode.DstIn
-                        )
+                        if (scrollState.value > 0) {
+                            // Left edge fade hint only when scrolled past start
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    0.0f to Color.Transparent,
+                                    0.04f to Color.Black
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        }
                     }
             ) {
                 Row(
@@ -614,71 +611,73 @@ private fun TileShapeSelectorRow(
     currentShape: HeatmapTileShape,
     onSelectShape: (HeatmapTileShape) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "TILE SHAPE",
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            letterSpacing = 0.5.sp
-        )
-
-        HeatmapTileShape.values().forEach { shape ->
-            val isSelected = currentShape == shape
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val scale by animateFloatAsState(
-                targetValue = if (isPressed) 0.94f else 1f,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                label = "shapeChipScale"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "TILE SHAPE",
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                letterSpacing = 0.5.sp
             )
 
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                },
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-                ),
-                modifier = Modifier
-                    .scale(scale)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null
-                    ) { onSelectShape(shape) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            HeatmapTileShape.values().forEach { shape ->
+                val isSelected = currentShape == shape
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.94f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy),
+                    label = "shapeChipScale"
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = if (isSelected) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    },
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .scale(scale)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null
+                        ) { onSelectShape(shape) }
                 ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(12.dp)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        Text(
+                            text = shape.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
-                    Text(
-                        text = shape.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
         }
-    }
 }
 
 @Composable

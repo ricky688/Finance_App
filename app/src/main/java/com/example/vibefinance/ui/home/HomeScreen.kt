@@ -29,6 +29,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import com.example.vibefinance.ui.common.bouncyClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -255,6 +257,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 16.dp,
     onViewAllClick: () -> Unit = {},
+    onCategoryClick: (String) -> Unit = {},
     showAddDialog: Boolean = false,
     onDismissAddDialog: () -> Unit = {},
     onOpenBudgetDialog: () -> Unit = {},
@@ -437,7 +440,10 @@ fun HomeScreen(
                 DailySpendingLineChart(state = state)
             }
             item {
-                CategoryDonutChart(state = state)
+                CategoryDonutChart(
+                    state = state,
+                    onCategoryClick = onCategoryClick
+                )
             }
             item {
                 SpendsCalendar(state = state)
@@ -548,7 +554,8 @@ fun buildDailyCategoryColorMap(
 @Composable
 fun CategoryDonutChart(
     state: FinanceUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCategoryClick: (String) -> Unit = {}
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -617,12 +624,31 @@ fun CategoryDonutChart(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Category Analytics",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            val target = selectedCategory ?: categorySpending.firstOrNull()?.first
+                            if (target != null) {
+                                onCategoryClick(target)
+                            }
+                        }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Category Analytics",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "View Category Details",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
                 AnimatedVisibility(
                     visible = selectedCategory != null,
                     enter = fadeIn(animationSpec = tween(200)) + expandVertically(),
@@ -649,7 +675,32 @@ fun CategoryDonutChart(
             ) {
                 // Interactive Animated Donut Chart Canvas
                 Box(
-                    modifier = Modifier.size(118.dp),
+                    modifier = Modifier
+                        .size(118.dp)
+                        .pointerInput(categorySpending, totalSpending) {
+                            detectTapGestures { offset ->
+                                if (totalSpending > 0) {
+                                    val cx = size.width / 2f
+                                    val cy = size.height / 2f
+                                    val dx = offset.x - cx
+                                    val dy = offset.y - cy
+                                    var angle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                    var relAngle = (angle - (-90f)) % 360f
+                                    if (relAngle < 0f) relAngle += 360f
+
+                                    var currentAngle = 0f
+                                    for ((category, amount) in categorySpending) {
+                                        val sweep = ((amount / totalSpending) * 360f).toFloat()
+                                        if (relAngle >= currentAngle && relAngle < currentAngle + sweep) {
+                                            selectedCategory = category
+                                            onCategoryClick(category)
+                                            break
+                                        }
+                                        currentAngle += sweep
+                                    }
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(
@@ -770,7 +821,8 @@ fun CategoryDonutChart(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable {
-                                        selectedCategory = if (isFocused) null else category
+                                        selectedCategory = category
+                                        onCategoryClick(category)
                                     },
                                 color = rowBgColor,
                                 shape = RoundedCornerShape(10.dp)

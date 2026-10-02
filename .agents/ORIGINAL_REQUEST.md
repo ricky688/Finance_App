@@ -40,3 +40,60 @@ All local testing and execution on devices via ADB must strictly target the Wayd
 ### Material 3 Expressive Polish
 - [ ] Motion transitions adhere to M3 Expressive motion specifications (spring kinetics for transforms and scale, linear/standard easing for alpha and colors).
 - [ ] Cards, chips, and list items have appropriate touch target bounds, expressive corners, and no horizontal clipping.
+
+
+## 2026-10-02T15:05:34Z
+
+Resolve 8 UI, layout, navigation, and motion refinements across VibeFinance (Daily Page, Recurring Page, and Financial Rhythm Heatmap).
+
+Working directory: /home/ricky/Antigravity_project/finance_app
+Integrity mode: development
+
+## Requirements
+
+### R1. Daily Page Widget Redirection
+- Tapping on the "Category Analytics" card (or its category items) must navigate to the History tab and filter transactions by the selected category.
+- Tapping on the "Total Expenses" summary card must navigate to the History tab showing the full transaction history.
+
+### R2. Habit Heatmap Left-Aligned Start
+- The 16-week Habit Heatmap grid must display starting from the left upon initial appearance, removing any auto-scroll to the far right.
+
+### R3. Daily Page FAB Bottom Clearance & Elevation
+- The Floating Action Button (FAB) on the Daily page must remain comfortably accessible above the bottom navigation bar and screen bottom edge, without sinking too low or clipping when the page is scrolled.
+
+### R4. Remove Quick Adding Carousel from Recurring Page
+- Remove the "Popular 1-Tap Quick Add Carousel" (`PresetsCarousel`) from `RecurringScreen.kt`, keeping the standard subscription list and manual add/edit flows.
+
+### R5. Non-Bouncy Heatmap View Switcher Transition
+- Remove the bouncy spring physics (`Spring.DampingRatioMediumBouncy`) when switching between Habit and Month views in `SpendsCalendar.kt`, using a smooth non-bouncy spring (`Spring.DampingRatioNoBouncy`) or clean linear/fade transition.
+
+### R6. Full Visibility for Heatmap Card Header Title
+- Ensure the "Financial Rhythm" / "Spending Calendar" card title is fully visible and not truncated or squeezed on compact mobile screen widths (360dp–480dp) alongside the connected button group switcher.
+
+### R7. Unified Bounded Ripple Highlight for Recurring List
+- Standardize the list item container and bounded ripple highlight in `RecurringScreen.kt` to match the exact list item style and touch response in `HistoryScreen.kt` (using `ExpressiveSwipeRow` or equivalent clean bounded ripple without gray swipe drag artifacts).
+
+### R8. Compact Tile Shape Labels in Habit Heatmap
+- Shorten the tile shape selector labels in `M3ExpressiveHeatmap.kt` (e.g. "Squircle", "Pill", "Glow") so all options fit horizontally on a single line on mobile screens without vertical word-wrapping.
+
+## Acceptance Criteria
+
+### Daily Page
+- [ ] Tapping "Category Analytics" redirects to the History tab with the corresponding category filtered.
+- [ ] Tapping "Total Expenses" redirects to the History tab with all transactions shown.
+- [ ] The Daily page FAB maintains proper clearance above the navigation bar at all scroll positions.
+
+### Recurring Page
+- [ ] Quick Adding Carousel (`PresetsCarousel`) is completely removed from the main Recurring list view.
+- [ ] Subscription and installment items in RecurringScreen use the unified bounded ripple highlight and card styling matching HistoryScreen.
+
+### Financial Rhythm Heatmap
+- [ ] The 16-week matrix starts aligned from the leftmost column on initial load.
+- [ ] Habit / Month view switching animates smoothly without bouncy oscillation.
+- [ ] The card header title ("Financial Rhythm") displays completely without truncation on standard screens.
+- [ ] Tile shape selector options display on a single horizontal row without vertical text-wrapping.
+
+### Code Quality & Build Verification
+- [ ] `./gradlew testDebugUnitTest` passes with all tests green.
+- [ ] `./gradlew assembleDebug` compiles successfully without errors.
+- [ ] `graphify update .` is executed to synchronize the codebase knowledge graph.

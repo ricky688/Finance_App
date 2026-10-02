@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
@@ -98,8 +99,8 @@ fun ExpressiveDualViewSwitcher(
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(3.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.padding(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             modes.forEachIndexed { index, mode ->
@@ -133,7 +134,7 @@ fun ExpressiveDualViewSwitcher(
                 // Material 3 Expressive Connected Button Geometry:
                 // Outer corners retain 18.dp rounding; inner adjacent corners are 4.dp when unselected.
                 // When selected, inner corners smoothly expand to 18.dp for a distinct expressive pill!
-                // When pressed / pulsing, all 4 corners morph to 6.dp with snappy bouncy spring physics.
+                // When pressed / pulsing, all 4 corners morph to 6.dp with snappy non-bouncy spring physics.
                 val restingTopStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
                 val restingBottomStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
                 val restingTopEnd = if (isSelected) 18.dp else (if (index == modes.size - 1) 18.dp else 4.dp)
@@ -144,7 +145,7 @@ fun ExpressiveDualViewSwitcher(
                 val topStart by animateDpAsState(
                     targetValue = if (isShapeActive) pressedCorner else restingTopStart,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                     ),
                     label = "switcherTopStart_$index"
@@ -152,7 +153,7 @@ fun ExpressiveDualViewSwitcher(
                 val bottomStart by animateDpAsState(
                     targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                     ),
                     label = "switcherBottomStart_$index"
@@ -160,7 +161,7 @@ fun ExpressiveDualViewSwitcher(
                 val topEnd by animateDpAsState(
                     targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                     ),
                     label = "switcherTopEnd_$index"
@@ -168,7 +169,7 @@ fun ExpressiveDualViewSwitcher(
                 val bottomEnd by animateDpAsState(
                     targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
                     ),
                     label = "switcherBottomEnd_$index"
@@ -184,7 +185,7 @@ fun ExpressiveDualViewSwitcher(
                 val scale by animateFloatAsState(
                     targetValue = if (isShapeActive) 0.94f else 1f,
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMediumLow
                     ),
                     label = "switcherScale_$index"
@@ -237,14 +238,14 @@ fun ExpressiveDualViewSwitcher(
                         )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         AnimatedVisibility(
                             visible = isSelected,
                             enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                                    expandHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)),
+                                    expandHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
                             exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
                                     shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                         ) {
@@ -255,7 +256,7 @@ fun ExpressiveDualViewSwitcher(
                                     modifier = Modifier.size(13.dp),
                                     tint = contentColor
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
                             }
                         }
 
@@ -263,13 +264,13 @@ fun ExpressiveDualViewSwitcher(
                             imageVector = if (mode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarMonth,
                             contentDescription = null,
                             tint = contentColor,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
-                        Spacer(modifier = Modifier.width(5.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = if (mode == CalendarDisplayMode.HEATMAP) "Habit" else "Month",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = 11.5.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             ),
                             color = contentColor,
@@ -438,9 +439,12 @@ fun SpendsCalendar(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(16.dp)
         ) {
             // Header: Title & Expressive Dual-View Switcher
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val titleFontSize = if (screenWidthDp < 380) 13.sp else 14.5.sp
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -454,12 +458,12 @@ fun SpendsCalendar(
                         imageVector = if (displayMode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarToday,
                         tint = MaterialTheme.colorScheme.primary,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (displayMode == CalendarDisplayMode.HEATMAP) "Financial Rhythm" else "Spending Calendar",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontSize = titleFontSize),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -467,7 +471,7 @@ fun SpendsCalendar(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
 
                 // Expressive Dual-View Switcher Connected Button Group
                 ExpressiveDualViewSwitcher(
@@ -482,11 +486,11 @@ fun SpendsCalendar(
                 targetState = displayMode,
                 transitionSpec = {
                     if (targetState == CalendarDisplayMode.CALENDAR) {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> width / 3 } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> -width / 3 } + fadeOut())
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeOut())
                     } else {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> -width / 3 } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) { width -> width / 3 } + fadeOut())
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeIn())
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeOut())
                     }
                 },
                 label = "dualViewModeTransition"

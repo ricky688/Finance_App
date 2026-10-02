@@ -57,6 +57,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import com.example.vibefinance.ui.components.ExpressiveSwipeRow
 import com.example.vibefinance.ui.components.RollingNumberText
 import com.example.vibefinance.ui.home.getCategoryDisplayName
 import androidx.compose.foundation.lazy.LazyColumn
@@ -430,21 +431,7 @@ fun RecurringScreen(
                     )
                 }
 
-                // 2. Popular 1-Tap Quick Add Carousel
-                item {
-                    PresetsCarousel(
-                        onPresetClick = { preset ->
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            editingSubscription = null
-                            prefillPreset = preset
-                            showAddEditSheet = true
-                        },
-                        isWideScreen = false,
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
-                }
-
-                // 3. Filter & View Mode Controls
+                // 2. Filter & View Mode Controls
                 item {
                     FilterAndControlsRow(
                         selectedFilter = selectedFilter,
@@ -568,23 +555,12 @@ fun RecurringScreen(
                         }
                     }
 
-                    // Right Pane: Presets Carousel, Filter & Timeline/List (weight 0.55f)
+                    // Right Pane: Filter & Timeline/List (weight 0.55f)
                     Column(
                         modifier = Modifier
                             .weight(0.55f)
                             .fillMaxHeight()
                     ) {
-                        PresetsCarousel(
-                            onPresetClick = { preset ->
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editingSubscription = null
-                                prefillPreset = preset
-                                showAddEditSheet = true
-                            },
-                            isWideScreen = true,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-
                         FilterAndControlsRow(
                             selectedFilter = selectedFilter,
                             onFilterSelected = { selectedFilter = it },
@@ -713,97 +689,6 @@ fun RecurringScreen(
 // -------------------------------------------------------------
 // MODULAR RECURRING SUBCOMPONENTS
 // -------------------------------------------------------------
-
-@Composable
-fun PresetsCarousel(
-    onPresetClick: (SubscriptionPreset) -> Unit,
-    isWideScreen: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val haptic = LocalHapticFeedback.current
-    val chunkedPresets = remember { POPULAR_SUBSCRIPTION_PRESETS.chunked(2) }
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.popular_presets_header),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = stringResource(R.string.tap_to_add),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        val carouselModifier = if (!isWideScreen) {
-            Modifier
-                .fillMaxWidth()
-                .fullBleed(16.dp)
-                .horizontalFadingEdge(startFadeWidth = 16.dp, endFadeWidth = 16.dp)
-        } else {
-            Modifier
-                .fillMaxWidth()
-                .horizontalFadingEdge(startFadeWidth = 16.dp, endFadeWidth = 16.dp)
-        }
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = carouselModifier
-        ) {
-            items(chunkedPresets) { columnPresets ->
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    columnPresets.forEach { preset ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .bouncyClickable(shape = RoundedCornerShape(16.dp)) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onPresetClick(preset)
-                                }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            ) {
-                                Text(text = preset.emoji, fontSize = 16.sp)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Column {
-                                    Text(
-                                        text = preset.name,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = String.format(Locale.US, "HK$ %,.0f/mo", preset.defaultAmount),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun FilterAndControlsRow(
@@ -1707,11 +1592,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-    val detachmentThresholdPx = screenWidthPx * 0.40f // Strict 40% detachment threshold
-
     val today = remember { LocalDate.now() }
     val paymentLocalDate = Instant.ofEpochMilli(subscription.nextPaymentDate)
         .atZone(ZoneId.systemDefault())
@@ -1755,97 +1635,11 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
         bottomEnd = baseBottomEnd
     )
 
-    // Gestures, Physics & Animation States
-    val dragOffsetX = remember { Animatable(0f) }
-    var rawDragX by remember { mutableFloatStateOf(0f) }
-    var isPastThreshold by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
-
     val transitionState = remember { MutableTransitionState(true) }
 
-    val currentOffset = dragOffsetX.value
-    val absOffset = abs(currentOffset)
-    val isDeleteAction = currentOffset < 0
-
-    // Gmail Dynamic Kinetic Feedback:
-    // 1. Icon Pop Spring on threshold crossing: springs dynamically from 1.0f up to 1.25f
-    val iconScale by animateFloatAsState(
-        targetValue = if (isPastThreshold) 1.25f else (0.8f + 0.2f * (absOffset / detachmentThresholdPx)).coerceIn(0.8f, 1f),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailIconScale"
-    )
-
-    // 2. Circular Backdrop Disc Pop (Gmail M3 indicator)
-    val backdropScale by animateFloatAsState(
-        targetValue = if (isPastThreshold) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailBackdropScale"
-    )
-
-    // 3. Vibrant Background Color Morphing (Gmail style)
-    val targetBgColor = if (isDeleteAction) {
-        if (isPastThreshold) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.errorContainer
-    } else {
-        if (isPastThreshold) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.tertiaryContainer
-    }
-    val animatedBgColor by animateColorAsState(
-        targetValue = targetBgColor,
-        animationSpec = tween(durationMillis = 200),
-        label = "GmailBgColor"
-    )
-
-    // 4. Action Icon Tint Color Morphing
-    val targetIconColor = if (isDeleteAction) {
-        if (isPastThreshold) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        if (isPastThreshold) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onTertiaryContainer
-    }
-    val animatedIconTint by animateColorAsState(
-        targetValue = targetIconColor,
-        animationSpec = tween(durationMillis = 200),
-        label = "GmailIconTint"
-    )
-
-    // 5. Floating Card Elevation (subtle shadow when swiping)
-    val cardElevation by animateDpAsState(
-        targetValue = if (absOffset > 2f) 4.dp else 0.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailCardElevation"
-    )
-
-    val draggableState = rememberDraggableState { delta ->
-        rawDragX += delta
-        val absRaw = abs(rawDragX)
-        val effectiveOffset = if (absRaw <= screenWidthPx) {
-            rawDragX
-        } else {
-            val overDrag = absRaw - screenWidthPx
-            val sign = if (rawDragX > 0) 1f else -1f
-            sign * (screenWidthPx + overDrag * 0.3f)
-        }
-
-        coroutineScope.launch {
-            dragOffsetX.snapTo(effectiveOffset)
-        }
-        onSwipeChange(subscription.id, effectiveOffset)
-
-        val reachedThreshold = absRaw >= detachmentThresholdPx
-        if (reachedThreshold && !isPastThreshold) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            isPastThreshold = true
-        } else if (!reachedThreshold && isPastThreshold) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            isPastThreshold = false
+    LaunchedEffect(transitionState.currentState, transitionState.targetState) {
+        if (!transitionState.currentState && !transitionState.targetState) {
+            onDelete()
         }
     }
 
@@ -1853,163 +1647,26 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
         visibleState = transitionState,
         exit = shrinkVertically(
             animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = Spring.StiffnessMediumLow
             )
         ) + fadeOut(animationSpec = tween(150)),
         modifier = modifier.animateItem(
             placementSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = Spring.StiffnessMediumLow
             )
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
+            ExpressiveSwipeRow(
+                shape = itemShape,
+                onEdit = onClick,
+                onDelete = { transitionState.targetState = false },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("SubscriptionRow_${subscription.id}")
             ) {
-                // UNDERLYING GMAIL ACTION CANVAS (revealed when dragging)
-                if (absOffset > 1f) {
-                    val iconRevealAlpha = (absOffset / with(density) { 40.dp.toPx() }).coerceIn(0f, 1f)
-
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clip(itemShape)
-                            .background(animatedBgColor)
-                    ) {
-                        if (isDeleteAction) {
-                            // Trailing Delete Action Container (Gmail Style)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // Circular Backdrop Indicator
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .scale(backdropScale)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.22f))
-                                )
-                                // Dynamic Spring Icon
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete",
-                                    tint = animatedIconTint.copy(alpha = iconRevealAlpha),
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .scale(iconScale)
-                                )
-                            }
-                        } else {
-                            // Leading Edit Action Container (Gmail Style)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .align(Alignment.CenterStart)
-                                    .padding(start = 24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // Circular Backdrop Indicator
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .scale(backdropScale)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.22f))
-                                )
-                                // Dynamic Spring Icon
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit",
-                                    tint = animatedIconTint.copy(alpha = iconRevealAlpha),
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .scale(iconScale)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // FOREGROUND GMAIL CARD SURFACE (Clean horizontal translation, floating elevation)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            translationX = currentOffset
-                            shadowElevation = cardElevation.toPx()
-                            shape = itemShape
-                            clip = true
-                        }
-                        .draggable(
-                            state = draggableState,
-                            orientation = Orientation.Horizontal,
-                            onDragStarted = {
-                                rawDragX = 0f
-                            },
-                            onDragStopped = { velocity ->
-                                val pastThreshold = isPastThreshold || (abs(velocity) > 1200f && abs(rawDragX) >= detachmentThresholdPx * 0.45f)
-                                if (pastThreshold) {
-                                    if (rawDragX < 0 || (velocity < -1200f && rawDragX < 0)) {
-                                        // Swipe Left (Delete): Elastic spring return and launch delete confirmation
-                                        coroutineScope.launch {
-                                            dragOffsetX.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
-                                            )
-                                            rawDragX = 0f
-                                            isPastThreshold = false
-                                            onSwipeChange(null, 0f)
-                                            onDelete()
-                                        }
-                                    } else {
-                                        // Swipe Right (Edit): Elastic spring return and launch edit
-                                        coroutineScope.launch {
-                                            dragOffsetX.animateTo(
-                                                targetValue = 0f,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
-                                            )
-                                            onSwipeChange(null, 0f)
-                                            onClick()
-                                        }
-                                    }
-                                } else {
-                                    // Released Before Threshold: Spring return to resting state
-                                    coroutineScope.launch {
-                                        dragOffsetX.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
-                                            )
-                                        )
-                                        onSwipeChange(null, 0f)
-                                    }
-                                }
-                            }
-                        )
-                        .clip(itemShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple()
-                        ) { onClick() },
-                    shape = itemShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2102,7 +1759,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                                 IconButton(
-                                    onClick = { onDelete() },
+                                    onClick = { transitionState.targetState = false },
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(
@@ -2116,7 +1773,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                         }
                     }
                 }
-            }
             if (!isLast) {
                 Spacer(modifier = Modifier.height(5.dp))
             }
@@ -2139,11 +1795,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
-    val configuration = LocalConfiguration.current
-    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-    val detachmentThresholdPx = screenWidthPx * 0.40f
-
     val today = remember { LocalDate.now() }
     val associatedAccount = accounts.find { it.id == plan.accountId }
     val cardName = associatedAccount?.name ?: "Linked Card"
@@ -2184,13 +1835,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
         bottomEnd = baseBottomEnd
     )
 
-    // Gestures, Physics & Animation States
-    val dragOffsetX = remember { Animatable(0f) }
-    var rawDragX by remember { mutableFloatStateOf(0f) }
-    var isPastThreshold by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
-
     val transitionState = remember { MutableTransitionState(true) }
 
     LaunchedEffect(transitionState.currentState, transitionState.targetState) {
@@ -2199,188 +1843,30 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
         }
     }
 
-    val currentOffset = dragOffsetX.value
-    val absOffset = abs(currentOffset)
-    val isDeleteAction = currentOffset < 0
-
-    // Gmail Dynamic Kinetic Feedback:
-    val iconScale by animateFloatAsState(
-        targetValue = if (isPastThreshold) 1.25f else (0.8f + 0.2f * (absOffset / detachmentThresholdPx)).coerceIn(0.8f, 1f),
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailInstallmentIconScale"
-    )
-
-    val backdropScale by animateFloatAsState(
-        targetValue = if (isPastThreshold) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailInstallmentBackdropScale"
-    )
-
-    val targetBgColor = if (isDeleteAction) {
-        if (isPastThreshold) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val animatedBgColor by animateColorAsState(
-        targetValue = targetBgColor,
-        animationSpec = tween(durationMillis = 200),
-        label = "GmailInstallmentBgColor"
-    )
-
-    val targetIconColor = if (isDeleteAction) {
-        if (isPastThreshold) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val animatedIconTint by animateColorAsState(
-        targetValue = targetIconColor,
-        animationSpec = tween(durationMillis = 200),
-        label = "GmailInstallmentIconTint"
-    )
-
-    val cardElevation by animateDpAsState(
-        targetValue = if (absOffset > 2f) 4.dp else 0.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "GmailInstallmentElevation"
-    )
-
-    val draggableState = rememberDraggableState { delta ->
-        rawDragX += delta
-        val absRaw = abs(rawDragX)
-        val effectiveOffset = if (absRaw <= screenWidthPx) {
-            rawDragX
-        } else {
-            val overDrag = absRaw - screenWidthPx
-            val sign = if (rawDragX > 0) 1f else -1f
-            sign * (screenWidthPx + overDrag * 0.3f)
-        }
-
-        coroutineScope.launch {
-            dragOffsetX.snapTo(effectiveOffset)
-        }
-        onSwipeChange(plan.groupId, effectiveOffset)
-
-        val reachedThreshold = absRaw >= detachmentThresholdPx
-        if (reachedThreshold && !isPastThreshold) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            isPastThreshold = true
-        } else if (!reachedThreshold && isPastThreshold) {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            isPastThreshold = false
-        }
-    }
-
     AnimatedVisibility(
         visibleState = transitionState,
         exit = shrinkVertically(
             animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = Spring.StiffnessMediumLow
             )
         ) + fadeOut(animationSpec = tween(150)),
         modifier = modifier.animateItem(
             placementSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
+                dampingRatio = Spring.DampingRatioNoBouncy,
                 stiffness = Spring.StiffnessMediumLow
             )
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
+            ExpressiveSwipeRow(
+                shape = itemShape,
+                onEdit = {},
+                onDelete = { transitionState.targetState = false },
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("InstallmentRow_${plan.groupId}")
             ) {
-                // Action Canvas underneath (Gmail Swipe Left to Delete)
-                if (absOffset > 1f && isDeleteAction) {
-                    val iconRevealAlpha = (absOffset / with(density) { 40.dp.toPx() }).coerceIn(0f, 1f)
-
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clip(itemShape)
-                            .background(animatedBgColor)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .align(Alignment.CenterEnd)
-                                .padding(end = 24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Circular Backdrop Indicator
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .scale(backdropScale)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.22f))
-                            )
-                            // Dynamic Spring Icon
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                tint = animatedIconTint.copy(alpha = iconRevealAlpha),
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .scale(iconScale)
-                            )
-                        }
-                    }
-                }
-
-                // Foreground Surface (Clean horizontal translation, floating elevation)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            translationX = currentOffset
-                            shadowElevation = cardElevation.toPx()
-                            shape = itemShape
-                            clip = true
-                        }
-                        .draggable(
-                            state = draggableState,
-                            orientation = Orientation.Horizontal,
-                            onDragStarted = { rawDragX = 0f },
-                            onDragStopped = { velocity ->
-                                val pastThreshold = isPastThreshold || (abs(velocity) > 1200f && abs(rawDragX) >= detachmentThresholdPx * 0.45f)
-                                if (pastThreshold && rawDragX < 0) {
-                                    coroutineScope.launch {
-                                        dragOffsetX.animateTo(
-                                            targetValue = -screenWidthPx * 1.35f,
-                                            animationSpec = tween(durationMillis = 200, easing = FastOutLinearInEasing)
-                                        )
-                                        onSwipeChange(null, 0f)
-                                        transitionState.targetState = false
-                                    }
-                                } else {
-                                    coroutineScope.launch {
-                                        dragOffsetX.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
-                                            )
-                                        )
-                                        onSwipeChange(null, 0f)
-                                    }
-                                }
-                            }
-                        ),
-                    shape = itemShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2533,7 +2019,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                         }
                     }
                 }
-            }
             if (!isLast) {
                 Spacer(modifier = Modifier.height(5.dp))
             }

@@ -565,6 +565,7 @@ fun MainScreen(
     val haptic = LocalHapticFeedback.current
     var selectedTab by rememberSaveable { mutableStateOf(TabItem.HOME) }
     var historyAccountFilterId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var historyCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
     val requestedTab by viewModel.requestedTab.collectAsStateWithLifecycle()
     LaunchedEffect(requestedTab) {
         requestedTab?.let {
@@ -987,9 +988,6 @@ fun MainScreen(
                                         modifier = Modifier.animateIcon({ checkedProgress })
                                     )
                                 }
-                            },
-                            modifier = Modifier.graphicsLayer {
-                                translationY = with(density) { navBarOffsetY.toPx() }
                             }
                         ) {
                             FloatingActionButtonMenuItem(
@@ -1133,7 +1131,10 @@ fun MainScreen(
                                     if (selectedTab != tab) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         isFabMenuExpanded = false
-                                        if (tab == TabItem.HISTORY) historyAccountFilterId = null
+                                        if (tab == TabItem.HISTORY) {
+                                            historyAccountFilterId = null
+                                            historyCategoryFilter = null
+                                        }
                                         selectedTab = tab
                                     }
                                 },
@@ -1262,6 +1263,12 @@ fun MainScreen(
                                 topContentPadding = pageTopPadding,
                                 onViewAllClick = {
                                     historyAccountFilterId = null
+                                    historyCategoryFilter = null
+                                    selectedTab = TabItem.HISTORY
+                                },
+                                onCategoryClick = { category ->
+                                    historyAccountFilterId = null
+                                    historyCategoryFilter = category
                                     selectedTab = TabItem.HISTORY
                                 },
                                 showAddDialog = showAddDialog,
@@ -1291,6 +1298,7 @@ fun MainScreen(
                                 topContentPadding = pageTopPadding,
                                 onViewAccountHistory = { accountId ->
                                     historyAccountFilterId = accountId
+                                    historyCategoryFilter = null
                                     selectedTab = TabItem.HISTORY
                                 }
                             )
@@ -1308,7 +1316,9 @@ fun MainScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 topContentPadding = pageTopPadding,
                                 accountFilterId = historyAccountFilterId,
-                                onClearAccountFilter = { historyAccountFilterId = null }
+                                onClearAccountFilter = { historyAccountFilterId = null },
+                                categoryFilter = historyCategoryFilter,
+                                onClearCategoryFilter = { historyCategoryFilter = null }
                             )
                         }
                     }

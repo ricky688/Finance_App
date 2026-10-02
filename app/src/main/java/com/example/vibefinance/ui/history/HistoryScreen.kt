@@ -126,9 +126,11 @@ fun HistoryScreen(
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 16.dp,
     accountFilterId: Long? = null,
-    onClearAccountFilter: () -> Unit = {}
+    onClearAccountFilter: () -> Unit = {},
+    categoryFilter: String? = null,
+    onClearCategoryFilter: () -> Unit = {}
 ) {
-    var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
+    var selectedCategoryFilter by remember(categoryFilter) { mutableStateOf<String?>(categoryFilter) }
     var periodFilterMode by remember { mutableStateOf(com.example.vibefinance.ui.components.PeriodFilterMode.ALL) }
 
     val strToday = stringResource(R.string.date_today)
@@ -174,12 +176,20 @@ fun HistoryScreen(
         analyticsMonth.atDay(1).format(DateTimeFormatter.ofPattern(monthPattern, dateLocale))
     }
 
+    LaunchedEffect(categoryFilter) {
+        selectedCategoryFilter = categoryFilter
+    }
     LaunchedEffect(accountFilterId) {
-        selectedCategoryFilter = null
+        if (accountFilterId != null) {
+            selectedCategoryFilter = null
+            onClearCategoryFilter()
+        }
         periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
     }
     LaunchedEffect(activePeriodStart, activePeriodEnd) {
-        selectedCategoryFilter = null
+        if (categoryFilter == null) {
+            selectedCategoryFilter = null
+        }
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -222,7 +232,12 @@ fun HistoryScreen(
     val filteredTransactions = remember(periodFilteredTransactions, analyticsTransactions, selectedCategoryFilter) {
         val catFilter = selectedCategoryFilter
         if (!catFilter.isNullOrBlank()) {
-            analyticsTransactions.filter {
+            val baseList = if (analyticsTransactions.any { it.category.equals(catFilter, ignoreCase = true) }) {
+                analyticsTransactions
+            } else {
+                periodFilteredTransactions
+            }
+            baseList.filter {
                 it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 &&
                     it.category.equals(catFilter, ignoreCase = true)
             }
@@ -279,6 +294,7 @@ fun HistoryScreen(
         try {
             progressFlow.collect { }
             selectedCategoryFilter = null
+            onClearCategoryFilter()
         } catch (e: kotlinx.coroutines.CancellationException) {
         }
     }
@@ -356,22 +372,28 @@ fun HistoryScreen(
                     com.example.vibefinance.util.CsvExportEngine.shareCsvFile(context, csvContent)
                 },
                 selectedCategory = selectedCategoryFilter,
-                onSelectCategory = { cat -> selectedCategoryFilter = cat },
+                onSelectCategory = { cat ->
+                    selectedCategoryFilter = cat
+                    if (cat == null) onClearCategoryFilter()
+                },
                 periodMode = effectiveAnalyticsMode,
                 periodLabel = analyticsPeriodLabel,
                 hasBudgetPeriod = hasBudgetPeriod,
                 onSelectPeriod = { mode ->
                     analyticsPeriodMode = mode
                     selectedCategoryFilter = null
+                    onClearCategoryFilter()
                 },
                 onPreviousMonth = {
                     analyticsMonth = analyticsMonth.minusMonths(1)
                     selectedCategoryFilter = null
+                    onClearCategoryFilter()
                 },
                 onNextMonth = {
                     if (analyticsMonth.isBefore(YearMonth.now(zone))) {
                         analyticsMonth = analyticsMonth.plusMonths(1)
                         selectedCategoryFilter = null
+                        onClearCategoryFilter()
                     }
                 },
                 canGoToNextMonth = analyticsMonth.isBefore(YearMonth.now(zone)),
