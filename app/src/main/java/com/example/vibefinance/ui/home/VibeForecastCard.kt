@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -115,7 +117,7 @@ fun VibeForecastCard(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Vibe Forecast",
+                            text = stringResource(R.string.loc_forecast),
                             style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -130,7 +132,7 @@ fun VibeForecastCard(
                         color = animatedAccent.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = String.format(Locale.US, "⚡ HK$ %,.0f/day", forecast.actualDailyVelocity),
+                            text = stringResource(R.string.loc_daily_velocity, forecast.actualDailyVelocity),
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.5.sp),
                             fontWeight = FontWeight.Bold,
                             color = animatedAccent,
@@ -149,7 +151,7 @@ fun VibeForecastCard(
                 ) {
                     Column {
                         Text(
-                            text = if (forecast.projectedEndBalance >= 0) "Projected Savings" else "Overspend Risk",
+                            text = if (forecast.projectedEndBalance >= 0) stringResource(R.string.loc_projected_savings) else stringResource(R.string.loc_overspend_risk),
                             style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                         )
@@ -174,7 +176,7 @@ fun VibeForecastCard(
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
-                            text = if (forecast.status == ForecastStatus.EXCELLENT_SAVINGS) "超額儲蓄" else if (forecast.status == ForecastStatus.STEADY_PACE) "穩定消費" else "超支預警",
+                            text = if (forecast.status == ForecastStatus.EXCELLENT_SAVINGS) stringResource(R.string.loc_excellent_savings) else if (forecast.status == ForecastStatus.STEADY_PACE) stringResource(R.string.loc_steady_pace) else stringResource(R.string.loc_overspend_warning),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = animatedAccent

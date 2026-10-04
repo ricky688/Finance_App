@@ -1,8 +1,9 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.ui.FinanceUiState
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -88,10 +91,13 @@ fun ExpressiveDualViewSwitcher(
     val selectedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
+    val colors = MaterialTheme.colorScheme
+    val trackColor = colors.surfaceContainerHighest.copy(alpha = 0.35f)
+    val trackBackdrop = trackColor.compositeOver(blendColors(colors.surface, colors.surfaceVariant, 0.3f))
 
     Surface(
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.35f),
+        color = trackColor,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
@@ -191,29 +197,17 @@ fun ExpressiveDualViewSwitcher(
                     label = "switcherScale_$index"
                 )
 
-                val containerColor by animateColorAsState(
-                    targetValue = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        Color.Transparent
-                    },
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "switcherContainerColor_$index"
-                )
-
-                val contentColor by animateColorAsState(
-                    targetValue = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                    label = "switcherContentColor_$index"
+                val colorMotion = rememberConnectedButtonColorMotion(
+                    isSelected = isSelected,
+                    isPressed = isPressed.value,
+                    inactiveContainerColor = Color.Transparent,
+                    inactiveContentColor = colors.onSurfaceVariant,
+                    backdropColor = trackBackdrop
                 )
 
                 Surface(
-                    color = containerColor,
-                    contentColor = contentColor,
+                    color = colorMotion.containerColor,
+                    contentColor = colorMotion.contentColor,
                     shape = buttonShape,
                     modifier = Modifier
                         .scale(scale)
@@ -238,7 +232,7 @@ fun ExpressiveDualViewSwitcher(
                         )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp).then(colorMotion.contentModifier),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
@@ -254,7 +248,7 @@ fun ExpressiveDualViewSwitcher(
                                     imageVector = Icons.Filled.Check,
                                     contentDescription = null,
                                     modifier = Modifier.size(13.dp),
-                                    tint = contentColor
+                                    tint = colorMotion.contentColor
                                 )
                                 Spacer(modifier = Modifier.width(2.dp))
                             }
@@ -263,17 +257,17 @@ fun ExpressiveDualViewSwitcher(
                         Icon(
                             imageVector = if (mode == CalendarDisplayMode.HEATMAP) Icons.Default.GridView else Icons.Default.CalendarMonth,
                             contentDescription = null,
-                            tint = contentColor,
+                            tint = colorMotion.contentColor,
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = if (mode == CalendarDisplayMode.HEATMAP) "Habit" else "Month",
+                            text = if (mode == CalendarDisplayMode.HEATMAP) stringResource(R.string.loc_habit) else stringResource(R.string.loc_month),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             ),
-                            color = contentColor,
+                            color = colorMotion.contentColor,
                             maxLines = 1,
                             softWrap = false
                         )
@@ -462,7 +456,7 @@ fun SpendsCalendar(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (displayMode == CalendarDisplayMode.HEATMAP) "Financial Rhythm" else "Spending Calendar",
+                        text = if (displayMode == CalendarDisplayMode.HEATMAP) stringResource(R.string.loc_financial_rhythm) else stringResource(R.string.loc_spending_calendar),
                         style = MaterialTheme.typography.titleMedium.copy(fontSize = titleFontSize),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -520,9 +514,9 @@ fun SpendsCalendar(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                LegendChip(color = Color(0xFF40AC02), label = "Healthy (≤100%)")
-                                LegendChip(color = Color(0xFFFABC20), label = "Moderate")
-                                LegendChip(color = Color(0xFFC70909), label = "Over Limit (>100%)")
+                                LegendChip(color = Color(0xFF40AC02), label = stringResource(R.string.loc_healthy))
+                                LegendChip(color = Color(0xFFFABC20), label = stringResource(R.string.loc_moderate))
+                                LegendChip(color = Color(0xFFC70909), label = stringResource(R.string.loc_over_limit))
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -539,8 +533,9 @@ fun SpendsCalendar(
                                                 .height(CELL_SIZE),
                                             contentAlignment = Alignment.BottomStart
                                         ) {
-                                            val monthStr = remember(month) {
-                                                month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US))
+                                            val calendarLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+                                            val monthStr = remember(month, calendarLocale) {
+                                                month.format(DateTimeFormatter.ofPattern("MMMM yyyy", calendarLocale))
                                             }
                                             Text(
                                                 text = monthStr,
@@ -552,8 +547,9 @@ fun SpendsCalendar(
                                         }
 
                                         // 2. Weekday Headers
-                                        val headers = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-                                        headers.forEach { h ->
+                                        val headers = listOf(java.time.DayOfWeek.SUNDAY) + java.time.DayOfWeek.values().take(6)
+                                        val localizedHeaders = headers.map { it.getDisplayName(java.time.format.TextStyle.SHORT, androidx.compose.ui.platform.LocalConfiguration.current.locales[0]) }
+                                        localizedHeaders.forEach { h ->
                                             Box(
                                                 modifier = Modifier
                                                     .height(CELL_SIZE)
@@ -655,20 +651,20 @@ fun SpendsCalendar(
                 ) {
                     Column {
                         Text(
-                            text = date.format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.US)),
+                            text = date.format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", androidx.compose.ui.platform.LocalConfiguration.current.locales[0])),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (date == today) "Today's Expenses Log" else "Historical Spending Details",
+                            text = if (date == today) stringResource(R.string.loc_today_expenses) else stringResource(R.string.loc_historical_spending),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium
                         )
                     }
                     IconButton(onClick = { showDetailSheet = false }) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                        Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(R.string.btn_close))
                     }
                 }
 
@@ -687,7 +683,7 @@ fun SpendsCalendar(
                     ) {
                         Column {
                             Text(
-                                text = "Total Day Spent",
+                                text = stringResource(R.string.loc_day_spent),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -700,7 +696,7 @@ fun SpendsCalendar(
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "Daily Budget Limit",
+                                text = stringResource(R.string.loc_daily_limit),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -717,7 +713,7 @@ fun SpendsCalendar(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    text = "Transactions (${dayTxList.size})",
+                    text = stringResource(R.string.loc_transactions_with_count, dayTxList.size),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -732,7 +728,7 @@ fun SpendsCalendar(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No expenses logged on this date.",
+                            text = stringResource(R.string.loc_no_day_expenses),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -774,13 +770,13 @@ fun SpendsCalendar(
                                         }
                                         Column {
                                             Text(
-                                                text = tx.description.ifBlank { tx.category },
+                                                text = tx.description.ifBlank { getCategoryDisplayName(tx.category) },
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = tx.category,
+                                                text = getCategoryDisplayName(tx.category),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                             )

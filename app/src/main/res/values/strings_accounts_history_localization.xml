@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ah_outstanding_debt" formatted="false">OUTSTANDING DEBT</string>
+    <string name="ah_current_balance" formatted="false">CURRENT BALANCE</string>
+    <string name="ah_net_asset_value" formatted="false">NET ASSET VALUE</string>
+    <string name="ah_total_card_debt" formatted="false">Total Card Debt</string>
+    <string name="ah_assets_cards" formatted="false">My Assets &amp; Cards</string>
+    <string name="ah_add_asset" formatted="false">Add Asset</string>
+    <string name="ah_delete_account_title" formatted="false">Delete Account?</string>
+    <string name="ah_card_preview" formatted="false">Card Preview</string>
+    <string name="ah_account_identity" formatted="false">ACCOUNT IDENTITY</string>
+    <string name="ah_account_card_name" formatted="false">Account / Card Name</string>
+    <string name="ah_account_type" formatted="false">Account Type</string>
+    <string name="ah_last_four_example" formatted="false">e.g. 4321</string>
+    <string name="ah_current_balance_debt" formatted="false">CURRENT BALANCE &amp; DEBT</string>
+    <string name="ah_current_debt_amount" formatted="false">Current Debt Amount ($)</string>
+    <string name="ah_current_balance_amount" formatted="false">Current Balance Amount ($)</string>
+    <string name="ah_quick_adjust" formatted="false">1-Tap Quick Adjust</string>
+    <string name="ah_custom_adjust" formatted="false">Custom Adjust ($)</string>
+    <string name="ah_adjust_example" formatted="false">e.g. 75</string>
+    <string name="ah_limit_utilization" formatted="false">CREDIT LIMIT &amp; UTILIZATION</string>
+    <string name="ah_credit_limit_amount" formatted="false">Credit Limit ($)</string>
+    <string name="ah_credit_utilization" formatted="false">Credit Utilization</string>
+    <string name="ah_billing_schedule" formatted="false">BILLING &amp; PAYMENT SCHEDULE</string>
+    <string name="ah_payment_due" formatted="false">Payment Due</string>
+    <string name="ah_payment_deadline_day" formatted="false">Payment Deadline Day</string>
+    <string name="ah_gradient_palette" formatted="false">GRADIENT THEME PALETTE</string>
+    <string name="ah_selected" formatted="false">Selected</string>
+    <string name="ah_branding_protocol" formatted="false">BRANDING &amp; PROTOCOL</string>
+    <string name="ah_issuer" formatted="false">Issuer</string>
+    <string name="ah_protocol" formatted="false">Protocol</string>
+    <string name="ah_texture_art" formatted="false">TEXTURE &amp; CUSTOM ART</string>
+    <string name="ah_pattern_overlay" formatted="false">Pattern Overlay</string>
+    <string name="ah_upload_image" formatted="false">Upload Image</string>
+    <string name="ah_change_image" formatted="false">Change Image</string>
+    <string name="ah_crop" formatted="false">Crop</string>
+    <string name="ah_remove" formatted="false">Remove</string>
+    <string name="ah_reset" formatted="false">Reset</string>
+    <string name="ah_position_axes" formatted="false">POSITION (X &amp; Y AXIS)</string>
+    <string name="ah_gesture_tip" formatted="false">Live gesture enabled: Drag top card preview directly to pan, or pinch to zoom.</string>
+    <string name="ah_horizontal_axis" formatted="false">X Axis (Horizontal)</string>
+    <string name="ah_vertical_axis" formatted="false">Y Axis (Vertical)</string>
+    <string name="ah_center_zero" formatted="false">Center (0%)</string>
+    <string name="ah_shift_left" formatted="false">Shift Left</string>
+    <string name="ah_shift_right" formatted="false">Shift Right</string>
+    <string name="ah_shift_up" formatted="false">Shift Up</string>
+    <string name="ah_shift_down" formatted="false">Shift Down</string>
+    <string name="ah_zoom_scale" formatted="false">Zoom / Scale</string>
+    <string name="ah_zoom_out" formatted="false">Zoom Out</string>
+    <string name="ah_zoom_in" formatted="false">Zoom In</string>
+    <string name="ah_add_asset_card" formatted="false">Add Asset / Card</string>
+    <string name="ah_bank_settings" formatted="false">Bank Account Settings</string>
+    <string name="ah_cash_settings" formatted="false">Cash Wallet Settings</string>
+    <string name="ah_debit_settings" formatted="false">Debit Card Settings</string>
+    <string name="ah_credit_settings" formatted="false">Credit Card Settings</string>
+    <string name="ah_live_overview" formatted="false">LIVE OVERVIEW</string>
+    <string name="ah_debt_title" formatted="false">Outstanding Debt</string>
+    <string name="ah_available_balance" formatted="false">Available Balance</string>
+    <string name="ah_utilization" formatted="false">Utilization</string>
+    <string name="ah_create_asset" formatted="false">Create Asset</string>
+    <string name="ah_image_position_scale" formatted="false">Position &amp; Scale Card Image</string>
+    <string name="ah_image_crop_tip" formatted="false">Drag to move image. Select aspect ratio below.</string>
+    <string name="ah_preview" formatted="false">Preview</string>
+    <string name="ah_move_left" formatted="false">Move Left</string>
+    <string name="ah_move_right" formatted="false">Move Right</string>
+    <string name="ah_move_up" formatted="false">Move Up</string>
+    <string name="ah_move_down" formatted="false">Move Down</string>
+    <string name="ah_aspect_ratio" formatted="false">Aspect Ratio Preference</string>
+    <string name="ah_confirm_use" formatted="false">Confirm &amp; Use</string>
+    <string name="ah_new_account" formatted="false">New Account</string>
+    <string name="ah_delete_account_message">Delete “%1$s”? All associated transactions and settings will be permanently removed.</string>
+    <string name="ah_modify_account">Modify %1$s</string>
+    <string name="ah_offset_left">%1$d%% Left</string>
+    <string name="ah_offset_right">+%1$d%% Right</string>
+    <string name="ah_offset_up">%1$d%% Up</string>
+    <string name="ah_offset_down">+%1$d%% Down</string>
+    <string name="ah_due_today" formatted="false">Due Today</string>
+    <string name="ah_due_tomorrow" formatted="false">Due Tomorrow</string>
+    <string name="ah_due_in_days">Due in %1$d days</string>
+    <string name="ah_credit_used_available">%1$d%% Used • Avail $%2$,.0f</string>
+    <string name="ah_tab_details" formatted="false">Details</string>
+    <string name="ah_tab_billing" formatted="false">Billing &amp; Due</string>
+    <string name="ah_tab_design" formatted="false">Card Design</string>
+    <string name="ah_type_debit" formatted="false">Debit Card</string>
+    <string name="ah_none" formatted="false">None</string>
+    <string name="ah_pattern_cyber_grid" formatted="false">Cyber Grid</string>
+    <string name="ah_pattern_neon_waves" formatted="false">Neon Waves</string>
+    <string name="ah_pattern_geometric_mesh" formatted="false">Geometric Mesh</string>
+    <string name="ah_align_center" formatted="false">Center</string>
+    <string name="ah_align_top" formatted="false">Top</string>
+    <string name="ah_align_bottom" formatted="false">Bottom</string>
+    <string name="ah_align_left" formatted="false">Left</string>
+    <string name="ah_align_right" formatted="false">Right</string>
+    <string name="ah_ratio_card" formatted="false">💳 1.586:1 (Card)</string>
+    <string name="ah_ratio_wide" formatted="false">📺 16:9 (Wide)</string>
+    <string name="ah_ratio_photo" formatted="false">📷 4:3 (Photo)</string>
+    <string name="ah_ratio_square" formatted="false">⬛ 1:1 (Square)</string>
+    <string name="ah_ratio_banner" formatted="false">🎬 2.35:1 (Banner)</string>
+    <string name="ah_fallback_account" formatted="false">Account</string>
+    <string name="ah_theme_default" formatted="false">Default</string>
+    <string name="ah_theme_ocean" formatted="false">Ocean</string>
+    <string name="ah_theme_emerald" formatted="false">Emerald</string>
+    <string name="ah_theme_sunset" formatted="false">Sunset</string>
+    <string name="ah_theme_purple" formatted="false">Purple</string>
+    <string name="ah_theme_rose" formatted="false">Rose</string>
+    <string name="ah_theme_crimson" formatted="false">Crimson</string>
+    <string name="ah_clear_search" formatted="false">Clear search</string>
+</resources>

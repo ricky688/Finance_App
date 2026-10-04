@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +60,52 @@ import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.rememberCameraPositionState
+
+@Composable
+internal fun radarAspectLabel(aspect: String): String = when (aspect) {
+    "All" -> stringResource(R.string.filter_all)
+    "Coffee & Cafe" -> stringResource(R.string.ui_radar_aspect_coffee)
+    "Supermarket" -> stringResource(R.string.ui_radar_aspect_supermarket)
+    "Gas & Fuel" -> stringResource(R.string.ui_radar_aspect_fuel)
+    "Electronics" -> stringResource(R.string.ui_radar_aspect_electronics)
+    "Dining" -> stringResource(R.string.ui_radar_aspect_dining)
+    "Retail & Shopping" -> stringResource(R.string.ui_radar_aspect_retail)
+    "Entertainment" -> stringResource(R.string.cat_entertainment)
+    "Services" -> stringResource(R.string.ui_radar_aspect_services)
+    else -> aspect
+}
+
+@Composable
+private fun radarLocationLabel(name: String): String = when (name) {
+    "Downtown City Center" -> stringResource(R.string.ui_radar_location_downtown)
+    "Tech & Financial District" -> stringResource(R.string.ui_radar_location_financial)
+    "Grand Shopping Plaza" -> stringResource(R.string.ui_radar_location_shopping)
+    "University Quarter" -> stringResource(R.string.ui_radar_location_university)
+    "Suburban Mall & Park" -> stringResource(R.string.ui_radar_location_suburbs)
+    "Live GNSS Location" -> stringResource(R.string.ui_radar_location_live)
+    "Current Location" -> stringResource(R.string.ui_radar_location_current)
+    "Custom Pin Location" -> stringResource(R.string.ui_radar_location_custom)
+    else -> name
+}
+
+@Composable
+internal fun radarDistanceLabel(meters: Double): String = if (meters < 1000) {
+    stringResource(R.string.ui_radar_distance_m, meters.roundToInt())
+} else {
+    stringResource(R.string.ui_radar_distance_km, meters / 1000.0)
+}
+
+private val generatedPerkPattern = Regex("^([0-9]+(?:\\.[0-9]+)?)% Discount / Cashback Perk$")
+
+@Composable
+private fun radarPromoLabel(description: String, discountRate: Double): String {
+    val generatedRate = generatedPerkPattern.matchEntire(description)?.groupValues?.get(1)
+    return when {
+        description.isBlank() -> stringResource(R.string.ui_radar_cashback, discountRate.toString())
+        generatedRate != null -> stringResource(R.string.ui_radar_generated_perk, generatedRate)
+        else -> description
+    }
+}
 
 enum class RadarViewMode { GOOGLE_MAPS, RADAR_CANVAS }
 
@@ -136,7 +185,7 @@ fun RadarScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.GpsFixed,
-                                    contentDescription = "GNSS Location",
+                                    contentDescription = stringResource(R.string.ui_radar_location),
                                     tint = Color.White,
                                     modifier = Modifier.size(22.dp)
                                 )
@@ -145,7 +194,7 @@ fun RadarScreen(
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(
-                                        text = currentLocation.locationName,
+                                        text = radarLocationLabel(currentLocation.locationName),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
@@ -157,7 +206,7 @@ fun RadarScreen(
                                             color = MaterialTheme.colorScheme.tertiaryContainer
                                         ) {
                                             Text(
-                                                text = "PRESET",
+                                                text = stringResource(R.string.ui_radar_preset),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -168,11 +217,9 @@ fun RadarScreen(
                                 }
 
                                 Text(
-                                    text = String.format(
-                                        java.util.Locale.US,
-                                        "%.4f° N, %.4f° W • GNSS Active",
-                                        currentLocation.latitude,
-                                        currentLocation.longitude
+                                    text = stringResource(
+                                        R.string.ui_radar_gnss_active,
+                                        String.format(java.util.Locale.US, "%.4f°, %.4f°", currentLocation.latitude, currentLocation.longitude)
                                     ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -188,7 +235,7 @@ fun RadarScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Tune,
-                                    contentDescription = "Location Presets",
+                                    contentDescription = stringResource(R.string.ui_radar_location_presets),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
@@ -198,7 +245,7 @@ fun RadarScreen(
                                 onDismissRequest = { showPresetMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("⚡ Start Live GNSS GPS") },
+                                    text = { Text(stringResource(R.string.ui_radar_start_gps)) },
                                     leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
                                     onClick = {
                                         GnssLocationManager.startGnssUpdates(context)
@@ -209,7 +256,7 @@ fun RadarScreen(
                                 HorizontalDivider()
 
                                 Text(
-                                    text = "Preset Locations:",
+                                    text = stringResource(R.string.ui_radar_preset_locations),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -217,7 +264,7 @@ fun RadarScreen(
 
                                 GnssLocationManager.PRESETS.forEach { preset ->
                                     DropdownMenuItem(
-                                        text = { Text(preset.title) },
+                                        text = { Text(radarLocationLabel(preset.title)) },
                                         leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
                                         onClick = {
                                             GnssLocationManager.selectPreset(preset)
@@ -254,7 +301,7 @@ fun RadarScreen(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = "GNSS Card Discount Radar",
+                                    text = stringResource(R.string.ui_radar_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -270,7 +317,7 @@ fun RadarScreen(
                                 onItemSelected = { index ->
                                     viewMode = if (index == 0) RadarViewMode.GOOGLE_MAPS else RadarViewMode.RADAR_CANVAS
                                 },
-                                labelProvider = { it },
+                                labelProvider = { if (it == "Maps") stringResource(R.string.ui_radar_maps) else stringResource(R.string.ui_radar_mode) },
                                 iconProvider = { item, tint ->
                                     if (item == "Maps") {
                                         Icon(Icons.Default.Map, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
@@ -322,13 +369,13 @@ fun RadarScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Scan Radius",
+                                    text = stringResource(R.string.ui_radar_scan_radius),
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
 
                                 Text(
-                                    text = GnssLocationManager.formatDistance(scanRadiusMeters.toDouble()),
+                                    text = radarDistanceLabel(scanRadiusMeters.toDouble()),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = MaterialTheme.colorScheme.primary
@@ -357,7 +404,7 @@ fun RadarScreen(
                                     FilterChip(
                                         selected = isSelected,
                                         onClick = { scanRadiusMeters = radiusVal },
-                                        label = { Text(GnssLocationManager.formatDistance(radiusVal.toDouble())) },
+                                        label = { Text(radarDistanceLabel(radiusVal.toDouble())) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -380,7 +427,7 @@ fun RadarScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Filter by Aspect",
+                            text = stringResource(R.string.ui_radar_aspect_filter),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -389,7 +436,7 @@ fun RadarScreen(
                         TextButton(onClick = { showAddShopSheet = true }) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Add Shop", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.ui_radar_add_shop), fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -402,7 +449,7 @@ fun RadarScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedAspect = option },
-                                label = { Text(option) },
+                                label = { Text(radarAspectLabel(option)) },
                                 leadingIcon = {
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -442,13 +489,13 @@ fun RadarScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                text = "No Discount Shops in Range",
+                                text = stringResource(R.string.ui_radar_empty_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Try increasing your scan radius or register a new discount shop for your cards!",
+                                text = stringResource(R.string.ui_radar_empty_description),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.fillMaxWidth(0.9f)
@@ -460,7 +507,7 @@ fun RadarScreen(
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null)
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("+ Add Discount Shop")
+                                Text(stringResource(R.string.ui_radar_add_discount_shop))
                             }
                         }
                     }
@@ -646,7 +693,7 @@ private fun RadarCanvasView(
                 color = Color.Black.copy(alpha = 0.6f)
             ) {
                 Text(
-                    text = "RADAR SCAN: RANGE ${GnssLocationManager.formatDistance(scanRadiusMeters.toDouble())}",
+                    text = stringResource(R.string.ui_radar_scan_range, radarDistanceLabel(scanRadiusMeters.toDouble())),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = primaryColor,
@@ -737,7 +784,7 @@ private fun DiscountShopCardItem(
                                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f)
                             ) {
                                 Text(
-                                    text = shop.aspect,
+                                    text = radarAspectLabel(shop.aspect),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -745,7 +792,7 @@ private fun DiscountShopCardItem(
                             }
 
                             Text(
-                                text = "• ${shop.address}",
+                                text = "• ${if (shop.address == "Registered Store Location") stringResource(R.string.ui_radar_registered_address) else shop.address}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -770,7 +817,7 @@ private fun DiscountShopCardItem(
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            text = GnssLocationManager.formatDistance(distanceMeters),
+                            text = radarDistanceLabel(distanceMeters),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -808,13 +855,13 @@ private fun DiscountShopCardItem(
                             )
                             Column {
                                 Text(
-                                    text = "Best Card: ${bestCard.name}",
+                                    text = stringResource(R.string.ui_radar_best_card, bestCard.name),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = bestOffer.promoDescription.ifBlank { "${bestOffer.discountRate}% Cashback Perk" },
+                                    text = radarPromoLabel(bestOffer.promoDescription, bestOffer.discountRate),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                 )
@@ -826,7 +873,7 @@ private fun DiscountShopCardItem(
                             color = Color(0xFFFFD54F)
                         ) {
                             Text(
-                                text = "${bestOffer.discountRate}% OFF",
+                                text = stringResource(R.string.ui_radar_percent_off, bestOffer.discountRate.toString()),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.Black,
@@ -848,7 +895,7 @@ private fun DiscountShopCardItem(
                 ) {
                     if (shop.isUserCreated) {
                         IconButton(onClick = onDelete) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.btn_delete), tint = MaterialTheme.colorScheme.error)
                         }
                     } else {
                         Spacer(modifier = Modifier.width(8.dp))
@@ -864,7 +911,7 @@ private fun DiscountShopCardItem(
                     ) {
                         Icon(Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Log Spend Here ⚡", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.ui_radar_log_spend), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -924,8 +971,8 @@ private fun GoogleMapView(
             // User Location Center Marker
             Marker(
                 state = MarkerState(position = userLatLng),
-                title = currentLocation.locationName,
-                snippet = "GNSS Position (${String.format(java.util.Locale.US, "%.4f, %.4f", currentLocation.latitude, currentLocation.longitude)})",
+                title = radarLocationLabel(currentLocation.locationName),
+                snippet = stringResource(R.string.ui_radar_marker_position, String.format(java.util.Locale.US, "%.4f, %.4f", currentLocation.latitude, currentLocation.longitude)),
                 icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
             )
 
@@ -953,7 +1000,7 @@ private fun GoogleMapView(
                 Marker(
                     state = MarkerState(position = shopLatLng),
                     title = shop.name,
-                    snippet = "${bestCard?.name ?: "Card"}: ${bestOffer?.discountRate ?: 5.0}% OFF • ${GnssLocationManager.formatDistance(dist)}",
+                    snippet = stringResource(R.string.ui_radar_marker_offer, bestCard?.name ?: stringResource(R.string.ui_radar_card_fallback), (bestOffer?.discountRate ?: 5.0).toString(), radarDistanceLabel(dist)),
                     icon = BitmapDescriptorFactory.defaultMarker(markerHue),
                     onClick = {
                         onSelectShop(shop.id)

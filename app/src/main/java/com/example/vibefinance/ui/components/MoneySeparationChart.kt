@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui.components
 
+import com.example.vibefinance.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -97,18 +98,22 @@ fun MoneySeparationChart(
     val debtTotal = accounts.filter { it.type == AccountType.CC }.sumOf { it.balance }
     val debitLabel = stringResource(com.example.vibefinance.R.string.assets_type_debit)
 
+    val cashLabel = stringResource(R.string.loc_cash_wallet)
+    val bankLabel = stringResource(R.string.loc_bank_accounts)
+    val debtLabel = stringResource(R.string.loc_credit_debt)
+
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel) {
+    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel, cashLabel, bankLabel, debtLabel) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
                 MoneySegment(
                     id = "cash",
-                    name = "Cash Wallet",
+                    name = cashLabel,
                     amount = cashTotal,
                     percentage = (cashTotal / validTotal).toFloat(),
                     color = ChartColors.getAssetSegmentColor("cash", isDark, primaryColor)
@@ -119,7 +124,7 @@ fun MoneySeparationChart(
             list.add(
                 MoneySegment(
                     id = "bank",
-                    name = "Bank Accounts",
+                    name = bankLabel,
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
                     color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)
@@ -141,7 +146,7 @@ fun MoneySeparationChart(
             list.add(
                 MoneySegment(
                     id = "debt",
-                    name = "Credit Debt",
+                    name = debtLabel,
                     amount = debtTotal,
                     percentage = 0f, // Special non-positive asset segment
                     color = ChartColors.getAssetSegmentColor("debt", isDark, primaryColor)
@@ -219,7 +224,7 @@ fun MoneySeparationChart(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "Money Allocation",
+                                text = stringResource(R.string.loc_money_allocation),
                                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -240,7 +245,7 @@ fun MoneySeparationChart(
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
-                                            text = "Focused",
+                                            text = stringResource(R.string.category_analytics_focused),
                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                             color = selectedSegment.color,
                                             fontWeight = FontWeight.Bold
@@ -248,7 +253,7 @@ fun MoneySeparationChart(
                                         Spacer(modifier = Modifier.width(3.dp))
                                         Icon(
                                             imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear",
+                                            contentDescription = stringResource(R.string.reset_filter),
                                             tint = selectedSegment.color,
                                             modifier = Modifier.size(10.dp)
                                         )
@@ -257,7 +262,7 @@ fun MoneySeparationChart(
                             }
                         }
                         Text(
-                            text = if (selectedSegment != null) "Filtering: ${selectedSegment.name} • Tap to reset" else "Tap any category below to filter",
+                            text = if (selectedSegment != null) stringResource(R.string.category_analytics_filtering, selectedSegment.name) else stringResource(R.string.loc_allocation_filter_hint),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                             color = if (selectedSegment != null) selectedSegment.color else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             maxLines = 1,
@@ -365,7 +370,7 @@ fun MoneySeparationChart(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Credit Debt",
+                    text = stringResource(R.string.loc_credit_debt),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
@@ -539,12 +544,16 @@ fun InteractiveDonutChart(
     val debitTotal = accounts.filter { it.type == AccountType.DEBIT }.sumOf { it.balance }
     val debitLabel = stringResource(com.example.vibefinance.R.string.assets_type_debit)
 
+    val cashLabel = stringResource(R.string.loc_cash_wallet)
+    val bankLabel = stringResource(R.string.loc_bank_accounts)
+    val debtLabel = stringResource(R.string.loc_credit_debt)
+
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel) {
+    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel, cashLabel, bankLabel, debtLabel) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -561,7 +570,7 @@ fun InteractiveDonutChart(
             list.add(
                 MoneySegment(
                     id = "bank",
-                    name = "Bank Accounts",
+                    name = bankLabel,
                     amount = bankTotal,
                     percentage = (bankTotal / validTotal).toFloat(),
                     color = ChartColors.getAssetSegmentColor("bank", isDark, primaryColor)

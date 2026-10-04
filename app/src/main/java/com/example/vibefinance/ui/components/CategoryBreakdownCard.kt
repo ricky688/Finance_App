@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -68,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -79,7 +81,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
-import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
 import java.util.Locale
 
 enum class CategoryAnalyticsPeriodMode { MONTH, BUDGET_PERIOD }
@@ -223,7 +224,7 @@ fun CategoryBreakdownCard(
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Close,
-                                                contentDescription = "Clear",
+                                                contentDescription = stringResource(R.string.reset_filter),
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(12.dp)
                                             )
@@ -274,7 +275,7 @@ fun CategoryBreakdownCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FileUpload,
-                                contentDescription = "Import Data",
+                                contentDescription = stringResource(R.string.import_title),
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -294,7 +295,7 @@ fun CategoryBreakdownCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.FileDownload,
-                            contentDescription = "Export CSV",
+                            contentDescription = stringResource(R.string.loc_export_csv),
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -310,10 +311,15 @@ fun CategoryBreakdownCard(
             if (onSelectPeriod != null && hasBudgetPeriod) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val modes = CategoryAnalyticsPeriodMode.entries
-                ExpressiveSegmentedButtonGroup(
+                ExpressiveConnectedButtonGroup(
                     items = modes,
                     selectedIndex = modes.indexOf(periodMode),
                     onItemSelected = { index -> onSelectPeriod(modes[index]) },
+                    modifier = Modifier.widthIn(max = 320.dp).align(Alignment.CenterHorizontally),
+                    lightModeFocusMotion = true,
+                    compact = true,
+                    focusBackdropColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        .compositeOver(MaterialTheme.colorScheme.background),
                     labelProvider = { mode ->
                         stringResource(
                             if (mode == CategoryAnalyticsPeriodMode.MONTH) {

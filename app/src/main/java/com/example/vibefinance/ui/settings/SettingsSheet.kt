@@ -779,7 +779,7 @@ fun SettingsSheet(
                         val currentLang = state.appLanguage
                         LanguageOptionCard(
                             title = stringResource(R.string.lang_system),
-                            subtitle = "Auto",
+                            subtitle = stringResource(R.string.loc_automatic),
                             isSelected = currentLang == AppLanguage.SYSTEM,
                             onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.SYSTEM)) },
                             modifier = Modifier.weight(1f)

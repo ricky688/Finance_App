@@ -243,7 +243,7 @@ class HeatmapRefinementVerificationTest {
 
         assertTrue(
             "Switcher button padding must be horizontal = 6.dp",
-            switcherCode.contains("Modifier.padding(horizontal = 6.dp, vertical = 5.dp)")
+            switcherCode.contains(".padding(horizontal = 6.dp, vertical = 5.dp)")
         )
         assertTrue(
             "Checkmark icon size must be 13.dp",

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ah_outstanding_debt" formatted="false">未償還欠款</string>
+    <string name="ah_current_balance" formatted="false">目前結餘</string>
+    <string name="ah_net_asset_value" formatted="false">淨資產值</string>
+    <string name="ah_total_card_debt" formatted="false">信用卡欠款總額</string>
+    <string name="ah_assets_cards" formatted="false">我的資產與卡片</string>
+    <string name="ah_add_asset" formatted="false">新增資產</string>
+    <string name="ah_delete_account_title" formatted="false">刪除帳戶？</string>
+    <string name="ah_card_preview" formatted="false">卡片預覽</string>
+    <string name="ah_account_identity" formatted="false">帳戶資料</string>
+    <string name="ah_account_card_name" formatted="false">帳戶／卡片名稱</string>
+    <string name="ah_account_type" formatted="false">帳戶類型</string>
+    <string name="ah_last_four_example" formatted="false">例如：4321</string>
+    <string name="ah_current_balance_debt" formatted="false">目前結餘與欠款</string>
+    <string name="ah_current_debt_amount" formatted="false">目前欠款金額（$）</string>
+    <string name="ah_current_balance_amount" formatted="false">目前結餘金額（$）</string>
+    <string name="ah_quick_adjust" formatted="false">一按快速調整</string>
+    <string name="ah_custom_adjust" formatted="false">自訂調整（$）</string>
+    <string name="ah_adjust_example" formatted="false">例如：75</string>
+    <string name="ah_limit_utilization" formatted="false">信用額度與使用率</string>
+    <string name="ah_credit_limit_amount" formatted="false">信用額度（$）</string>
+    <string name="ah_credit_utilization" formatted="false">信用額度使用率</string>
+    <string name="ah_billing_schedule" formatted="false">結單與還款日期</string>
+    <string name="ah_payment_due" formatted="false">還款日</string>
+    <string name="ah_payment_deadline_day" formatted="false">還款截止日</string>
+    <string name="ah_gradient_palette" formatted="false">漸層主題配色</string>
+    <string name="ah_selected" formatted="false">已選取</string>
+    <string name="ah_branding_protocol" formatted="false">發卡機構與支付網絡</string>
+    <string name="ah_issuer" formatted="false">發卡機構</string>
+    <string name="ah_protocol" formatted="false">支付網絡</string>
+    <string name="ah_texture_art" formatted="false">紋理與自訂圖片</string>
+    <string name="ah_pattern_overlay" formatted="false">圖案疊加</string>
+    <string name="ah_upload_image" formatted="false">上載圖片</string>
+    <string name="ah_change_image" formatted="false">更換圖片</string>
+    <string name="ah_crop" formatted="false">裁切</string>
+    <string name="ah_remove" formatted="false">移除</string>
+    <string name="ah_reset" formatted="false">重設</string>
+    <string name="ah_position_axes" formatted="false">位置（X 與 Y 軸）</string>
+    <string name="ah_gesture_tip" formatted="false">可直接拖曳上方卡片預覽以移動圖片，或雙指縮放。</string>
+    <string name="ah_horizontal_axis" formatted="false">X 軸（水平方向）</string>
+    <string name="ah_vertical_axis" formatted="false">Y 軸（垂直方向）</string>
+    <string name="ah_center_zero" formatted="false">置中（0%）</string>
+    <string name="ah_shift_left" formatted="false">向左移動</string>
+    <string name="ah_shift_right" formatted="false">向右移動</string>
+    <string name="ah_shift_up" formatted="false">向上移動</string>
+    <string name="ah_shift_down" formatted="false">向下移動</string>
+    <string name="ah_zoom_scale" formatted="false">縮放／比例</string>
+    <string name="ah_zoom_out" formatted="false">縮小</string>
+    <string name="ah_zoom_in" formatted="false">放大</string>
+    <string name="ah_add_asset_card" formatted="false">新增資產／卡片</string>
+    <string name="ah_bank_settings" formatted="false">銀行帳戶設定</string>
+    <string name="ah_cash_settings" formatted="false">現金錢包設定</string>
+    <string name="ah_debit_settings" formatted="false">扣帳卡設定</string>
+    <string name="ah_credit_settings" formatted="false">信用卡設定</string>
+    <string name="ah_live_overview" formatted="false">即時概覽</string>
+    <string name="ah_debt_title" formatted="false">未償還欠款</string>
+    <string name="ah_available_balance" formatted="false">可用結餘</string>
+    <string name="ah_utilization" formatted="false">使用率</string>
+    <string name="ah_create_asset" formatted="false">建立資產</string>
+    <string name="ah_image_position_scale" formatted="false">調整卡片圖片位置與比例</string>
+    <string name="ah_image_crop_tip" formatted="false">拖曳以移動圖片，並在下方選擇長寬比例。</string>
+    <string name="ah_preview" formatted="false">預覽</string>
+    <string name="ah_move_left" formatted="false">向左移動</string>
+    <string name="ah_move_right" formatted="false">向右移動</string>
+    <string name="ah_move_up" formatted="false">向上移動</string>
+    <string name="ah_move_down" formatted="false">向下移動</string>
+    <string name="ah_aspect_ratio" formatted="false">長寬比例</string>
+    <string name="ah_confirm_use" formatted="false">確認並使用</string>
+    <string name="ah_new_account" formatted="false">新帳戶</string>
+    <string name="ah_delete_account_message">要刪除「%1$s」嗎？所有相關交易及設定都會永久移除。</string>
+    <string name="ah_modify_account">修改「%1$s」</string>
+    <string name="ah_offset_left">向左 %1$d%%</string>
+    <string name="ah_offset_right">向右 +%1$d%%</string>
+    <string name="ah_offset_up">向上 %1$d%%</string>
+    <string name="ah_offset_down">向下 +%1$d%%</string>
+    <string name="ah_due_today" formatted="false">今日到期</string>
+    <string name="ah_due_tomorrow" formatted="false">明日到期</string>
+    <string name="ah_due_in_days">%1$d 日後到期</string>
+    <string name="ah_credit_used_available">已用 %1$d%% • 可用 $%2$,.0f</string>
+    <string name="ah_tab_details" formatted="false">資料</string>
+    <string name="ah_tab_billing" formatted="false">結單與還款</string>
+    <string name="ah_tab_design" formatted="false">卡片設計</string>
+    <string name="ah_type_debit" formatted="false">扣帳卡</string>
+    <string name="ah_none" formatted="false">無</string>
+    <string name="ah_pattern_cyber_grid" formatted="false">數碼網格</string>
+    <string name="ah_pattern_neon_waves" formatted="false">霓虹波紋</string>
+    <string name="ah_pattern_geometric_mesh" formatted="false">幾何網格</string>
+    <string name="ah_align_center" formatted="false">置中</string>
+    <string name="ah_align_top" formatted="false">靠上</string>
+    <string name="ah_align_bottom" formatted="false">靠下</string>
+    <string name="ah_align_left" formatted="false">靠左</string>
+    <string name="ah_align_right" formatted="false">靠右</string>
+    <string name="ah_ratio_card" formatted="false">💳 1.586:1（卡片）</string>
+    <string name="ah_ratio_wide" formatted="false">📺 16:9（寬屏）</string>
+    <string name="ah_ratio_photo" formatted="false">📷 4:3（照片）</string>
+    <string name="ah_ratio_square" formatted="false">⬛ 1:1（正方形）</string>
+    <string name="ah_ratio_banner" formatted="false">🎬 2.35:1（橫幅）</string>
+    <string name="ah_fallback_account" formatted="false">帳戶</string>
+    <string name="ah_theme_default" formatted="false">預設</string>
+    <string name="ah_theme_ocean" formatted="false">海洋</string>
+    <string name="ah_theme_emerald" formatted="false">翠綠</string>
+    <string name="ah_theme_sunset" formatted="false">日落</string>
+    <string name="ah_theme_purple" formatted="false">紫色</string>
+    <string name="ah_theme_rose" formatted="false">玫瑰</string>
+    <string name="ah_theme_crimson" formatted="false">深紅</string>
+    <string name="ah_clear_search" formatted="false">清除搜尋</string>
+</resources>

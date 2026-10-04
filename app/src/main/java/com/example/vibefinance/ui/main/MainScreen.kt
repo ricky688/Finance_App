@@ -62,6 +62,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.TrendingDown
@@ -205,7 +206,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -998,7 +999,7 @@ fun MainScreen(
                                     val imageVector = if (checkedProgress > 0.5f) Icons.Default.Close else Icons.Default.Add
                                     Icon(
                                         imageVector = imageVector,
-                                        contentDescription = if (isFabMenuExpanded) "Close Menu" else "Add Transaction",
+                                        contentDescription = if (isFabMenuExpanded) stringResource(R.string.ui_main_close_menu) else stringResource(R.string.ui_main_add_transaction),
                                         modifier = Modifier.animateIcon({ checkedProgress })
                                     )
                                 }
@@ -1759,22 +1760,10 @@ fun <T> ExpressiveSegmentedButtonGroup(
                 topEnd = topEnd,
                 bottomEnd = bottomEnd
             )
-            
-            val containerColor by animateColorAsState(
-                targetValue = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                },
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-            )
-            val contentColor by animateColorAsState(
-                targetValue = if (isSelected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                },
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+
+            val colorMotion = rememberConnectedButtonColorMotion(
+                isSelected = isSelected,
+                isPressed = isPressed.value
             )
             
             val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
@@ -1783,8 +1772,8 @@ fun <T> ExpressiveSegmentedButtonGroup(
             val view = LocalView.current
 
             Surface(
-                color = containerColor,
-                contentColor = contentColor,
+                color = colorMotion.containerColor,
+                contentColor = colorMotion.contentColor,
                 shape = shape,
                 modifier = itemModifier
                     .clip(shape)
@@ -1807,6 +1796,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             ) {
                 Row(
                     modifier = Modifier
+                        .then(colorMotion.contentModifier)
                         .padding(vertical = 8.dp, horizontal = if (isScrollable) 12.dp else 4.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
@@ -1825,14 +1815,14 @@ fun <T> ExpressiveSegmentedButtonGroup(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp),
-                                tint = contentColor
+                                tint = colorMotion.contentColor
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                         }
                     }
                     
                     if (iconProvider != null) {
-                        iconProvider(item, contentColor)
+                        iconProvider(item, colorMotion.contentColor)
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                     
@@ -1840,7 +1830,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
                         text = labelProvider(item),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = contentColor,
+                        color = colorMotion.contentColor,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -2007,8 +1997,8 @@ fun AddExpenseSheetContent(
         state.transactions.groupingBy { it.accountId }.eachCount()
     }
 
-    val expenseCategories = remember { mutableStateListOf("Food", "Transport", "Shopping", "Utilities", "Other") }
-    val incomeCategories = remember { mutableStateListOf("Salary", "Bonus", "Investment", "Part-Time", "Gift", "Other Income") }
+    val expenseCategories = remember { com.example.vibefinance.data.entity.DefaultExpenseCategories.toMutableStateList() }
+    val incomeCategories = remember { com.example.vibefinance.data.entity.DefaultIncomeCategories.toMutableStateList() }
 
     val sortedExpenseCategories = remember(expenseCategories.toList(), categoryFrequency) {
         expenseCategories.sortedWith(
@@ -2089,11 +2079,11 @@ fun AddExpenseSheetContent(
                     }
                     Toast.makeText(
                         context,
-                        "📷 Receipt Scanned! Auto-filled HK$ ${scanned.totalAmount} for ${scanned.merchantName}",
+                        context.getString(R.string.ui_main_receipt_success, scanned.totalAmount.toString(), scanned.merchantName),
                         Toast.LENGTH_LONG
                     ).show()
                 } else {
-                    Toast.makeText(context, "Could not parse receipt text", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.ui_main_receipt_failed), Toast.LENGTH_SHORT).show()
                 }
                 isScanningReceipt = false
             }
@@ -2234,16 +2224,16 @@ fun AddExpenseSheetContent(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(
-                                            text = if (isOverBudget) "超支警告！" else "預算試算",
+                                            text = if (isOverBudget) stringResource(R.string.ui_main_budget_warning) else stringResource(R.string.ui_main_budget_preview),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = if (isOverBudget) (if (isDarkTheme) Color(0xFFFF8A80) else Color(0xFFB71C1C)) else MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             text = if (isOverBudget) {
-                                                "此筆支出超出今日剩餘！今日將超支 $${String.format(Locale.US, "%.0f", -simDailyRem)}，其餘每天可用降為 $${String.format(Locale.US, "%.0f", newDailyForRest)}"
+                                                stringResource(R.string.ui_main_budget_preview_over, String.format(Locale.US, "%.0f", -simDailyRem), String.format(Locale.US, "%.0f", newDailyForRest))
                                             } else {
-                                                "扣除後今日尚餘 $${String.format(Locale.US, "%.0f", simDailyRem)}"
+                                                stringResource(R.string.ui_main_budget_preview_remaining, String.format(Locale.US, "%.0f", simDailyRem))
                                             },
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2314,13 +2304,13 @@ fun AddExpenseSheetContent(
                     }
                 }
             },
-            placeholder = { Text("Note / Merchant (e.g. Starbucks)", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f), style = MaterialTheme.typography.bodyMedium) },
+            placeholder = { Text(stringResource(R.string.ui_main_note_hint), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f), style = MaterialTheme.typography.bodyMedium) },
             singleLine = true,
             trailingIcon = {
                 IconButton(onClick = { receiptPickerLauncher.launch("image/*") }) {
                     Icon(
                         imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Scan Receipt",
+                        contentDescription = stringResource(R.string.quick_scan_receipt),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -2349,7 +2339,7 @@ fun AddExpenseSheetContent(
         ) {
             Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
                 Text(
-                    text = if (transactionMode == TransactionMode.INCOME) "Category (Income)" else "Category",
+                    text = if (transactionMode == TransactionMode.INCOME) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 4.dp)
@@ -2370,7 +2360,7 @@ fun AddExpenseSheetContent(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         var newCatName by remember { mutableStateOf("") }
-                        Text("Add Custom Category", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.ui_main_add_category), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2379,7 +2369,7 @@ fun AddExpenseSheetContent(
                             OutlinedTextField(
                                 value = newCatName,
                                 onValueChange = { newCatName = it },
-                                placeholder = { Text("Category Name (e.g. Health)") },
+                                placeholder = { Text(stringResource(R.string.ui_main_category_hint)) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f),
                                 textStyle = MaterialTheme.typography.bodyMedium
@@ -2409,7 +2399,7 @@ fun AddExpenseSheetContent(
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add")
+                                Text(stringResource(R.string.btn_add))
                             }
                         }
                     }
@@ -2434,13 +2424,13 @@ fun AddExpenseSheetContent(
                     },
                     trailingContent = {
                         ExpressiveAddButton(
-                            text = "Add",
+                            text = stringResource(R.string.btn_add),
                             onClick = {
                                 showInlineAddCategory = !showInlineAddCategory
                             }
                         )
                     },
-                    labelProvider = { cat -> cat }
+                    labelProvider = { cat -> com.example.vibefinance.ui.home.getCategoryDisplayName(cat) }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
@@ -2451,7 +2441,7 @@ fun AddExpenseSheetContent(
         // 3. Asset Selection Horizontal Grid
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = if (isTransfer) "From Account" else "Asset Selection",
+                text = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.padding(bottom = 4.dp)
@@ -2475,12 +2465,12 @@ fun AddExpenseSheetContent(
                     var selectedType by remember { mutableStateOf(AccountType.CASH) }
                     var initialBalanceText by remember { mutableStateOf("") }
                     
-                    Text("Add Custom Card / Account", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.ui_main_add_account), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                     
                     OutlinedTextField(
                         value = newAssetName,
                         onValueChange = { newAssetName = it },
-                        placeholder = { Text("Account Name (e.g. Citi Bank)") },
+                        placeholder = { Text(stringResource(R.string.ui_main_account_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2490,7 +2480,7 @@ fun AddExpenseSheetContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Type:", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.2f))
+                        Text(stringResource(R.string.ui_main_account_type), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.2f))
                         ExpressiveSegmentedButtonGroup(
                             items = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC),
                             selectedIndex = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC).indexOf(selectedType),
@@ -2499,10 +2489,10 @@ fun AddExpenseSheetContent(
                             isScrollable = true,
                             labelProvider = {
                                 when (it) {
-                                    AccountType.CASH -> "Cash"
-                                    AccountType.BANK -> "Bank"
-                                    AccountType.DEBIT -> "Debit"
-                                    AccountType.CC -> "Credit"
+                                    AccountType.CASH -> stringResource(R.string.acc_type_cash)
+                                    AccountType.BANK -> stringResource(R.string.ui_main_bank_short)
+                                    AccountType.DEBIT -> stringResource(R.string.ui_main_debit_short)
+                                    AccountType.CC -> stringResource(R.string.ui_main_credit_short)
                                 }
                             }
                         )
@@ -2516,7 +2506,7 @@ fun AddExpenseSheetContent(
                         OutlinedTextField(
                             value = initialBalanceText,
                             onValueChange = { initialBalanceText = it },
-                            placeholder = { Text(if (selectedType == AccountType.CC) "Credit Limit ($)" else "Initial Balance ($)") },
+                            placeholder = { Text(if (selectedType == AccountType.CC) stringResource(R.string.ui_main_credit_limit_hint) else stringResource(R.string.ui_main_initial_balance_hint)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -2551,7 +2541,7 @@ fun AddExpenseSheetContent(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Save")
+                            Text(stringResource(R.string.btn_save))
                         }
                     }
                 }
@@ -2578,7 +2568,7 @@ fun AddExpenseSheetContent(
                 },
                 trailingContent = {
                     ExpressiveAddButton(
-                        text = "Add",
+                        text = stringResource(R.string.btn_add),
                         onClick = {
                             showInlineAddAsset = !showInlineAddAsset
                         }
@@ -2603,7 +2593,7 @@ fun AddExpenseSheetContent(
             Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "To Account (Destination)",
+                    text = stringResource(R.string.ui_main_destination_account),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -2854,7 +2844,7 @@ fun AddExpenseSheetContent(
                 IconButton(onClick = onDismissAddDialog) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.nav_back),
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -2870,9 +2860,9 @@ fun AddExpenseSheetContent(
                 ) { mode ->
                     Text(
                         text = when (mode) {
-                            TransactionMode.INCOME -> "Add Income"
-                            TransactionMode.TRANSFER -> "Transfer"
-                            else -> "Add Expense"
+                            TransactionMode.INCOME -> stringResource(R.string.quick_add_income)
+                            TransactionMode.TRANSFER -> stringResource(R.string.quick_transfer)
+                            else -> stringResource(R.string.quick_add_expense)
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
@@ -2907,7 +2897,7 @@ fun AddExpenseSheetContent(
                             Row {
                                 Icon(
                                     imageVector = Icons.Default.Paid,
-                                    contentDescription = "Amount Icon",
+                                    contentDescription = stringResource(R.string.ui_main_amount_icon),
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -3035,7 +3025,7 @@ fun AllowedInterceptAppsDialog(
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
+                            contentDescription = stringResource(R.string.ui_main_search),
                             modifier = Modifier.size(18.dp)
                         )
                     },
@@ -3044,7 +3034,7 @@ fun AllowedInterceptAppsDialog(
                             IconButton(onClick = { searchQuery = "" }) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear",
+                                    contentDescription = stringResource(R.string.ui_main_clear),
                                     modifier = Modifier.size(16.dp)
                                 )
                             }

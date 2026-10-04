@@ -13,10 +13,10 @@
     <string name="topbar_daily_flow">每日收支</string>
     <string name="topbar_assets_cards">資產與卡片</string>
     <string name="topbar_activity_history">歷史紀錄</string>
-    <string name="topbar_alt_vibe_overview">Vibe Overview</string>
-    <string name="topbar_alt_assets_cards">Assets &amp; Cards</string>
-    <string name="topbar_alt_subscriptions">Subscriptions</string>
-    <string name="topbar_alt_activity_history">Activity History</string>
+    <string name="topbar_alt_vibe_overview">每日預算總覽</string>
+    <string name="topbar_alt_assets_cards">管理你的帳戶</string>
+    <string name="topbar_alt_subscriptions">訂閱與分期付款</string>
+    <string name="topbar_alt_activity_history">交易紀錄</string>
     <string name="topbar_cards_assets_count">%d 項卡片與資產</string>
     <string name="topbar_transactions_logged">%d 筆紀錄</string>
     <string name="greeting_morning">早安</string>
@@ -208,9 +208,13 @@
     <string name="daily_net_format">當日淨額：%1$sHK$%2$,.2f</string>
     <string name="cashback_pill_format">+HK$ %1$,.2f 回贈 (%2$s%%)</string>
     <string name="edit_transaction_title">編輯交易紀錄</string>
+    <string name="edit_transaction_type_label">收支類型</string>
     <string name="edit_amount_label">金額</string>
     <string name="edit_description_label">描述 / 備註</string>
     <string name="edit_category_label">類別</string>
+    <string name="edit_category_defaults">常用類別</string>
+    <string name="edit_category_existing">已有類別</string>
+    <string name="edit_category_current">目前類別</string>
     <string name="cat_electronics">數碼電器</string>
     <string name="cat_groceries">超市雜貨</string>
 

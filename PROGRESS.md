@@ -8,6 +8,203 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-04: Samsung Wallet BOC Go UnionPay Card ("BOC Go unionpay Diamond Card") Auto-Recognition & Transit Logging
+- **Problem**: When Samsung Wallet (`com.samsung.android.spay`) posted a transit ticket notification with title `BOC Go unionpay Diamond Card` and text `transit-ticket THE KOWLOOHHONGKONG HKG HK$3.60`, the app failed to recognize and bind the transaction to the user's BOC Go card account.
+- **Root Cause**:
+  1. `bocGoUnionPayTitle` regex strictly required spaces around UnionPay (`\bUnion\s*Pay\b`), which didn't match variations or non-English titles like `中銀 Go`.
+  2. `PendingPaymentStore.canRememberChoice` strictly enforced `accountName.length >= 6 && hint.contains(accountName)`, failing for accounts named "BOC Go Card", "中銀 Go", "中銀 Go 卡", "BOC", or "中銀".
+  3. `PendingPaymentChoiceDialog` had no dedicated account resolution for BOC Go cards, resulting in a `null` suggested account ID.
+  4. Transit ticket notifications from Kowloon Motor Bus (`THE KOWLOOHHONGKONG HKG`) lacked explicit keywords in `determineCategory`, causing non-transit fallback.
+- **Implementation**:
+  - `PaymentNotificationListener`:
+    - Updated `bocGoUnionPayTitle` regex to `(?i)\b(?:BOC\s+Go|中銀\s*Go)\b(?:.*\bUnion\s*Pay\b)?` to match all English and Traditional Chinese BOC Go card titles.
+    - Added `kowloo` and `kowloon` keywords to `determineCategory` Transport classification.
+  - `PendingPaymentStore`:
+    - Added `isBocGoHint`, `isBocGoAccount`, `isBocUnionPayAccount`, `isBocAccount`, and `findBocGoMatch` to seamlessly recognize and hierarchically resolve BOC Go cards to user accounts.
+    - Updated `rememberedAccountId` to automatically resolve to unambiguous BOC Go card accounts and support cross-package remembered choices.
+    - Updated `canRememberChoice` to permit binding BOC Go hints to any user account matching BOC Go or BOC credit cards.
+  - `PendingPaymentChoiceDialog`:
+    - Updated `suggestedId` to pre-select the matched BOC Go account when receiving a BOC Go payment hint.
+- **Verification**:
+  - All 155 unit tests passed (`./gradlew testDebugUnitTest`), including new test `samsungWalletBocGoUnionPayTransitNotificationParsesAndMatchesBocGoAccounts`.
+  - Built and verified production release APK `v1.0.5` (versionCode `6`, versionName `"1.0.5"`) via `./gradlew assembleRelease`.
+  - Successfully deployed to the user's physical phone **Samsung Galaxy S24 Ultra** (`SM-S9280`, `adb-R5CX22YGH7A-LIJF6v._adb-tls-connect._tcp`) using `adb install -r -d`, seamlessly preserving all existing transactions, accounts, and preferences.
+  - Successfully deployed to local Waydroid emulator (`192.168.240.112:5555`).
+  - Knowledge graph synchronized via `graphify update .`.
+
+### 2026-10-04: Consistent English / Traditional Chinese Display
+- **Fixed locale propagation**: MainActivity now provides the selected configuration's `LocalResources` as well as `LocalContext`/`LocalConfiguration`. Compose previously kept displaying English even when the Chinese option was selected. System language is resolved independently from device resources, so English/Chinese overrides cannot contaminate System. Locale-dependent remembered dates invalidate on language changes; Traditional Chinese uses the Hong Kong locale.
+- **Localized UI**: Home charts/calendar/heatmap, forecast and budget dialogs; Assets summary/editor/design/crop controls; History category presentation; transaction add/edit/transfer labels; Recurring editors/filters; Radar/shop editor; import account summaries; accessibility descriptions, feedback toasts and app notifications. Alternate page subtitles now use the selected language. Built-in category/frequency/type IDs are translated only when displayed; stored IDs, user names, official brands and matching logic are preserved.
+- **Resources**: All 796 string keys have matching Traditional Chinese resources across `values-zh`, `values-zh-rHK`, `values-zh-rTW` and `values-b+zh+Hant`. Executable parity/duplicate/format checks pass, including filling the newer chart/indicator labels missing from regional/script resources.
+- **Validation**: ARTEMIS observation + fresh ADB XML explored Settings before test authoring. Live Chinese → cold relaunch → English → System → Chinese checks pass. All 155 JVM tests and 31 Android instrumentation tests pass, including two new saved-locale/notification-format/system regressions plus History, picker, wave and connected-motion regressions. Debug, Android-test and Release builds pass. A stale source-format padding assertion was adjusted for the existing motion modifier chain. Real Settings switching uses the recorded fresh XML path rather than the full app's continuously busy Compose idle loop.
+- **Evidence / device**: `captures/localization-2026-10-04/REPORT.md`, runnable checks, language/page screenshots, test/build logs, APKs and checksums. Waydroid is updated with a matching project-release-signed debug build; a signing change observed during testing was handled without uninstalling/clearing the app. No financial records were saved or deleted by this work. App left in Traditional Chinese; physical phone not connected/updated.
+
+### 2026-10-04: Approved Focus Color Motion Applied Across Connected Groups
+- **Implemented**: All 15 connected-group call sites now share the approved Light-only edge-to-center fill and center-to-perimeter fading release. Dark mode uses a uniform crossfade. New `rememberConnectedButtonColorMotion` centralizes the tested reversible spring, actual theme guard, regional content tints, and validated inset clipping.
+- **Coverage**: Budget Period and Category Analytics; Assets filters; History transaction type editor; expense/income/transfer category, account type, source and destination choosers; Modify Wallet/Card tabs; Radar map/radar mode; recurring filters, subscription/installment tabs and frequency; Home spending-chart modes and calendar Habit/Month view switch. Existing native/custom shape changes, dimensions, scrolling, icons, counts, trailing Add actions, callbacks and haptics remain. Assets keeps its original selected tonal colors in Dark mode; compact sizing remains specific to Category Analytics.
+- **Validation**: ARTEMIS + ADB explored the relevant live controls before new tests were authored. All 20 UI tests passed on Waydroid in 22.114 seconds (4 new cross-variant regressions, 4 previous color regressions, 2 native shape regressions, 10 History regressions). New coverage includes offscreen semantic scrolling, icon/trailing Add independence, recurring Light/Dark paths, rapid retargeting, and the default noncompact native group. The scrolling test uses automatic frame advancement; motion tests use a paused deterministic clock. Debug/Android-test/Release builds passed. Live Light recordings and Dark crossfade recordings were inspected; the app was restored to Light mode/History and editor drafts cancelled without saving.
+- **Evidence**: `captures/connected-motion-rollout-2026-10-04/REPORT.md`, screen recordings, inspected frame sheets, final test/build logs, APK copies and SHA256 checksums. Code graph refreshed and scoped whitespace checks passed. The updated debug APK is installed on Waydroid; the physical phone was not updated for this rollout.
+
+### 2026-10-04: Category Analytics Light-Only Dual Color Motion & Compact Buttons
+- **Implemented**: Category Analytics Month/Budget period buttons fill inward from all perimeter edges when selected or pressed. Deselection clears the center outward while the remaining primary wash fades at the perimeter. Finite reversible spring motion handles interrupted taps and cancelled presses. Dark mode uses the original uniform container/content color fade.
+- **Theme and sizing**: `LocalIsDarkTheme` exposes the actual app theme choice before its palette finishes animating, so spatial motion is strictly disabled in Dark mode. Category Analytics opts into a centered maximum 320dp group with minimum 40dp painted buttons and native 48dp touch allocation; larger font layouts can grow. Native connected leading/trailing shape morphs, selection semantics, checkmarks, ripple, and callbacks remain. Budget Period keeps its original whole-color fade and size.
+- **Rendering**: `InsetFocusColorMotion` uses complementary rectangular clips inside the native animated button shape and keeps content tints appropriate to each region. Device tests exposed uniform rendering in an initial nested-path mask; direct `clipRect`/`ClipOp.Difference` masking fixes the observed defect. The final recorded frames show a tonal center shrinking on focus and expanding on release, without an external blur or smoke effect.
+- **Validation**: ARTEMIS observation + ADB explored the actual History screen in both app themes before test authoring. All 16 UI tests passed on Waydroid in 13.859 seconds: four new color/press/cancel/rapid-retarget/dark-mode/compact-hit-area tests, two native shape regressions, and ten History regressions. Debug, Android-test, and release builds passed. Fresh Light/Dark recordings were inspected, the debug APK was installed on Waydroid, and Light mode/History were restored. No financial records were edited; the physical phone was not updated for this change.
+- **Evidence**: `captures/analytics-light-dual-motion-2026-10-04/REPORT.md`, final recordings/frame sheets, deterministic test captures/output, archived APKs, checksums, and runnable recording helper. Earlier failed captures are retained separately for diagnosis. Graph refreshed and scoped whitespace checks passed.
+
+### 2026-10-04: Native Shape Morphing for Restored History Connected Groups
+- **Fixed**: Restored Budget Period and Category Analytics connected groups now animate shapes for unselected buttons as well as selected buttons. The previous custom middle button had identical 8dp resting/pressed corners, causing no visible morph.
+- **Implementation**: New `ExpressiveConnectedButtonGroup` uses native Material 3 `ToggleButton` with the same connected leading/middle/trailing shape defaults used in Assets and the transaction editor. Both History groups use it; the restored whole-color fades, labels, checkmarks, and filter callbacks remain. Added native radio selection semantics and minimum 48dp controls. Other shared segmented-group callers remain unchanged.
+- **Validation**: ARTEMIS + ADB verified both History paths before authoring tests. Live Waydroid recording confirms inactive buttons morph before selection. All 12 UI tests passed (10 existing History regressions + 2 new image-based shape/press/cancel regressions), including unchecked middle and end buttons, deselection, cancellation restoration, accessibility semantics, and minimum height. Debug, Android-test, and release builds passed.
+- **Evidence**: `captures/history-native-connected-shapes-2026-10-04/REPORT.md`, held-press screenshots, video, runnable recording script, and passing UI test output. The report also records four proposed Modify Assets/Cards popup improvements; those recommendations were not implemented as part of this shape fix.
+
+### 2026-10-04: Modify Wallet Quick-Launch App Picker Performance
+- **Fixed**: App Quick Launch in Assets & Cards → Modify Wallet opens without synchronously scanning packages and decoding every installed application's icon on the UI thread.
+- **Implementation**: `AppPickerDialog` loads catalog metadata asynchronously, keeps search/Cancel available during loading, distinguishes loading/failure/no matches, and provides localized retry. Icons load independently for lazy list rows. `LocalAppManager` scans on `Dispatchers.IO`, reuses launcher application information, coalesces scans, and caches metadata for 60 seconds with configuration/locale refresh. The 64-entry icon cache limits icons to 96×96; decoding runs outside its lock. Cancellation stops abandoned scans before publishing partial results.
+- **Validation**: All 154 JVM tests passed, including nine catalog/icon performance regressions. All five new `AppPickerDialogTest` UI tests passed on Waydroid, covering suspended loading/search, Cancel/cancellation, selection, retry, and a 150-app list with pending lazy icons. Debug and release builds passed. Live opening/reopening, package search, and unsaved draft selection were verified with ARTEMIS screenshots + ADB; wallet draft was cancelled without saving. Updated debug APK installed on Waydroid only.
+- **Evidence**: `captures/quick-launch-picker-2026-10-04/REPORT.md`, screenshots, opening video, UI test output, and frame diagnostics. No numerical physical-phone performance claim; Waydroid has fewer installed applications.
+
+### 2026-10-04: Real-World Android Octopus Notification Optimization ("Android版八達通")
+- **Feature Overview**: Fully optimized notification interception for real-world Android Octopus notifications based on actual Android device notifications (`title: "Android版八達通"`, `text: "八達通: 在 <商戶> 支付 HKD <金額>。餘額: HKD <餘額>"`), supporting both Traditional Chinese and English alerts with automatic merchant categorization and balance calibration.
+- **Real-World Notification Support**:
+  - Sample 1: `八達通: 在 九巴 / 龍運 支付 HKD 5.8。餘額: HKD 56.0` -> `Amount = 5.80`, `Merchant = "九巴 / 龍運"`, `Category = "Transport"`, `Balance = 56.00`.
+  - Sample 2: `八達通: 在 餐飲/會所 支付 HKD 29.0。餘額: HKD 61.8` -> `Amount = 29.00`, `Merchant = "餐飲/會所"`, `Category = "Food & Drink"`, `Balance = 61.80`.
+  - Sample 3: `八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 90.8` -> `Amount = 4.90`, `Merchant = "港鐵"`, `Category = "Transport"`, `Balance = 90.80`.
+  - Sample 4: `八達通: 在 港鐵 支付 HKD 3.2。餘額: HKD 95.7` -> `Amount = 3.20`, `Merchant = "港鐵"`, `Category = "Transport"`, `Balance = 95.70`.
+  - Sample 5: `八達通: 在 7-Eleven 支付 HKD 5.0。餘額: HKD 98.9` -> `Amount = 5.00`, `Merchant = "7-Eleven"`, `Category = "Groceries"`, `Balance = 98.90`.
+  - Sample 6: `八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 103.9` -> `Amount = 4.90`, `Merchant = "港鐵"`, `Category = "Transport"`, `Balance = 103.90`.
+  - Sample 7: `八達通: 在 零售 支付 HKD 18.0。餘額: HKD 108.8` -> `Amount = 18.00`, `Merchant = "零售"`, `Category = "Shopping"`, `Balance = 108.80`.
+  - Also verified negative/overdraft balances (e.g. `餘額: -HKD 15.0`) and English alerts (e.g. `Octopus: Paid HKD 12.5 at Starbucks. Balance: HKD 120.0`).
+- **Core Enhancements & Strict Title Filtering**:
+  - **Strict Octopus Title Filtering**:
+    - The official Octopus App (`com.octopuscards.nfc_reader`, `com.octopuscards.octopus_app`, `com.octopus.wallet`) issues various non-payment notifications (wallet promotions, surveys, marketing offers, statement notices).
+    - To completely prevent wrong logging, the app now strictly enforces that notifications from the Octopus App are **only intercepted and recorded if the title specifically matches Android Octopus** (`Android版八達通`, `Android 八達通`, `Android版八逹通`, `Android 八逹通`, `Android Octopus`, or `Octopus on Android`, or `Smart Octopus` on Samsung).
+    - Irrelevant notifications with titles like `八達通`, `八達通銀包`, `八達通優惠`, `Octopus`, `Octopus Wallet`, etc. are immediately dropped at `isAppInterceptEnabled`, `isPaymentNotification`, and `parseNotification`.
+  - `PaymentNotificationListener.kt`:
+    - Added `androidOctopusTitlePattern` matching `(?i)(?:android\s*(?:版\s*)?[八8][達逹]通|android\s*octopus|octopus\s+on\s+android)`.
+    - Added `isIrrelevantOctopusTitle` check in `isPaymentNotification` to reject non-payment Octopus alerts.
+    - Updated `parseNotification`: returns `null` immediately if notification is from Octopus app package and title is not Android Octopus / Smart Octopus.
+    - Added `androidOctopusZhPattern` & `androidOctopusEnPattern` with `HKD`, `HK$`, and `$` prefixes.
+    - Updated `determineCategory`: added `龍運`, `lwb`, `新巴` to Transport; `餐飲`, `會所` to Food & Drink; `7-eleven`, `circle k` to Groceries; added Shopping category with `零售`, `shopping`, `retail`, `百貨`, `商場`, `購物`, `淘寶`.
+  - `PendingPaymentStore.kt`:
+    - Updated `canRememberChoice`: recognizes `八達通` and `android版八達通` so that remembering the choice binds smoothly to Cash / Octopus accounts.
+    - Accurately calibrates account balance to `balanceRemaining` upon acceptance.
+  - `PendingPaymentChoiceDialog.kt`:
+    - Updated `suggestedId`: pre-selects the user's Cash / Octopus account when `assetHint` is `八達通` or `Android版八達通`.
+  - `InterceptableApp.kt`:
+    - Added `requiredTitleKeywords` to `OCTOPUS` and updated `matches()` to check `lowerTitle` only for OCTOPUS, ensuring non-matching titles are filtered out before parsing.
+- **Verification & Testing**:
+  - **Unit Tests**: All unit tests passed (`./gradlew testDebugUnitTest`), including `testIrrelevantOctopusAppNotificationsAreRejected` and `testOctopusAppRequiresAndroidOctopusTitle`.
+  - **Waydroid Live Verification (`192.168.240.112:5555`)**:
+    - Triggered irrelevant promo alert (Title: `八達通`, Text: `【最新推廣】在 麥當勞 支付享 $10 回贈`) -> 100% ignored, zero popup, zero transaction added (`screen_irrelevant_rejected.png`).
+    - Triggered valid tap payment (Title: `Android版八達通`, Text: `八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 90.8`) -> immediately and automatically logged as `Transport`, calibrated Cash Wallet to `$90.80` (`screen_valid_logged.png`, `screen_mtr_logged.png`, `screen_mtr_assets.png`).
+  - **User Physical Phone Deployment (`SM_S9280`)**:
+    - Compiled production Release APK (`versionName = 1.0.4`, 3.1 MB, R8 Proguard-minified and signed with `keystore/release.keystore`).
+    - Successfully installed in place to the user's phone (`SM_S9280`) via `adb install -r -d` preserving all existing user accounts, budgets, and historical data.
+
+### 2026-10-04: Original History Connected Groups Restored
+- Restored Budget Period and Category Analytics to the shared original `ExpressiveSegmentedButtonGroup`, including whole-container/content color fades, press-shape motion, checks, ripple and haptics.
+- Removed the center-line animation component and its experiment-specific motion test. Existing History editing tests and Home wave tests remain. Analytics availability, period callbacks and month navigation are preserved.
+- Debug/Android-test builds and the final release build passed; **all 10 History UI tests passed** on Waydroid (7.437 seconds). ARTEMIS observation and inspected recordings verify normal/rapid selections in both groups with whole-color fades. Graph refreshed; scoped whitespace checks passed.
+- Installed the rollback in place on Waydroid; the physical phone was not updated. Current recording, frame sheets, APK copies and report: `captures/history-original-groups-2026-10-04/REPORT.md`. Earlier focus-trial artifacts below are historical versions.
+
+### 2026-10-04: Short Horizontal Center Line in History Focus Animation
+- Supersedes the full-width line below. Both the selected fill's closing gap and the deselected fill contract toward a centered horizontal line about **40% of the button width**; its height reaches zero and the line disappears.
+- Background and foreground share the same four-band mask. Bands do not overlap, and settled/releasing solid fills use one rectangle. Atomic bounds, roughly 180 ms timing, rapid reversals, native interactions and smoke-free behavior remain.
+- Debug, Android-test and release builds passed. The focused selection/rapid-switching/settling device test passed (1.026 seconds). ARTEMIS observations and inspected recording frames confirm the shorter line. Graph refreshed and scoped whitespace checks passed.
+- Installed the debug update in place on Waydroid; the physical phone was not updated. Current preview, frame sheet, APK copies and report: `captures/short-horizontal-line-focus-2026-10-04/REPORT.md`.
+
+### 2026-10-04: Horizontal Center Line in History Focus Animation
+- Corrected the preceding vertical-line interpretation: selection fills from the top and bottom toward a full-width horizontal center line; deselection contracts in height to that same line and disappears.
+- Both background and foreground masks now use the button height for their animated bounds and retain its full width. The roughly 180 ms spring, rapid reversals, native connected shapes and smoke-free behavior remain.
+- Debug/Android-test builds and the final release build passed. The focused rapid-switching/settling device test passed (1.333 seconds); an inspected Waydroid recording confirms full-width horizontal stripes. Graph refreshed and scoped whitespace checks passed.
+- Installed the debug update in place on Waydroid; the physical phone was not updated. Current recording, frame sheet, APK copies and report: `captures/horizontal-line-focus-2026-10-04/REPORT.md`.
+
+### 2026-10-04: Faster Center-Line History Focus Animation
+- Supersedes the smoke effect in the preceding History focus trial. Removed outward diffusion, blur and the reserved overflow gutter from the Budget Period connected group.
+- Selected fill converges from the left and right edges through a full-height vertical gap. Deselected fill contracts horizontally to a vertical stripe through the button center and disappears. A finite, critically damped spring with stiffness 3000 settles in roughly 180 ms; rapid reversals continue from the current bounds.
+- Native connected button shapes, press ripple, haptics, immediate single-choice semantics and spatial foreground contrast remain. Today/Remaining waves and other connected groups retain their previous behavior.
+- Debug, Android-test and release builds passed; **all 15 focused Waydroid UI tests passed** (8.873 seconds). ARTEMIS observations and an inspected live recording confirm the geometry and absence of external smoke. Graph refreshed; scoped whitespace checks passed.
+- Installed the revised debug build in place on Waydroid. A concurrent installation interrupted initial capture attempts and re-opened deferred payment prompts; the final recording succeeded. This task only used Later on those prompts and did not record or ignore a payment. The physical phone was not updated.
+- Current recording, frame sheets, release APK and verification: `captures/center-line-focus-2026-10-04/REPORT.md`.
+
+### 2026-10-04: Continuous Budget Waves, Interruptible Shape Morph & History Focus Trial
+- Restored continuous motion in Today and Remaining card wave fills, including a full Remaining balance. Phase is read in graphics/drawing layers and pauses when the host stops or Android disables animations; the earlier five-second idle-settle behavior is superseded by this user request.
+- Days Left now uses a cached M3-styled ring with an interruptible amplitude spring. This avoids the native alpha01 indicator losing rapid Wavy/Flat reversals. Rounded 5 dp strokes, elapsed-period progress, endpoint gaps, layout and determinate accessibility semantics remain.
+- Added the experimental focus effect only to History's Budget Period filter (All Records / Active Period / Past Periods). Native connected ToggleButtons fill from all four edges toward the center; the released selection sends a bounded, outward, fading smoke layer with increasing blur. All glyphs stay above the decoration and use the same fill mask for contrast. Other connected groups retain the restored whole-color fade. This effect is superseded by the faster center-line update above.
+- Debug, Android-test and signed release APK builds passed; **141 JVM tests and 15 Waydroid UI tests passed**. New tests verify movement beyond five seconds, full-balance wave visibility, shape morph/rapid reversal, immediate filter selection and finite settling. Pixel assertions allow measured Waydroid GPU dithering (observed up to four channel levels, tolerance six).
+- Live ARTEMIS observation plus ADB recordings confirm both moving card backgrounds and the History focus effect. Dynamic UIAutomator snapshots are grounded with animation briefly paused and restored because perpetual drawing prevents an idle snapshot; stale XML is rejected by the new recording helper.
+- Waydroid (`192.168.240.112:5555`) retained its debug signing and data; the physical phone was not updated. Builds, recordings and report for this earlier version: `captures/budget-motion-2026-10-03/`.
+
+### 2026-10-04: Smart Octopus Remaining Balance Recognition & Account Calibration
+- **Feature Overview**: Added support for extracting and synchronizing the remaining card balance directly from Smart Octopus / Samsung Wallet notifications (e.g. `title: Samsung Wallet`, `text: Smart Octopus HK$12.6 7-Eleven 餘額 HK$214.0`).
+- **Notification Parsing & Multi-Amount Guard**:
+  - Enhanced `PaymentNotificationListener.isPaymentNotification` and `parseNotification` to inspect both notification `title` and `text` for Smart Octopus alerts.
+  - Bypassed false-positive rejection by the multi-amount filter (`amounts.size > 1` or `balanceText`) when a valid Smart Octopus spend is identified.
+  - Supported positive and overdraft/negative balances (`-HK$15.0`, `HK$-15.0`, `-15.0`) with proper negative sign extraction.
+- **Durable Store & Ground-Truth Calibration (`PendingPaymentStore.kt`)**:
+  - Carried `balanceRemaining: Double? = null` in `PendingPayment` data class, JSON serialization, and disk persistence.
+  - In `accept()`, calibrated the target account's balance (`currentAcc.copy(balance = payment.balanceRemaining)`) upon recording the expense, ensuring real-time balance accuracy matching the Octopus physical IC chip.
+- **UI & Interaction (`PendingPaymentChoiceDialog.kt`)**:
+  - Rendered `八達通/卡片餘額：HK$214.00` (`pending_payment_balance_remaining`) localized across 5 locale resource files (en, zh-rHK, zh-rTW, b+zh+Hant, zh).
+  - Enhanced `suggestedId` to pre-select matching Cash / Octopus accounts when `assetHint` is Smart Octopus, immediately enabling the "Record expense" button and remember checkbox.
+- **Verification**:
+  - All 142 JVM unit tests passed (`./gradlew testDebugUnitTest`).
+  - Successfully verified end-to-end flow on Waydroid (`192.168.240.112:5555`): dialog rendering with balance (`smart_octopus_preselected.png`), balance calibration to `$214.00` (`screen_assets_check_balance.png`), and subsequent remembered auto-logging calibrating to `$181.00` (`screen_auto_logged.png`, `assets_tab_final.png`).
+
+
+### 2026-10-03: Original Connected-Button Color Fade Restored
+- At the user's request, removed the edge-to-center fill and foreground mask from History, Main, Recurring and Assets connected controls; deleted the unused `EdgeToCenterFill.kt` helper.
+- Restored selection-driven whole-container and content color fades with matching finite no-bounce springs. Native connected buttons, category menu/dividers, press shapes, ripples, haptics and transaction behavior remain.
+- Debug and Android test APKs built successfully; all **10 History UI tests passed** on Waydroid (8.613 seconds). Updated Waydroid with `install -r`, checked the diff and refreshed the graph. The physical phone was not updated.
+- Current rollback APK and verification: `captures/color-fade-restored-2026-10-03/`. APKs/recordings in the preceding editor report show the earlier edge-fill version and predate this rollback.
+
+### 2026-10-03: Native Connected History Controls, Divided Category Menu & Edge-to-Center Fill
+- Replaced the History editor's segmented Expense/Income selector with native M3 Expressive connected ToggleButtons, preserving single-choice accessibility semantics, press shapes, ripple and test tags.
+- Category now uses a Material 3 vertical exposed menu with icons, selected checks, headings and dividers. Defaults are shared with Add Transaction; saved custom categories and the current legacy/opposite-type category remain available. Type changes do not overwrite the current category. Transfers keep their category/type protection.
+- Added shared finite edge-to-center fill for History, Main, Recurring and Assets connected groups: inactive press/selection advances from both side edges; cancellation/deselection reverses from current progress. Foreground glyph colors follow the fill boundaries to retain contrast during the transition.
+- Final **141 JVM tests and 10 on-device History tests passed**. Live category selection/Cancel and recorded editor/Assets press, reversal and rapid-switching behavior were inspected. Debug and signed release builds succeeded; graph refreshed; diff check clean.
+- Waydroid updated with its matching debug APK via `install -r`. No phone update, uninstall, data clear or live financial edit was performed; six existing pending payments were deferred with Later. ARTEMIS autonomous exploration was quota-limited, so ADB interaction and ARTEMIS observation were used for the verified menu path.
+- Report, screenshots, recordings and final APK copies: `captures/editor-m3e-2026-10-03/REPORT.md`.
+
+### 2026-10-03: Income History Consistency, Editable Transaction Type & Connected Group Colors
+- Added `TransactionEntity.historyAmountFor()` as the shared display rule for global and account-filtered History. Income HK$300 now shows **+HK$300.00** in both views, including credit cards; debt-balance changes no longer invert its display sign. Transfers and balance adjustments retain their own direction rules.
+- History tap/right-swipe editor now supports **Expense / Income** conversion plus existing amount, category and description edits. Income is excluded from daily spending. Transfers cannot be converted and adjustments remain read-only; positive finite amount validation is enforced.
+- Main/Recurring connected groups, Assets filters and History type buttons now use matching finite no-bounce, low-stiffness container/content color transitions. Existing group motion and interaction behavior are preserved.
+- **Verification:** 141 JVM tests passed (including repository balance reversal across all account types); all 8 History UI tests passed on Waydroid, covering +300 in both views, both conversion directions and existing swipes. Live editor and recorded rapid filter switching were inspected. Debug/release/test APKs built successfully; graph refreshed.
+- **Device state:** user-requested physical-phone logs were extracted read-only (685-line retained main capture is partial). Phone unchanged. Waydroid updated with its matching debug-signed APK using `install -r`; release install was rejected due to signing-key mismatch and no uninstall/data clear was attempted. Existing ledger and six deferred pending payments preserved.
+- Full evidence and stable APK copies: `captures/phone-issues-2026-10-03/REPORT.md`.
+- **Earlier notification-test limitation:** the exact no-card `Samsung Wallet` title + `Smart Octopus HK$… 餘額 HK$…` body format remains rejected by the payment guard. These changes do not address that parser; prior card-suffix simulations do not verify this format. See `captures/guideline-retest-2026-10-03/REPORT.md`.
+
+### 2026-10-03: Smart Octopus Multi-Notification Simulation, Hierarchical Card/Asset Memorization & UI Refinements
+- **Card & Asset Memorization Enhancement (`Remember Choice` Auto-Routing)**:
+  - **Problem Solved**: `PendingPaymentStore.canRememberChoice()` previously prohibited users from saving payment routing rules unless destination accounts matched hardcoded names (`"八達通"`, `"Octopus"`). Users choosing `"Wallet (Cash)"` or custom names were locked out with `"No specific card was identified, so you will choose each time"`, even when authentic intercepted card numbers (`cardLast4 = "9821"`) matched.
+  - **Hierarchical Multi-Tier Matching Architecture (`PendingPaymentStore.kt`)**:
+    1. **Tier 1 (Highest Precision - App Package + Card Last 4)**: `$pkg|card:$cardLast4` (e.g. `com.octopuscards.octopus_app|card:9821`). Binds payment alerts from a specific card directly to its target account regardless of merchant or text variations.
+    2. **Tier 2 (App Package + Asset Hint + Card Last 4)**: `$pkg|$hint|card:$cardLast4`.
+    3. **Tier 3 (Fallback - App Package + Dedicated Wallet Asset)**: `$pkg|$hint` (e.g. `com.octopuscards.octopus_app|smart octopus`). Fallback routing when certain merchant or transit notifications omit the 4-digit card number.
+  - **Dynamic Card Suffix in Remember Checkbox (`PendingPaymentChoiceDialog.kt`)**:
+    - When `cardLast4` is present, the checkbox dynamically informs the user: `Remember for com.octopuscards.octopus_app alerts marked "Smart Octopus (•••• 9821)"`.
+    - Enables checkboxes for matching card numbers, dedicated wallets, and cash/wallet accounts.
+  - **Automatic Direct Logging**: Once remembered, subsequent notifications bypass manual dialog selection entirely; transactions are atomically persisted, balances updated, and confirmation toasts/notifications dispatched.
+- **Smart Octopus Multiple Notification Simulation & Flow Verification**:
+  - Simulated sequential real-world payment notifications (MTR Transit `HK$6.50`, 7-Eleven `HK$28.00`, Starbucks `HK$45.00`) with authentic card `9821`.
+  - Verified Android system notification shade (`screen_notifications_shade.png`) and VibeFinance pending queue.
+  - Verified sequential queue processing (`Later`, `Ignore`, `Record expense`), dynamic budget recalculation (`Spent: HK$ 45`, `Remaining: $1,433.01`), and automatic category tagging (`Food & Dining`).
+- **Teamwork Multi-Agent UI/UX Refinements (Commit `0ded997` & `3c33eb9`)**:
+  - **Daily Page Widget Redirection**: Tapping Category Analytics or Total Expenses navigates to History tab with appropriate filters applied.
+  - **Habit Heatmap Left-Aligned Start**: 16-week matrix starts aligned from leftmost column without unwanted right auto-scroll.
+  - **Daily Page FAB Dynamic Motion**: FAB tracks bottom navigation bar visibility and maintains comfortable clearance (`32.dp + safeBottom`) during scroll.
+  - **Recurring Page Cleanup**: Removed `PresetsCarousel` to focus on recurring subscription list.
+  - **Smooth Heatmap Switcher**: Removed bouncy oscillation in `SpendsCalendar.kt` for smooth view switching.
+  - **Heatmap Title Visibility**: Ensured full title display on compact viewports alongside connected button group.
+  - **Unified Bounded Ripple Highlight**: Standardized Recurring screen list rows to match History screen swipe rows.
+  - **Compact Tile Shape Labels**: Shortened tile shape selector labels in `M3ExpressiveHeatmap.kt` to prevent vertical wrapping.
+- **Automated & Live Hardware Verification**:
+  - Unit tests added and passing in `PaymentNotificationListenerTest.kt` (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed to live Waydroid device (`192.168.240.112:5555`) preserving all user data (`adb install -r`).
+  - Knowledge graph updated via `graphify update .`.
+
 ### 2026-10-02: Daily Recalculate Rollover Optimization (Material 3 Expressive Switch & Zero Leftover Auto-Bypass)
 - **Material 3 Expressive Switch Integration (`RecalcBudgetSheet.kt`)**:
   - Replaced the legacy, standard `Switch` in the "記住選擇" (Remember Choice) card with the app's standard `ExpressiveSwitch`.

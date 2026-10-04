@@ -103,15 +103,10 @@ class MainActivity : ComponentActivity() {
             }
 
             val context = LocalContext.current
-            val currentLocale = remember(state.appLanguage) {
-                when (state.appLanguage) {
-                    AppLanguage.SYSTEM -> {
-                        val sysLocales = androidx.core.os.ConfigurationCompat.getLocales(context.resources.configuration)
-                        if (!sysLocales.isEmpty) sysLocales[0] ?: Locale.getDefault() else Locale.getDefault()
-                    }
-                    AppLanguage.ENGLISH -> Locale.ENGLISH
-                    AppLanguage.TRADITIONAL_CHINESE -> Locale.forLanguageTag("zh-Hant-TW")
-                }
+            val deviceConfiguration = LocalConfiguration.current
+            val systemLocales = android.content.res.Resources.getSystem().configuration.locales
+            val currentLocale = remember(state.appLanguage, systemLocales, deviceConfiguration) {
+                com.example.vibefinance.util.resolveAppLocale(state.appLanguage)
             }
 
             val baseConfig = LocalConfiguration.current
@@ -125,34 +120,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            val localizedContext = remember(state.appLanguage, context, currentLocale) {
-                val conf = android.content.res.Configuration(context.resources.configuration).apply {
-                    setLocale(currentLocale)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        setLocales(android.os.LocaleList(currentLocale, Locale.ENGLISH))
-                    }
-                    setLayoutDirection(currentLocale)
-                }
+            val localizedContext = remember(context, localizedConfig) {
                 object : android.content.ContextWrapper(this@MainActivity) {
-                    private val configContext = this@MainActivity.createConfigurationContext(conf)
+                    private val configContext = this@MainActivity.createConfigurationContext(localizedConfig)
                     override fun getResources(): android.content.res.Resources = configContext.resources
                     override fun getAssets(): android.content.res.AssetManager = configContext.assets
                 }
             }
 
-            LaunchedEffect(currentLocale, localizedConfig) {
+            // Legacy formatters follow the chosen locale; System is resolved from Resources.getSystem().
+            LaunchedEffect(currentLocale) {
                 Locale.setDefault(currentLocale)
-                try {
-                    @Suppress("DEPRECATION")
-                    context.resources.updateConfiguration(localizedConfig, context.resources.displayMetrics)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
             }
 
             CompositionLocalProvider(
                 LocalConfiguration provides localizedConfig,
                 LocalContext provides localizedContext,
+                androidx.compose.ui.platform.LocalResources provides localizedContext.resources,
                 LocalActivityResultRegistryOwner provides this@MainActivity
             ) {
                 androidx.compose.animation.Crossfade(

@@ -23,4 +23,6 @@
     <string name="assets_linked_app_empty">No matching applications found</string>
     <string name="assets_linked_app_choose">Choose linked app</string>
     <string name="assets_linked_app_long_press_tip">Long press redirect icon on card to change app</string>
+    <string name="assets_linked_app_load_failed">Couldn’t load installed apps</string>
+    <string name="assets_linked_app_retry">Try again</string>
 </resources>

@@ -273,7 +273,7 @@ fun RecalcBudgetSheet(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                contentDescription = stringResource(R.string.btn_close),
                                 tint = primaryTextColor.copy(alpha = 0.8f),
                                 modifier = Modifier.size(18.dp)
                             )
@@ -284,7 +284,7 @@ fun RecalcBudgetSheet(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Top Header Title (昨日結餘 / 昨日超支)
-                val headerTitleText = if (yesterdayLeftover < 0) "昨日超支" else "昨日結餘"
+                val headerTitleText = if (yesterdayLeftover < 0) stringResource(R.string.loc_yesterday_overspent) else stringResource(R.string.loc_yesterday_leftover)
 
                 Text(
                     text = headerTitleText,
@@ -314,7 +314,7 @@ fun RecalcBudgetSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Subtitle Link ("瞭解如何做預算")
+                // Subtitle Link (stringResource(R.string.loc_budget_help))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
@@ -331,7 +331,7 @@ fun RecalcBudgetSheet(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "瞭解如何做預算",
+                        text = stringResource(R.string.loc_budget_help),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = secondaryTextColor
@@ -340,7 +340,7 @@ fun RecalcBudgetSheet(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // "記住選擇" (Remember Choice) Card with Spring Physics
+                // stringResource(R.string.loc_remember_choice) (Remember Choice) Card with Spring Physics
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = cardContainerColor,
@@ -357,14 +357,14 @@ fun RecalcBudgetSheet(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "記住選擇",
+                                text = stringResource(R.string.loc_remember_choice),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = primaryTextColor
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "稍後您可以在錢包中更改",
+                                text = stringResource(R.string.loc_change_rollover_later),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = secondaryTextColor
                             )

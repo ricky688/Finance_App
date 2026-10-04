@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feedback_database_reset">Database successfully re-seeded!</string>
+    <string name="feedback_budget_set">Custom period budget set successfully!</string>
+    <string name="feedback_transaction_recorded">Transaction recorded!</string>
+    <string name="feedback_installment_deleted">Installment plan deleted</string>
+    <string name="feedback_transaction_restored">Transaction restored</string>
+    <string name="feedback_transaction_updated">Transaction updated!</string>
+    <string name="feedback_account_created">Account created successfully!</string>
+    <string name="feedback_account_updated">Account updated successfully!</string>
+    <string name="feedback_account_deleted">Account deleted!</string>
+    <string name="feedback_theme_system">Theme: System Default</string>
+    <string name="feedback_theme_light">Theme: Light Mode</string>
+    <string name="feedback_theme_dark">Theme: Dark Mode</string>
+    <string name="feedback_dynamic_on">Dynamic Colors Enabled</string>
+    <string name="feedback_dynamic_off">Dynamic Colors Disabled</string>
+    <string name="feedback_language_system">Language: System Default</string>
+    <string name="feedback_language_english">Language: English</string>
+    <string name="feedback_language_chinese">Language: Traditional Chinese</string>
+    <string name="feedback_subscription_added">Subscription added!</string>
+    <string name="feedback_subscription_updated">Subscription updated!</string>
+    <string name="feedback_subscription_deleted">Subscription deleted!</string>
+    <string name="feedback_shop_saved">Discount shop saved!</string>
+    <string name="feedback_shop_removed">Discount shop removed!</string>
+    <string name="feedback_error">Unable to complete this action: %1$s</string>
+    <string name="feedback_installment_created">Installment plan created with %1$d entries</string>
+    <string name="feedback_icon_shape">Icon shape: %1$s</string>
+    <string name="feedback_subscription_payments_deleted">Subscription and %1$d past payments deleted (%2$s)</string>
+    <string name="feedback_subscription_kept">Subscription deleted (%1$d past records kept)</string>
+    <string name="feedback_parse_failed">Unable to read file: %1$s</string>
+    <string name="feedback_import_failed">Import failed: %1$s</string>
+    <string name="feedback_import_replaced">Replaced existing data and imported %1$d transactions</string>
+    <string name="feedback_import_merged">Merged and imported %1$d transactions</string>
+</resources>

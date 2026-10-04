@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.vibefinance.R
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -124,13 +126,13 @@ fun AddDiscountShopSheet(
 
                     Column {
                         Text(
-                            text = "Add Discount Shop",
+                            text = stringResource(R.string.ui_radar_sheet_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Register card perks & GNSS location",
+                            text = stringResource(R.string.ui_radar_sheet_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -138,7 +140,7 @@ fun AddDiscountShopSheet(
                 }
 
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close")
+                    Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(R.string.btn_close))
                 }
             }
 
@@ -148,8 +150,8 @@ fun AddDiscountShopSheet(
             OutlinedTextField(
                 value = shopName,
                 onValueChange = { shopName = it },
-                label = { Text("Shop / Business Name") },
-                placeholder = { Text("e.g. Starbucks, Target, Local Cafe") },
+                label = { Text(stringResource(R.string.ui_radar_shop_name)) },
+                placeholder = { Text(stringResource(R.string.ui_radar_shop_name_hint)) },
                 leadingIcon = { Icon(Icons.Default.Storefront, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -165,14 +167,14 @@ fun AddDiscountShopSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
-                    value = aspect,
+                    value = radarAspectLabel(aspect),
                     onValueChange = {
                         aspect = it
                         aspectExpanded = true
                     },
                     readOnly = false,
-                    label = { Text("Shop Aspect / Category (Type custom or select)") },
-                    placeholder = { Text("e.g. Bakery, Books, Clothing") },
+                    label = { Text(stringResource(R.string.ui_radar_shop_category)) },
+                    placeholder = { Text(stringResource(R.string.ui_radar_shop_category_hint)) },
                     leadingIcon = { Icon(Icons.Default.Tag, contentDescription = null) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = aspectExpanded) },
                     shape = RoundedCornerShape(12.dp),
@@ -187,7 +189,7 @@ fun AddDiscountShopSheet(
                 ) {
                     savedAspects.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option) },
+                            text = { Text(radarAspectLabel(option)) },
                             onClick = {
                                 aspect = option
                                 aspectExpanded = false
@@ -201,8 +203,8 @@ fun AddDiscountShopSheet(
             OutlinedTextField(
                 value = address,
                 onValueChange = { address = it },
-                label = { Text("Street Address / Area") },
-                placeholder = { Text("e.g. 123 Main Street") },
+                label = { Text(stringResource(R.string.ui_radar_shop_address)) },
+                placeholder = { Text(stringResource(R.string.ui_radar_shop_address_hint)) },
                 leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
@@ -213,7 +215,7 @@ fun AddDiscountShopSheet(
 
             // Credit Card Discount Offer Section
             Text(
-                text = "Credit Card Discount & Perk",
+                text = stringResource(R.string.ui_radar_shop_perk),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -221,7 +223,7 @@ fun AddDiscountShopSheet(
 
             // Card Selector Chips
             Text(
-                text = "Select Credit Card:",
+                text = stringResource(R.string.ui_radar_shop_select_card),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -262,7 +264,7 @@ fun AddDiscountShopSheet(
                 OutlinedTextField(
                     value = discountRateText,
                     onValueChange = { discountRateText = it },
-                    label = { Text("Discount / Cashback Rate (%)") },
+                    label = { Text(stringResource(R.string.ui_radar_shop_discount_rate)) },
                     placeholder = { Text("5.0") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
@@ -283,7 +285,7 @@ fun AddDiscountShopSheet(
                     ) {
                         val rate = discountRateText.toDoubleOrNull() ?: 0.0
                         Text(
-                            text = "${rate}% Savings",
+                            text = stringResource(R.string.ui_radar_shop_savings, rate.toString()),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -296,8 +298,8 @@ fun AddDiscountShopSheet(
             OutlinedTextField(
                 value = promoDescription,
                 onValueChange = { promoDescription = it },
-                label = { Text("Special Promo / Perk Note") },
-                placeholder = { Text("e.g. 5% Cashback on coffee & snacks") },
+                label = { Text(stringResource(R.string.ui_radar_shop_promo_note)) },
+                placeholder = { Text(stringResource(R.string.ui_radar_shop_promo_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -307,7 +309,7 @@ fun AddDiscountShopSheet(
 
             // GNSS Location Setting
             Text(
-                text = "Shop GNSS Coordinates",
+                text = stringResource(R.string.ui_radar_shop_coordinates),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -319,7 +321,7 @@ fun AddDiscountShopSheet(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Use Current Location (${GnssLocationManager.formatDistance(0.0)})",
+                    text = stringResource(R.string.ui_radar_use_current_location, radarDistanceLabel(0.0)),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Switch(
@@ -336,7 +338,7 @@ fun AddDiscountShopSheet(
                     OutlinedTextField(
                         value = customLat,
                         onValueChange = { customLat = it },
-                        label = { Text("Latitude") },
+                        label = { Text(stringResource(R.string.ui_radar_shop_latitude)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
@@ -345,7 +347,7 @@ fun AddDiscountShopSheet(
                     OutlinedTextField(
                         value = customLng,
                         onValueChange = { customLng = it },
-                        label = { Text("Longitude") },
+                        label = { Text(stringResource(R.string.ui_radar_shop_longitude)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
@@ -400,7 +402,7 @@ fun AddDiscountShopSheet(
                 Icon(imageVector = Icons.Default.Check, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Save Discount Shop",
+                    text = stringResource(R.string.ui_radar_shop_save),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )

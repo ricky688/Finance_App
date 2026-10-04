@@ -16,4 +16,5 @@
     <string name="pending_payment_recorded">已記錄支出</string>
     <string name="pending_payment_failed">無法記錄這筆支出，請再試一次。</string>
     <string name="pending_payment_remember_unavailable">未能辨識指定卡片，因此每次均會詢問。</string>
+    <string name="pending_payment_balance_remaining">八達通/卡片餘額：%1$s</string>
 </resources>

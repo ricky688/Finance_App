@@ -82,9 +82,10 @@ fun MinMaxSpentCard(
         content = {
             Spacer(modifier = Modifier.height(2.dp))
             if (spent != null) {
-                val timeStr = remember(spent.timestamp) {
+                val dateLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+                val timeStr = remember(spent.timestamp, dateLocale) {
                     val dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(spent.timestamp), ZoneId.systemDefault())
-                    dt.format(DateTimeFormatter.ofPattern("dd MMM HH:mm", Locale.US))
+                    dt.format(DateTimeFormatter.ofPattern("dd MMM HH:mm", dateLocale))
                 }
                 Text(
                     text = timeStr,

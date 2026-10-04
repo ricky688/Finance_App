@@ -175,7 +175,7 @@ fun ImportDataPreviewSheet(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Close",
+                            contentDescription = stringResource(R.string.btn_close),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
@@ -335,7 +335,7 @@ fun ImportDataPreviewSheet(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${account.detectedType.name} · ${account.transactionCount} records",
+                                    text = stringResource(R.string.loc_import_account_summary, stringResource(when (account.detectedType) { com.example.vibefinance.data.entity.AccountType.CASH -> R.string.loc_cash_wallet; com.example.vibefinance.data.entity.AccountType.BANK -> R.string.loc_bank_accounts; com.example.vibefinance.data.entity.AccountType.DEBIT -> R.string.loc_debit_cards; com.example.vibefinance.data.entity.AccountType.CC -> R.string.loc_credit_debt }), account.transactionCount),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

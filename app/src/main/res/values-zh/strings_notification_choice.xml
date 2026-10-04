@@ -16,4 +16,5 @@
     <string name="pending_payment_recorded">已记录支出</string>
     <string name="pending_payment_failed">无法记录这笔支出，请重试。</string>
     <string name="pending_payment_remember_unavailable">未能辨識指定卡片，因此每次均會詢問。</string>
+    <string name="pending_payment_balance_remaining">卡片余额：%1$s</string>
 </resources>

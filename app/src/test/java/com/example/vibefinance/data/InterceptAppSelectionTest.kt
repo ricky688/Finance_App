@@ -52,4 +52,33 @@ class InterceptAppSelectionTest {
             InMemoryDatabase.isNotificationLoggingEnabled = previousLoggingState
         }
     }
+
+    @Test
+    fun testOctopusAppRequiresAndroidOctopusTitle() {
+        val previousSelection = InMemoryDatabase.selectedInterceptApps.value
+        val previousLoggingState = InMemoryDatabase.isNotificationLoggingEnabled
+        val octopusPkg = "com.octopuscards.nfc_reader"
+        try {
+            InMemoryDatabase.isNotificationLoggingEnabled = true
+            InMemoryDatabase.selectedInterceptApps.value = setOf(octopusPkg)
+
+            // Valid Android Octopus titles
+            assertTrue(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Android版八達通", "八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 90.8"))
+            assertTrue(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Android 八逹通", "八達通: 在 九巴 / 龍運 支付 HKD 5.8。餘額: HKD 56.0"))
+            assertTrue(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Android版八逹通", "八達通: 在 7-Eleven 支付 HKD 5.0。餘額: HKD 98.9"))
+            assertTrue(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Android Octopus", "Paid HKD 12.5 at Starbucks"))
+            assertTrue(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Octopus on Android", "Paid HKD 5.8 at KMB"))
+
+            // Irrelevant notifications from Octopus app MUST be rejected even if text contains "八達通" or "支付"
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "八達通", "【最新推廣】在 麥當勞 支付享 $10 回贈"))
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "八達通銀包", "在 零售 消費滿 HKD 100 獎賞"))
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "八達通優惠", "立即領取優惠券"))
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Octopus", "Your monthly statement is ready"))
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "Octopus Wallet", "Welcome offer"))
+            assertFalse(InMemoryDatabase.isAppInterceptEnabled(octopusPkg, "最新優惠推廣", "八達通: 於 7-Eleven 支付即減 $5"))
+        } finally {
+            InMemoryDatabase.selectedInterceptApps.value = previousSelection
+            InMemoryDatabase.isNotificationLoggingEnabled = previousLoggingState
+        }
+    }
 }

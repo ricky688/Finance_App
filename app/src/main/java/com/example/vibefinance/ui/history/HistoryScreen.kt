@@ -8,11 +8,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -32,6 +33,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import com.example.vibefinance.ui.components.ExpressiveSwitch
@@ -46,6 +49,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -58,11 +62,20 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.platform.LocalDensity
 import com.example.vibefinance.ui.components.ExpressiveSwipeRow
 import com.example.vibefinance.ui.home.CategoryIcon
@@ -90,6 +103,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,12 +117,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.data.entity.AccountEntity
-import com.example.vibefinance.data.entity.AccountType
+import com.example.vibefinance.data.entity.historyAmountFor
+import com.example.vibefinance.data.entity.DefaultExpenseCategories
+import com.example.vibefinance.data.entity.DefaultIncomeCategories
 import com.example.vibefinance.theme.LocalIconShape
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.GlassmorphicCard
 import com.example.vibefinance.ui.components.CategoryAnalyticsPeriodMode
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
@@ -277,6 +298,7 @@ fun HistoryScreen(
     var editAmountText by remember { mutableStateOf("") }
     var editCategoryText by remember { mutableStateOf("") }
     var editDescriptionText by remember { mutableStateOf("") }
+    var editIsIncome by remember { mutableStateOf(false) }
     var editIsDailyBudget by remember { mutableStateOf(true) }
 
     // Predictive back for editing transaction modal
@@ -484,14 +506,11 @@ fun HistoryScreen(
                     val isFuture = tx.timestamp > System.currentTimeMillis()
                     val isTransfer = tx.toAccountId != null
                     val isInstallment = tx.installmentNumber != null
-                    val displayDelta = if (accountFilterId == null) -tx.amount else tx.balanceChangeFor(
-                        accountFilterId,
-                        state.accounts
-                    )
+                    val displayDelta = tx.historyAmountFor(accountFilterId)
                     val isIncome = displayDelta > 0
 
                     val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(tx.timestamp), ZoneId.systemDefault())
-                    val timeText = date.format(DateTimeFormatter.ofPattern("HH:mm", Locale.US))
+                    val timeText = date.format(DateTimeFormatter.ofPattern("HH:mm", dateLocale))
 
                     val transitionState = remember { MutableTransitionState(true) }
 
@@ -539,7 +558,8 @@ fun HistoryScreen(
                                         editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
                                         editCategoryText = tx.category
                                         editDescriptionText = tx.description
-                                        editIsDailyBudget = !tx.isExcludedFromDailyBudget
+                                        editIsIncome = tx.amount < 0
+                                        editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
                                     }
                                 },
                                 onDelete = { transitionState.targetState = false }
@@ -587,7 +607,7 @@ fun HistoryScreen(
                                             val titleText = when {
                                                 tx.isBalanceAdjustment -> stringResource(R.string.balance_adjustment_title)
                                                 tx.description.isNotBlank() -> tx.description
-                                                else -> tx.category
+                                                else -> com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                             }
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -619,11 +639,11 @@ fun HistoryScreen(
                                                 }
                                             }
 
-                                            val cardName = sourceAccount?.displayLabel() ?: "Cash"
+                                            val cardName = sourceAccount?.displayLabel() ?: stringResource(R.string.acc_type_cash)
                                             val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                             val cardSubtitle = when {
                                                 tx.isBalanceAdjustment -> cardName
-                                                isTransfer -> "${sourceAccount?.displayLabel() ?: "Account"} ➔ ${destAccount?.displayLabel() ?: "Account"}"
+                                                isTransfer -> "${sourceAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)} ➔ ${destAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)}"
                                                 isInstallment -> "$categoryName • $cardName (${tx.installmentNumber}/${tx.totalInstallments})"
                                                 else -> "$categoryName • $cardName"
                                             }
@@ -672,7 +692,7 @@ fun HistoryScreen(
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Delete,
-                                                        contentDescription = "Delete",
+                                                        contentDescription = stringResource(R.string.btn_delete),
                                                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
                                                         modifier = Modifier.size(14.dp)
                                                     )
@@ -695,7 +715,7 @@ fun HistoryScreen(
                     tx.toAccountId == null && (accountFilterId != null || !tx.isBalanceAdjustment)
                 }
                 val dailyNet = dailySummaryTransactions.sumOf { tx ->
-                    if (accountFilterId == null) -tx.amount else tx.balanceChangeFor(accountFilterId, state.accounts)
+                    tx.historyAmountFor(accountFilterId)
                 }
                 if (dailySummaryTransactions.isNotEmpty()) item {
                     Box(
@@ -745,6 +765,8 @@ fun HistoryScreen(
 
     // Real Transaction Edit Dialog with Container Transform Morphing
     editingTransaction?.let { tx ->
+        val canChangeType = tx.toAccountId == null && !tx.isBalanceAdjustment
+        val editedMagnitude = editAmountText.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
         val dialogScale by animateFloatAsState(
             targetValue = 1.0f,
             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
@@ -763,32 +785,56 @@ fun HistoryScreen(
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
                 ) {
+                    if (canChangeType) {
+                        Text(
+                            text = stringResource(R.string.edit_transaction_type_label),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        HistoryTransactionTypeSelector(
+                            isIncome = editIsIncome,
+                            onTypeSelected = { editIsIncome = it }
+                        )
+                    }
                     OutlinedTextField(
                         value = editAmountText,
                         onValueChange = { editAmountText = it },
                         label = { Text(stringResource(R.string.edit_amount_label) + " (HK$)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth()
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("EditTransactionAmount")
                     )
 
-                    OutlinedTextField(
-                        value = editCategoryText,
-                        onValueChange = { editCategoryText = it },
-                        label = { Text(stringResource(R.string.edit_category_label)) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (canChangeType) {
+                        HistoryCategoryDropdown(
+                            category = editCategoryText,
+                            isIncome = editIsIncome,
+                            transactions = state.transactions,
+                            onCategorySelected = { editCategoryText = it }
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.edit_category_label)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().testTag("EditTransactionCategory")
+                        )
+                    }
 
                     OutlinedTextField(
                         value = editDescriptionText,
                         onValueChange = { editDescriptionText = it },
                         label = { Text(stringResource(R.string.edit_description_label)) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().testTag("EditTransactionDescription")
                     )
 
                     // Daily Budget Toggle for Expenses
-                    if (!tx.isBalanceAdjustment && tx.toAccountId == null && tx.amount >= 0) {
+                    if (canChangeType && !editIsIncome) {
                         val editHaptic = LocalHapticFeedback.current
                         Surface(
                             modifier = Modifier
@@ -828,7 +874,8 @@ fun HistoryScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 ExpressiveSwitch(
                                     checked = editIsDailyBudget,
-                                    onCheckedChange = { editIsDailyBudget = it }
+                                    onCheckedChange = { editIsDailyBudget = it },
+                                    modifier = Modifier.testTag("EditTransactionDailyBudget")
                                 )
                             }
                         }
@@ -841,25 +888,25 @@ fun HistoryScreen(
                 Button(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val amount = editAmountText.toDoubleOrNull()
+                        val amount = editedMagnitude
                         if (amount != null) {
-                            val originalIsIncome = tx.amount < 0
-                            val targetSign = if (originalIsIncome) -1.0 else 1.0
-                            val signedAmount = Math.abs(amount) * targetSign
-
-                            val newTx = tx.copy(
-                                amount = signedAmount,
+                            val newTx = tx.withHistoryEdit(
+                                magnitude = amount,
+                                isIncome = editIsIncome,
                                 category = editCategoryText,
                                 description = editDescriptionText,
-                                isExcludedFromDailyBudget = if (!tx.isBalanceAdjustment && tx.toAccountId == null && tx.amount >= 0) !editIsDailyBudget else tx.isExcludedFromDailyBudget
+                                countsTowardDailyBudget = editIsDailyBudget
                             )
                             onIntent(FinanceIntent.EditTransaction(tx, newTx))
                             editingTransaction = null
                         }
                     },
+                    enabled = editedMagnitude != null,
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     interactionSource = confirmInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = confirmInteraction)
+                    modifier = Modifier
+                        .testTag("EditTransactionSave")
+                        .pressBounce(interactionSource = confirmInteraction)
                 ) {
                     Text(stringResource(R.string.btn_save))
                 }
@@ -911,18 +958,203 @@ fun HistoryScreen(
     }
 }
 
-private fun TransactionEntity.balanceChangeFor(accountId: Long, accounts: List<AccountEntity>): Double {
-    if (isBalanceAdjustment) return balanceAdjustmentDelta ?: 0.0
-    val currentWasCreditCard = accounts.firstOrNull { it.id == accountId }?.type == AccountType.CC
-    if (toAccountId != null) {
-        if (accountId == this.accountId && accountId == toAccountId) return 0.0
-        return when (accountId) {
-            this.accountId -> if (sourceWasCreditCard ?: currentWasCreditCard) amount else -amount
-            toAccountId -> if (destinationWasCreditCard ?: currentWasCreditCard) -amount else amount
-            else -> 0.0
+@Composable
+private fun HistoryTransactionTypeSelector(
+    isIncome: Boolean,
+    onTypeSelected: (Boolean) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val haptic = LocalHapticFeedback.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup()
+            .testTag("EditTransactionTypeGroup"),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
+    ) {
+        listOf(false, true).forEachIndexed { index, incomeOption ->
+            val isSelected = isIncome == incomeOption
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val colorMotion = rememberConnectedButtonColorMotion(
+                isSelected = isSelected,
+                isPressed = isPressed,
+                backdropColor = colors.surfaceContainerHigh
+            )
+            ToggleButton(
+                checked = isSelected,
+                onCheckedChange = {
+                    onTypeSelected(incomeOption)
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+                shapes = if (index == 0) {
+                    ButtonGroupDefaults.connectedLeadingButtonShapes()
+                } else {
+                    ButtonGroupDefaults.connectedTrailingButtonShapes()
+                },
+                interactionSource = interactionSource,
+                colors = ToggleButtonDefaults.toggleButtonColors(
+                    containerColor = colorMotion.containerColor,
+                    checkedContainerColor = colorMotion.containerColor,
+                    contentColor = colorMotion.contentColor,
+                    checkedContentColor = colorMotion.contentColor
+                ),
+                elevation = null,
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag(if (incomeOption) "EditTransactionIncome" else "EditTransactionExpense")
+                    .semantics {
+                        selected = isSelected
+                        role = Role.RadioButton
+                    }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .then(colorMotion.contentModifier)
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isSelected) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                        Text(
+                            text = stringResource(if (incomeOption) R.string.filter_income else R.string.filter_expense),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         }
     }
-    return if (sourceWasCreditCard ?: currentWasCreditCard) amount else -amount
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryCategoryDropdown(
+    category: String,
+    isIncome: Boolean,
+    transactions: List<TransactionEntity>,
+    onCategorySelected: (String) -> Unit
+) {
+    var expanded by remember(isIncome) { mutableStateOf(false) }
+    val defaultCategories = if (isIncome) DefaultIncomeCategories else DefaultExpenseCategories
+    val categoryFrequency = remember(transactions, isIncome) {
+        transactions.filter {
+            it.toAccountId == null && !it.isBalanceAdjustment && (it.amount < 0.0) == isIncome
+        }.map { it.category }.filter { it.isNotBlank() }.groupingBy { it }.eachCount()
+    }
+    val defaults = remember(defaultCategories, categoryFrequency) {
+        defaultCategories.sortedByDescending { categoryFrequency[it] ?: 0 }
+    }
+    val existing = remember(defaultCategories, categoryFrequency) {
+        categoryFrequency.keys.filter { it !in defaultCategories }
+            .sortedWith(compareByDescending<String> { categoryFrequency[it] ?: 0 }.thenBy { it })
+    }
+    val legacyCategory = category.takeIf { it.isNotBlank() && it !in defaults && it !in existing }
+    val sections = buildList {
+        legacyCategory?.let { add(R.string.edit_category_current to listOf(it)) }
+        add(R.string.edit_category_defaults to defaults)
+        if (existing.isNotEmpty()) add(R.string.edit_category_existing to existing)
+    }
+    val haptic = LocalHapticFeedback.current
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = com.example.vibefinance.ui.home.getCategoryDisplayName(category),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.edit_category_label)) },
+            leadingIcon = { CategoryIcon(category, MaterialTheme.colorScheme.primary, Modifier.size(22.dp)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth()
+                .testTag("EditTransactionCategory")
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 320.dp).testTag("EditTransactionCategoryMenu")
+        ) {
+            sections.forEachIndexed { sectionIndex, (title, categories) ->
+                if (sectionIndex > 0) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                }
+                Text(
+                    text = stringResource(title),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .semantics { heading() }
+                )
+                categories.forEach { choice ->
+                    val isSelected = choice == category
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = com.example.vibefinance.ui.home.getCategoryDisplayName(choice),
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        leadingIcon = {
+                            CategoryIcon(
+                                choice,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                Modifier.size(22.dp)
+                            )
+                        },
+                        trailingIcon = if (isSelected) {
+                            { Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+                        } else null,
+                        onClick = {
+                            onCategorySelected(choice)
+                            expanded = false
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("EditTransactionCategoryOption_$choice")
+                            .semantics { selected = isSelected }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Expense/income edits retain the magnitude and transfer metadata; adjustments are read only. */
+internal fun TransactionEntity.withHistoryEdit(
+    magnitude: Double,
+    isIncome: Boolean,
+    category: String,
+    description: String,
+    countsTowardDailyBudget: Boolean
+): TransactionEntity {
+    require(magnitude.isFinite() && magnitude > 0.0) { "Amount must be positive and finite" }
+    require(!isBalanceAdjustment) { "Balance adjustments are read only" }
+    val canChangeType = toAccountId == null
+    val targetIsIncome = if (canChangeType) isIncome else amount < 0.0
+    return copy(
+        amount = if (targetIsIncome) -magnitude else magnitude,
+        category = category,
+        description = description,
+        isExcludedFromDailyBudget = if (canChangeType) isIncome || !countsTowardDailyBudget else isExcludedFromDailyBudget
+    )
 }
 
 private fun combineColors(color1: Color, color2: Color, weight: Float): Color {

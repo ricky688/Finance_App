@@ -37,7 +37,8 @@ fun WholeBudgetCard(
     endDate: Long,
     colors: CardColors = CardDefaults.cardColors(),
 ) {
-    val formatter = remember { DateTimeFormatter.ofPattern("dd MMM", Locale.getDefault()) }
+    val dateLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val formatter = remember(dateLocale) { DateTimeFormatter.ofPattern("dd MMM", dateLocale) }
     val startLocalDate = remember(startDate) {
         if (startDate > 0L) Instant.ofEpochMilli(startDate).atZone(ZoneId.systemDefault()).toLocalDate() else null
     }
@@ -52,8 +53,8 @@ fun WholeBudgetCard(
         }
     }
 
-    val startDateText = remember(startLocalDate) { startLocalDate?.format(formatter) ?: "—" }
-    val endDateText = remember(endLocalDate) { endLocalDate?.format(formatter) ?: "—" }
+    val startDateText = remember(startLocalDate, formatter) { startLocalDate?.format(formatter) ?: "—" }
+    val endDateText = remember(endLocalDate, formatter) { endLocalDate?.format(formatter) ?: "—" }
 
     val amountText = remember(budget) { String.format(Locale.US, "$%,.2f", budget) }
 

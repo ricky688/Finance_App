@@ -27,6 +27,8 @@ skill/
 .agents/explorer_*
 .agents/orchestrator_*
 .agents/sentinel/
+.agents/teamwork/
+.kotlin/
 *.apk
 *.xlsx
 *.xls

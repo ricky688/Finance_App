@@ -34,6 +34,10 @@ enum class InterceptableApp(
             "com.octopuscards.nfc_reader",
             "com.octopuscards.octopus_app",
             "com.octopus.wallet"
+        ),
+        requiredTitleKeywords = listOf(
+            "android版八達通", "android版八逹通", "android 八達通", "android 八逹通", "android八達通", "android八逹通",
+            "android octopus", "octopus on android", "smart octopus"
         )
     ),
     PAYME(
@@ -132,17 +136,23 @@ enum class InterceptableApp(
         if (isShell) {
             val hasIdentifier = id.replace("_", " ").lowercase(Locale.US).split(" ").any { 
                 lowerTitle.contains(it) || lowerText.contains(it) 
-            }
+            } || (id == "octopus" && (lowerTitle.contains("八達通") || lowerText.contains("八達通")))
             if (!hasIdentifier && requiredTitleKeywords.none { lowerTitle.contains(it.lowercase(Locale.US)) }) {
                 return false
             }
         }
 
-        // If specific channel/title required (e.g. WeChat / LINE chat app vs payment service notification)
+        // If specific channel/title required (e.g. Octopus app payment alerts vs wallet promos, WeChat / LINE chat)
         if (requiredTitleKeywords.isNotEmpty()) {
-            val titleMatches = requiredTitleKeywords.any { kw ->
-                val kwLower = kw.lowercase(Locale.US)
-                lowerTitle.contains(kwLower) || lowerText.contains(kwLower)
+            val titleMatches = if (this == OCTOPUS) {
+                // For Octopus app, strictly require title to identify Android Octopus / Smart Octopus
+                // to reject all irrelevant promo, wallet, and marketing notifications.
+                requiredTitleKeywords.any { kw -> lowerTitle.contains(kw.lowercase(Locale.US)) }
+            } else {
+                requiredTitleKeywords.any { kw ->
+                    val kwLower = kw.lowercase(Locale.US)
+                    lowerTitle.contains(kwLower) || lowerText.contains(kwLower)
+                }
             }
             if (!titleMatches) return false
         }

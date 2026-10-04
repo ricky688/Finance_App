@@ -16,4 +16,5 @@
     <string name="pending_payment_recorded">Expense recorded</string>
     <string name="pending_payment_failed">Could not record this expense. Try again.</string>
     <string name="pending_payment_remember_unavailable">No specific card was identified, so you will choose each time.</string>
+    <string name="pending_payment_balance_remaining">Remaining card balance: %1$s</string>
 </resources>

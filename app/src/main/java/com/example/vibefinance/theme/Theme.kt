@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import android.os.Build
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -22,6 +23,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+
+/** Actual chosen mode, available before the animated palette has finished changing. */
+internal val LocalIsDarkTheme = staticCompositionLocalOf<Boolean?> { null }
 
 private val LightColorScheme = lightColorScheme(
     primary = GoogleLightPrimary,
@@ -149,7 +153,8 @@ fun VibeFinanceTheme(
     }
 
     CompositionLocalProvider(
-        LocalIconShape provides iconShape
+        LocalIconShape provides iconShape,
+        LocalIsDarkTheme provides darkTheme
     ) {
         MaterialTheme(
             colorScheme = animatedColorScheme,

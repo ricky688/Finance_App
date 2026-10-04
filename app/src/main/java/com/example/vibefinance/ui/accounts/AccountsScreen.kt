@@ -20,12 +20,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
+import com.example.vibefinance.R
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.pressBounce
 import android.widget.Toast
+import android.content.Context
+import android.graphics.Bitmap
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.OpenInNew
@@ -35,6 +40,7 @@ import com.example.vibefinance.ui.common.horizontalFadingEdge
 import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.theme.BentoSubCardShape
 import com.example.vibefinance.theme.BentoSmallCardShape
+import com.example.vibefinance.theme.LocalIsDarkTheme
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -150,8 +156,8 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -159,9 +165,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.platform.testTag
+import com.example.vibefinance.util.InstalledAppInfo
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -180,6 +192,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import com.example.vibefinance.ui.components.RollingNumberText
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.components.GlassmorphicCard
 import com.example.vibefinance.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.geometry.Offset
@@ -193,6 +206,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -261,6 +276,59 @@ fun AccountEntity.watermarkText(): String {
             AccountType.BANK -> "BANK"
             AccountType.DEBIT -> "DEBIT"
         }
+    }
+}
+
+
+@Composable
+private fun accountTypeDisplayLabel(type: AccountType): String = stringResource(
+    when (type) {
+        AccountType.CASH -> R.string.acc_type_cash
+        AccountType.BANK -> R.string.acc_type_bank
+        AccountType.DEBIT -> R.string.ah_type_debit
+        AccountType.CC -> R.string.acc_type_credit
+    }
+)
+
+@Composable
+private fun accountEditorTabLabel(key: String): String = stringResource(
+    when (key) {
+        "Billing & Due" -> R.string.ah_tab_billing
+        "Card Design" -> R.string.ah_tab_design
+        else -> R.string.ah_tab_details
+    }
+)
+
+@Composable
+private fun cardDesignOptionLabel(key: String): String = when (key) {
+    "None" -> stringResource(R.string.ah_none)
+    "Cyber Grid" -> stringResource(R.string.ah_pattern_cyber_grid)
+    "Neon Waves" -> stringResource(R.string.ah_pattern_neon_waves)
+    "Geometric Mesh" -> stringResource(R.string.ah_pattern_geometric_mesh)
+    else -> key // Issuer and payment-network brands keep their official names.
+}
+
+@Composable
+private fun accountCardThemeLabel(key: String): String = stringResource(
+    when (key) {
+        "ocean" -> R.string.ah_theme_ocean
+        "emerald" -> R.string.ah_theme_emerald
+        "sunset" -> R.string.ah_theme_sunset
+        "purple" -> R.string.ah_theme_purple
+        "rose" -> R.string.ah_theme_rose
+        "crimson" -> R.string.ah_theme_crimson
+        else -> R.string.ah_theme_default
+    }
+)
+
+@Composable
+private fun AccountEntity.localizedWatermarkText(): String {
+    val cleanName = nickname?.trim()?.takeIf { it.isNotEmpty() } ?: name.trim()
+    val firstToken = cleanName.split(Regex("[\\s_\\-/]+")).firstOrNull { it.isNotBlank() }.orEmpty()
+    return if ((firstToken.length in 2..10 && firstToken.any { it.isLetter() }) || cleanName.length in 2..6) {
+        watermarkText()
+    } else {
+        accountTypeDisplayLabel(type).uppercase(LocalConfiguration.current.locales[0])
     }
 }
 
@@ -386,7 +454,7 @@ fun AssetCardItem(
         AccountType.CASH -> stringResource(com.example.vibefinance.R.string.assets_type_cash)
         AccountType.BANK -> stringResource(com.example.vibefinance.R.string.assets_type_bank)
         AccountType.DEBIT -> stringResource(com.example.vibefinance.R.string.assets_type_debit)
-    }.uppercase(Locale.getDefault())
+    }.uppercase(LocalConfiguration.current.locales[0])
 
     Card(
         modifier = modifier
@@ -420,7 +488,7 @@ fun AssetCardItem(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = account.watermarkText(),
+                        text = account.localizedWatermarkText(),
                         style = MaterialTheme.typography.displayLarge.copy(
                             fontSize = 58.sp,
                             fontWeight = FontWeight.Black,
@@ -515,7 +583,7 @@ fun AssetCardItem(
                 ) {
                     Column {
                         Text(
-                            text = if (account.type == AccountType.CC) "OUTSTANDING DEBT" else "CURRENT BALANCE",
+                            text = if (account.type == AccountType.CC) stringResource(R.string.ah_outstanding_debt) else stringResource(R.string.ah_current_balance),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White.copy(alpha = 0.65f),
                             fontWeight = FontWeight.Bold
@@ -595,6 +663,8 @@ private fun AssetGroupSelector(
     onSelectFilter: (AssetFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colors = MaterialTheme.colorScheme
+    val isDarkTheme = LocalIsDarkTheme.current ?: (colors.background.luminance() < 0.5f)
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val spacing = ButtonGroupDefaults.ConnectedSpaceBetween
         val segmentWidth = (maxWidth - spacing * (AssetFilter.entries.size - 1)) / AssetFilter.entries.size
@@ -615,6 +685,17 @@ private fun AssetGroupSelector(
             ) {
                 AssetFilter.entries.forEachIndexed { index, filter ->
                     val selected = filter == selectedFilter
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val colorMotion = rememberConnectedButtonColorMotion(
+                        isSelected = selected,
+                        isPressed = isPressed,
+                        inactiveContainerColor = colors.surfaceContainerHigh,
+                        inactiveContentColor = colors.onSurfaceVariant,
+                        activeContainerColor = if (isDarkTheme) colors.primaryContainer else colors.primary,
+                        activeContentColor = if (isDarkTheme) colors.onPrimaryContainer else colors.onPrimary,
+                        backdropColor = colors.background
+                    )
                     val label = when (filter) {
                         AssetFilter.ALL -> stringResource(com.example.vibefinance.R.string.asset_filter_all)
                         AssetFilter.CASH_BANK -> stringResource(com.example.vibefinance.R.string.asset_filter_cash_bank)
@@ -630,16 +711,6 @@ private fun AssetGroupSelector(
                         AssetFilter.CASH_BANK -> Icons.Default.AccountBalance
                         AssetFilter.CREDIT_CARDS -> Icons.Default.CreditCard
                     }
-                    val containerColor by animateColorAsState(
-                        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        label = "assetGroupContainer_$index"
-                    )
-                    val contentColor by animateColorAsState(
-                        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                        label = "assetGroupContent_$index"
-                    )
                     val iconScale = animateFloatAsState(
                         targetValue = if (selected) 1.08f else 1f,
                         animationSpec = spring(
@@ -652,6 +723,7 @@ private fun AssetGroupSelector(
                     ToggleButton(
                         checked = selected,
                         onCheckedChange = { onSelectFilter(filter) },
+                        interactionSource = interactionSource,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 64.dp)
@@ -662,16 +734,20 @@ private fun AssetGroupSelector(
                             else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                         },
                         colors = ToggleButtonDefaults.toggleButtonColors(
-                            containerColor = containerColor,
-                            contentColor = contentColor,
-                            checkedContainerColor = containerColor,
-                            checkedContentColor = contentColor
+                            containerColor = colorMotion.containerColor,
+                            contentColor = colorMotion.contentColor,
+                            checkedContainerColor = colorMotion.containerColor,
+                            checkedContentColor = colorMotion.contentColor
                         ),
                         elevation = null,
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 7.dp)
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 64.dp)
+                                .then(colorMotion.contentModifier)
+                                .padding(horizontal = 4.dp, vertical = 7.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -722,6 +798,7 @@ fun AccountsScreen(
     onViewAccountHistory: (Long) -> Unit = {}
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val presentationLocale = LocalConfiguration.current.locales[0]
     val haptic = LocalHapticFeedback.current
     val breakdown = remember(state.accounts) { calculateNetWorth(state.accounts) }
     val totalAssets = breakdown.totalAssets
@@ -787,7 +864,7 @@ fun AccountsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "NET ASSET VALUE",
+                                        text = stringResource(R.string.ah_net_asset_value),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.secondary,
                                         fontWeight = FontWeight.Bold
@@ -850,7 +927,7 @@ fun AccountsScreen(
                                         horizontalAlignment = Alignment.End
                                     ) {
                                         Text(
-                                            text = "Total Card Debt",
+                                            text = stringResource(R.string.ah_total_card_debt),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                             fontWeight = FontWeight.Medium
@@ -908,7 +985,7 @@ fun AccountsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "My Assets & Cards",
+                            text = stringResource(R.string.ah_assets_cards),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -938,12 +1015,12 @@ fun AccountsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = "Add Account",
+                                contentDescription = stringResource(R.string.btn_add_account),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Add Asset",
+                                text = stringResource(R.string.ah_add_asset),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1309,6 +1386,7 @@ fun AccountsScreen(
         var selectedLinkedAppPackage by remember { mutableStateOf(editingAccount?.linkedAppPackage) }
         var showAppPickerDialog by remember { mutableStateOf(false) }
         var cardLast4Text by remember { mutableStateOf(editingAccount?.cardLast4 ?: "") }
+        val defaultAccountName = stringResource(R.string.ah_new_account)
         val invalidLastFour = typeState != AccountType.CASH && cardLast4Text.isNotEmpty() &&
             (cardLast4Text.length != 4 || cardLast4Text.any { it !in '0'..'9' })
         var selectedCardProtocol by remember { mutableStateOf(
@@ -1434,8 +1512,8 @@ fun AccountsScreen(
             val deleteCancelInteractionSource = remember { MutableInteractionSource() }
             AlertDialog(
                 onDismissRequest = { showDeleteConfirmDialog = false },
-                title = { Text("Delete Account?", fontWeight = FontWeight.Bold) },
-                text = { Text("Are you sure you want to delete \"${editingAccount?.name}\"? All associated transactions and settings will be permanently removed.") },
+                title = { Text(stringResource(R.string.ah_delete_account_title), fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.ah_delete_account_message, editingAccount?.name.orEmpty())) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -1452,7 +1530,7 @@ fun AccountsScreen(
                             contentColor = MaterialTheme.colorScheme.onError
                         )
                     ) {
-                        Text("Delete", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.btn_delete), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
@@ -1465,7 +1543,7 @@ fun AccountsScreen(
                         modifier = Modifier.pressBounce(interactionSource = deleteCancelInteractionSource),
                         shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
                     ) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.btn_cancel))
                     }
                 }
             )
@@ -1547,21 +1625,17 @@ fun AccountsScreen(
                                 )
                         ) {
                             if (selectedCardImageUri.isEmpty()) {
-                                val previewWatermark = remember(nameText, nicknameText, typeState) {
-                                    val cleanName = nicknameText.trim().ifEmpty { nameText.trim().ifEmpty { "CARD" } }
+                                val previewFallback = accountTypeDisplayLabel(typeState)
+                                val previewWatermark = remember(nameText, nicknameText, previewFallback, presentationLocale) {
+                                    val cleanName = nicknameText.trim().ifEmpty { nameText.trim().ifEmpty { previewFallback } }
                                     val tokens = cleanName.split(Regex("[\\s_\\-/]+")).filter { it.isNotBlank() }
                                     val firstToken = tokens.firstOrNull().orEmpty()
                                     if (firstToken.length in 2..10 && firstToken.any { it.isLetter() }) {
                                         firstToken.uppercase(Locale.US)
                                     } else if (cleanName.length in 2..6) {
-                                        cleanName.uppercase(Locale.getDefault())
+                                        cleanName.uppercase(presentationLocale)
                                     } else {
-                                        when (typeState) {
-                                            AccountType.CC -> "CREDIT"
-                                            AccountType.CASH -> "CASH"
-                                            AccountType.BANK -> "BANK"
-                                            AccountType.DEBIT -> "DEBIT"
-                                        }
+                                        previewFallback
                                     }
                                 }
                                 Box(
@@ -1617,7 +1691,7 @@ fun AccountsScreen(
                                                 .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
                                         )
                                         Text(
-                                            text = nicknameText.trim().ifEmpty { nameText.ifEmpty { "Card Preview" } },
+                                            text = nicknameText.trim().ifEmpty { nameText.ifEmpty { stringResource(R.string.ah_card_preview) } },
                                             color = Color.White,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
@@ -1637,10 +1711,10 @@ fun AccountsScreen(
                                     Column {
                                         Text(
                                             text = when (typeState) {
-                                                AccountType.BANK -> "BANK ACCOUNT"
-                                                AccountType.CASH -> "CASH WALLET"
-                                                AccountType.DEBIT -> "DEBIT CARD"
-                                                AccountType.CC -> "CREDIT CARD"
+                                                AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
+                                                AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
+                                                AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
+                                                AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
                                             },
                                             color = Color.White.copy(alpha = 0.7f),
                                             style = MaterialTheme.typography.labelSmall,
@@ -1692,7 +1766,7 @@ fun AccountsScreen(
                             }
                             Icon(imageVector = icon, contentDescription = null, tint = tintColor, modifier = Modifier.size(16.dp))
                         },
-                        labelProvider = { it }
+                        labelProvider = { accountEditorTabLabel(it) }
                     )
                 }
 
@@ -1730,7 +1804,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = "ACCOUNT IDENTITY",
+                                            text = stringResource(R.string.ah_account_identity),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -1741,7 +1815,7 @@ fun AccountsScreen(
                                     OutlinedTextField(
                                         value = nameText,
                                         onValueChange = { nameText = it },
-                                        label = { Text("Account / Card Name") },
+                                        label = { Text(stringResource(R.string.ah_account_card_name)) },
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = when (typeState) {
@@ -1777,7 +1851,7 @@ fun AccountsScreen(
 
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(
-                                            text = "Account Type",
+                                            text = stringResource(R.string.ah_account_type),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -1792,7 +1866,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.BANK
                                                 },
-                                                label = { Text("Bank") },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.BANK)) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1804,7 +1878,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.CASH
                                                 },
-                                                label = { Text("Cash") },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.CASH)) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1828,7 +1902,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.CC
                                                 },
-                                                label = { Text("Credit") },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.CC)) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1842,7 +1916,7 @@ fun AccountsScreen(
                                             value = cardLast4Text,
                                             onValueChange = { if (it.length <= 4 && it.all { char -> char in '0'..'9' }) cardLast4Text = it },
                                             label = { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four)) },
-                                            placeholder = { Text("e.g. 4321") },
+                                            placeholder = { Text(stringResource(R.string.ah_last_four_example)) },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             isError = invalidLastFour,
                                             supportingText = if (invalidLastFour) {
@@ -2037,7 +2111,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = if (typeState == AccountType.CC) "CURRENT BALANCE & DEBT" else "CURRENT BALANCE",
+                                            text = if (typeState == AccountType.CC) stringResource(R.string.ah_current_balance_debt) else stringResource(R.string.ah_current_balance),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2048,7 +2122,7 @@ fun AccountsScreen(
                                     OutlinedTextField(
                                         value = balanceText,
                                         onValueChange = { balanceText = it },
-                                        label = { Text(if (typeState == AccountType.CC) "Current Debt Amount ($)" else "Current Balance Amount ($)") },
+                                        label = { Text(if (typeState == AccountType.CC) stringResource(R.string.ah_current_debt_amount) else stringResource(R.string.ah_current_balance_amount)) },
                                         prefix = { Text("$ ", fontWeight = FontWeight.Bold) },
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                         colors = OutlinedTextFieldDefaults.colors(
@@ -2062,7 +2136,7 @@ fun AccountsScreen(
 
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(
-                                            text = "1-Tap Quick Adjust",
+                                            text = stringResource(R.string.ah_quick_adjust),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -2116,8 +2190,8 @@ fun AccountsScreen(
                                         OutlinedTextField(
                                             value = quickAdjustAmountText,
                                             onValueChange = { quickAdjustAmountText = it },
-                                            label = { Text("Custom Adjust ($)") },
-                                            placeholder = { Text("e.g. 75") },
+                                            label = { Text(stringResource(R.string.ah_custom_adjust)) },
+                                            placeholder = { Text(stringResource(R.string.ah_adjust_example)) },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -2199,7 +2273,7 @@ fun AccountsScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "CREDIT LIMIT & UTILIZATION",
+                                                text = stringResource(R.string.ah_limit_utilization),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.primary,
@@ -2210,7 +2284,7 @@ fun AccountsScreen(
                                         OutlinedTextField(
                                             value = creditLimitText,
                                             onValueChange = { creditLimitText = it },
-                                            label = { Text("Credit Limit ($)") },
+                                            label = { Text(stringResource(R.string.ah_credit_limit_amount)) },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -2251,7 +2325,7 @@ fun AccountsScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
                                                 Text(
-                                                    text = "Credit Utilization",
+                                                    text = stringResource(R.string.ah_credit_utilization),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -2308,7 +2382,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = "BILLING & PAYMENT SCHEDULE",
+                                            text = stringResource(R.string.ah_billing_schedule),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2358,7 +2432,7 @@ fun AccountsScreen(
                                                 value = paymentDateText,
                                                 onValueChange = {},
                                                 readOnly = true,
-                                                label = { Text("Payment Due") },
+                                                label = { Text(stringResource(R.string.ah_payment_due)) },
                                                 placeholder = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_select)) },
                                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentDayDropdownExpanded) },
                                                 shape = RoundedCornerShape(14.dp),
@@ -2388,7 +2462,7 @@ fun AccountsScreen(
                                             value = paymentDeadlineText,
                                             onValueChange = {},
                                             readOnly = true,
-                                            label = { Text("Payment Deadline Day") },
+                                            label = { Text(stringResource(R.string.ah_payment_deadline_day)) },
                                             placeholder = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_select)) },
                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentDeadlineDayDropdownExpanded) },
                                             shape = RoundedCornerShape(14.dp),
@@ -2442,7 +2516,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = "GRADIENT THEME PALETTE",
+                                            text = stringResource(R.string.ah_gradient_palette),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2471,6 +2545,7 @@ fun AccountsScreen(
                                         Spacer(modifier = Modifier.width(4.dp))
                                         themes.forEach { (themeKey, colors) ->
                                             val isSelected = selectedCardTheme == themeKey
+                                            val themeLabel = accountCardThemeLabel(themeKey)
                                             val animatedScale by animateFloatAsState(
                                                 targetValue = if (isSelected) 1.15f else 1.0f,
                                                 animationSpec = spring(
@@ -2499,13 +2574,17 @@ fun AccountsScreen(
                                                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.35f),
                                                         shape = CircleShape
                                                     )
-                                                    .clickable { selectedCardTheme = themeKey },
+                                                    .clickable { selectedCardTheme = themeKey }
+                                                    .semantics {
+                                                        contentDescription = themeLabel
+                                                        selected = isSelected
+                                                    },
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (isSelected) {
                                                     Icon(
                                                         imageVector = Icons.Default.Check,
-                                                        contentDescription = "Selected",
+                                                        contentDescription = stringResource(R.string.ah_selected),
                                                         tint = Color.White,
                                                         modifier = Modifier.size(20.dp)
                                                     )
@@ -2547,7 +2626,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = "BRANDING & PROTOCOL",
+                                            text = stringResource(R.string.ah_branding_protocol),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2565,10 +2644,10 @@ fun AccountsScreen(
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             OutlinedTextField(
-                                                value = selectedCardIssuer,
+                                                value = cardDesignOptionLabel(selectedCardIssuer),
                                                 onValueChange = {},
                                                 readOnly = true,
-                                                label = { Text("Issuer") },
+                                                label = { Text(stringResource(R.string.ah_issuer)) },
                                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = issuerDropdownExpanded) },
                                                 shape = RoundedCornerShape(14.dp),
                                                 modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -2579,7 +2658,7 @@ fun AccountsScreen(
                                             ) {
                                                 listOf("None", "BOC", "HSBC", "Chase", "Citi").forEach { i ->
                                                     DropdownMenuItem(
-                                                        text = { Text(i) },
+                                                        text = { Text(cardDesignOptionLabel(i)) },
                                                         onClick = {
                                                             selectedCardIssuer = i
                                                             issuerDropdownExpanded = false
@@ -2595,10 +2674,10 @@ fun AccountsScreen(
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             OutlinedTextField(
-                                                value = selectedCardProtocol,
+                                                value = cardDesignOptionLabel(selectedCardProtocol),
                                                 onValueChange = {},
                                                 readOnly = true,
-                                                label = { Text("Protocol") },
+                                                label = { Text(stringResource(R.string.ah_protocol)) },
                                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolDropdownExpanded) },
                                                 shape = RoundedCornerShape(14.dp),
                                                 modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -2609,7 +2688,7 @@ fun AccountsScreen(
                                             ) {
                                                 listOf("None", "Visa", "Mastercard").forEach { p ->
                                                     DropdownMenuItem(
-                                                        text = { Text(p) },
+                                                        text = { Text(cardDesignOptionLabel(p)) },
                                                         onClick = {
                                                             selectedCardProtocol = p
                                                             protocolDropdownExpanded = false
@@ -2652,7 +2731,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = "TEXTURE & CUSTOM ART",
+                                            text = stringResource(R.string.ah_texture_art),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2666,10 +2745,10 @@ fun AccountsScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         OutlinedTextField(
-                                            value = selectedCardPattern,
+                                            value = cardDesignOptionLabel(selectedCardPattern),
                                             onValueChange = {},
                                             readOnly = true,
-                                            label = { Text("Pattern Overlay") },
+                                            label = { Text(stringResource(R.string.ah_pattern_overlay)) },
                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = patternDropdownExpanded) },
                                             shape = RoundedCornerShape(14.dp),
                                             modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -2680,7 +2759,7 @@ fun AccountsScreen(
                                         ) {
                                             listOf("None", "Cyber Grid", "Neon Waves", "Geometric Mesh").forEach { pat ->
                                                 DropdownMenuItem(
-                                                    text = { Text(pat) },
+                                                    text = { Text(cardDesignOptionLabel(pat)) },
                                                     onClick = {
                                                         selectedCardPattern = pat
                                                         patternDropdownExpanded = false
@@ -2709,7 +2788,7 @@ fun AccountsScreen(
                                         ) {
                                             Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(if (selectedCardImageUri.isEmpty()) "Upload Image" else "Change Image")
+                                            Text(if (selectedCardImageUri.isEmpty()) stringResource(R.string.ah_upload_image) else stringResource(R.string.ah_change_image))
                                         }
                                         if (selectedCardImageUri.isNotEmpty()) {
                                             val cropInteraction = remember { MutableInteractionSource() }
@@ -2735,7 +2814,7 @@ fun AccountsScreen(
                                             ) {
                                                 Icon(Icons.Default.Crop, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Crop")
+                                                Text(stringResource(R.string.ah_crop))
                                             }
 
                                             val removeInteraction = remember { MutableInteractionSource() }
@@ -2752,7 +2831,7 @@ fun AccountsScreen(
                                                 interactionSource = removeInteraction,
                                                 modifier = Modifier.pressBounce(interactionSource = removeInteraction)
                                             ) {
-                                                Text("Remove")
+                                                Text(stringResource(R.string.ah_remove))
                                             }
                                         }
                                     }
@@ -2794,7 +2873,7 @@ fun AccountsScreen(
                                                             )
                                                         }
                                                         Text(
-                                                            text = "POSITION (X & Y AXIS)",
+                                                            text = stringResource(R.string.ah_position_axes),
                                                             style = MaterialTheme.typography.labelSmall,
                                                             fontWeight = FontWeight.Bold,
                                                             color = MaterialTheme.colorScheme.primary,
@@ -2813,7 +2892,7 @@ fun AccountsScreen(
                                                         ) {
                                                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
                                                             Spacer(modifier = Modifier.width(3.dp))
-                                                            Text("Reset", style = MaterialTheme.typography.labelSmall)
+                                                            Text(stringResource(R.string.ah_reset), style = MaterialTheme.typography.labelSmall)
                                                         }
                                                     }
                                                 }
@@ -2836,7 +2915,7 @@ fun AccountsScreen(
                                                             modifier = Modifier.size(16.dp)
                                                         )
                                                         Text(
-                                                            text = "Live gesture enabled: Drag top card preview directly to pan, or pinch to zoom.",
+                                                            text = stringResource(R.string.ah_gesture_tip),
                                                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
@@ -2851,15 +2930,15 @@ fun AccountsScreen(
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Text(
-                                                            text = "X Axis (Horizontal)",
+                                                            text = stringResource(R.string.ah_horizontal_axis),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontWeight = FontWeight.SemiBold
                                                         )
                                                         val xPercent = (selectedCardBgOffsetX * 100).roundToInt()
                                                         val xDesc = when {
-                                                            xPercent < 0 -> "${-xPercent}% Left"
-                                                            xPercent > 0 -> "+${xPercent}% Right"
-                                                            else -> "Center (0%)"
+                                                            xPercent < 0 -> stringResource(R.string.ah_offset_left, -xPercent)
+                                                            xPercent > 0 -> stringResource(R.string.ah_offset_right, xPercent)
+                                                            else -> stringResource(R.string.ah_center_zero)
                                                         }
                                                         Surface(
                                                             shape = RoundedCornerShape(6.dp),
@@ -2886,7 +2965,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ChevronLeft, contentDescription = "Shift Left", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.ah_shift_left), modifier = Modifier.size(18.dp))
                                                         }
                                                         Slider(
                                                             value = selectedCardBgOffsetX,
@@ -2903,7 +2982,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ChevronRight, contentDescription = "Shift Right", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.ah_shift_right), modifier = Modifier.size(18.dp))
                                                         }
                                                     }
                                                 }
@@ -2916,15 +2995,15 @@ fun AccountsScreen(
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Text(
-                                                            text = "Y Axis (Vertical)",
+                                                            text = stringResource(R.string.ah_vertical_axis),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontWeight = FontWeight.SemiBold
                                                         )
                                                         val yPercent = (selectedCardBgOffsetY * 100).roundToInt()
                                                         val yDesc = when {
-                                                            yPercent < 0 -> "${-yPercent}% Up"
-                                                            yPercent > 0 -> "+${yPercent}% Down"
-                                                            else -> "Center (0%)"
+                                                            yPercent < 0 -> stringResource(R.string.ah_offset_up, -yPercent)
+                                                            yPercent > 0 -> stringResource(R.string.ah_offset_down, yPercent)
+                                                            else -> stringResource(R.string.ah_center_zero)
                                                         }
                                                         Surface(
                                                             shape = RoundedCornerShape(6.dp),
@@ -2951,7 +3030,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Shift Up", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ah_shift_up), modifier = Modifier.size(18.dp))
                                                         }
                                                         Slider(
                                                             value = selectedCardBgOffsetY,
@@ -2968,7 +3047,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Shift Down", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ah_shift_down), modifier = Modifier.size(18.dp))
                                                         }
                                                     }
                                                 }
@@ -2981,7 +3060,7 @@ fun AccountsScreen(
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Text(
-                                                            text = "Zoom / Scale",
+                                                            text = stringResource(R.string.ah_zoom_scale),
                                                             style = MaterialTheme.typography.bodySmall,
                                                             fontWeight = FontWeight.SemiBold
                                                         )
@@ -3010,7 +3089,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ZoomOut, contentDescription = "Zoom Out", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.ZoomOut, contentDescription = stringResource(R.string.ah_zoom_out), modifier = Modifier.size(18.dp))
                                                         }
                                                         Slider(
                                                             value = selectedCardBgScale,
@@ -3027,7 +3106,7 @@ fun AccountsScreen(
                                                             },
                                                             modifier = Modifier.size(28.dp)
                                                         ) {
-                                                            Icon(Icons.Default.ZoomIn, contentDescription = "Zoom In", modifier = Modifier.size(18.dp))
+                                                            Icon(Icons.Default.ZoomIn, contentDescription = stringResource(R.string.ah_zoom_in), modifier = Modifier.size(18.dp))
                                                         }
                                                     }
                                                 }
@@ -3039,11 +3118,11 @@ fun AccountsScreen(
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     val presets = listOf(
-                                                        "Center" to Pair(0f, 0f),
-                                                        "Top" to Pair(0f, -0.30f),
-                                                        "Bottom" to Pair(0f, 0.30f),
-                                                        "Left" to Pair(-0.30f, 0f),
-                                                        "Right" to Pair(0.30f, 0f)
+                                                        R.string.ah_align_center to Pair(0f, 0f),
+                                                        R.string.ah_align_top to Pair(0f, -0.30f),
+                                                        R.string.ah_align_bottom to Pair(0f, 0.30f),
+                                                        R.string.ah_align_left to Pair(-0.30f, 0f),
+                                                        R.string.ah_align_right to Pair(0.30f, 0f)
                                                     )
                                                     presets.forEach { (name, pos) ->
                                                         val isCurrent = kotlin.math.abs(selectedCardBgOffsetX - pos.first) < 0.05f &&
@@ -3055,7 +3134,7 @@ fun AccountsScreen(
                                                                 selectedCardBgOffsetX = pos.first
                                                                 selectedCardBgOffsetY = pos.second
                                                             },
-                                                            label = { Text(name, style = MaterialTheme.typography.labelSmall) }
+                                                            label = { Text(stringResource(name), style = MaterialTheme.typography.labelSmall) }
                                                         )
                                                     }
                                                 }
@@ -3081,17 +3160,17 @@ fun AccountsScreen(
                     ) {
                         Column {
                             Text(
-                                text = if (editingAccount == null) "Add Asset / Card" else "Modify ${editingAccount?.name}",
+                                text = if (editingAccount == null) stringResource(R.string.ah_add_asset_card) else stringResource(R.string.ah_modify_account, editingAccount?.name.orEmpty()),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = when (typeState) {
-                                    AccountType.BANK -> "Bank Account Settings"
-                                    AccountType.CASH -> "Cash Wallet Settings"
-                                    AccountType.DEBIT -> "Debit Card Settings"
-                                    AccountType.CC -> "Credit Card Settings"
+                                    AccountType.BANK -> stringResource(R.string.ah_bank_settings)
+                                    AccountType.CASH -> stringResource(R.string.ah_cash_settings)
+                                    AccountType.DEBIT -> stringResource(R.string.ah_debit_settings)
+                                    AccountType.CC -> stringResource(R.string.ah_credit_settings)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
@@ -3110,7 +3189,7 @@ fun AccountsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
+                                contentDescription = stringResource(R.string.btn_close),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -3156,7 +3235,7 @@ fun AccountsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "LIVE OVERVIEW",
+                                                text = stringResource(R.string.ah_live_overview),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.primary,
@@ -3168,10 +3247,10 @@ fun AccountsScreen(
                                             ) {
                                                 Text(
                                                     text = when (typeState) {
-                                                        AccountType.BANK -> "Bank"
-                                                        AccountType.CASH -> "Cash"
-                                                        AccountType.DEBIT -> "Debit"
-                                                        AccountType.CC -> "Credit"
+                                                        AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
+                                                        AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
+                                                        AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
+                                                        AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
                                                     },
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -3183,7 +3262,7 @@ fun AccountsScreen(
 
                                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                             Text(
-                                                text = if (typeState == AccountType.CC) "Outstanding Debt" else "Available Balance",
+                                                text = if (typeState == AccountType.CC) stringResource(R.string.ah_debt_title) else stringResource(R.string.ah_available_balance),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -3215,7 +3294,7 @@ fun AccountsScreen(
 
                                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text("Utilization", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(stringResource(R.string.ah_utilization), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                     Text("$utilPercent%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = animatedBarColor)
                                                 }
                                                 LinearProgressIndicator(
@@ -3307,7 +3386,7 @@ fun AccountsScreen(
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Delete")
+                                    Text(stringResource(R.string.btn_delete))
                                 }
                             }
 
@@ -3316,7 +3395,7 @@ fun AccountsScreen(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     if (invalidLastFour) return@Button
-                                    val name = nameText.trim().ifEmpty { "New Account" }
+                                    val name = nameText.trim().ifEmpty { defaultAccountName }
                                     val balance = balanceText.toDoubleOrNull() ?: 0.0
                                     val limit = creditLimitText.toDoubleOrNull() ?: 0.0
                                     val billing = billingDateText.toIntOrNull()?.takeIf { it in 1..31 }
@@ -3373,7 +3452,7 @@ fun AccountsScreen(
                             ) {
                                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (editingAccount != null) "Save Changes" else "Create Asset", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(if (editingAccount != null) stringResource(R.string.btn_save_changes) else stringResource(R.string.ah_create_asset), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -4111,20 +4190,37 @@ fun AccountAppRedirectButton(
 fun AppPickerDialog(
     currentPackage: String?,
     onAppSelected: (String?) -> Unit,
-    onDismissRequest: () -> Unit
+    onDismissRequest: () -> Unit,
+    loadApps: suspend (Context) -> List<InstalledAppInfo> = LocalAppManager::loadInstalledApps,
+    loadIcon: suspend (Context, String) -> Bitmap? = ::loadPickerIcon
 ) {
     val context = LocalContext.current
-    val installedApps = remember(context) { LocalAppManager.getInstalledApps(context) }
+    val appLocale = LocalConfiguration.current.locales[0]
+    var retryGeneration by remember { mutableStateOf(0) }
+    // Show the dialog first. PackageManager scanning and icon decoding must not block composition.
+    val catalogResult by produceState<Result<List<InstalledAppInfo>>?>(
+        initialValue = null, context, retryGeneration
+    ) {
+        value = null
+        value = try {
+            Result.success(loadApps(context))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Result.failure(failure)
+        }
+    }
+    val installedApps = catalogResult?.getOrNull().orEmpty()
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredApps = remember(searchQuery, installedApps) {
-        val q = searchQuery.trim().lowercase(Locale.getDefault())
+    val filteredApps = remember(searchQuery, installedApps, appLocale) {
+        val q = searchQuery.trim().lowercase(appLocale)
         if (q.isBlank()) {
             installedApps
         } else {
             installedApps.filter {
-                it.appName.lowercase(Locale.getDefault()).contains(q) ||
-                it.packageName.lowercase(Locale.getDefault()).contains(q)
+                it.appName.lowercase(appLocale).contains(q) ||
+                it.packageName.lowercase(Locale.US).contains(q)
             }
         }
     }
@@ -4163,17 +4259,18 @@ fun AppPickerDialog(
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.ah_clear_search), modifier = Modifier.size(16.dp))
                             }
                         }
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().testTag("QuickLaunchAppSearch")
                 )
 
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                        .testTag("QuickLaunchAppList"),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (searchQuery.isBlank()) {
@@ -4235,7 +4332,30 @@ fun AppPickerDialog(
                         }
                     }
 
-                    if (filteredApps.isEmpty()) {
+                    if (catalogResult == null) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator(
+                                    modifier = Modifier.size(48.dp).testTag("QuickLaunchAppLoading")
+                                )
+                            }
+                        }
+                    } else if (catalogResult?.isFailure == true) {
+                        item {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(stringResource(com.example.vibefinance.R.string.assets_linked_app_load_failed))
+                                TextButton(onClick = { retryGeneration++ }) {
+                                    Text(stringResource(com.example.vibefinance.R.string.assets_linked_app_retry))
+                                }
+                            }
+                        }
+                    } else if (filteredApps.isEmpty()) {
                         item {
                             Box(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -4250,6 +4370,11 @@ fun AppPickerDialog(
                         }
                     } else {
                         items(filteredApps, key = { it.packageName }) { app ->
+                            // LazyColumn requests only composed rows; icons arrive independently of labels.
+                            val iconState = produceState<Bitmap?>(app.iconBitmap, context, app.packageName) {
+                                value = loadIcon(context, app.packageName)
+                            }
+                            val iconBitmap = iconState.value
                             val isSelected = currentPackage == app.packageName
                             Surface(
                                 modifier = Modifier
@@ -4270,9 +4395,9 @@ fun AppPickerDialog(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    if (app.iconBitmap != null) {
+                                    if (iconBitmap != null) {
                                         Image(
-                                            bitmap = app.iconBitmap.asImageBitmap(),
+                                            bitmap = iconBitmap.asImageBitmap(),
                                             contentDescription = app.appName,
                                             modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)),
                                             contentScale = ContentScale.Fit
@@ -4318,6 +4443,9 @@ fun AppPickerDialog(
         }
     )
 }
+
+private suspend fun loadPickerIcon(context: Context, packageName: String): Bitmap? =
+    withContext(Dispatchers.IO) { LocalAppManager.getAppIcon(context, packageName) }
 
 @Composable
 private fun CompactAccountRow(
@@ -4374,7 +4502,7 @@ private fun CompactAccountRow(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = account.watermarkText(),
+                        text = account.localizedWatermarkText(),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontSize = 36.sp,
                             fontWeight = FontWeight.Black,
@@ -4573,9 +4701,9 @@ fun ExpressiveAccountListItem(
 
     val dueText = daysRemaining?.let { days ->
         when {
-            days == 0 -> "Due Today"
-            days == 1 -> "Due Tomorrow"
-            else -> "Due in ${days}d"
+            days == 0 -> stringResource(R.string.ah_due_today)
+            days == 1 -> stringResource(R.string.ah_due_tomorrow)
+            else -> stringResource(R.string.ah_due_in_days, days)
         }
     }
 
@@ -4601,7 +4729,7 @@ fun ExpressiveAccountListItem(
         AccountType.CASH -> stringResource(com.example.vibefinance.R.string.assets_type_cash)
         AccountType.BANK -> stringResource(com.example.vibefinance.R.string.assets_type_bank)
         AccountType.DEBIT -> stringResource(com.example.vibefinance.R.string.assets_type_debit)
-    }.uppercase(Locale.getDefault())
+    }.uppercase(LocalConfiguration.current.locales[0])
     val context = LocalContext.current
     val targetPackage = remember(account.linkedAppPackage, account.name) {
         LocalAppManager.resolveTargetAppPackage(context, account.linkedAppPackage, account.name)
@@ -4697,7 +4825,7 @@ fun ExpressiveAccountListItem(
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        text = account.watermarkText(),
+                        text = account.localizedWatermarkText(),
                         style = MaterialTheme.typography.displayLarge.copy(
                             fontSize = 64.sp,
                             fontWeight = FontWeight.Black,
@@ -4848,7 +4976,7 @@ fun ExpressiveAccountListItem(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = String.format("$%,.2f", account.balance),
+                        text = String.format(Locale.US, "$%,.2f", account.balance),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontSize = 22.sp,
                             fontFamily = JetBrainsMonoFontFamily,
@@ -4868,7 +4996,7 @@ fun ExpressiveAccountListItem(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit Account",
+                            contentDescription = stringResource(R.string.btn_edit_account),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                             modifier = Modifier.size(15.dp)
                         )
@@ -4937,7 +5065,7 @@ fun ExpressiveAccountListItem(
                                 strokeCap = StrokeCap.Round
                             )
                             Text(
-                                text = String.format(Locale.US, "%d%% Used • Avail $%,.0f", utilizationPercent, availableCredit),
+                                text = stringResource(R.string.ah_credit_used_available, utilizationPercent, availableCredit),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontFamily = JetBrainsMonoFontFamily,
                                     letterSpacing = (-0.15).sp
@@ -5023,11 +5151,11 @@ fun InteractiveImageCropDialog(
     var offset by remember { mutableStateOf(Offset.Zero) }
 
     val ratioOptions = listOf(
-        "1.586:1" to "💳 1.586:1 (Card)",
-        "16:9"    to "📺 16:9 (Wide)",
-        "4:3"     to "📷 4:3 (Photo)",
-        "1:1"     to "⬛ 1:1 (Square)",
-        "2.35:1"  to "🎬 2.35:1 (Banner)"
+        "1.586:1" to R.string.ah_ratio_card,
+        "16:9"    to R.string.ah_ratio_wide,
+        "4:3"     to R.string.ah_ratio_photo,
+        "1:1"     to R.string.ah_ratio_square,
+        "2.35:1"  to R.string.ah_ratio_banner
     )
 
     val aspectRatioFloat = remember(selectedRatio) {
@@ -5045,7 +5173,7 @@ fun InteractiveImageCropDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Position & Scale Card Image",
+                text = stringResource(R.string.ah_image_position_scale),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -5056,7 +5184,7 @@ fun InteractiveImageCropDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Drag to move image. Select aspect ratio below.",
+                    text = stringResource(R.string.ah_image_crop_tip),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -5087,7 +5215,7 @@ fun InteractiveImageCropDialog(
                     ) {
                         Image(
                             bitmap = bitmap.asImageBitmap(),
-                            contentDescription = "Preview",
+                            contentDescription = stringResource(R.string.ah_preview),
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -5115,7 +5243,7 @@ fun InteractiveImageCropDialog(
                             },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Move Left", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.ah_move_left), modifier = Modifier.size(18.dp))
                         }
                         IconButton(
                             onClick = {
@@ -5124,7 +5252,7 @@ fun InteractiveImageCropDialog(
                             },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Move Right", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.ah_move_right), modifier = Modifier.size(18.dp))
                         }
                         IconButton(
                             onClick = {
@@ -5133,7 +5261,7 @@ fun InteractiveImageCropDialog(
                             },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move Up", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ah_move_up), modifier = Modifier.size(18.dp))
                         }
                         IconButton(
                             onClick = {
@@ -5142,7 +5270,7 @@ fun InteractiveImageCropDialog(
                             },
                             modifier = Modifier.size(30.dp)
                         ) {
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move Down", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ah_move_down), modifier = Modifier.size(18.dp))
                         }
                     }
                     if (offset != Offset.Zero || scale != 1.0f) {
@@ -5156,14 +5284,14 @@ fun InteractiveImageCropDialog(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Reset", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.ah_reset), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
 
                 // Ratio Selector Chips
                 Text(
-                    text = "Aspect Ratio Preference",
+                    text = stringResource(R.string.ah_aspect_ratio),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -5181,7 +5309,7 @@ fun InteractiveImageCropDialog(
                             },
                             label = {
                                 Text(
-                                    text = label,
+                                    text = stringResource(label),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -5207,7 +5335,7 @@ fun InteractiveImageCropDialog(
                 interactionSource = confirmInteraction,
                 modifier = Modifier.pressBounce(interactionSource = confirmInteraction)
             ) {
-                Text("Confirm & Use")
+                Text(stringResource(R.string.ah_confirm_use))
             }
         },
         dismissButton = {
@@ -5221,7 +5349,7 @@ fun InteractiveImageCropDialog(
                 interactionSource = dismissInteraction,
                 modifier = Modifier.pressBounce(interactionSource = dismissInteraction)
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.btn_cancel))
             }
         }
     )

@@ -69,6 +69,18 @@ internal fun PendingPaymentChoiceDialog(
                 return@remember matchingAccount.id
             }
         }
+        val hintLower = payment.assetHint.trim().lowercase(Locale.ROOT)
+        if (hintLower in setOf("smart octopus", "octopus", "八達通", "android版八達通")) {
+            val octopusAccount = accounts.firstOrNull { account ->
+                val name = account.name.trim().lowercase(Locale.ROOT)
+                name in setOf("smart octopus", "octopus", "八達通", "android版八達通", "手機八達通", "wallet", "wallet (cash)", "現金", "錢包")
+            } ?: accounts.firstOrNull { it.type == AccountType.CASH }
+            if (octopusAccount != null) return@remember octopusAccount.id
+        }
+        if (PendingPaymentStore.isBocGoHint(payment.assetHint)) {
+            val bocAccount = PendingPaymentStore.findBocGoMatch(accounts)
+            if (bocAccount != null) return@remember bocAccount.id
+        }
         accounts.firstOrNull { account ->
             account.name.equals(payment.assetHint, ignoreCase = true)
         }?.id ?: accounts.firstOrNull { account ->
@@ -138,7 +150,18 @@ internal fun PendingPaymentChoiceDialog(
                         }
                         if (!payment.cardLast4.isNullOrBlank()) {
                             Text(
-                                text = "卡號末四位：•••• ${payment.cardLast4}",
+                                text = stringResource(R.string.ui_pending_card_last_four, payment.cardLast4),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                        if (payment.balanceRemaining != null) {
+                            Text(
+                                text = stringResource(
+                                    R.string.pending_payment_balance_remaining,
+                                    "HK$${String.format(Locale.getDefault(), "%,.2f", payment.balanceRemaining)}"
+                                ),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -203,7 +226,7 @@ internal fun PendingPaymentChoiceDialog(
                                         val cardSuffix = account.cardLast4?.let { " •••• $it" } ?: ""
                                         val isMatchedCard = !payment.cardLast4.isNullOrBlank() && account.cardLast4 == payment.cardLast4
                                         Text(
-                                            text = if (isMatchedCard) "$typeLabel$cardSuffix (相符)" else "$typeLabel$cardSuffix",
+                                            text = if (isMatchedCard) stringResource(R.string.ui_pending_matching_card, "$typeLabel$cardSuffix") else "$typeLabel$cardSuffix",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = if (isMatchedCard) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isMatchedCard) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -214,6 +237,11 @@ internal fun PendingPaymentChoiceDialog(
                         }
                     }
                     if (canRemember) {
+                        val displayHint = if (!payment.cardLast4.isNullOrBlank()) {
+                            "${payment.assetHint} (•••• ${payment.cardLast4})"
+                        } else {
+                            payment.assetHint
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -225,7 +253,7 @@ internal fun PendingPaymentChoiceDialog(
                                 text = stringResource(
                                     R.string.pending_payment_remember_choice,
                                     appLabel,
-                                    payment.assetHint
+                                    displayHint
                                 ),
                                 style = MaterialTheme.typography.bodySmall
                             )

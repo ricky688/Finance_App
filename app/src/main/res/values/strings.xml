@@ -13,10 +13,10 @@
     <string name="topbar_daily_flow">Daily Flow</string>
     <string name="topbar_assets_cards">Assets &amp; Cards</string>
     <string name="topbar_activity_history">Activity History</string>
-    <string name="topbar_alt_vibe_overview">財務總覽</string>
-    <string name="topbar_alt_assets_cards">資產與卡片</string>
-    <string name="topbar_alt_subscriptions">定期訂閱</string>
-    <string name="topbar_alt_activity_history">歷史紀錄</string>
+    <string name="topbar_alt_vibe_overview">Daily budget overview</string>
+    <string name="topbar_alt_assets_cards">Manage your accounts</string>
+    <string name="topbar_alt_subscriptions">Subscriptions and installments</string>
+    <string name="topbar_alt_activity_history">Transaction records</string>
     <string name="topbar_cards_assets_count">%d Cards &amp; Assets</string>
     <string name="topbar_transactions_logged">%d Logged</string>
     <string name="greeting_morning">Good morning</string>
@@ -208,9 +208,13 @@
     <string name="daily_net_format">Daily Net: %1$sHK$%2$,.2f</string>
     <string name="cashback_pill_format">+HK$ %1$,.2f cashback (%2$s%%)</string>
     <string name="edit_transaction_title">Edit Transaction</string>
+    <string name="edit_transaction_type_label">Transaction type</string>
     <string name="edit_amount_label">Amount</string>
     <string name="edit_description_label">Description / Note</string>
     <string name="edit_category_label">Category</string>
+    <string name="edit_category_defaults">Suggested categories</string>
+    <string name="edit_category_existing">Your categories</string>
+    <string name="edit_category_current">Current category</string>
     <string name="cat_electronics">Electronics</string>
     <string name="cat_groceries">Groceries</string>
 

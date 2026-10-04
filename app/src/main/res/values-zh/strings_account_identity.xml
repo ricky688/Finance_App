@@ -23,4 +23,6 @@
     <string name="assets_linked_app_empty">找不到相符的应用程序</string>
     <string name="assets_linked_app_choose">选择关联应用</string>
     <string name="assets_linked_app_long_press_tip">长按卡片上的跳转图标可更换应用</string>
+    <string name="assets_linked_app_load_failed">无法加载已安装的应用</string>
+    <string name="assets_linked_app_retry">重试</string>
 </resources>

@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
@@ -124,11 +125,7 @@ fun HeroDailyBudgetCard(
 
     val ratio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
 
-    // Let the ambient wave settle after its entrance instead of redrawing forever.
-    val shiftState = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        shiftState.animateTo(1f, tween(durationMillis = 5000, easing = LinearEasing))
-    }
+    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0.005f)
 
     // Ambient Financial Health Mood Glow Color (active in dark mode only)
     val ambientGlowColor = when {
@@ -207,7 +204,7 @@ fun HeroDailyBudgetCard(
     }
 
     Box(
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth().testTag("HeroDailyBudgetCard")
     ) {
         // Ambient Mood Glow Layer (Dark Mode only)
         if (isDark && ambientGlowColor != Color.Transparent) {
@@ -318,7 +315,7 @@ fun HeroDailyBudgetCard(
                                     if (isOverdraft || isBudgetEnd) {
                                         Icon(
                                             imageVector = Icons.Default.Info,
-                                            contentDescription = "Info",
+                                            contentDescription = stringResource(R.string.loc_info),
                                             tint = titleTextColor.copy(alpha = 0.7f),
                                             modifier = Modifier.size(12.dp)
                                         )
@@ -352,7 +349,7 @@ fun HeroDailyBudgetCard(
                                 )
                                 Icon(
                                     imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
+                                    contentDescription = stringResource(R.string.settings_title),
                                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                     modifier = Modifier.size(14.dp)
                                 )
@@ -569,7 +566,7 @@ fun HeroDailyBudgetCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = String.format(Locale.US, "HK$ %,.0f/day", budgetInfo.newDailyBudget),
+                    text = stringResource(R.string.loc_daily_budget_amount, budgetInfo.newDailyBudget),
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary,
@@ -591,7 +588,7 @@ fun HeroDailyBudgetCard(
                         .height(48.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text(text = "OK", fontWeight = FontWeight.Bold)
+                    Text(text = stringResource(R.string.btn_confirm), fontWeight = FontWeight.Bold)
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }

@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -146,14 +148,14 @@ fun NewPeriodBudgetSheet(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "開啟新預算週期",
+                            text = stringResource(R.string.loc_new_period_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = primaryTextColor,
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "舊週期已結束！設定新週期的金額與結束日期 (Buckwheat Style)",
+                            text = stringResource(R.string.loc_new_period_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = secondaryTextColor,
                             textAlign = TextAlign.Center,
@@ -194,7 +196,7 @@ fun NewPeriodBudgetSheet(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        text = if (leftoverAmount >= 0) "上個週期剩餘 (Leftover)" else "上個週期超支 (Overspent)",
+                                        text = if (leftoverAmount >= 0) stringResource(R.string.loc_previous_leftover) else stringResource(R.string.loc_previous_overspent),
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = if (leftoverAmount >= 0) {
@@ -219,7 +221,7 @@ fun NewPeriodBudgetSheet(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "新週期預算金額 (New Budget Amount)",
+                            text = stringResource(R.string.loc_new_budget_amount),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = primaryTextColor
@@ -257,7 +259,7 @@ fun NewPeriodBudgetSheet(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "預算週期長度 (Period Duration)",
+                            text = stringResource(R.string.loc_period_duration),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = primaryTextColor
@@ -268,9 +270,9 @@ fun NewPeriodBudgetSheet(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val presets = listOf(
-                                30 to "30 天 (1個月)",
-                                14 to "14 天 (2週)",
-                                7 to "7 天 (1週)"
+                                30 to stringResource(R.string.loc_duration_30),
+                                14 to stringResource(R.string.loc_duration_14),
+                                7 to stringResource(R.string.loc_duration_7)
                             )
 
                             presets.forEach { (days, label) ->
@@ -303,10 +305,10 @@ fun NewPeriodBudgetSheet(
                         ) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            val startStr = todayLocal.format(DateTimeFormatter.ofPattern("dd MMM", Locale.US))
-                            val endStr = endDateLocal.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US))
+                            val startStr = todayLocal.format(DateTimeFormatter.ofPattern("dd MMM", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
+                            val endStr = endDateLocal.format(DateTimeFormatter.ofPattern("dd MMM yyyy", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
                             Text(
-                                text = "週期: $startStr ➔ $endStr ($totalDays 天)",
+                                text = stringResource(R.string.loc_period_dates, startStr, endStr, totalDays),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -319,7 +321,7 @@ fun NewPeriodBudgetSheet(
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = "結餘處理方式 (Leftover Rollover)",
+                                text = stringResource(R.string.loc_leftover_rollover),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = primaryTextColor
@@ -349,13 +351,13 @@ fun NewPeriodBudgetSheet(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = "將結餘滾入新週期 (Carry Over Leftover)",
+                                            text = stringResource(R.string.loc_carry_over),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = primaryTextColor
                                         )
                                         Text(
-                                            text = String.format(Locale.US, "總金額: HK$ %,.0f (+HK$ %,.0f 結餘)", finalTotalBudget, leftoverAmount),
+                                            text = stringResource(R.string.loc_rollover_total, finalTotalBudget, leftoverAmount),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = secondaryTextColor
                                         )
@@ -387,13 +389,13 @@ fun NewPeriodBudgetSheet(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Column {
                                         Text(
-                                            text = "不滾入，重新開始 (Fresh Start)",
+                                            text = stringResource(R.string.loc_fresh_start),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = primaryTextColor
                                         )
                                         Text(
-                                            text = String.format(Locale.US, "總金額: HK$ %,.0f", baseBudget),
+                                            text = stringResource(R.string.loc_budget_total, baseBudget),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = secondaryTextColor
                                         )
@@ -421,19 +423,19 @@ fun NewPeriodBudgetSheet(
                         ) {
                             Column {
                                 Text(
-                                    text = "預估新每日基準 (Est. Daily Baseline)",
+                                    text = stringResource(R.string.loc_est_daily_baseline),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = secondaryTextColor
                                 )
                                 Text(
-                                    text = String.format(Locale.US, "HK$ %,.0f / 天", estDailyBudget),
+                                    text = stringResource(R.string.loc_daily_budget_amount, estDailyBudget),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
                             Text(
-                                text = "共 $totalDays 天",
+                                text = stringResource(R.string.loc_total_days, totalDays),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = primaryTextColor
@@ -463,7 +465,7 @@ fun NewPeriodBudgetSheet(
                             .pressBounce(interactionSource = confirmInteraction)
                     ) {
                         Text(
-                            text = "開啟新預算週期 (Start New Period)",
+                            text = stringResource(R.string.loc_start_new_period),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -497,7 +499,7 @@ fun NewPeriodBudgetSheet(
                     interactionSource = dateConfirmInteraction,
                     modifier = Modifier.pressBounce(interactionSource = dateConfirmInteraction)
                 ) {
-                    Text("確定 Select")
+                    Text(stringResource(R.string.btn_confirm))
                 }
             },
             dismissButton = {
@@ -511,7 +513,7 @@ fun NewPeriodBudgetSheet(
                     interactionSource = dateDismissInteraction,
                     modifier = Modifier.pressBounce(interactionSource = dateDismissInteraction)
                 ) {
-                    Text("取消 Cancel")
+                    Text(stringResource(R.string.btn_cancel))
                 }
             }
         ) {

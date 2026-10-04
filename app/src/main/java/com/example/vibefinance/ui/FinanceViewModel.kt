@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui
 
+import com.example.vibefinance.R
+import com.example.vibefinance.util.appString
+import com.example.vibefinance.util.resolveAppLocale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.vibefinance.data.DataSeeder
@@ -249,7 +252,7 @@ class FinanceViewModel @Inject constructor(
                         dataSeeder.seedDatabase()
                         _uiState.update { it.copy(isLoading = false) }
                         _uiEvents.emit(FinanceUiEvent.SeedCompleted)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Database successfully re-seeded!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_database_reset)))
                     } catch (e: Exception) {
                         _uiState.update { it.copy(error = e.localizedMessage, isLoading = false) }
                     }
@@ -266,10 +269,10 @@ class FinanceViewModel @Inject constructor(
                             )
                         )
                         if (intent.showToast) {
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Custom period budget set successfully!"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_budget_set)))
                         }
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.AddTransaction -> {
@@ -290,9 +293,9 @@ class FinanceViewModel @Inject constructor(
                             com.example.vibefinance.ai.MerchantRuleEngine.learnRule(application, intent.description, intent.category)
                         }
                         
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Transaction recorded!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_transaction_recorded)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.AddInstallmentTransaction -> {
@@ -305,17 +308,17 @@ class FinanceViewModel @Inject constructor(
                             description = intent.description
                         )
                         transactionRepository.insertInstallmentTransaction(baseTx, intent.installments)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Installment plan created with ${intent.installments} entries!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_installment_created, intent.installments)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.DeleteInstallmentGroup -> {
                     try {
                         transactionRepository.deleteInstallmentGroup(intent.groupId, intent.accountId)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Installment plan deleted"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_installment_deleted)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.DeleteTransaction -> {
@@ -323,24 +326,24 @@ class FinanceViewModel @Inject constructor(
                         transactionRepository.deleteTransaction(intent.tx)
                         _uiEvents.emit(FinanceUiEvent.ShowSnackbar("Transaction deleted", "Undo", FinanceIntent.RestoreTransaction(intent.tx)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.RestoreTransaction -> {
                     try {
                         transactionRepository.insertTransaction(intent.tx)
                         // Optionally emit a toast to confirm restoration
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Transaction restored"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_transaction_restored)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.EditTransaction -> {
                     try {
                         transactionRepository.updateTransaction(intent.newTx, intent.oldTx)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Transaction updated!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_transaction_updated)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.SaveAccount -> {
@@ -362,20 +365,20 @@ class FinanceViewModel @Inject constructor(
                         }
 
                         if (intent.account.id == 0L) {
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Account created successfully!"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_account_created)))
                         } else {
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Account updated successfully!"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_account_updated)))
                         }
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.DeleteAccount -> {
                     try {
                         accountRepository.deleteAccount(intent.account)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Account deleted!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_account_deleted)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.SetThemeMode -> {
@@ -383,9 +386,9 @@ class FinanceViewModel @Inject constructor(
                     val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
                     prefs.edit().putString("theme_mode", intent.themeMode.name).apply()
                     val message = when (intent.themeMode) {
-                        ThemeMode.SYSTEM -> "Theme: System Default"
-                        ThemeMode.LIGHT -> "Theme: Light Mode"
-                        ThemeMode.DARK -> "Theme: Dark Mode"
+                        ThemeMode.SYSTEM -> application.appString(R.string.feedback_theme_system)
+                        ThemeMode.LIGHT -> application.appString(R.string.feedback_theme_light)
+                        ThemeMode.DARK -> application.appString(R.string.feedback_theme_dark)
                     }
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
@@ -393,7 +396,7 @@ class FinanceViewModel @Inject constructor(
                     _uiState.update { it.copy(dynamicColorEnabled = intent.enabled) }
                     val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
                     prefs.edit().putBoolean("dynamic_color_enabled", intent.enabled).apply()
-                    val message = if (intent.enabled) "Dynamic Colors Enabled" else "Dynamic Colors Disabled"
+                    val message = if (intent.enabled) application.appString(R.string.feedback_dynamic_on) else application.appString(R.string.feedback_dynamic_off)
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
                 is FinanceIntent.SetAppearancePalette -> {
@@ -418,7 +421,7 @@ class FinanceViewModel @Inject constructor(
                     _uiState.update { it.copy(iconShape = intent.shape) }
                     application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
                         .edit().putString("icon_shape", intent.shape.name).apply()
-                    val message = "圖示形狀：${intent.shape.title}"
+                    val message = application.appString(R.string.feedback_icon_shape, intent.shape.localizedTitle(resolveAppLocale(_uiState.value.appLanguage).language == "zh"))
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
                 is FinanceIntent.SetAppLanguage -> {
@@ -426,9 +429,9 @@ class FinanceViewModel @Inject constructor(
                     val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
                     prefs.edit().putString("app_language", intent.language.name).apply()
                     val message = when (intent.language) {
-                        AppLanguage.SYSTEM -> "Language: System Default / 語言：跟隨系統"
-                        AppLanguage.ENGLISH -> "Language: English"
-                        AppLanguage.TRADITIONAL_CHINESE -> "語言：繁體中文"
+                        AppLanguage.SYSTEM -> application.appString(R.string.feedback_language_system)
+                        AppLanguage.ENGLISH -> application.appString(R.string.feedback_language_english)
+                        AppLanguage.TRADITIONAL_CHINESE -> application.appString(R.string.feedback_language_chinese)
                     }
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
@@ -436,15 +439,15 @@ class FinanceViewModel @Inject constructor(
                     try {
                         if (intent.sub.id == 0L) {
                             subscriptionRepository.insertSubscription(intent.sub)
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription added!"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_subscription_added)))
                         } else {
                             subscriptionRepository.updateSubscription(intent.sub)
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription updated!"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_subscription_updated)))
                         }
                         // Re-trigger charges checking immediately in case due date is in the past
                         subscriptionRepository.checkAndTriggerAutoCharges(application)
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.DeleteSubscription -> {
@@ -463,16 +466,16 @@ class FinanceViewModel @Inject constructor(
                             val count = pastTransactions.size
                             val sum = pastTransactions.sumOf { it.amount }
                             val sumFormatted = String.format(Locale.getDefault(), "HK$ %,.2f", sum)
-                            _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription & $count past payment(s) deleted ($sumFormatted)"))
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_subscription_payments_deleted, count, sumFormatted)))
                         } else {
                             if (pastTransactions.isNotEmpty()) {
-                                _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription deleted (kept ${pastTransactions.size} past record(s))"))
+                                _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_subscription_kept, pastTransactions.size)))
                             } else {
-                                _uiEvents.emit(FinanceUiEvent.ShowToast("Subscription deleted!"))
+                                _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_subscription_deleted)))
                             }
                         }
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.SetCategoryLimit -> {
@@ -485,7 +488,7 @@ class FinanceViewModel @Inject constructor(
                         }
                         _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.SaveDiscountShop -> {
@@ -495,17 +498,17 @@ class FinanceViewModel @Inject constructor(
                         } else {
                             com.example.vibefinance.data.InMemoryDatabase.updateDiscountShop(intent.shop)
                         }
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Discount shop saved!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_shop_saved)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.DeleteDiscountShop -> {
                     try {
                         com.example.vibefinance.data.InMemoryDatabase.deleteDiscountShop(intent.shop)
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Discount shop removed!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_shop_removed)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Error: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.AnalyzeImportFile -> {
@@ -520,7 +523,7 @@ class FinanceViewModel @Inject constructor(
                         }
                     } catch (e: Exception) {
                         _uiState.update { it.copy(isImporting = false) }
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Failed to parse file: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_parse_failed, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.ConfirmImport -> {
@@ -556,12 +559,12 @@ class FinanceViewModel @Inject constructor(
                                 replaceExisting = intent.replaceExisting
                             )
                         }
-                        val modeText = if (intent.replaceExisting) "replaced & imported" else "merged & imported"
+                        val successMessage = if (intent.replaceExisting) application.appString(R.string.feedback_import_replaced, count) else application.appString(R.string.feedback_import_merged, count)
                         _uiState.update { it.copy(importPreview = null, isImporting = false) }
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Successfully $modeText $count transactions!"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(successMessage))
                     } catch (e: Exception) {
                         _uiState.update { it.copy(isImporting = false) }
-                        _uiEvents.emit(FinanceUiEvent.ShowToast("Import failed: ${e.localizedMessage}"))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_import_failed, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 FinanceIntent.DismissImportPreview -> {

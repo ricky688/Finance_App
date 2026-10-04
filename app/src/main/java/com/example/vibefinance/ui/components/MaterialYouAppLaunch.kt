@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.components
 
+import com.example.vibefinance.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -154,7 +156,7 @@ fun MaterialYouAppLaunchOverlay(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Savings,
-                                    contentDescription = "App Icon",
+                                    contentDescription = stringResource(R.string.loc_app_icon),
                                     tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(30.dp)
                                 )
@@ -172,7 +174,7 @@ fun MaterialYouAppLaunchOverlay(
                                 letterSpacing = (-0.5).sp
                             )
                             Text(
-                                text = "Material You Edition",
+                                text = stringResource(R.string.loc_material_edition),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold

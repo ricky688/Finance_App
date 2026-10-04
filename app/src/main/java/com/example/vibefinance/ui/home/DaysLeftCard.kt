@@ -12,6 +12,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,6 +59,20 @@ fun DaysLeftCard(
         label = "daysLeftProgress"
     )
 
+    val amplitudeState = animateFloatAsState(
+        targetValue = if (indicatorShape == IndicatorShape.WAVY) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow,
+        ),
+        label = "daysLeftWaveAmplitude",
+    )
+    val hasWave by remember { derivedStateOf { amplitudeState.value > 0.001f } }
+    val phaseState = rememberAmbientWavePhase(
+        enabled = progressTarget > 0f && (hasWave || indicatorShape == IndicatorShape.WAVY),
+        periodMillis = 1_000,
+    )
+
     val activeColor = MaterialTheme.colorScheme.primary
     val trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
     val ringStroke = Stroke(
@@ -64,6 +82,7 @@ fun DaysLeftCard(
 
     Card(
         modifier = modifier
+            .testTag("DaysLeftCard")
             .fillMaxHeight()
             .clip(BentoCardShape)
             .bouncyClickable(shape = BentoCardShape) {
@@ -88,15 +107,18 @@ fun DaysLeftCard(
                 modifier = Modifier.size(circleDiameter),
                 contentAlignment = Alignment.Center
             ) {
-                CircularWavyProgressIndicator(
+                BudgetWaveProgressIndicator(
                     progress = { animatedProgress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize()
+                        .testTag("DaysLeftIndicator")
+                        .semantics {
+                            progressBarRangeInfo = ProgressBarRangeInfo(progressTarget, 0f..1f)
+                        },
                     color = activeColor,
                     trackColor = trackColor,
                     stroke = ringStroke,
-                    trackStroke = ringStroke,
-                    amplitude = { if (indicatorShape == IndicatorShape.WAVY) 1f else 0f },
-                    waveSpeed = if (indicatorShape == IndicatorShape.WAVY) WavyProgressIndicatorDefaults.CircularWavelength else 0.dp
+                    amplitude = { amplitudeState.value },
+                    phase = { phaseState.value },
                 )
 
                 // Center Text: Days Left, Label & M3 Shape Mode Pill

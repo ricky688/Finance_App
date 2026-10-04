@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -305,7 +307,7 @@ private fun HeroStreakCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "${matrix.currentStreak}-Day Budget Streak 🔥",
+                            text = stringResource(R.string.loc_budget_streak, matrix.currentStreak),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = glowColor
@@ -324,7 +326,7 @@ private fun HeroStreakCard(
                             .background(Color(0xFF10B981))
                     )
                     Text(
-                        text = "Live Sync",
+                        text = stringResource(R.string.loc_live_sync),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -341,7 +343,7 @@ private fun HeroStreakCard(
             ) {
                 Column {
                     Text(
-                        text = "DAILY AVG (16 WEEKS)",
+                        text = stringResource(R.string.loc_avg_16_weeks),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         fontWeight = FontWeight.SemiBold,
@@ -378,7 +380,7 @@ private fun HeroStreakCard(
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = "${matrix.adherencePercent}% Adherence",
+                                text = stringResource(R.string.loc_adherence, matrix.adherencePercent),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -403,7 +405,7 @@ private fun HeroStreakCard(
                                 modifier = Modifier.size(12.dp)
                             )
                             Text(
-                                text = "${matrix.totalTransactions} Logs",
+                                text = stringResource(R.string.loc_logs, matrix.totalTransactions),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -427,7 +429,7 @@ private fun HeatmapGridSection(
 ) {
     val scrollState = rememberScrollState()
 
-    val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
+    val weekdayLabels = java.time.DayOfWeek.values().map { it.getDisplayName(java.time.format.TextStyle.NARROW, androidx.compose.ui.platform.LocalConfiguration.current.locales[0]) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -436,7 +438,7 @@ private fun HeatmapGridSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Habit & Contribution Grid",
+                text = stringResource(R.string.loc_habit_grid),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -446,7 +448,7 @@ private fun HeatmapGridSection(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
             ) {
                 Text(
-                    text = "Past 16 Weeks",
+                    text = stringResource(R.string.loc_past_16_weeks),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -617,7 +619,7 @@ private fun TileShapeSelectorRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "TILE SHAPE",
+                text = stringResource(R.string.loc_tile_shape),
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
@@ -667,7 +669,7 @@ private fun TileShapeSelectorRow(
                             )
                         }
                         Text(
-                            text = shape.label,
+                            text = stringResource(when (shape) { HeatmapTileShape.SQUIRCLE -> R.string.loc_squircle; HeatmapTileShape.PEBBLE_PILL -> R.string.loc_pill; HeatmapTileShape.SMOOTH_GLOW -> R.string.loc_glow }),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -713,10 +715,10 @@ private fun InspectionCalloutCard(
     }
 
     val badgeText = when {
-        daySpent <= 0.001 -> "ZERO SPEND"
-        daySpent <= dailyBudget * 0.8 -> "UNDER BUDGET"
-        daySpent <= dailyBudget -> "ON TARGET"
-        else -> "OVER BUDGET"
+        daySpent <= 0.001 -> stringResource(R.string.loc_zero_spend)
+        daySpent <= dailyBudget * 0.8 -> stringResource(R.string.loc_under_budget)
+        daySpent <= dailyBudget -> stringResource(R.string.loc_on_target)
+        else -> stringResource(R.string.loc_over_budget)
     }
 
     Surface(
@@ -749,7 +751,7 @@ private fun InspectionCalloutCard(
                             .background(badgeColor)
                     )
                     Text(
-                        text = date.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.US)),
+                        text = date.format(DateTimeFormatter.ofPattern("EEEE, MMM d", androidx.compose.ui.platform.LocalConfiguration.current.locales[0])),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -772,9 +774,9 @@ private fun InspectionCalloutCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 val subtext = when {
-                    daySpent <= 0.001 -> "No expenses logged on this day."
-                    isUnder -> String.format(Locale.US, "$%,.2f spent • Saved $%,.2f vs budget", daySpent, delta)
-                    else -> String.format(Locale.US, "$%,.2f spent • Over budget by $%,.2f", daySpent, delta)
+                    daySpent <= 0.001 -> stringResource(R.string.loc_no_day_expenses)
+                    isUnder -> stringResource(R.string.loc_day_saved, daySpent, delta)
+                    else -> stringResource(R.string.loc_day_over, daySpent, delta)
                 }
 
                 Text(
@@ -795,7 +797,7 @@ private fun InspectionCalloutCard(
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "$txCount tx",
+                            text = stringResource(R.string.category_transactions_count, txCount),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -828,19 +830,19 @@ private fun HeatmapLegendBar(isDark: Boolean) {
     ) {
         LegendItem(
             color = if (isDark) Color(0xFF1E2025) else Color(0xFFE2E8F0),
-            label = "Zero Spend"
+            label = stringResource(R.string.loc_zero_spend)
         )
         LegendItem(
             color = Color(0xFF10B981),
-            label = "Under Budget"
+            label = stringResource(R.string.loc_under_budget)
         )
         LegendItem(
             color = Color(0xFF38BDF8),
-            label = "On Target"
+            label = stringResource(R.string.loc_on_target)
         )
         LegendItem(
             color = Color(0xFFF43F5E),
-            label = "Over Budget"
+            label = stringResource(R.string.loc_over_budget)
         )
     }
 }

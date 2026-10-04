@@ -59,6 +59,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import com.example.vibefinance.ui.components.ExpressiveSwipeRow
 import com.example.vibefinance.ui.components.RollingNumberText
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.home.getCategoryDisplayName
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -686,6 +687,39 @@ fun RecurringScreen(
     }
 }
 
+
+@Composable
+private fun recurringDateLabel(date: LocalDate, full: Boolean = false): String {
+    val locale = LocalConfiguration.current.locales[0]
+    val pattern = android.text.format.DateFormat.getBestDateTimePattern(locale, if (full) "yMMMMEEEEd" else "MMMd")
+    return date.format(DateTimeFormatter.ofPattern(pattern, locale))
+}
+
+@Composable
+private fun recurringFrequencySuffix(frequency: String): String = when (frequency.lowercase(Locale.ROOT)) {
+    "monthly" -> stringResource(R.string.ui_recurring_per_month)
+    "yearly", "annual" -> stringResource(R.string.ui_recurring_per_year)
+    "weekly" -> stringResource(R.string.ui_recurring_per_week)
+    else -> "/$frequency"
+}
+
+@Composable
+private fun recurringFilterLabel(filter: RecurringFilter): String = stringResource(when (filter) {
+    RecurringFilter.ALL -> R.string.filter_all
+    RecurringFilter.DUE_SOON -> R.string.filter_due_soon
+    RecurringFilter.MONTHLY -> R.string.filter_monthly
+    RecurringFilter.INSTALLMENTS -> R.string.filter_installments
+    RecurringFilter.YEARLY -> R.string.filter_yearly
+    RecurringFilter.WEEKLY -> R.string.filter_weekly
+})
+
+@Composable
+private fun recurringPresetLabel(preset: SubscriptionPreset): String = when (preset.name) {
+    "Fitness Club" -> stringResource(R.string.ui_recurring_preset_fitness)
+    "Phone & Broadband" -> stringResource(R.string.ui_recurring_preset_phone)
+    else -> preset.name
+}
+
 // -------------------------------------------------------------
 // MODULAR RECURRING SUBCOMPONENTS
 // -------------------------------------------------------------
@@ -754,7 +788,7 @@ fun FilterAndControlsRow(
                     RecurringFilter.DUE_SOON -> "$strDueSoon ($count)"
                     RecurringFilter.MONTHLY -> "$strMonthly ($count)"
                     RecurringFilter.INSTALLMENTS -> "$strInstallments ($count)"
-                    else -> "${filter.label} ($count)"
+                    else -> "${recurringFilterLabel(filter)} ($count)"
                 }
             }
         )
@@ -781,7 +815,7 @@ fun FilterAndControlsRow(
             ) {
                 Icon(
                     imageVector = if (isTimelineView) Icons.Default.ViewAgenda else Icons.Default.CalendarMonth,
-                    contentDescription = "Toggle Timeline View",
+                    contentDescription = stringResource(R.string.ui_recurring_toggle_timeline),
                     tint = if (isTimelineView) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
@@ -848,7 +882,7 @@ fun LazyListScope.subscriptionItemsSection(
             item {
                 SubscriptionGroupHeader(
                     title = stringResource(R.string.section_due_7_days),
-                    badgeText = "${dueNext7DaysSubs.size + dueNext7DaysInst.size} Due Soon",
+                    badgeText = stringResource(R.string.ui_recurring_count_due, dueNext7DaysSubs.size + dueNext7DaysInst.size),
                     isInActivePeriod = true
                 )
             }
@@ -887,7 +921,7 @@ fun LazyListScope.subscriptionItemsSection(
             item {
                 SubscriptionGroupHeader(
                     title = stringResource(R.string.section_later_month),
-                    badgeText = "${dueLaterThisMonthSubs.size + dueLaterThisMonthInst.size} Later",
+                    badgeText = stringResource(R.string.ui_recurring_count_later, dueLaterThisMonthSubs.size + dueLaterThisMonthInst.size),
                     isInActivePeriod = false
                 )
             }
@@ -926,7 +960,7 @@ fun LazyListScope.subscriptionItemsSection(
             item {
                 SubscriptionGroupHeader(
                     title = stringResource(R.string.section_next_month_beyond),
-                    badgeText = "${dueLaterSubs.size + dueLaterInst.size} Upcoming",
+                    badgeText = stringResource(R.string.ui_recurring_count_upcoming, dueLaterSubs.size + dueLaterInst.size),
                     isInActivePeriod = false
                 )
             }
@@ -966,7 +1000,7 @@ fun LazyListScope.subscriptionItemsSection(
             item {
                 SubscriptionGroupHeader(
                     title = stringResource(R.string.section_all_subscriptions),
-                    badgeText = "${filteredSubscriptions.size} Active",
+                    badgeText = stringResource(R.string.active_count_format, filteredSubscriptions.size),
                     isInActivePeriod = true
                 )
             }
@@ -993,7 +1027,7 @@ fun LazyListScope.subscriptionItemsSection(
             item {
                 SubscriptionGroupHeader(
                     title = stringResource(R.string.section_installment_plans),
-                    badgeText = "${filteredInstallments.size} Plans",
+                    badgeText = stringResource(R.string.ui_recurring_count_plans, filteredInstallments.size),
                     isInActivePeriod = true
                 )
             }
@@ -1051,13 +1085,13 @@ fun RecurringHeroSummaryCard(
                 val daysUntil = ChronoUnit.DAYS.between(today, pDate).toInt()
 
                 val (alertBg, alertFg, alertText) = when {
-                    daysUntil < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), "🚨 Overdue: ${earliestUpcoming.name} (HK$ ${String.format(Locale.US, "%.2f", earliestUpcoming.amount)})")
-                    daysUntil == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), "🔥 Renews Today: ${earliestUpcoming.name} (HK$ ${String.format(Locale.US, "%.2f", earliestUpcoming.amount)})")
-                    daysUntil == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), "⏰ Renews Tomorrow: ${earliestUpcoming.name} (HK$ ${String.format(Locale.US, "%.2f", earliestUpcoming.amount)})")
+                    daysUntil < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), stringResource(R.string.ui_recurring_alert_overdue, earliestUpcoming.name, earliestUpcoming.amount))
+                    daysUntil == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), stringResource(R.string.ui_recurring_alert_today, earliestUpcoming.name, earliestUpcoming.amount))
+                    daysUntil == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), stringResource(R.string.ui_recurring_alert_tomorrow, earliestUpcoming.name, earliestUpcoming.amount))
                     else -> Triple(
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                         MaterialTheme.colorScheme.onPrimaryContainer,
-                        "⚡ Next Bill in $daysUntil days: ${earliestUpcoming.name} (HK$ ${String.format(Locale.US, "%.2f", earliestUpcoming.amount)})"
+                        stringResource(R.string.ui_recurring_alert_in_days, daysUntil, earliestUpcoming.name, earliestUpcoming.amount)
                     )
                 }
 
@@ -1135,7 +1169,7 @@ fun RecurringHeroSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     RollingNumberText(
-                        text = String.format(Locale.US, "≈ HK$ %,.0f/yr", totalAnnual),
+                        text = stringResource(R.string.ui_recurring_annual_cost, totalAnnual),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1156,7 +1190,7 @@ fun RecurringHeroSummaryCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     RollingNumberText(
-                        text = String.format(Locale.US, "≈ HK$ %,.1f/day", dailyImpact),
+                        text = stringResource(R.string.ui_recurring_daily_cost, dailyImpact),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -1406,7 +1440,7 @@ fun RecurringCategoryDonutChart(
                 ) {
                     if (categorySpending.isEmpty()) {
                         Text(
-                            text = "No category data available.",
+                            text = stringResource(R.string.ui_recurring_no_category_data),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -1599,7 +1633,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
     val daysRemaining = ChronoUnit.DAYS.between(today, paymentLocalDate).toInt()
 
     val associatedAccount = accounts.find { it.id == subscription.accountId }
-    val cardName = associatedAccount?.name ?: "Linked Account"
+    val cardName = associatedAccount?.name ?: stringResource(R.string.ui_recurring_linked_account)
 
     // Match preset brand emoji or default
     val brandEmoji = POPULAR_SUBSCRIPTION_PRESETS.find {
@@ -1612,7 +1646,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
         daysRemaining == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), stringResource(R.string.badge_renews_today))
         daysRemaining == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), stringResource(R.string.badge_renews_tomorrow))
         daysRemaining in 2..7 -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), MaterialTheme.colorScheme.primary, stringResource(R.string.badge_renews_in_days, daysRemaining))
-        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "🗓️ " + paymentLocalDate.format(DateTimeFormatter.ofPattern("MMM dd", Locale.getDefault())))
+        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "🗓️ " + recurringDateLabel(paymentLocalDate))
     }
 
     // Android 16 Stacking & Geometry specifications
@@ -1712,7 +1746,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                             )
 
                             Text(
-                                text = "${subscription.category} • $cardName",
+                                text = "${getCategoryDisplayName(subscription.category)} • $cardName",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 maxLines = 1,
@@ -1754,7 +1788,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "/" + subscription.frequency.lowercase(Locale.US),
+                                    text = recurringFrequencySuffix(subscription.frequency),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
@@ -1764,7 +1798,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete",
+                                        contentDescription = stringResource(R.string.btn_delete),
                                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
                                         modifier = Modifier.size(14.dp)
                                     )
@@ -1797,7 +1831,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
 ) {
     val today = remember { LocalDate.now() }
     val associatedAccount = accounts.find { it.id == plan.accountId }
-    val cardName = associatedAccount?.name ?: "Linked Card"
+    val cardName = associatedAccount?.name ?: stringResource(R.string.ui_recurring_linked_card)
 
     // Next due date text & status
     val nextDueLocalDate = plan.nextDueDate?.let {
@@ -1806,13 +1840,13 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
     val daysRemaining = if (nextDueLocalDate != null) ChronoUnit.DAYS.between(today, nextDueLocalDate).toInt() else null
 
     val (badgeBg, badgeFg, statusText) = when {
-        plan.isCompleted -> Triple(Color(0xFFE8F5E9), Color(0xFF2E7D32), "🎉 Completed")
-        daysRemaining != null && daysRemaining < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), "🚨 Overdue")
-        daysRemaining != null && daysRemaining == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), "🔥 Due Today")
-        daysRemaining != null && daysRemaining == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), "⏰ Due Tomorrow")
-        daysRemaining != null && daysRemaining in 2..7 -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), MaterialTheme.colorScheme.primary, "⚡ In $daysRemaining days")
-        nextDueLocalDate != null -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "🗓️ " + nextDueLocalDate.format(DateTimeFormatter.ofPattern("MMM dd", Locale.getDefault())))
-        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "Plan Active")
+        plan.isCompleted -> Triple(Color(0xFFE8F5E9), Color(0xFF2E7D32), stringResource(R.string.ui_recurring_completed))
+        daysRemaining != null && daysRemaining < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), stringResource(R.string.badge_overdue))
+        daysRemaining != null && daysRemaining == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), stringResource(R.string.ui_recurring_due_today))
+        daysRemaining != null && daysRemaining == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), stringResource(R.string.ui_recurring_due_tomorrow))
+        daysRemaining != null && daysRemaining in 2..7 -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), MaterialTheme.colorScheme.primary, stringResource(R.string.ui_recurring_due_in_days, daysRemaining))
+        nextDueLocalDate != null -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "🗓️ " + recurringDateLabel(nextDueLocalDate))
+        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), stringResource(R.string.ui_recurring_plan_active))
     }
 
     // Android 16 Stacking & Geometry specifications
@@ -1900,7 +1934,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = plan.description,
+                                    text = if (plan.description == "Installment Plan") stringResource(R.string.tab_installment) else plan.description,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -1908,7 +1942,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${plan.category} • $cardName",
+                                    text = "${getCategoryDisplayName(plan.category)} • $cardName",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     maxLines = 1,
@@ -1928,7 +1962,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "/mo",
+                                    text = stringResource(R.string.ui_recurring_per_month_short),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
@@ -1938,7 +1972,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete",
+                                        contentDescription = stringResource(R.string.btn_delete),
                                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
                                         modifier = Modifier.size(14.dp)
                                     )
@@ -1977,7 +2011,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "${plan.paidInstallments} of ${plan.totalInstallments} Mos",
+                                        text = stringResource(R.string.ui_recurring_months_progress, plan.paidInstallments, plan.totalInstallments),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.SemiBold
@@ -1993,7 +2027,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = String.format(Locale.US, "HK$ %,.0f left", plan.remainingAmount),
+                                        text = stringResource(R.string.ui_recurring_amount_left, plan.remainingAmount),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
@@ -2064,7 +2098,7 @@ fun EmptyRecurringCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Text(
-                text = "No Subscriptions Tracked Yet",
+                text = stringResource(R.string.ui_recurring_empty_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -2073,7 +2107,7 @@ fun EmptyRecurringCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Add recurring subscriptions or bills to track upcoming charges and auto-calculate daily budget impact.",
+                text = stringResource(R.string.ui_recurring_empty_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center
@@ -2082,7 +2116,7 @@ fun EmptyRecurringCard(
             Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = "⚡ Add popular services in 1 tap:",
+                text = stringResource(R.string.ui_recurring_quick_presets),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -2110,7 +2144,7 @@ fun EmptyRecurringCard(
                             Text(text = preset.emoji, fontSize = 14.sp)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "${preset.name} (HK$ ${preset.defaultAmount.toInt()})",
+                                text = "${recurringPresetLabel(preset)} (HK$ ${preset.defaultAmount.toInt()})",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -2147,11 +2181,11 @@ fun LiveSubscriptionPreviewCard(
     }
 
     val (badgeBg, badgeFg, countdownText) = when {
-        daysUntil < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), "Overdue")
-        daysUntil == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), "Renews Today")
-        daysUntil == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), "Renews Tomorrow")
-        daysUntil in 2..7 -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), MaterialTheme.colorScheme.primary, "In $daysUntil days")
-        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), paymentDate.format(DateTimeFormatter.ofPattern("MMM dd", Locale.getDefault())))
+        daysUntil < 0 -> Triple(Color(0xFFFFEBEE), Color(0xFFD32F2F), stringResource(R.string.ui_recurring_overdue_plain))
+        daysUntil == 0 -> Triple(Color(0xFFFFF3E0), Color(0xFFE65100), stringResource(R.string.ui_recurring_renews_today_plain))
+        daysUntil == 1 -> Triple(Color(0xFFFFF8E1), Color(0xFFF57F17), stringResource(R.string.ui_recurring_renews_tomorrow_plain))
+        daysUntil in 2..7 -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), MaterialTheme.colorScheme.primary, stringResource(R.string.ui_recurring_in_days_plain, daysUntil))
+        else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), recurringDateLabel(paymentDate))
     }
 
     Card(
@@ -2174,7 +2208,7 @@ fun LiveSubscriptionPreviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "LIVE PREVIEW",
+                    text = stringResource(R.string.ui_recurring_live_preview),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = presetColor ?: MaterialTheme.colorScheme.primary,
@@ -2238,7 +2272,7 @@ fun LiveSubscriptionPreviewCard(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = if (name.isNotBlank()) name else "Subscription Name",
+                            text = if (name.isNotBlank()) name else stringResource(R.string.ui_recurring_name_placeholder),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -2246,7 +2280,7 @@ fun LiveSubscriptionPreviewCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "$category • $accountName",
+                            text = "${getCategoryDisplayName(category)} • $accountName",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             maxLines = 1,
@@ -2266,7 +2300,7 @@ fun LiveSubscriptionPreviewCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "/${frequency.lowercase(Locale.US)}",
+                            text = recurringFrequencySuffix(frequency),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                         )
@@ -2312,7 +2346,7 @@ fun LiveInstallmentPreviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "INSTALLMENT PLAN PREVIEW",
+                    text = stringResource(R.string.ui_recurring_installment_preview),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.tertiary,
@@ -2325,7 +2359,7 @@ fun LiveInstallmentPreviewCard(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f))
                 ) {
                     Text(
-                        text = "$installments Months Plan",
+                        text = stringResource(R.string.ui_recurring_plan_months, installments),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer,
                         fontWeight = FontWeight.Bold,
@@ -2371,7 +2405,7 @@ fun LiveInstallmentPreviewCard(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = if (name.isNotBlank()) name else "Purchase Item",
+                            text = if (name.isNotBlank()) name else stringResource(R.string.ui_recurring_item_placeholder),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
@@ -2379,7 +2413,7 @@ fun LiveInstallmentPreviewCard(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "$category • $accountName",
+                            text = "${getCategoryDisplayName(category)} • $accountName",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             maxLines = 1,
@@ -2398,7 +2432,7 @@ fun LiveInstallmentPreviewCard(
                             color = MaterialTheme.colorScheme.tertiary
                         )
                         Text(
-                            text = "/mo (${String.format(Locale.US, "HK$ %,.0f", totalAmount)} total)",
+                            text = stringResource(R.string.ui_recurring_monthly_total, String.format(Locale.US, "HK$ %,.0f", totalAmount)),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
@@ -2529,9 +2563,9 @@ fun AddEditSubscriptionSheet(
                                 else -> stringResource(R.string.btn_add_subscription)
                             }
                             val sheetSubtitle = when {
-                                subscription != null -> "Update billing schedule or modify amount"
-                                selectedSheetTab == 1 -> "Divide purchase into monthly obligations"
-                                else -> "Configure recurring expense & billing source"
+                                subscription != null -> stringResource(R.string.ui_recurring_edit_subtitle)
+                                selectedSheetTab == 1 -> stringResource(R.string.ui_recurring_installment_subtitle)
+                                else -> stringResource(R.string.ui_recurring_add_subtitle)
                             }
                             Text(
                                 text = sheetTitle,
@@ -2586,7 +2620,7 @@ fun AddEditSubscriptionSheet(
                                     amount = parsedAmount,
                                     category = categoryText,
                                     frequency = frequencyText,
-                                    accountName = selectedAccount?.name ?: "Linked Account",
+                                    accountName = selectedAccount?.name ?: stringResource(R.string.ui_recurring_linked_account),
                                     nextPaymentDate = nextPaymentDateState,
                                     presetEmoji = currentPreset?.emoji,
                                     presetColor = currentPreset?.brandColor
@@ -2608,7 +2642,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "SUBSCRIPTION IDENTITY",
+                                            text = stringResource(R.string.ui_recurring_identity),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2649,7 +2683,7 @@ fun AddEditSubscriptionSheet(
                                                             Text(text = preset.emoji, fontSize = 14.sp)
                                                             Spacer(modifier = Modifier.width(4.dp))
                                                             Text(
-                                                                text = preset.name,
+                                                                text = recurringPresetLabel(preset),
                                                                 style = MaterialTheme.typography.labelMedium,
                                                                 fontWeight = FontWeight.Bold,
                                                                 color = if (isPresetActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
@@ -2665,7 +2699,7 @@ fun AddEditSubscriptionSheet(
                                             value = nameText,
                                             onValueChange = { nameText = it },
                                             label = { Text(stringResource(R.string.sub_name_label)) },
-                                            placeholder = { Text("e.g. Netflix, Spotify, iCloud") },
+                                            placeholder = { Text(stringResource(R.string.ui_recurring_name_hint)) },
                                             singleLine = true,
                                             shape = RoundedCornerShape(14.dp),
                                             colors = OutlinedTextFieldDefaults.colors(
@@ -2697,7 +2731,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             categoryText = cat
                                                         },
-                                                        label = { Text(cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -2722,7 +2756,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "BILLING & FREQUENCY",
+                                            text = stringResource(R.string.ui_recurring_billing_frequency),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2822,7 +2856,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "PAYMENT SOURCE & CYCLE",
+                                            text = stringResource(R.string.ui_recurring_payment_cycle),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2882,7 +2916,7 @@ fun AddEditSubscriptionSheet(
                                                                     fontWeight = FontWeight.Bold,
                                                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
-                                                                val balanceLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balanceLabel = if (acc.type == AccountType.CC) stringResource(R.string.ui_recurring_account_owing, acc.balance.toInt()) else stringResource(R.string.ui_recurring_account_balance, acc.balance.toInt())
                                                                 val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
                                                                 Text(
                                                                     text = balLabel,
@@ -2903,9 +2937,10 @@ fun AddEditSubscriptionSheet(
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                            val formattedDate = Instant.ofEpochMilli(nextPaymentDateState)
-                                                .atZone(ZoneId.systemDefault())
-                                                .format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.getDefault()))
+                                            val formattedDate = recurringDateLabel(
+                                                Instant.ofEpochMilli(nextPaymentDateState).atZone(ZoneId.systemDefault()).toLocalDate(),
+                                                full = true
+                                            )
 
                                             Surface(
                                                 shape = RoundedCornerShape(14.dp),
@@ -2962,7 +2997,7 @@ fun AddEditSubscriptionSheet(
                                     totalAmount = parsedInstallmentTotal,
                                     installments = installmentMonths,
                                     category = installmentCategoryText,
-                                    accountName = selectedInstallmentAccount?.name ?: "Linked Account",
+                                    accountName = selectedInstallmentAccount?.name ?: stringResource(R.string.ui_recurring_linked_account),
                                     firstDueDate = installmentFirstDueDate
                                 )
 
@@ -2982,7 +3017,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "PURCHASE DETAILS",
+                                            text = stringResource(R.string.ui_recurring_purchase_details),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.tertiary,
@@ -2992,8 +3027,8 @@ fun AddEditSubscriptionSheet(
                                         OutlinedTextField(
                                             value = installmentNameText,
                                             onValueChange = { installmentNameText = it },
-                                            label = { Text("Item / Purchase Name") },
-                                            placeholder = { Text("e.g. iPhone 16 Pro, MacBook, Travel Package") },
+                                            label = { Text(stringResource(R.string.ui_recurring_purchase_name)) },
+                                            placeholder = { Text(stringResource(R.string.ui_recurring_purchase_hint)) },
                                             singleLine = true,
                                             shape = RoundedCornerShape(14.dp),
                                             colors = OutlinedTextFieldDefaults.colors(
@@ -3024,7 +3059,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             installmentCategoryText = cat
                                                         },
-                                                        label = { Text(cat, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -3049,7 +3084,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "TOTAL AMOUNT & DURATION",
+                                            text = stringResource(R.string.ui_recurring_amount_duration),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.tertiary,
@@ -3126,7 +3161,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             installmentMonths = months
                                                         },
-                                                        label = { Text("${months}M", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(stringResource(R.string.ui_recurring_months_short, months), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -3157,14 +3192,14 @@ fun AddEditSubscriptionSheet(
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Default.Remove,
-                                                            contentDescription = "Decrease months",
+                                                            contentDescription = stringResource(R.string.ui_recurring_decrease_months),
                                                             tint = if (installmentMonths > 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                                                         )
                                                     }
 
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                         Text(
-                                                            text = "$installmentMonths Months",
+                                                            text = stringResource(R.string.ui_recurring_duration_months, installmentMonths),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.Bold,
                                                             color = MaterialTheme.colorScheme.onSurface
@@ -3172,7 +3207,7 @@ fun AddEditSubscriptionSheet(
                                                         if (parsedInstallmentTotal > 0.0) {
                                                             val perMonth = parsedInstallmentTotal / installmentMonths
                                                             Text(
-                                                                text = "≈ HK$ ${String.format(Locale.US, "%,.2f", perMonth)} / month",
+                                                                text = stringResource(R.string.ui_recurring_per_month_cost, perMonth),
                                                                 style = MaterialTheme.typography.labelSmall,
                                                                 fontWeight = FontWeight.SemiBold,
                                                                 color = MaterialTheme.colorScheme.tertiary
@@ -3191,7 +3226,7 @@ fun AddEditSubscriptionSheet(
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Default.Add,
-                                                            contentDescription = "Increase months",
+                                                            contentDescription = stringResource(R.string.ui_recurring_increase_months),
                                                             tint = if (installmentMonths < 60) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                                                         )
                                                     }
@@ -3217,7 +3252,7 @@ fun AddEditSubscriptionSheet(
                                         verticalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Text(
-                                            text = "PAYMENT SOURCE & DUE DATE",
+                                            text = stringResource(R.string.ui_recurring_payment_due),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = MaterialTheme.colorScheme.tertiary,
@@ -3277,7 +3312,7 @@ fun AddEditSubscriptionSheet(
                                                                     fontWeight = FontWeight.Bold,
                                                                     color = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
-                                                                val balanceLabel = if (acc.type == AccountType.CC) "Owing: HK$ ${acc.balance.toInt()}" else "Bal: HK$ ${acc.balance.toInt()}"
+                                                                val balanceLabel = if (acc.type == AccountType.CC) stringResource(R.string.ui_recurring_account_owing, acc.balance.toInt()) else stringResource(R.string.ui_recurring_account_balance, acc.balance.toInt())
                                                                 val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
                                                                 Text(
                                                                     text = balLabel,
@@ -3293,14 +3328,15 @@ fun AddEditSubscriptionSheet(
 
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Text(
-                                                text = "First Payment Due Date",
+                                                text = stringResource(R.string.ui_recurring_first_due_date),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                            val formattedFirstDate = Instant.ofEpochMilli(installmentFirstDueDate)
-                                                .atZone(ZoneId.systemDefault())
-                                                .format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.getDefault()))
+                                            val formattedFirstDate = recurringDateLabel(
+                                                Instant.ofEpochMilli(installmentFirstDueDate).atZone(ZoneId.systemDefault()).toLocalDate(),
+                                                full = true
+                                            )
 
                                             Surface(
                                                 shape = RoundedCornerShape(14.dp),
@@ -3393,7 +3429,7 @@ fun AddEditSubscriptionSheet(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Delete",
+                                    text = stringResource(R.string.btn_delete),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -3503,12 +3539,12 @@ fun AddEditSubscriptionSheet(
                             showDatePicker = false
                         }
                     ) {
-                        Text("Select", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.ui_recurring_select_date), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDatePicker = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.btn_cancel))
                     }
                 }
             ) {
@@ -3532,12 +3568,12 @@ fun AddEditSubscriptionSheet(
                             showInstallmentDatePicker = false
                         }
                     ) {
-                        Text("Select", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.ui_recurring_select_date), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showInstallmentDatePicker = false }) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.btn_cancel))
                     }
                 }
             ) {
@@ -3560,6 +3596,7 @@ fun <T> ConnectedButtonGroup(
     labelProvider: @Composable (T) -> String
 ) {
     val haptic = LocalHapticFeedback.current
+    val colors = MaterialTheme.colorScheme
 
     Row(
         modifier = modifier,
@@ -3641,30 +3678,18 @@ fun <T> ConnectedButtonGroup(
                 bottomEnd = bottomEnd
             )
 
-            val containerColor by animateColorAsState(
-                targetValue = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                },
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                label = "containerColor_$index"
-            )
-            val contentColor by animateColorAsState(
-                targetValue = if (isSelected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                label = "contentColor_$index"
+            val colorMotion = rememberConnectedButtonColorMotion(
+                isSelected = isSelected,
+                isPressed = isPressed.value,
+                inactiveContainerColor = colors.surfaceVariant.copy(alpha = 0.5f),
+                inactiveContentColor = colors.onSurfaceVariant
             )
 
             val view = LocalView.current
 
             Surface(
-                color = containerColor,
-                contentColor = contentColor,
+                color = colorMotion.containerColor,
+                contentColor = colorMotion.contentColor,
                 shape = shape,
                 modifier = Modifier
                     .weight(1f)
@@ -3687,7 +3712,9 @@ fun <T> ConnectedButtonGroup(
                     )
             ) {
                 Box(
-                    modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                    modifier = Modifier
+                        .then(colorMotion.contentModifier)
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -3696,7 +3723,7 @@ fun <T> ConnectedButtonGroup(
                             fontSize = 11.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         ),
-                        color = contentColor,
+                        color = colorMotion.contentColor,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -3743,7 +3770,7 @@ fun DeleteSubscriptionConfirmDialog(
     val formattedSubAmount = remember(subscription.amount) {
         String.format(Locale.getDefault(), "HK$ %,.2f", subscription.amount)
     }
-    val accountName = accounts.find { it.id == subscription.accountId }?.name ?: "Linked Account"
+    val accountName = accounts.find { it.id == subscription.accountId }?.name ?: stringResource(R.string.ui_recurring_linked_account)
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="feedback_database_reset">資料庫已重設為示範資料。</string>
+    <string name="feedback_budget_set">預算週期已設定。</string>
+    <string name="feedback_transaction_recorded">交易已記錄。</string>
+    <string name="feedback_installment_deleted">分期計劃已刪除。</string>
+    <string name="feedback_transaction_restored">交易已還原。</string>
+    <string name="feedback_transaction_updated">交易已更新。</string>
+    <string name="feedback_account_created">帳戶已新增。</string>
+    <string name="feedback_account_updated">帳戶已更新。</string>
+    <string name="feedback_account_deleted">帳戶已刪除。</string>
+    <string name="feedback_theme_system">主題：跟隨系統</string>
+    <string name="feedback_theme_light">主題：淺色模式</string>
+    <string name="feedback_theme_dark">主題：深色模式</string>
+    <string name="feedback_dynamic_on">已啟用動態色彩</string>
+    <string name="feedback_dynamic_off">已停用動態色彩</string>
+    <string name="feedback_language_system">語言：跟隨系統</string>
+    <string name="feedback_language_english">語言：英文</string>
+    <string name="feedback_language_chinese">語言：繁體中文</string>
+    <string name="feedback_subscription_added">定期付款已新增。</string>
+    <string name="feedback_subscription_updated">定期付款已更新。</string>
+    <string name="feedback_subscription_deleted">定期付款已刪除。</string>
+    <string name="feedback_shop_saved">優惠商戶已儲存。</string>
+    <string name="feedback_shop_removed">優惠商戶已刪除。</string>
+    <string name="feedback_error">未能完成此操作：%1$s</string>
+    <string name="feedback_installment_created">已建立分期計劃，共 %1$d 期</string>
+    <string name="feedback_icon_shape">圖示形狀：%1$s</string>
+    <string name="feedback_subscription_payments_deleted">已刪除定期付款及 %1$d 筆過往付款（%2$s）</string>
+    <string name="feedback_subscription_kept">已刪除定期付款（保留 %1$d 筆過往紀錄）</string>
+    <string name="feedback_parse_failed">無法讀取檔案：%1$s</string>
+    <string name="feedback_import_failed">匯入失敗：%1$s</string>
+    <string name="feedback_import_replaced">已取代現有資料並匯入 %1$d 筆交易</string>
+    <string name="feedback_import_merged">已合併並匯入 %1$d 筆交易</string>
+</resources>

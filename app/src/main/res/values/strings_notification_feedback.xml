@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nf_deadline_channel">Credit Card Deadlines</string>
+    <string name="nf_deadline_channel_description">Alerts for credit card payment deadlines</string>
+    <string name="nf_payment_due_today">Your payment is due today! Tap to manage your assets and log payments.</string>
+    <string name="nf_payment_due_days">Your payment deadline is in %1$d days. Tap to manage your assets and log payments.</string>
+    <string name="nf_payment_due_title">🚨 Red Alert: %1$s Due!</string>
+    <string name="nf_auto_log_channel">Automatic Logging</string>
+    <string name="nf_logged_balance_suffix">" (Balance: $%1$.2f)"</string>
+    <string name="nf_logged_expense_title">Automatically Logged Expense</string>
+    <string name="nf_logged_expense_message">Logged $%1$.2f at %2$s to %3$s%4$s</string>
+</resources>

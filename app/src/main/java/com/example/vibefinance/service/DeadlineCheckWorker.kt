@@ -9,6 +9,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.AccountType
+import com.example.vibefinance.R
+import com.example.vibefinance.util.appString
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -59,18 +61,18 @@ class DeadlineCheckWorker(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Credit Card Deadlines",
+                applicationContext.appString(R.string.nf_deadline_channel),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Alerts for credit card payment deadlines"
+                description = applicationContext.appString(R.string.nf_deadline_channel_description)
             }
             notificationManager.createNotificationChannel(channel)
         }
 
         val textContent = if (days == 0) {
-            "Your payment is due today! Tap to manage your assets and log payments."
+            applicationContext.appString(R.string.nf_payment_due_today)
         } else {
-            "Your payment deadline is in $days days. Tap to manage your assets and log payments."
+            applicationContext.appString(R.string.nf_payment_due_days, days)
         }
 
         val intent = android.content.Intent(applicationContext, com.example.vibefinance.MainActivity::class.java).apply {
@@ -86,7 +88,7 @@ class DeadlineCheckWorker(
 
         val builder = NotificationCompat.Builder(applicationContext, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat) // Robust system asset to ensure no resource build resolution failures
-            .setContentTitle("🚨 Red Alert: $cardName Due!")
+            .setContentTitle(applicationContext.appString(R.string.nf_payment_due_title, cardName))
             .setContentText(textContent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)

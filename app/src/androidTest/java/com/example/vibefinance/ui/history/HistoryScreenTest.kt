@@ -34,6 +34,13 @@ import com.example.vibefinance.R
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertTextContains
+import com.example.vibefinance.data.entity.AccountEntity
+import com.example.vibefinance.data.entity.AccountType
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
 class HistoryScreenTest {
@@ -189,7 +196,7 @@ class HistoryScreenTest {
     }
 
     @Test
-    fun dailyNetIncludesIncomeAndVisibleTransfer() {
+    fun dailyNetIncludesIncomeWithoutTreatingTransfersAsSpending() {
         val today = System.currentTimeMillis()
         val income = TransactionEntity(
             id = 1L, amount = -2500.0, category = "Income", timestamp = today,
@@ -204,8 +211,194 @@ class HistoryScreenTest {
         }
 
         val expected = InstrumentationRegistry.getInstrumentation().targetContext
-            .getString(R.string.daily_net_format, "+", 2300.0)
+            .getString(R.string.daily_net_format, "+", 2500.0)
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasText(expected))
         composeTestRule.onNodeWithText(expected).assertIsDisplayed()
+    }
+
+    @Test
+    fun income300HasTheSamePositiveAmountInGlobalAndCardFilteredHistory() {
+        val account = AccountEntity(id = 1L, name = "Mox", type = AccountType.CC, balance = 500.0, icon = "credit_card")
+        val income = TransactionEntity(
+            id = 300L, amount = -300.0, category = "Salary", timestamp = System.currentTimeMillis(),
+            accountId = account.id, description = "Mox income regression", sourceWasCreditCard = true
+        )
+        val filter = mutableStateOf<Long?>(null)
+        composeTestRule.setContent {
+            HistoryScreen(
+                state = FinanceUiState(isLoading = false, accounts = listOf(account), transactions = listOf(income)),
+                onIntent = {}, accountFilterId = filter.value
+            )
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_300"))
+        composeTestRule.onNodeWithText("+HK$300.00").assertIsDisplayed()
+        composeTestRule.runOnIdle { filter.value = account.id }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_300"))
+        composeTestRule.onNodeWithText("+HK$300.00").assertIsDisplayed()
+        composeTestRule.onNodeWithText("-HK$300.00").assertDoesNotExist()
+    }
+
+    @Test
+    fun tapEventCanChangeExpenseToIncomeAndEditItsCategory() {
+        val saved = AtomicReference<FinanceIntent.EditTransaction?>()
+        val expense = TransactionEntity(
+            id = 301L, amount = 50.0, category = "Food", timestamp = System.currentTimeMillis(),
+            accountId = 1L, description = "Type conversion regression"
+        )
+        composeTestRule.setContent {
+            var transactions by remember { mutableStateOf(listOf(expense)) }
+            HistoryScreen(
+                state = FinanceUiState(isLoading = false, transactions = transactions),
+                onIntent = { intent ->
+                    if (intent is FinanceIntent.EditTransaction) {
+                        saved.set(intent)
+                        transactions = listOf(intent.newTx)
+                    }
+                }
+            )
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_301"))
+        composeTestRule.onNodeWithTag("TransactionRow_301").performClick()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("EditTransactionIncome")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("EditTransactionExpense").assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionIncome").performClick().assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionDailyBudget").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionAmount").performTextReplacement("300.00")
+        chooseCategory("Salary")
+        composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
+        composeTestRule.waitUntil(5_000) { saved.get() != null }
+        org.junit.Assert.assertEquals(-300.0, saved.get()!!.newTx.amount, 0.0)
+        org.junit.Assert.assertEquals("Salary", saved.get()!!.newTx.category)
+        org.junit.Assert.assertTrue(saved.get()!!.newTx.isExcludedFromDailyBudget)
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_301"))
+        composeTestRule.onNodeWithText("+HK$300.00").assertIsDisplayed()
+    }
+
+    @Test
+    fun tapIncomeCanChangeItToExpenseAndEnableDailyBudget() {
+        val saved = AtomicReference<FinanceIntent.EditTransaction?>()
+        val income = TransactionEntity(
+            id = 302L, amount = -300.0, category = "Salary", timestamp = System.currentTimeMillis(),
+            accountId = 1L, isExcludedFromDailyBudget = true, description = "Income correction"
+        )
+        composeTestRule.setContent {
+            HistoryScreen(
+                state = FinanceUiState(isLoading = false, transactions = listOf(income)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
+            )
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_302"))
+        composeTestRule.onNodeWithTag("TransactionRow_302").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionIncome").assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionExpense").performClick().assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionDailyBudget").assertIsDisplayed()
+        chooseCategory("Shopping")
+        composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
+        composeTestRule.waitUntil(5_000) { saved.get() != null }
+        org.junit.Assert.assertEquals(300.0, saved.get()!!.newTx.amount, 0.0)
+        org.junit.Assert.assertFalse(saved.get()!!.newTx.isExcludedFromDailyBudget)
+    }
+
+    @Test
+    fun transferEditorDoesNotOfferExpenseIncomeConversion() {
+        val transfer = TransactionEntity(
+            id = 303L, amount = 200.0, category = "Transfer", timestamp = System.currentTimeMillis(),
+            accountId = 1L, toAccountId = 2L, description = "Card repayment"
+        )
+        composeTestRule.setContent {
+            HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(transfer)), onIntent = {})
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_303"))
+        composeTestRule.onNodeWithTag("TransactionRow_303").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionAmount").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("EditTransactionIncome").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionExpense").assertDoesNotExist()
+    }
+
+    @Test
+    fun categoryMenuPreservesCurrentCategoryAcrossTypeChangeAndCancelDiscardsDraft() {
+        val saved = AtomicReference<FinanceIntent.EditTransaction?>()
+        val expense = TransactionEntity(
+            id = 304L, amount = 25.0, category = "Custom Metro",
+            timestamp = System.currentTimeMillis(), accountId = 1L, description = "Menu preservation"
+        )
+        composeTestRule.setContent {
+            HistoryScreen(
+                state = FinanceUiState(isLoading = false, transactions = listOf(expense)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
+            )
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_304"))
+        composeTestRule.onNodeWithTag("TransactionRow_304").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionIncome").performClick().assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Custom Metro")
+        openCategoryMenu()
+        composeTestRule.onNodeWithTag("EditTransactionCategoryOption_Custom Metro")
+            .assertIsDisplayed().assertIsSelected()
+        selectOpenCategory("Salary")
+        composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Salary")
+        val cancel = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.btn_cancel)
+        composeTestRule.onNodeWithText(cancel).performClick()
+        composeTestRule.waitForIdle()
+        org.junit.Assert.assertNull(saved.get())
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_304"))
+        composeTestRule.onNodeWithText("-HK$25.00").assertIsDisplayed()
+    }
+
+    @Test
+    fun categoryMenuCanScrollToAndSavePreviouslyUsedCustomCategory() {
+        val saved = AtomicReference<FinanceIntent.EditTransaction?>()
+        val expense = TransactionEntity(
+            id = 305L, amount = 25.0, category = "Food", timestamp = System.currentTimeMillis(),
+            accountId = 1L, description = "Scrollable menu"
+        )
+        val older = (1..24).map { index ->
+            expense.copy(id = 400L + index, category = "Custom category %02d".format(index),
+                timestamp = expense.timestamp - 86_400_000L, description = "Earlier category")
+        }
+        composeTestRule.setContent {
+            HistoryScreen(
+                state = FinanceUiState(isLoading = false, transactions = listOf(expense) + older),
+                onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
+            )
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_305"))
+        composeTestRule.onNodeWithTag("TransactionRow_305").performClick()
+        chooseCategory("Custom category 24")
+        composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Custom category 24")
+        composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
+        composeTestRule.waitUntil(5_000) { saved.get() != null }
+        org.junit.Assert.assertEquals("Custom category 24", saved.get()!!.newTx.category)
+        org.junit.Assert.assertEquals(25.0, saved.get()!!.newTx.amount, 0.0)
+    }
+
+    // Verified on Waydroid with ARTEMIS observations and ADB before test authoring:
+    // a read-only anchor opens a separate scrollable popup; choosing a row closes it.
+    private fun openCategoryMenu() {
+        composeTestRule.onNodeWithTag("EditTransactionCategory").performClick()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("EditTransactionCategoryMenu"))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun selectOpenCategory(category: String) {
+        val tag = "EditTransactionCategoryOption_$category"
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag(tag).performScrollTo().assertIsDisplayed().performClick()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("EditTransactionCategoryMenu"))
+                .fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    private fun chooseCategory(category: String) {
+        openCategoryMenu()
+        selectOpenCategory(category)
     }
 }

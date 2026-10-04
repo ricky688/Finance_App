@@ -1,5 +1,6 @@
 package com.example.vibefinance.service
 
+import com.example.vibefinance.data.entity.AccountType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -127,8 +128,14 @@ class PaymentNotificationListenerTest {
         assertTrue(PendingPaymentStore.canRememberChoice(
             generic.copy(assetHint = "Smart Octopus"), account.copy(name = "Octopus")
         ))
+        assertTrue(PendingPaymentStore.canRememberChoice(
+            generic.copy(assetHint = "Smart Octopus"), account.copy(name = "Wallet (Cash)", type = AccountType.CASH)
+        ))
+        assertTrue(PendingPaymentStore.canRememberChoice(
+            generic.copy(assetHint = "Smart Octopus", cardLast4 = "9821"), account.copy(name = "Any Account", cardLast4 = "9821")
+        ))
         assertFalse(PendingPaymentStore.canRememberChoice(
-            generic.copy(assetHint = "Smart Octopus"), account.copy(name = "AEON card")
+            generic.copy(assetHint = "Smart Octopus"), account.copy(name = "AEON card", type = AccountType.CC)
         ))
     }
 
@@ -200,6 +207,110 @@ class PaymentNotificationListenerTest {
         assertFalse(PendingPaymentStore.canRememberChoice(
             payment.copy(assetHint = "BOC Go UnionPay Dia…"), account
         ))
+    }
+
+    @Test
+    fun samsungWalletBocGoUnionPayTransitNotificationParsesAndMatchesBocGoAccounts() {
+        val title = "BOC Go unionpay Diamond Card"
+        val text = "transit-ticket THE KOWLOOHHONGKONG HKG HK$3.60"
+        val pkg = "com.samsung.android.spay"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text))
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull(parsed)
+        assertEquals(3.60, parsed!!.amount, 0.001)
+        assertEquals(title, parsed.assetName)
+        assertEquals("transit-ticket THE KOWLOOHHONGKONG HKG", parsed.merchant)
+        assertEquals("Transport", PaymentNotificationListener.determineCategory(parsed.merchant))
+        assertEquals("Transport", PaymentNotificationListener.determineCategory("THE KOWLOOHHONGKONG HKG"))
+
+        assertTrue(PendingPaymentStore.isBocGoHint(parsed.assetName))
+        assertTrue(PendingPaymentStore.isBocGoHint("BOC Go UnionPay Diamond"))
+        assertTrue(PendingPaymentStore.isBocGoHint("BOC Go Card"))
+        assertTrue(PendingPaymentStore.isBocGoHint("中銀 Go"))
+        assertFalse(PendingPaymentStore.isBocGoHint("HSBC Visa Card"))
+
+        val payment = PendingPayment(
+            id = "samsung_boc_go",
+            fingerprint = "samsung_boc_go_fp",
+            sourcePackage = pkg,
+            assetHint = parsed.assetName,
+            merchant = parsed.merchant,
+            amount = parsed.amount,
+            detectedAt = 100L
+        )
+
+        val bocGoAccounts = listOf(
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 101L,
+                name = "BOC Go",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 102L,
+                name = "BOC Go Card",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 103L,
+                name = "中銀 Go",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 104L,
+                name = "中銀 Go 卡",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 105L,
+                name = "BOC UnionPay",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 106L,
+                name = "中銀信用卡",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            ),
+            com.example.vibefinance.data.entity.AccountEntity(
+                id = 107L,
+                name = "BOC",
+                type = com.example.vibefinance.data.entity.AccountType.CC,
+                balance = 0.0,
+                icon = "credit_card"
+            )
+        )
+
+        for (acc in bocGoAccounts) {
+            assertTrue("Should be able to remember choice for ${acc.name}", PendingPaymentStore.canRememberChoice(payment, acc))
+        }
+
+        // findBocGoMatch resolves the best account
+        val matched = PendingPaymentStore.findBocGoMatch(bocGoAccounts)
+        assertNotNull(matched)
+        assertEquals("BOC Go", matched!!.name)
+
+        // Non-BOC account cannot be bound
+        val hsbc = com.example.vibefinance.data.entity.AccountEntity(
+            id = 200L,
+            name = "HSBC Red Card",
+            type = com.example.vibefinance.data.entity.AccountType.CC,
+            balance = 0.0,
+            icon = "credit_card"
+        )
+        assertFalse(PendingPaymentStore.canRememberChoice(payment, hsbc))
     }
 
     @Test
@@ -479,4 +590,137 @@ class PaymentNotificationListenerTest {
         assertNotNull(fpsPayment)
         assertNull(fpsPayment!!.cardLast4) // Strictly null, never random
     }
+
+    @Test
+    fun testSmartOctopusNotificationWithBalanceRemaining() {
+        val title = "Samsung Wallet"
+        val text = "Smart Octopus HK$12.6 7-Eleven 餘額 HK$214.0"
+        val pkg = "com.samsung.android.spay"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text))
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull(parsed)
+        assertEquals(12.6, parsed!!.amount, 0.001)
+        assertEquals("7-Eleven", parsed.merchant)
+        assertEquals(214.0, parsed.balanceRemaining!!, 0.001)
+        assertEquals("Smart Octopus", parsed.assetName)
+
+        // Chinese merchant variant
+        val parsedMcdonalds = PaymentNotificationListener.parseNotification(
+            title,
+            "Smart Octopus HK$33.0 麥當勞 餘額 HK$181.0",
+            pkg
+        )
+        assertNotNull(parsedMcdonalds)
+        assertEquals(33.0, parsedMcdonalds!!.amount, 0.001)
+        assertEquals("麥當勞", parsedMcdonalds.merchant)
+        assertEquals(181.0, parsedMcdonalds.balanceRemaining!!, 0.001)
+
+        // English Balance variant
+        val parsedStarbucks = PaymentNotificationListener.parseNotification(
+            "Samsung Pay",
+            "Smart Octopus HK$28.5 Starbucks Balance HK$120.0",
+            pkg
+        )
+        assertNotNull(parsedStarbucks)
+        assertEquals(28.5, parsedStarbucks!!.amount, 0.001)
+        assertEquals("Starbucks", parsedStarbucks.merchant)
+        assertEquals(120.0, parsedStarbucks.balanceRemaining!!, 0.001)
+
+        // Negative balance variant
+        val parsedNegative = PaymentNotificationListener.parseNotification(
+            title,
+            "Smart Octopus HK$50.0 惠康 餘額 -HK$15.0",
+            pkg
+        )
+        assertNotNull(parsedNegative)
+        assertEquals(50.0, parsedNegative!!.amount, 0.001)
+        assertEquals("惠康", parsedNegative.merchant)
+        assertEquals(-15.0, parsedNegative.balanceRemaining!!, 0.001)
+    }
+
+    @Test
+    fun testRealAndroidOctopusNotifications() {
+        val title = "Android版八達通"
+        val pkg = "com.octopuscards.nfc_reader"
+
+        val samples = listOf(
+            Triple("八達通: 在 九巴 / 龍運 支付 HKD 5.8。餘額: HKD 56.0", 5.8, "九巴 / 龍運") to (56.0 to "Transport"),
+            Triple("八達通: 在 餐飲/會所 支付 HKD 29.0。餘額: HKD 61.8", 29.0, "餐飲/會所") to (61.8 to "Food & Drink"),
+            Triple("八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 90.8", 4.9, "港鐵") to (90.8 to "Transport"),
+            Triple("八達通: 在 港鐵 支付 HKD 3.2。餘額: HKD 95.7", 3.2, "港鐵") to (95.7 to "Transport"),
+            Triple("八達通: 在 7-Eleven 支付 HKD 5.0。餘額: HKD 98.9", 5.0, "7-Eleven") to (98.9 to "Groceries"),
+            Triple("八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 103.9", 4.9, "港鐵") to (103.9 to "Transport"),
+            Triple("八達通: 在 零售 支付 HKD 18.0。餘額: HKD 108.8", 18.0, "零售") to (108.8 to "Shopping")
+        )
+
+        for ((input, expected) in samples) {
+            val (text, expAmount, expMerchant) = input
+            val (expBalance, expCategory) = expected
+
+            assertTrue("Guard must recognize: $text", PaymentNotificationListener.isPaymentNotification(title, text))
+
+            val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+            assertNotNull("Failed to parse: $text", parsed)
+            assertEquals("Amount mismatch for $text", expAmount, parsed!!.amount, 0.001)
+            assertEquals("Merchant mismatch for $text", expMerchant, parsed.merchant)
+            assertNotNull("Balance missing for $text", parsed.balanceRemaining)
+            assertEquals("Balance mismatch for $text", expBalance, parsed.balanceRemaining!!, 0.001)
+            assertEquals("八達通", parsed.assetName)
+
+            val cat = PaymentNotificationListener.determineCategory(parsed.merchant, title)
+            assertEquals("Category mismatch for ${parsed.merchant}", expCategory, cat)
+        }
+
+        // Overdraft / Negative balance variants
+        val overdraft1 = PaymentNotificationListener.parseNotification(title, "八達通: 在 港鐵 支付 HKD 4.9。餘額: -HKD 15.0", pkg)
+        assertNotNull(overdraft1)
+        assertEquals(4.9, overdraft1!!.amount, 0.001)
+        assertEquals("港鐵", overdraft1.merchant)
+        assertEquals(-15.0, overdraft1.balanceRemaining!!, 0.001)
+
+        val overdraft2 = PaymentNotificationListener.parseNotification(title, "八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD -12.5", pkg)
+        assertNotNull(overdraft2)
+        assertEquals(4.9, overdraft2!!.amount, 0.001)
+        assertEquals(-12.5, overdraft2.balanceRemaining!!, 0.001)
+
+        // English alert variants
+        val english1 = PaymentNotificationListener.parseNotification("Octopus on Android", "Octopus: Paid HKD 12.5 at Starbucks. Balance: HKD 120.0", pkg)
+        assertNotNull(english1)
+        assertEquals(12.5, english1!!.amount, 0.001)
+        assertEquals("Starbucks", english1.merchant)
+        assertEquals(120.0, english1.balanceRemaining!!, 0.001)
+        assertEquals("Food & Drink", PaymentNotificationListener.determineCategory(english1.merchant))
+
+        val english2 = PaymentNotificationListener.parseNotification("Android Octopus", "Paid HKD 5.8 at KMB. Remaining value: -HKD 5.0", pkg)
+        assertNotNull(english2)
+        assertEquals(5.8, english2!!.amount, 0.001)
+        assertEquals("KMB", english2.merchant)
+        assertEquals(-5.0, english2.balanceRemaining!!, 0.001)
+        assertEquals("Transport", PaymentNotificationListener.determineCategory(english2.merchant))
+    }
+
+    @Test
+    fun testIrrelevantOctopusAppNotificationsAreRejected() {
+        val pkg = "com.octopuscards.nfc_reader"
+
+        val irrelevantAlerts = listOf(
+            "八達通" to "【最新推廣】在 麥當勞 支付享 $10 回贈",
+            "八達通銀包" to "八達通: 在 零售 消費滿 HKD 100 獎賞",
+            "Octopus" to "Paid HKD 50 to receive special promo",
+            "Octopus Wallet" to "Your monthly statement is ready for review",
+            "最新優惠推廣" to "八達通: 於 7-Eleven 支付即減 $5",
+            "八達通" to "您的八達通銀包餘額不足，請增值",
+            "八達通卡" to "查閱卡片餘額 HKD 56.0"
+        )
+
+        for ((title, text) in irrelevantAlerts) {
+            assertFalse("Must reject irrelevant notification guard for title: $title", PaymentNotificationListener.isPaymentNotification(title, text))
+            val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+            assertNull("Must NOT parse non-Android Octopus alert from Octopus app (title: $title)", parsed)
+        }
+    }
 }
+
+

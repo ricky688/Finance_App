@@ -26,10 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.data.repository.DailyBudgetInfo
-import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -54,11 +54,11 @@ fun BudgetPeriodIndicatorCard(
 
     val startFormatted = Instant.ofEpochMilli(budgetInfo.startDate)
         .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US))
+        .format(DateTimeFormatter.ofPattern("dd MMM yyyy", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
 
     val endFormatted = Instant.ofEpochMilli(budgetInfo.endDate)
         .atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US))
+        .format(DateTimeFormatter.ofPattern("dd MMM yyyy", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
 
     val spentRatio = if (budgetInfo.totalMonthlyBudget > 0) {
         (budgetInfo.totalSpentThisMonth / budgetInfo.totalMonthlyBudget).coerceIn(0.0, 1.0).toFloat()
@@ -212,18 +212,16 @@ fun BudgetPeriodIndicatorCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 3. Expressive Connected Button Group (ExpressiveSegmentedButtonGroup)
+            // 3. Native connected shapes with the shared theme-specific focus color motion.
             val periodModes = PeriodFilterMode.entries
-            val selectedIndex = periodModes.indexOf(selectedFilter)
             val strAll = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_all)
             val strActive = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_active)
             val strOther = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.period_filter_other)
 
-            ExpressiveSegmentedButtonGroup(
+            ExpressiveConnectedButtonGroup(
                 items = periodModes,
-                selectedIndex = selectedIndex,
+                selectedIndex = periodModes.indexOf(selectedFilter),
                 onItemSelected = { index -> onSelectFilter(periodModes[index]) },
-                isScrollable = false,
                 labelProvider = { mode ->
                     when (mode) {
                         PeriodFilterMode.ALL -> strAll
@@ -231,7 +229,9 @@ fun BudgetPeriodIndicatorCard(
                         PeriodFilterMode.OTHER_PERIODS -> strOther
                     }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                focusBackdropColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    .compositeOver(MaterialTheme.colorScheme.background)
             )
         }
     }

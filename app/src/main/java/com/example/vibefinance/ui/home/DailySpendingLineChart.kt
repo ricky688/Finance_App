@@ -16,6 +16,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -68,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
 import com.example.vibefinance.ui.FinanceUiState
+import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -190,34 +195,42 @@ fun DailySpendingLineChart(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 // Material 3 Expressive Mode Switch Pill
+                val colors = MaterialTheme.colorScheme
+                val trackColor = colors.surfaceContainerHigh.copy(alpha = 0.65f)
+                val trackBackdrop = trackColor.compositeOver(
+                    colors.surfaceVariant.copy(alpha = 0.4f).compositeOver(colors.background)
+                )
                 Row(
                     modifier = Modifier
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.65f))
+                        .background(trackColor)
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), CircleShape)
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     DailyChartMode.entries.forEach { mode ->
                         val isSel = chartMode == mode
-                        val bg by animateColorAsState(
-                            targetValue = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                            label = "chartModeBg_${mode.name}"
-                        )
-                        val fg by animateColorAsState(
-                            targetValue = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                            label = "chartModeFg_${mode.name}"
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val colorMotion = rememberConnectedButtonColorMotion(
+                            isSelected = isSel,
+                            isPressed = isPressed,
+                            inactiveContainerColor = Color.Transparent,
+                            inactiveContentColor = colors.onSurfaceVariant,
+                            backdropColor = trackBackdrop
                         )
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(bg)
-                                .clickable {
+                                .background(colorMotion.containerColor)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = ripple()
+                                ) {
                                     chartMode = mode
                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                                 }
+                                .then(colorMotion.contentModifier)
                                 .padding(horizontal = 10.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -228,7 +241,7 @@ fun DailySpendingLineChart(
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = fg
+                                color = colorMotion.contentColor
                             )
                         }
                     }
@@ -255,7 +268,7 @@ fun DailySpendingLineChart(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            val formattedDate = activeItem.first.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
+                            val formattedDate = activeItem.first.format(DateTimeFormatter.ofPattern("EEE, d MMM", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
                             Text(
                                 text = formattedDate,
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -263,7 +276,7 @@ fun DailySpendingLineChart(
                                 fontWeight = FontWeight.Bold
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                val labelText = if (activeItem.first == today) "Today: " else "Daily: "
+                                val labelText = if (activeItem.first == today) stringResource(R.string.loc_today_prefix) else stringResource(R.string.loc_daily_prefix)
                                 Text(
                                     text = labelText,
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -280,7 +293,7 @@ fun DailySpendingLineChart(
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = if (chartMode == DailyChartMode.CUMULATIVE) "CUMULATIVE" else "DAY SPEND",
+                                text = if (chartMode == DailyChartMode.CUMULATIVE) stringResource(R.string.loc_cumulative_label) else stringResource(R.string.loc_day_spend_label),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             )
@@ -533,7 +546,7 @@ fun DailySpendingLineChart(
                             ) {
                                 val currentVal = if (chartMode == DailyChartMode.CUMULATIVE) activeItem?.second ?: 0.0 else activeDailyItem?.second ?: 0.0
                                 Text(
-                                    text = activeItem?.first?.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault())) ?: "",
+                                    text = activeItem?.first?.format(DateTimeFormatter.ofPattern("EEE, d MMM", androidx.compose.ui.platform.LocalConfiguration.current.locales[0])) ?: "",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                                     fontWeight = FontWeight.Medium,
@@ -560,7 +573,7 @@ fun DailySpendingLineChart(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 last7Days.forEachIndexed { idx, date ->
-                    val dayAbbrev = date.format(DateTimeFormatter.ofPattern("E", Locale.getDefault())).take(3)
+                    val dayAbbrev = date.format(DateTimeFormatter.ofPattern("E", androidx.compose.ui.platform.LocalConfiguration.current.locales[0])).take(3)
                     val isSelected = activeIndex == idx
 
                     val labelColor by animateColorAsState(

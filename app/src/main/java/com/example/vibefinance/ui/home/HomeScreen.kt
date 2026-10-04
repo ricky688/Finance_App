@@ -244,6 +244,11 @@ fun getCategoryDisplayName(category: String): String {
         "bonus", "reward" -> stringResource(R.string.cat_bonus)
         "investment", "dividend", "stocks" -> stringResource(R.string.cat_investment)
         "transfer" -> stringResource(R.string.filter_transfer)
+        "part-time", "freelance", "side hustle" -> stringResource(R.string.loc_cat_part_time)
+        "gift", "redpocket", "allowance" -> stringResource(R.string.loc_cat_gift)
+        "other income" -> stringResource(R.string.loc_cat_other_income)
+        "fitness", "gym" -> stringResource(R.string.loc_cat_fitness)
+        "travel", "holiday" -> stringResource(R.string.loc_cat_travel)
         "others", "other" -> stringResource(R.string.cat_others)
         else -> category
     }
@@ -288,20 +293,21 @@ fun HomeScreen(
         label = "glowColor"
     )
 
-    val startDateText = remember(budgetInfo.startDate) {
+    val dateLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val startDateText = remember(budgetInfo.startDate, dateLocale) {
         if (budgetInfo.startDate > 0) {
             LocalDateTime.ofInstant(Instant.ofEpochMilli(budgetInfo.startDate), ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("dd MMM", Locale.US))
+                .format(DateTimeFormatter.ofPattern("dd MMM", dateLocale))
         } else {
-            "N/A"
+            "—"
         }
     }
-    val endDateText = remember(budgetInfo.endDate) {
+    val endDateText = remember(budgetInfo.endDate, dateLocale) {
         if (budgetInfo.endDate > 0) {
             LocalDateTime.ofInstant(Instant.ofEpochMilli(budgetInfo.endDate), ZoneId.systemDefault())
-                .format(DateTimeFormatter.ofPattern("dd MMM", Locale.US))
+                .format(DateTimeFormatter.ofPattern("dd MMM", dateLocale))
         } else {
-            "N/A"
+            "—"
         }
     }
     val totalDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
@@ -638,14 +644,14 @@ fun CategoryDonutChart(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "Category Analytics",
+                        text = stringResource(R.string.category_analytics_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "View Category Details",
+                        contentDescription = stringResource(R.string.loc_category_details),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
@@ -655,7 +661,7 @@ fun CategoryDonutChart(
                     exit = fadeOut(animationSpec = tween(150)) + shrinkVertically()
                 ) {
                     Text(
-                        text = "Reset Filter",
+                        text = stringResource(R.string.reset_filter),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
@@ -774,7 +780,7 @@ fun CategoryDonutChart(
                                 )
                             } else {
                                 Text(
-                                    text = "Total Spent",
+                                    text = stringResource(R.string.total_spent),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
@@ -796,7 +802,7 @@ fun CategoryDonutChart(
                 ) {
                     if (categorySpending.isEmpty()) {
                         Text(
-                            text = "No category data available.",
+                            text = stringResource(R.string.loc_no_category_data),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -845,7 +851,7 @@ fun CategoryDonutChart(
                                                 .background(color)
                                         )
                                         Text(
-                                            text = category,
+                                            text = getCategoryDisplayName(category),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -862,9 +868,9 @@ fun CategoryDonutChart(
                                         if (limit != null && limit > 0) {
                                             val percent = (amount / limit * 100).toInt()
                                             val (textColor, textLabel) = when {
-                                                percent >= 100 -> MaterialTheme.colorScheme.error to "Over limit ($percent%)"
-                                                percent >= 80 -> Color(0xFFE65100) to "Warning ($percent%)"
-                                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) to "$percent% of limit"
+                                                percent >= 100 -> MaterialTheme.colorScheme.error to stringResource(R.string.loc_over_limit_percent, percent)
+                                                percent >= 80 -> Color(0xFFE65100) to stringResource(R.string.loc_warning_percent, percent)
+                                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) to stringResource(R.string.loc_percent_of_limit, percent)
                                             }
                                             Text(
                                                 text = textLabel,

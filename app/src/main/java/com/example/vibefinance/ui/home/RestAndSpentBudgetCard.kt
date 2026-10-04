@@ -1,8 +1,5 @@
 package com.example.vibefinance.ui.home
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,10 +51,7 @@ fun RestAndSpentBudgetCard(
     
     val percentFormatted = String.format(Locale.US, "%.2f%%", ratio * 100)
 
-    val shiftState = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        shiftState.animateTo(1f, tween(durationMillis = 5000, easing = LinearEasing))
-    }
+    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0f)
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -90,6 +85,7 @@ fun RestAndSpentBudgetCard(
 
     Box(
         modifier = modifier
+            .testTag("RemainingBudgetCard")
             .clip(shape = BentoCardShape)
             .bouncyClickable(shape = BentoCardShape) { showSpentCard = !showSpentCard }
             .onGloballyPositioned {
@@ -119,7 +115,7 @@ fun RestAndSpentBudgetCard(
                         .graphicsLayer {
                             shape = WavyShape(
                                 period = 40.dp,
-                                amplitude = 2.dp * (1f - ((ratio.coerceIn(0.96f, 1f) - 0.96f) / (1f - 0.96f))),
+                                amplitude = 2.dp,
                                 shift = shiftState.value,
                             )
                             clip = true
