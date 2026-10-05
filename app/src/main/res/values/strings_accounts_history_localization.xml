@@ -28,7 +28,7 @@
     <string name="ah_selected" formatted="false">Selected</string>
     <string name="ah_branding_protocol" formatted="false">BRANDING &amp; PROTOCOL</string>
     <string name="ah_issuer" formatted="false">Issuer</string>
-    <string name="ah_protocol" formatted="false">Protocol</string>
+    <string name="ah_protocol" formatted="false">Payment network</string>
     <string name="ah_texture_art" formatted="false">TEXTURE &amp; CUSTOM ART</string>
     <string name="ah_pattern_overlay" formatted="false">Pattern Overlay</string>
     <string name="ah_upload_image" formatted="false">Upload Image</string>

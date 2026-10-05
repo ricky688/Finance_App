@@ -424,7 +424,7 @@ object InMemoryDatabase {
     fun insertNotificationExpenseIfAbsent(transaction: TransactionEntity): Boolean = synchronized(diskIoLock) {
         val key = transaction.groupId
         require(key?.startsWith("notification:") == true) { "Missing notification identity" }
-        require(transaction.amount.isFinite() && transaction.amount > 0.0) { "Invalid notification amount" }
+        require(transaction.amount.isFinite() && transaction.amount != 0.0) { "Invalid notification amount" }
         if (transactions.value.any { it.groupId == key }) return@synchronized false
         val account = accounts.value.firstOrNull { it.id == transaction.accountId }
             ?: return@synchronized false
@@ -690,6 +690,7 @@ object InMemoryDatabase {
                 obj.put("cardBgScale", acc.cardBgScale.toDouble())
                 acc.minSpendThreshold?.let { obj.put("minSpendThreshold", it) }
                 acc.linkedAppPackage?.let { obj.put("linkedAppPackage", it) }
+                acc.notificationAliases?.let { obj.put("notificationAliases", it) }
                 accountsArr.put(obj)
             }
             root.put("accounts", accountsArr)
@@ -853,7 +854,9 @@ object InMemoryDatabase {
                             cardBgOffsetY = if (obj.has("cardBgOffsetY") && !obj.isNull("cardBgOffsetY")) obj.getDouble("cardBgOffsetY").toFloat() else 0f,
                             cardBgScale = if (obj.has("cardBgScale") && !obj.isNull("cardBgScale")) obj.getDouble("cardBgScale").toFloat() else 1f,
                             minSpendThreshold = if (obj.has("minSpendThreshold") && !obj.isNull("minSpendThreshold")) obj.getDouble("minSpendThreshold") else null,
-                            linkedAppPackage = if (obj.has("linkedAppPackage") && !obj.isNull("linkedAppPackage")) obj.getString("linkedAppPackage") else null
+                            linkedAppPackage = if (obj.has("linkedAppPackage") && !obj.isNull("linkedAppPackage")) obj.getString("linkedAppPackage") else null,
+                            notificationAliases = if (obj.has("notificationAliases") && !obj.isNull("notificationAliases"))
+                                obj.optString("notificationAliases").takeIf { it.isNotBlank() } else null
                         )
                     )
                 }

@@ -63,6 +63,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.ExpressiveSwitch
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
+import com.example.vibefinance.ui.components.ConnectedButtonRipple
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.TrendingDown
@@ -1283,6 +1284,11 @@ fun MainScreen(
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 400) 12.dp else 16.dp),
                                 topContentPadding = pageTopPadding,
+                                topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
+                                bottomVisibilityInset = (
+                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    else 100.dp
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
                                 onViewAllClick = {
                                     historyAccountFilterId = null
                                     historyCategoryFilter = null
@@ -1719,7 +1725,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             val restingTopEnd = if (isScrollable || isSelected) restingCorner else (if (index == items.size - 1) 24.dp else 8.dp)
             val restingBottomEnd = if (isScrollable || isSelected) restingCorner else (if (index == items.size - 1) 24.dp else 8.dp)
 
-            val pressedCorner = 8.dp
+            val pressedCorner = 6.dp
 
             val topStart by animateDpAsState(
                 targetValue = if (isShapeActive) pressedCorner else restingTopStart,
@@ -1779,7 +1785,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
                     .clip(shape)
                     .clickable(
                         interactionSource = interactionSource,
-                        indication = ripple(),
+                        indication = ripple(bounded = true, color = colorMotion.rippleColor),
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             view.playSoundEffect(SoundEffectConstants.CLICK)
@@ -1884,49 +1890,51 @@ fun ExpressiveAddButton(
     )
     val shape = RoundedCornerShape(cornerRadius)
 
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        contentColor = MaterialTheme.colorScheme.primary,
-        shape = shape,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-        modifier = modifier
-            .clip(shape)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = ripple(),
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    view.playSoundEffect(SoundEffectConstants.CLICK)
-                    releaseJob?.cancel()
-                    isPulsing = true
-                    releaseJob = coroutineScope.launch {
-                        delay(140)
-                        isPulsing = false
+    ConnectedButtonRipple {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            contentColor = MaterialTheme.colorScheme.primary,
+            shape = shape,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+            modifier = modifier
+                .clip(shape)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = ripple(bounded = true),
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        view.playSoundEffect(SoundEffectConstants.CLICK)
+                        releaseJob?.cancel()
+                        isPulsing = true
+                        releaseJob = coroutineScope.launch {
+                            delay(140)
+                            isPulsing = false
+                        }
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onClick()
                     }
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onClick()
-                }
-            )
-    ) {
-        Row(
-            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                )
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1
-            )
+            Row(
+                modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

@@ -3696,7 +3696,7 @@ fun <T> ConnectedButtonGroup(
                     .clip(shape)
                     .clickable(
                         interactionSource = interactionSource,
-                        indication = ripple(),
+                        indication = ripple(bounded = true, color = colorMotion.rippleColor),
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             view.playSoundEffect(SoundEffectConstants.CLICK)

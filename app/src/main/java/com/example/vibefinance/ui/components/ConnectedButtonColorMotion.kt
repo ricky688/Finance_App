@@ -4,8 +4,12 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -19,10 +23,29 @@ import com.example.vibefinance.theme.LocalIsDarkTheme
 internal data class ConnectedButtonColorMotion(
     val containerColor: Color,
     val contentColor: Color,
-    val contentModifier: Modifier
+    val contentModifier: Modifier,
+    val rippleColor: Color
 )
 
-/** Shared finite, reversible Light motion and uniform Dark crossfade for connected controls. */
+private val DarkConnectedButtonRippleColor = Color(0xFFBDBDBD)
+
+@Composable
+private fun isConnectedButtonDarkTheme(): Boolean =
+    LocalIsDarkTheme.current ?: (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+
+/** Keep native buttons' bounded ripple neutral without overriding other app components. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ConnectedButtonRipple(content: @Composable () -> Unit) {
+    val configuration = if (isConnectedButtonDarkTheme()) {
+        RippleConfiguration(color = DarkConnectedButtonRippleColor)
+    } else {
+        LocalRippleConfiguration.current
+    }
+    CompositionLocalProvider(LocalRippleConfiguration provides configuration, content = content)
+}
+
+/** Light press/selection focus motion; Dark selection crossfade with an independent press ripple. */
 @Composable
 internal fun rememberConnectedButtonColorMotion(
     isSelected: Boolean,
@@ -34,9 +57,10 @@ internal fun rememberConnectedButtonColorMotion(
     backdropColor: Color = MaterialTheme.colorScheme.surface,
     enabled: Boolean = true
 ): ConnectedButtonColorMotion {
-    val isDarkTheme = LocalIsDarkTheme.current ?: (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+    val isDarkTheme = isConnectedButtonDarkTheme()
     val useFocusMotion = enabled && !isDarkTheme
-    val isFocused = isSelected || (enabled && isPressed)
+    // A held Dark button must retain its current selection colors until the click commits.
+    val isFocused = isSelected || (useFocusMotion && isPressed)
     val progress = if (useFocusMotion) {
         animateFloatAsState(
             targetValue = if (isFocused) 1f else 0f,
@@ -74,6 +98,7 @@ internal fun rememberConnectedButtonColorMotion(
             inactiveContentColor = inactiveContentColor,
             primaryContentColor = activeContentColor,
             backdropColor = backdropColor
-        ) else Modifier
+        ) else Modifier,
+        rippleColor = if (isDarkTheme) DarkConnectedButtonRippleColor else Color.Unspecified
     )
 }

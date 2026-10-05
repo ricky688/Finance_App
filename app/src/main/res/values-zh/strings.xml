@@ -79,6 +79,7 @@
     <string name="asset_filter_all">全部账户</string>
     <string name="asset_filter_cash_bank">资产</string>
     <string name="asset_filter_credit_cards">信用卡</string>
+    <string name="asset_filter_debit_cards">扣帳卡</string>
     <string name="net_worth_title">總淨資產</string>
     <string name="liquid_assets">流動資產</string>
     <string name="credit_cards_debt">信用卡負債</string>

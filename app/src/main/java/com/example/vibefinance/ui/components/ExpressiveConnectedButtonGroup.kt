@@ -82,65 +82,67 @@ fun <T> ExpressiveConnectedButtonGroup(
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 contentAlignment = Alignment.Center
             ) {
-                ToggleButton(
-                    checked = isSelected,
-                    onCheckedChange = {
-                        onItemSelected(index)
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    interactionSource = interactionSource,
-                    shapes = when {
-                        items.size == 1 -> ToggleButtonDefaults.shapes()
-                        index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                        index == items.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                    },
-                    colors = ToggleButtonDefaults.toggleButtonColors(
-                        containerColor = colorMotion.containerColor,
-                        checkedContainerColor = colorMotion.containerColor,
-                        contentColor = colorMotion.contentColor,
-                        checkedContentColor = colorMotion.contentColor
-                    ),
-                    elevation = null,
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.fillMaxWidth()
-                        .heightIn(min = if (compact) 40.dp else 48.dp)
-                        .semantics {
-                            selected = isSelected
-                            role = Role.RadioButton
-                        }
-                ) {
-                    Box(
+                ConnectedButtonRipple {
+                    ToggleButton(
+                        checked = isSelected,
+                        onCheckedChange = {
+                            onItemSelected(index)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
+                        interactionSource = interactionSource,
+                        shapes = when {
+                            items.size == 1 -> ToggleButtonDefaults.shapes()
+                            index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            index == items.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        },
+                        colors = ToggleButtonDefaults.toggleButtonColors(
+                            containerColor = colorMotion.containerColor,
+                            checkedContainerColor = colorMotion.containerColor,
+                            contentColor = colorMotion.contentColor,
+                            checkedContentColor = colorMotion.contentColor
+                        ),
+                        elevation = null,
+                        contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.fillMaxWidth()
                             .heightIn(min = if (compact) 40.dp else 48.dp)
-                            .then(colorMotion.contentModifier),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = if (compact) 4.dp else 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AnimatedVisibility(
-                                visible = isSelected,
-                                enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
-                                    spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
-                                ),
-                                exit = fadeOut(spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
-                                    spring(stiffness = Spring.StiffnessMediumLow)
-                                )
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                }
+                            .semantics {
+                                selected = isSelected
+                                role = Role.RadioButton
                             }
-                            Text(
-                                text = labelProvider(item),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .heightIn(min = if (compact) 40.dp else 48.dp)
+                                .then(colorMotion.contentModifier),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = if (compact) 4.dp else 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AnimatedVisibility(
+                                    visible = isSelected,
+                                    enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
+                                        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                                    ),
+                                    exit = fadeOut(spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
+                                        spring(stiffness = Spring.StiffnessMediumLow)
+                                    )
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                    }
+                                }
+                                Text(
+                                    text = labelProvider(item),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }

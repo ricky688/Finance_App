@@ -25,4 +25,10 @@
     <string name="assets_linked_app_long_press_tip">長按卡片上的跳轉圖示可更換應用</string>
     <string name="assets_linked_app_load_failed">無法載入已安裝的應用程式</string>
     <string name="assets_linked_app_retry">重試</string>
+    <string name="assets_notification_aliases_title">通知自動記帳標識</string>
+    <string name="assets_notification_aliases_desc">收到包含這些卡名、別名或識別碼的通知時，將自動記入此帳戶。</string>
+    <string name="assets_notification_aliases_empty">尚未設定標識。設定後即可收到通知直接自動記帳。</string>
+    <string name="assets_notification_aliases_add_placeholder">新增標識（例如 Smart Octopus、1719）...</string>
+    <string name="assets_notification_aliases_add_btn">新增</string>
+    <string name="assets_notification_aliases_suggest_last4">添加末四碼: %1$s</string>
 </resources>

@@ -126,6 +126,7 @@ import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.GlassmorphicCard
 import com.example.vibefinance.ui.components.CategoryAnalyticsPeriodMode
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
+import com.example.vibefinance.ui.components.ConnectedButtonRipple
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
@@ -981,54 +982,56 @@ private fun HistoryTransactionTypeSelector(
                 isPressed = isPressed,
                 backdropColor = colors.surfaceContainerHigh
             )
-            ToggleButton(
-                checked = isSelected,
-                onCheckedChange = {
-                    onTypeSelected(incomeOption)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                },
-                shapes = if (index == 0) {
-                    ButtonGroupDefaults.connectedLeadingButtonShapes()
-                } else {
-                    ButtonGroupDefaults.connectedTrailingButtonShapes()
-                },
-                interactionSource = interactionSource,
-                colors = ToggleButtonDefaults.toggleButtonColors(
-                    containerColor = colorMotion.containerColor,
-                    checkedContainerColor = colorMotion.containerColor,
-                    contentColor = colorMotion.contentColor,
-                    checkedContentColor = colorMotion.contentColor
-                ),
-                elevation = null,
-                contentPadding = PaddingValues(0.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag(if (incomeOption) "EditTransactionIncome" else "EditTransactionExpense")
-                    .semantics {
-                        selected = isSelected
-                        role = Role.RadioButton
-                    }
-            ) {
-                Box(
+            ConnectedButtonRipple {
+                ToggleButton(
+                    checked = isSelected,
+                    onCheckedChange = {
+                        onTypeSelected(incomeOption)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    shapes = if (index == 0) {
+                        ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    } else {
+                        ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    },
+                    interactionSource = interactionSource,
+                    colors = ToggleButtonDefaults.toggleButtonColors(
+                        containerColor = colorMotion.containerColor,
+                        checkedContainerColor = colorMotion.containerColor,
+                        contentColor = colorMotion.contentColor,
+                        checkedContentColor = colorMotion.contentColor
+                    ),
+                    elevation = null,
+                    contentPadding = PaddingValues(0.dp),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .then(colorMotion.contentModifier)
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        .weight(1f)
+                        .testTag(if (incomeOption) "EditTransactionIncome" else "EditTransactionExpense")
+                        .semantics {
+                            selected = isSelected
+                            role = Role.RadioButton
                         }
-                        Text(
-                            text = stringResource(if (incomeOption) R.string.filter_income else R.string.filter_expense),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .then(colorMotion.contentModifier)
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (isSelected) {
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            Text(
+                                text = stringResource(if (incomeOption) R.string.filter_income else R.string.filter_expense),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }

@@ -88,13 +88,20 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.ui.graphics.luminance
@@ -193,6 +200,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import com.example.vibefinance.ui.components.RollingNumberText
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
+import com.example.vibefinance.ui.components.ConnectedButtonRipple
 import com.example.vibefinance.ui.components.GlassmorphicCard
 import com.example.vibefinance.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.geometry.Offset
@@ -253,6 +261,7 @@ fun getCardGradient(themeName: String?, isDark: Boolean): Brush {
 enum class AssetFilter {
     ALL,
     CASH_BANK,
+    DEBIT_CARDS,
     CREDIT_CARDS
 }
 
@@ -305,7 +314,7 @@ private fun cardDesignOptionLabel(key: String): String = when (key) {
     "Cyber Grid" -> stringResource(R.string.ah_pattern_cyber_grid)
     "Neon Waves" -> stringResource(R.string.ah_pattern_neon_waves)
     "Geometric Mesh" -> stringResource(R.string.ah_pattern_geometric_mesh)
-    else -> key // Issuer and payment-network brands keep their official names.
+    else -> key // Payment-network brands keep their official names.
 }
 
 @Composable
@@ -651,6 +660,7 @@ fun filterAccounts(accounts: List<AccountEntity>, filter: AssetFilter): List<Acc
     return when (filter) {
         AssetFilter.ALL -> accounts
         AssetFilter.CASH_BANK -> accounts.filter { it.type != AccountType.CC }
+        AssetFilter.DEBIT_CARDS -> accounts.filter { it.type == AccountType.DEBIT }
         AssetFilter.CREDIT_CARDS -> accounts.filter { it.type == AccountType.CC }
     }
 }
@@ -670,10 +680,7 @@ private fun AssetGroupSelector(
         val segmentWidth = (maxWidth - spacing * (AssetFilter.entries.size - 1)) / AssetFilter.entries.size
         val indicatorOffset by animateDpAsState(
             targetValue = (segmentWidth + spacing) * selectedFilter.ordinal + (segmentWidth - 32.dp) / 2,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = tween(durationMillis = 220),
             label = "assetGroupIndicator"
         )
 
@@ -699,16 +706,19 @@ private fun AssetGroupSelector(
                     val label = when (filter) {
                         AssetFilter.ALL -> stringResource(com.example.vibefinance.R.string.asset_filter_all)
                         AssetFilter.CASH_BANK -> stringResource(com.example.vibefinance.R.string.asset_filter_cash_bank)
+                        AssetFilter.DEBIT_CARDS -> stringResource(com.example.vibefinance.R.string.asset_filter_debit_cards)
                         AssetFilter.CREDIT_CARDS -> stringResource(com.example.vibefinance.R.string.asset_filter_credit_cards)
                     }
                     val count = when (filter) {
                         AssetFilter.ALL -> accounts.size
                         AssetFilter.CASH_BANK -> accounts.count { it.type != AccountType.CC }
+                        AssetFilter.DEBIT_CARDS -> accounts.count { it.type == AccountType.DEBIT }
                         AssetFilter.CREDIT_CARDS -> accounts.count { it.type == AccountType.CC }
                     }
                     val icon = when (filter) {
                         AssetFilter.ALL -> Icons.Default.Savings
                         AssetFilter.CASH_BANK -> Icons.Default.AccountBalance
+                        AssetFilter.DEBIT_CARDS -> Icons.Default.AccountBalanceWallet
                         AssetFilter.CREDIT_CARDS -> Icons.Default.CreditCard
                     }
                     val iconScale = animateFloatAsState(
@@ -720,58 +730,60 @@ private fun AssetGroupSelector(
                         label = "assetGroupIcon_$index"
                     )
 
-                    ToggleButton(
-                        checked = selected,
-                        onCheckedChange = { onSelectFilter(filter) },
-                        interactionSource = interactionSource,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 64.dp)
-                            .semantics { role = Role.RadioButton },
-                        shapes = when (index) {
-                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                            AssetFilter.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                        },
-                        colors = ToggleButtonDefaults.toggleButtonColors(
-                            containerColor = colorMotion.containerColor,
-                            contentColor = colorMotion.contentColor,
-                            checkedContainerColor = colorMotion.containerColor,
-                            checkedContentColor = colorMotion.contentColor
-                        ),
-                        elevation = null,
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Column(
+                    ConnectedButtonRipple {
+                        ToggleButton(
+                            checked = selected,
+                            onCheckedChange = { onSelectFilter(filter) },
+                            interactionSource = interactionSource,
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .weight(1f)
                                 .heightIn(min = 64.dp)
-                                .then(colorMotion.contentModifier)
-                                .padding(horizontal = 4.dp, vertical = 7.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                                .semantics { role = Role.RadioButton },
+                            shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                AssetFilter.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            colors = ToggleButtonDefaults.toggleButtonColors(
+                                containerColor = colorMotion.containerColor,
+                                contentColor = colorMotion.contentColor,
+                                checkedContainerColor = colorMotion.containerColor,
+                                checkedContentColor = colorMotion.contentColor
+                            ),
+                            elevation = null,
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.graphicsLayer {
-                                    scaleX = iconScale.value
-                                    scaleY = iconScale.value
-                                },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 64.dp)
+                                    .then(colorMotion.contentModifier)
+                                    .padding(horizontal = 4.dp, vertical = 7.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(17.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(text = count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = iconScale.value
+                                        scaleY = iconScale.value
+                                    },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(17.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
                 }
@@ -1386,22 +1398,19 @@ fun AccountsScreen(
         var selectedLinkedAppPackage by remember { mutableStateOf(editingAccount?.linkedAppPackage) }
         var showAppPickerDialog by remember { mutableStateOf(false) }
         var cardLast4Text by remember { mutableStateOf(editingAccount?.cardLast4 ?: "") }
+        var notificationAliasesList by remember(editingAccount?.id) {
+            mutableStateOf(editingAccount?.getNotificationAliasList() ?: emptyList())
+        }
+        var newAliasInput by remember { mutableStateOf("") }
         val defaultAccountName = stringResource(R.string.ah_new_account)
-        val invalidLastFour = typeState != AccountType.CASH && cardLast4Text.isNotEmpty() &&
+        val invalidLastFour = cardLast4Text.isNotEmpty() &&
             (cardLast4Text.length != 4 || cardLast4Text.any { it !in '0'..'9' })
         var selectedCardProtocol by remember { mutableStateOf(
             when (editingAccount?.cardProtocol?.lowercase(Locale.US)) {
                 "visa" -> "Visa"
                 "mastercard" -> "Mastercard"
-                else -> "None"
-            }
-        ) }
-        var selectedCardIssuer by remember { mutableStateOf(
-            when (editingAccount?.cardIssuer?.lowercase(Locale.US)) {
-                "boc" -> "BOC"
-                "hsbc" -> "HSBC"
-                "chase" -> "Chase"
-                "citi" -> "Citi"
+                "unionpay" -> "UnionPay"
+                "jcb" -> "JCB"
                 else -> "None"
             }
         ) }
@@ -1504,7 +1513,6 @@ fun AccountsScreen(
         var paymentDayDropdownExpanded by remember { mutableStateOf(false) }
         var paymentDeadlineDayDropdownExpanded by remember { mutableStateOf(false) }
         var protocolDropdownExpanded by remember { mutableStateOf(false) }
-        var issuerDropdownExpanded by remember { mutableStateOf(false) }
         var patternDropdownExpanded by remember { mutableStateOf(false) }
 
         if (showDeleteConfirmDialog && editingAccount != null) {
@@ -1678,9 +1686,6 @@ fun AccountsScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.weight(1f, fill = false)
                                     ) {
-                                        if (selectedCardIssuer != "None") {
-                                            CardIssuerLogo(issuer = selectedCardIssuer, modifier = Modifier.padding(end = 8.dp))
-                                        }
                                         val previewAccent = accountAccent(typeState, selectedAccentColorKey)
                                         Box(
                                             modifier = Modifier
@@ -1911,26 +1916,24 @@ fun AccountsScreen(
                                         }
                                     }
 
-                                    if (typeState != AccountType.CASH) {
-                                        OutlinedTextField(
-                                            value = cardLast4Text,
-                                            onValueChange = { if (it.length <= 4 && it.all { char -> char in '0'..'9' }) cardLast4Text = it },
-                                            label = { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four)) },
-                                            placeholder = { Text(stringResource(R.string.ah_last_four_example)) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            isError = invalidLastFour,
-                                            supportingText = if (invalidLastFour) {
-                                                { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four_error)) }
-                                            } else null,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                focusedBorderColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
+                                    OutlinedTextField(
+                                        value = cardLast4Text,
+                                        onValueChange = { if (it.length <= 4 && it.all { char -> char in '0'..'9' }) cardLast4Text = it },
+                                        label = { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four)) },
+                                        placeholder = { Text(stringResource(R.string.ah_last_four_example)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        isError = invalidLastFour,
+                                        supportingText = if (invalidLastFour) {
+                                            { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four_error)) }
+                                        } else null,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                            focusedBorderColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
 
                                     Text(
                                         text = stringResource(com.example.vibefinance.R.string.assets_identity_accent),
@@ -2075,6 +2078,136 @@ fun AccountsScreen(
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                 modifier = Modifier.size(18.dp)
                                             )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bento: Notification Auto-Log Identifiers / Aliases
+                            Surface(
+                                shape = BentoCardShape,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.NotificationsActive,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_title),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_desc),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    // Active alias chips
+                                    if (notificationAliasesList.isNotEmpty()) {
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            notificationAliasesList.forEach { alias ->
+                                                InputChip(
+                                                    selected = true,
+                                                    onClick = {
+                                                        notificationAliasesList = notificationAliasesList.filterNot { it.equals(alias, ignoreCase = true) }
+                                                    },
+                                                    label = { Text(alias) },
+                                                    trailingIcon = {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Text(
+                                            text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_empty),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+
+                                    // Quick suggestion if cardLast4Text is filled and not in list
+                                    if (cardLast4Text.length == 4 && notificationAliasesList.none { it.equals(cardLast4Text, ignoreCase = true) }) {
+                                        AssistChip(
+                                            onClick = {
+                                                notificationAliasesList = notificationAliasesList + cardLast4Text
+                                            },
+                                            label = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_suggest_last4, cardLast4Text)) },
+                                            leadingIcon = {
+                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            }
+                                        )
+                                    }
+
+                                    // Input to add a new alias
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = newAliasInput,
+                                            onValueChange = { newAliasInput = it },
+                                            placeholder = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_add_placeholder)) },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                                focusedBorderColor = MaterialTheme.colorScheme.primary
+                                            ),
+                                            keyboardActions = KeyboardActions(onDone = {
+                                                val trimmed = newAliasInput.trim()
+                                                if (trimmed.isNotEmpty() && notificationAliasesList.none { it.equals(trimmed, ignoreCase = true) }) {
+                                                    notificationAliasesList = notificationAliasesList + trimmed
+                                                    newAliasInput = ""
+                                                }
+                                            })
+                                        )
+                                        FilledTonalButton(
+                                            onClick = {
+                                                val trimmed = newAliasInput.trim()
+                                                if (trimmed.isNotEmpty() && notificationAliasesList.none { it.equals(trimmed, ignoreCase = true) }) {
+                                                    notificationAliasesList = notificationAliasesList + trimmed
+                                                    newAliasInput = ""
+                                                }
+                                            },
+                                            enabled = newAliasInput.trim().isNotEmpty(),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_add_btn))
                                         }
                                     }
                                 }
@@ -2626,7 +2759,7 @@ fun AccountsScreen(
                                             )
                                         }
                                         Text(
-                                            text = stringResource(R.string.ah_branding_protocol),
+                                            text = stringResource(R.string.ah_protocol),
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary,
@@ -2634,67 +2767,32 @@ fun AccountsScreen(
                                         )
                                     }
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ExposedDropdownMenuBox(
+                                        expanded = protocolDropdownExpanded,
+                                        onExpandedChange = { protocolDropdownExpanded = !protocolDropdownExpanded },
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        ExposedDropdownMenuBox(
-                                            expanded = issuerDropdownExpanded,
-                                            onExpandedChange = { issuerDropdownExpanded = !issuerDropdownExpanded },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            OutlinedTextField(
-                                                value = cardDesignOptionLabel(selectedCardIssuer),
-                                                onValueChange = {},
-                                                readOnly = true,
-                                                label = { Text(stringResource(R.string.ah_issuer)) },
-                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = issuerDropdownExpanded) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                                            )
-                                            ExposedDropdownMenu(
-                                                expanded = issuerDropdownExpanded,
-                                                onDismissRequest = { issuerDropdownExpanded = false }
-                                            ) {
-                                                listOf("None", "BOC", "HSBC", "Chase", "Citi").forEach { i ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(cardDesignOptionLabel(i)) },
-                                                        onClick = {
-                                                            selectedCardIssuer = i
-                                                            issuerDropdownExpanded = false
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        ExposedDropdownMenuBox(
+                                        OutlinedTextField(
+                                            value = cardDesignOptionLabel(selectedCardProtocol),
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            label = { Text(stringResource(R.string.ah_protocol)) },
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolDropdownExpanded) },
+                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                                        )
+                                        ExposedDropdownMenu(
                                             expanded = protocolDropdownExpanded,
-                                            onExpandedChange = { protocolDropdownExpanded = !protocolDropdownExpanded },
-                                            modifier = Modifier.weight(1f)
+                                            onDismissRequest = { protocolDropdownExpanded = false }
                                         ) {
-                                            OutlinedTextField(
-                                                value = cardDesignOptionLabel(selectedCardProtocol),
-                                                onValueChange = {},
-                                                readOnly = true,
-                                                label = { Text(stringResource(R.string.ah_protocol)) },
-                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolDropdownExpanded) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                                            )
-                                            ExposedDropdownMenu(
-                                                expanded = protocolDropdownExpanded,
-                                                onDismissRequest = { protocolDropdownExpanded = false }
-                                            ) {
-                                                listOf("None", "Visa", "Mastercard").forEach { p ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(cardDesignOptionLabel(p)) },
-                                                        onClick = {
-                                                            selectedCardProtocol = p
-                                                            protocolDropdownExpanded = false
-                                                        }
-                                                    )
-                                                }
+                                            listOf("None", "Visa", "Mastercard", "UnionPay", "JCB").forEach { p ->
+                                                DropdownMenuItem(
+                                                    text = { Text(cardDesignOptionLabel(p)) },
+                                                    onClick = {
+                                                        selectedCardProtocol = p
+                                                        protocolDropdownExpanded = false
+                                                    }
+                                                )
                                             }
                                         }
                                     }
@@ -3418,11 +3516,12 @@ fun AccountsScreen(
                                         paymentDate = if (typeState == AccountType.CC) payment else null,
                                         paymentDeadline = if (typeState == AccountType.CC) deadline else null,
                                         cardTheme = selectedCardTheme,
-                                        cardLast4 = cardLast4Text.takeIf { typeState != AccountType.CASH && it.length == 4 },
+                                        cardLast4 = cardLast4Text.takeIf { it.length == 4 },
                                         nickname = nicknameText.trim().takeIf { it.isNotEmpty() },
                                         accentColorKey = selectedAccentColorKey,
                                         cardProtocol = if (selectedCardProtocol == "None") null else selectedCardProtocol.lowercase(Locale.US),
-                                        cardIssuer = if (selectedCardIssuer == "None") null else selectedCardIssuer.lowercase(Locale.US),
+                                        // Preserve legacy issuer data after retiring its editor.
+                                        cardIssuer = editingAccount?.cardIssuer,
                                         cardPattern = if (selectedCardPattern == "None") null else selectedCardPattern.lowercase(Locale.US),
                                         cardImageUri = if (selectedCardImageUri.isEmpty()) null else selectedCardImageUri,
                                         customImageAspectRatio = selectedAspectRatio,
@@ -3430,7 +3529,8 @@ fun AccountsScreen(
                                         cardBgOffsetY = selectedCardBgOffsetY,
                                         cardBgScale = selectedCardBgScale,
                                         minSpendThreshold = editingAccount?.minSpendThreshold,
-                                        linkedAppPackage = selectedLinkedAppPackage
+                                        linkedAppPackage = selectedLinkedAppPackage,
+                                        notificationAliases = notificationAliasesList.joinToString(", ").takeIf { it.isNotBlank() }
                                     )
                                     onIntent(FinanceIntent.SaveAccount(
                                         account = acc,
@@ -3493,6 +3593,49 @@ fun CardProtocolLogo(protocol: String?, modifier: Modifier = Modifier) {
                         radius = radius,
                         center = Offset(size.width * 0.65f, centerY)
                     )
+                }
+            }
+            "unionpay" -> {
+                Box(
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(3.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        listOf(Color(0xFFE21836), Color(0xFF00447C), Color(0xFF007B84)).forEach { color ->
+                            Box(Modifier.weight(1f).fillMaxHeight().background(color))
+                        }
+                    }
+                    Text(
+                        text = "UnionPay",
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        fontSize = 8.sp,
+                        letterSpacing = 0.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+            "jcb" -> {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    listOf("J" to Color(0xFF0062AE), "C" to Color(0xFFD71920), "B" to Color(0xFF009639)).forEach { (letter, color) ->
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                .clip(RoundedCornerShape(3.dp)).background(color),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = letter,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }

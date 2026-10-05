@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -212,6 +213,17 @@ fun DailySpendingLineChart(
                         val isSel = chartMode == mode
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
+                        val buttonDensity = LocalDensity.current
+                        var measuredButtonHeight by remember { mutableStateOf(28.dp) }
+                        val cornerRadius by animateDpAsState(
+                            targetValue = if (isPressed) 6.dp else measuredButtonHeight / 2,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "chartModePressedCorner_${mode.name}"
+                        )
+                        val buttonShape = RoundedCornerShape(cornerRadius)
                         val colorMotion = rememberConnectedButtonColorMotion(
                             isSelected = isSel,
                             isPressed = isPressed,
@@ -221,11 +233,14 @@ fun DailySpendingLineChart(
                         )
                         Box(
                             modifier = Modifier
-                                .clip(CircleShape)
+                                .onSizeChanged { size ->
+                                    measuredButtonHeight = with(buttonDensity) { size.height.toDp() }
+                                }
+                                .clip(buttonShape)
                                 .background(colorMotion.containerColor)
                                 .clickable(
                                     interactionSource = interactionSource,
-                                    indication = ripple()
+                                    indication = ripple(bounded = true, color = colorMotion.rippleColor)
                                 ) {
                                     chartMode = mode
                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)

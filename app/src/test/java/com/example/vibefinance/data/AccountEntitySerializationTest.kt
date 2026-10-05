@@ -60,4 +60,42 @@ class AccountEntitySerializationTest {
         }
         assertEquals("none", jsonNone.optString("linkedAppPackage", ""))
     }
+
+    @Test
+    fun accountEntityHoldsAndParsesNotificationAliases() {
+        val account = AccountEntity(
+            id = 301L,
+            name = "My Card",
+            type = AccountType.DEBIT,
+            balance = 100.0,
+            icon = "wallet",
+            notificationAliases = "Smart Octopus, 1719, 八達通"
+        )
+        assertEquals("Smart Octopus, 1719, 八達通", account.notificationAliases)
+        assertEquals(listOf("Smart Octopus", "1719", "八達通"), account.getNotificationAliasList())
+
+        val emptyAccount = AccountEntity(
+            id = 302L,
+            name = "Cash",
+            type = AccountType.CASH,
+            balance = 50.0,
+            icon = "cash"
+        )
+        assertNull(emptyAccount.notificationAliases)
+        assertEquals(emptyList<String>(), emptyAccount.getNotificationAliasList())
+    }
+
+    @Test
+    fun jsonSerializationPreservesNotificationAliases() {
+        val json = JSONObject().apply {
+            put("id", 401L)
+            put("name", "BOC Go")
+            put("type", AccountType.CC.name)
+            put("balance", 0.0)
+            put("icon", "credit_card")
+            put("notificationAliases", "BOC Go unionpay Diamond Card, 4832")
+        }
+        val parsedAliases = if (json.has("notificationAliases")) json.optString("notificationAliases", "") else null
+        assertEquals("BOC Go unionpay Diamond Card, 4832", parsedAliases)
+    }
 }

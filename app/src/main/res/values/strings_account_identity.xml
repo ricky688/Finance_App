@@ -25,4 +25,10 @@
     <string name="assets_linked_app_long_press_tip">Long press redirect icon on card to change app</string>
     <string name="assets_linked_app_load_failed">Couldn’t load installed apps</string>
     <string name="assets_linked_app_retry">Try again</string>
+    <string name="assets_notification_aliases_title">Notification Auto-Log Identifiers</string>
+    <string name="assets_notification_aliases_desc">Notifications containing these card names, aliases, or IDs will automatically log to this account.</string>
+    <string name="assets_notification_aliases_empty">No identifiers added yet. Add aliases to enable zero-tap logging.</string>
+    <string name="assets_notification_aliases_add_placeholder">Add alias (e.g. Smart Octopus, 1719)...</string>
+    <string name="assets_notification_aliases_add_btn">Add</string>
+    <string name="assets_notification_aliases_suggest_last4">Add last 4: %1$s</string>
 </resources>

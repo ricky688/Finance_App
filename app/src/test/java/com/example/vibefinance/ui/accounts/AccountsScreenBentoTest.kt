@@ -70,15 +70,20 @@ class AccountsScreenBentoTest {
             AccountEntity(id = 1, name = "Checking", type = AccountType.BANK, balance = 5000.0, icon = "bank"),
             AccountEntity(id = 2, name = "Savings", type = AccountType.BANK, balance = 12000.0, icon = "bank"),
             AccountEntity(id = 3, name = "Cash", type = AccountType.CASH, balance = 200.0, icon = "cash"),
-            AccountEntity(id = 4, name = "Amex", type = AccountType.CC, balance = 1200.0, icon = "cc")
+            AccountEntity(id = 4, name = "Amex", type = AccountType.CC, balance = 1200.0, icon = "cc"),
+            AccountEntity(id = 5, name = "Personal Debit", type = AccountType.DEBIT, balance = 450.0, icon = "card"),
+            AccountEntity(id = 6, name = "Shared Debit", type = AccountType.DEBIT, balance = 800.0, icon = "card")
         )
 
         val all = filterAccounts(accounts, AssetFilter.ALL)
-        assertEquals(4, all.size)
+        assertEquals(6, all.size)
 
         val cashAndBank = filterAccounts(accounts, AssetFilter.CASH_BANK)
-        assertEquals(3, cashAndBank.size)
+        assertEquals(5, cashAndBank.size)
         assert(cashAndBank.none { it.type == AccountType.CC })
+
+        val debitCards = filterAccounts(accounts, AssetFilter.DEBIT_CARDS)
+        assertEquals(listOf(5L, 6L), debitCards.map { it.id })
 
         val creditCards = filterAccounts(accounts, AssetFilter.CREDIT_CARDS)
         assertEquals(1, creditCards.size)

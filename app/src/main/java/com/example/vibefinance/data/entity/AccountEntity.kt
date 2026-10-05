@@ -21,7 +21,7 @@ data class AccountEntity(
     val cardTheme: String? = null, // Customizable gradient styling identifier
     val accentColorKey: String? = null, // Stable palette key for an optional identity accent
     val cardLast4: String? = null, // Custom last 4 digits of the card (e.g. 1234)
-    val cardProtocol: String? = null, // Card protocol: visa, mastercard, or null
+    val cardProtocol: String? = null, // Payment network: visa, mastercard, unionpay, jcb, or null
     val cardIssuer: String? = null, // Card issuer: boc, hsbc, chase, citi, or null
     val cardPattern: String? = null, // Customizable background pattern styling identifier
     val cardImageUri: String? = null, // Path to custom background image file in internal storage
@@ -30,5 +30,14 @@ data class AccountEntity(
     val cardBgOffsetY: Float = 0f, // Vertical offset / pan (-1.0f to 1.0f, 0f = center)
     val cardBgScale: Float = 1f, // Scale / zoom factor (0.5f to 3.0f, 1.0f = default)
     val minSpendThreshold: Double? = null, // Minimum monthly spending threshold required to unlock high cashback
-    val linkedAppPackage: String? = null // Explicitly linked target package for quick launch; null for auto-detect; "none" for disabled
-)
+    val linkedAppPackage: String? = null, // Explicitly linked target package for quick launch; null for auto-detect; "none" for disabled
+    val notificationAliases: String? = null // Comma-separated or newline-separated custom identifiers/aliases for notification matching
+) {
+    /** Returns normalized, non-empty notification alias tokens configured for this account. */
+    fun getNotificationAliasList(): List<String> {
+        return notificationAliases?.split(',', ';', '\n')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+    }
+}

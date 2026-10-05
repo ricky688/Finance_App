@@ -214,7 +214,7 @@ fun ExpressiveDualViewSwitcher(
                         .clip(buttonShape)
                         .clickable(
                             interactionSource = interactionSource,
-                            indication = ripple(),
+                            indication = ripple(bounded = true, color = colorMotion.rippleColor),
                             onClick = {
                                 if (!isSelected) {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)

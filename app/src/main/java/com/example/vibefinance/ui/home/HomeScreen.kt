@@ -126,6 +126,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.draw.clip
@@ -261,6 +265,8 @@ fun HomeScreen(
     onIntent: (FinanceIntent) -> Unit,
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 16.dp,
+    topVisibilityInset: Dp = 0.dp,
+    bottomVisibilityInset: Dp = 0.dp,
     onViewAllClick: () -> Unit = {},
     onCategoryClick: (String) -> Unit = {},
     showAddDialog: Boolean = false,
@@ -268,6 +274,15 @@ fun HomeScreen(
     onOpenBudgetDialog: () -> Unit = {},
     onOpenRecalcSheet: () -> Unit = {}
 ) {
+    val entranceState = remember { DailyCardEntranceState() }
+    var viewportBounds by remember { mutableStateOf(Rect.Zero) }
+    val entranceViewport = with(LocalDensity.current) {
+        val top = viewportBounds.top + topVisibilityInset.toPx()
+        Rect(
+            viewportBounds.left, top, viewportBounds.right,
+            (viewportBounds.bottom - bottomVisibilityInset.toPx()).coerceAtLeast(top)
+        )
+    }
 
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
         totalMonthlyBudget = 0.0,
@@ -344,36 +359,42 @@ fun HomeScreen(
                 com.example.vibefinance.ui.components.HomeScreenSkeleton()
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize()
+                        .onGloballyPositioned { viewportBounds = it.boundsInWindow() }
+                        .testTag("DailyCardsList"),
                     contentPadding = PaddingValues(top = topContentPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
             // ICONIC HERO DAILY REMAINING BUDGET CARD (Option 5)
-            item {
-                HeroDailyBudgetCard(
-                    budgetInfo = budgetInfo,
-                    onOpenRecalcSheet = onOpenRecalcSheet,
-                    onOpenBudgetDialog = onOpenBudgetDialog
-                )
+            item(key = "daily-hero") {
+                DailyCardEntrance("hero", entranceState, entranceViewport) {
+                    HeroDailyBudgetCard(
+                        budgetInfo = budgetInfo,
+                        onOpenRecalcSheet = onOpenRecalcSheet,
+                        onOpenBudgetDialog = onOpenBudgetDialog
+                    )
+                }
             }
 
             // B. START BUDGET & PERIOD CARD (WholeBudgetCard)
-            item {
-                WholeBudgetCard(
-                    modifier = Modifier
-                        .clip(BentoCardShape)
-                        .bouncyClickable(shape = BentoCardShape) { onOpenBudgetDialog() },
-                    budget = budgetInfo.totalMonthlyBudget,
-                    startDate = budgetInfo.startDate,
-                    endDate = budgetInfo.endDate,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+            item(key = "daily-period") {
+                DailyCardEntrance("period", entranceState, entranceViewport, delayMillis = 40) {
+                    WholeBudgetCard(
+                        modifier = Modifier
+                            .clip(BentoCardShape)
+                            .bouncyClickable(shape = BentoCardShape) { onOpenBudgetDialog() },
+                        budget = budgetInfo.totalMonthlyBudget,
+                        startDate = budgetInfo.startDate,
+                        endDate = budgetInfo.endDate,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
                     )
-                )
+                }
             }
 
             // C. BENTO MATRIX SECTION
-            item {
+            item(key = "daily-bento") {
                 val screenWidthDp = LocalConfiguration.current.screenWidthDp
                 val bentoSpacing = resolveBentoSpacing(screenWidthDp)
 
@@ -391,24 +412,34 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RestAndSpentBudgetCard(
+                        DailyCardEntrance(
+                            "remaining", entranceState, entranceViewport, delayMillis = 80,
                             modifier = Modifier
                                 .weight(1.2f)
-                                .height(160.dp),
-                            remainingBudget = budgetInfo.monthlyRemaining,
-                            totalBudget = budgetInfo.totalMonthlyBudget,
-                            isDarkTheme = isDark
-                        )
+                                .height(160.dp)
+                        ) {
+                            RestAndSpentBudgetCard(
+                                modifier = Modifier.fillMaxSize(),
+                                remainingBudget = budgetInfo.monthlyRemaining,
+                                totalBudget = budgetInfo.totalMonthlyBudget,
+                                isDarkTheme = isDark
+                            )
+                        }
                         val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
                             calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
                         }
-                        DaysLeftCard(
+                        DailyCardEntrance(
+                            "days", entranceState, entranceViewport, delayMillis = 110,
                             modifier = Modifier
                                 .weight(0.8f)
-                                .height(160.dp),
-                            daysLeft = budgetInfo.daysLeft,
-                            totalDays = totalPeriodDays
-                        )
+                                .height(160.dp)
+                        ) {
+                            DaysLeftCard(
+                                modifier = Modifier.fillMaxSize(),
+                                daysLeft = budgetInfo.daysLeft,
+                                totalDays = totalPeriodDays
+                            )
+                        }
                     }
 
                     // Row of Lowest & Highest Stats
@@ -419,44 +450,58 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        MinMaxSpentCard(
+                        DailyCardEntrance(
+                            "lowest", entranceState, entranceViewport,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(128.dp),
-                            isMin = true,
-                            spends = periodExpenses,
-                            isDarkTheme = isDark
-                        )
-                        MinMaxSpentCard(
+                                .height(128.dp)
+                        ) {
+                            MinMaxSpentCard(
+                                modifier = Modifier.fillMaxSize(), isMin = true,
+                                spends = periodExpenses, isDarkTheme = isDark
+                            )
+                        }
+                        DailyCardEntrance(
+                            "highest", entranceState, entranceViewport, delayMillis = 40,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(128.dp),
-                            isMin = false,
-                            spends = periodExpenses,
-                            isDarkTheme = isDark
-                        )
+                                .height(128.dp)
+                        ) {
+                            MinMaxSpentCard(
+                                modifier = Modifier.fillMaxSize(), isMin = false,
+                                spends = periodExpenses, isDarkTheme = isDark
+                            )
+                        }
                     }
                 }
             }
 
-            item {
-                TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+            item(key = "daily-transactions") {
+                DailyCardEntrance("transactions", entranceState, entranceViewport) {
+                    TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+                }
             }
-            item {
-                DailySpendingLineChart(state = state)
+            item(key = "daily-spending-chart") {
+                DailyCardEntrance("spending-chart", entranceState, entranceViewport) {
+                    DailySpendingLineChart(state = state)
+                }
             }
-            item {
-                CategoryDonutChart(
-                    state = state,
-                    onCategoryClick = onCategoryClick
-                )
+            item(key = "daily-category-chart") {
+                DailyCardEntrance("category-chart", entranceState, entranceViewport) {
+                    CategoryDonutChart(
+                        state = state,
+                        onCategoryClick = onCategoryClick
+                    )
+                }
             }
-            item {
-                SpendsCalendar(state = state)
+            item(key = "daily-calendar") {
+                DailyCardEntrance("calendar", entranceState, entranceViewport) {
+                    SpendsCalendar(state = state)
+                }
             }
 
             // Bottom space
-            item {
+            item(key = "daily-bottom-space") {
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }

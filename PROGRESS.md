@@ -8,6 +8,93 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-05: Notification Identifier / Alias Binding System (Zero-Friction Auto-Logging)
+- **Notification Identifiers & Aliases Architecture (自訂通知標識綁定與規則學習)**:
+  - Addressed the fundamental problem where arbitrary custom card/account names (e.g. `'octopus'`, `'個人日常開支卡'`, `'主力卡'`) or third-party bank notification naming variations (e.g. `Smart Octopus`, `BOC Go unionpay Diamond Card`, `*****1719`) caused auto-logging to stall in the pending choices sheet.
+  - Implemented **Notification Identifier & Alias Binding**:
+    - **`AccountEntity` Model**: Added `notificationAliases: String? = null` with helper `getNotificationAliasList(): List<String>` parsing comma/newline/semicolon-separated identifier tokens.
+    - **Database & Persistence**: Updated `InMemoryDatabase` to persist `notificationAliases` to/from `vibefinance_data.json`, and bumped Room database version from `version = 2` to `version = 3`.
+    - **Matching Priority Engine (`PendingPaymentStore.findMatchingAccount`)**:
+      - Priority 0 (Highest): Checks user-configured `notificationAliases` across all accounts. Matches card last-4 digits, asset hints, and merchant keywords.
+      - Priority 1: Direct card last-4 digits match.
+      - Priority 2: Octopus brand matching.
+      - Priority 3: BOC Go / UnionPay match.
+      - Priority 4: Dedicated payment wallets (PayMe, Alipay, WeChat, FPS, etc.).
+      - Priority 5: Normalized substring matching.
+    - **Smart Learning & Auto-Persisting in Pending Payment Dialog**:
+      - When an unrecognized card/wallet notification arrives, the `PendingPaymentChoiceDialog` clearly presents the detected identifier (`payment.assetHint` / `payment.cardLast4`).
+      - Defaults `rememberChoice` to `true`.
+      - When confirmed with `rememberChoice = true`, `PendingPaymentStore.accept` automatically registers the identifier into the target account's `notificationAliases` and persists it to disk. Future notifications with that identifier match instantly with 100% deterministic zero-tap logging.
+    - **Management UI in Accounts Screen (`AccountsScreen.kt`)**:
+      - Added Material 3 Expressive **Notification Auto-Log Identifiers / Aliases Bento Card** to the account editing bottom sheet.
+      - Visualizes active alias tokens as `InputChip`s with deletion support (`✕`).
+      - Provides an `OutlinedTextField` + `FilledTonalButton` for adding custom aliases or keywords (with keyboard Done action).
+      - Displays an `AssistChip` quick shortcut to add card last 4 digits if not yet linked.
+      - Enabled `cardLast4` editing for all account types (including Cash and Debit accounts, perfect for physical Octopus card numbers).
+    - **Multi-locale Strings**: Added localized strings (`assets_notification_aliases_title`, `assets_notification_aliases_desc`, `assets_notification_aliases_empty`, `assets_notification_aliases_add_placeholder`, `assets_notification_aliases_add_btn`, `assets_notification_aliases_suggest_last4`) across all 5 resource directories (`values`, `values-zh-rHK`, `values-b+zh+Hant`, `values-zh-rTW`, `values-zh`).
+- **Verification**:
+  - **163 JVM unit tests passed** (`./gradlew testDebugUnitTest`), including new end-to-end tests: `customNotificationAliasesAutoMatchCustomNamedAccounts`, `addNotificationAliasAppendsCorrectly`, and `endToEndAliasLearningAutoLogsFutureNotifications`.
+  - `./gradlew assembleRelease` compiled successfully with R8 minification.
+  - Installed onto user's physical phone (Samsung Galaxy S24 Ultra `SM_S9280`) via `adb install -r -d` preserving all local data, launched cleanly with no errors.
+  - Codebase knowledge graph updated via `graphify update .`.
+
+### 2026-10-05: Octopus App Top-up Auto-Logging & Custom Card Name Auto-Matching
+- **Custom Account / Card Name Resilient Auto-Logging**:
+  - Resolved issue where custom card/account names (such as user naming their card `'octopus'` or `'八達通'`) failed to auto-log when receiving notifications with asset hints like `Smart Octopus` (from Samsung Wallet) or `八達通` / `Android版八達通` (from Octopus app).
+  - Implemented `PendingPaymentStore.findMatchingAccount`:
+    - Priority 1: Card last-4 digit match (matching `account.cardLast4` or name/nickname).
+    - Priority 2: Octopus brand matching (matches accounts named `octopus`, `Octopus`, `八達通`, `Smart Octopus`, or containing `octopus`/`八達通`, or cash wallet accounts).
+    - Priority 3: BOC Go / UnionPay hierarchical matching.
+    - Priority 4: Dedicated digital wallet & bank matching (PayMe, Alipay, WeChat, FPS, etc.).
+    - Priority 5: Normalized substring and token matching.
+  - Updated `rememberedAccountId` to automatically query `findMatchingAccount`, allowing first-time and custom-named cards to auto-log immediately without getting stalled in the pending choices sheet.
+  - Refined `canRememberChoice` to allow persistent bonding between custom account names and notifications, while still strictly rejecting generic ambiguous hints (like generic `Google Pay` or `HSBC` without card details).
+- **Octopus App Bank Transfer Top-Up Auto-Logging**:
+  - Supported real Octopus app notification from uploaded image: Title `八達通`, text `你已成功由銀行戶口轉賬 HKD 300.0 至八達通 *****1719。`.
+  - In `InterceptableApp`: Octopus app package (`com.octopuscards...`) now accepts authentic top-up notifications (`由銀行戶口轉賬`, `至八達通`, `增值`) even when title is `八達通`, while continuing to reject promotional/marketing notifications.
+  - In `PaymentNotificationListener`:
+    - Added `isOctopusTopUp` and regex patterns (`octopusTopUpBankTransfer`, `octopusTopUpGeneral`, `octopusTopUpEnglish`).
+    - Bypassed `nonExpenseChinese` / `isIrrelevantOctopusTitle` for legitimate Octopus top-up notifications.
+    - Updated `extractCardLast4` to support up to 8 masked characters (`*****1719` with 5 asterisks now deterministically extracts `1719`).
+    - Parse notification as `ParsedPayment` with `amount = 300.0`, `merchant = "銀行戶口轉賬至八達通"`, `assetName = "八達通"`, `cardLast4 = "1719"`, `isTopUp = true`.
+  - In `InMemoryDatabase`: Updated `insertNotificationExpenseIfAbsent` requirement to allow non-zero transactions (`transaction.amount != 0.0`), properly applying negative amount (`-300.0`) to increase account asset balance by `+300.0`.
+  - In `PendingPaymentStore`: Saved `isTopUp` state in `PendingPayment`, recording `amount = -payment.amount` and category `"Top-up"`.
+  - In `PendingPaymentChoiceDialog`: Displayed `+HK$` prefix for top-up amounts and unified `suggestedId` with `findMatchingAccount`.
+  - Added localized notification feedback strings (`nf_logged_topup_title`, `nf_logged_topup_message`) in English and all Traditional Chinese / Simplified Chinese variants.
+- **Verification**:
+  - **158 JVM unit tests passed** (`./gradlew testDebugUnitTest`), including new test cases `testOctopusBankTransferTopUpParsing`, `testExtractCardLast4WithFiveAsterisks`, and `testAutoLoggingWithCustomCardNameOctopus`.
+  - Successfully compiled debug and release builds (`./gradlew assembleDebug`, `./gradlew assembleRelease`).
+  - Successfully installed release APK on Waydroid (`192.168.240.112:5555`).
+  - Codebase knowledge graph updated via `graphify update .`.
+
+### 2026-10-05: Daily Cards Arrive When They Become Visible
+- Daily now gives all ten card/widget surfaces a 320ms fade, 20dp upward arrival and subtle 98.5% → 100% scale. Initially visible cards have a capped 0–110ms stagger; lower cards start only when their own measured window bounds overlap the visible viewport. The two bento rows retain their original heights, weights and spacing, and their four cards track visibility separately.
+- New `DailyCardEntrance` keeps layout slots intact, animates only graphics layers, and stores revealed IDs at page scope. Lazy prefetch does not consume an entrance; financial-state updates and scrolling back after lazy disposal do not replay it. A fresh Daily visit gets a fresh state. Lifecycle STARTED gates effects and disabled system animation scale snaps to the final state.
+- MainScreen supplies the actual top-bar and moving bottom-navigation occlusion insets, retaining a minimum inset for the permanent system navigation bar. Stable LazyColumn item keys cover hero, period, bento, transaction summary, spending chart, category chart, calendar and bottom spacer.
+- Verification: Debug, Android-test and Release (lint/R8) builds passed; **155 JVM tests** and **5 Waydroid UI tests passed**. New full-Home integration test checks initial/mid/final opacity, a previously offscreen bento child's arrival, measured slot size, click callback, financial updates and return after lazy disposal. Four existing budget-wave/shape tests also pass. Paused-clock high-level scroll search was replaced with semantic ScrollBy plus explicit frame advancement; clipped viewport bounds are compared separately from measured dimensions.
+- ARTEMIS screenshots + ADB explored the real Daily startup/statistics/chart path before test authoring. Cold-start and margin-scroll recording verified all sections through the calendar/heatmap without editing finance data. Evidence, test stages, logs, checksums and latest APKs: `captures/daily-card-arrival-2026-10-05/`. Matching-signed Debug updated in place on Waydroid; final app state is Traditional Chinese, Light, Daily at the top.
+
+### 2026-10-05: Smooth Assets Indicator & Card Payment Networks
+- Assets/Cards category underline now uses a 220ms tween instead of the bouncy spring. The four-option widths and targets remain; a live Waydroid recording and 156 detected indicator frames confirm monotonic movement to Credit and back through Debit/Assets/All without overshoot (`indicator-frame-analysis.json`). Button shapes and their focus motion are independent of this underline.
+- Card Design no longer exposes an Issuer field or issuer preview. Payment network is full-width with None / Visa / Mastercard / UnionPay / JCB. Existing `unionpay` and `jcb` values restore correctly; saving uses lowercase values. Added readable UnionPay/JCB badges to the shared card protocol rendering, and changed the English field label to Payment network. Existing issuer metadata survives editing; new accounts receive no issuer. No schema migration is needed for the existing nullable string fields.
+- Verification: Debug, Android-test and Release (lint/R8) builds passed; **155 JVM tests** and **2 focused Waydroid UI tests passed**. The new CardPaymentNetworkEditorTest saves UnionPay then JCB and reopens the actual AccountsScreen editor, checks the selected value, absent Issuer field and preserved legacy issuer/balance/bank fixture. DebitCardFilterTest verifies category counts and selection.
+- ARTEMIS screenshots + ADB explored Card Design and its payment menu before test authoring, then verified the live updated menu and both previews. Only fixture state was saved by UI tests; live financial drafts were cancelled. Matching-signed Debug installed in place on Waydroid. Artifacts and latest APK: `captures/card-network-editor-2026-10-05/`.
+
+### 2026-10-05: Debit Cards Filter in Assets & Cards
+- Added the fourth connected option: All accounts / Assets / Debit Cards / Credit Cards, with per-category counts. Debit Cards selects only `AccountType.DEBIT`; Assets retains the existing non-credit-card scope, including debit accounts. The four-option indicator, equal widths and native connected shapes adapt to the new option.
+- Added `Debit Cards` / `扣帳卡` in English and all four Traditional Chinese resource variants. Resource parity passed with **797 keys**, no duplicates or format mismatch.
+- Verification: all **155 JVM tests** and **24 Waydroid Android UI tests passed**. The mixed-account unit fixture checks the exact debit subset; the new real AccountsScreen UI fixture verifies four counts and Debit → Credit → All selection. Existing Light motion, native shapes and History regressions also pass. Live Chinese Light/Dark screens and selection were explored with ARTEMIS screenshots and ADB before test authoring.
+- Debug, Android-test and Release builds passed, including Release lint/R8. The release-certificate-signed debug build was updated in place on Waydroid `192.168.240.112:5555`; no financial records were created or removed. Final app state is Traditional Chinese, Light theme, Assets / All accounts. The physical Samsung phone was not updated by these two changes.
+- Latest APKs, checksums, screenshots, video, build/test logs and report: `captures/debit-filter-2026-10-05/`. `app-release.apk` includes both the debit filter and the Dark feedback fix below.
+
+### 2026-10-05: Dark Connected-Button Press Shapes & Neutral Bounded Ripples
+- Dark connected-button fill/text colors now follow selection only; holding an unchecked button no longer starts its primary-color crossfade. Release still commits selection, with the existing selection crossfade. Light focus color motion remains unchanged.
+- Native connected buttons in History/Assets and the appended Add control use a component-scoped neutral-gray Material ripple. Custom entry, recurring, calendar and spending-chart groups explicitly use the same bounded gray ripple in Dark mode.
+- Fixed the legacy group's unchecked middle button having identical resting/pressed corners (8dp/8dp): the pressed target is now 6dp. Daily spending-chart pills now animate from half their measured height to 6dp while held, retaining their existing dimensions and font-scale behavior.
+- Debug, Android-test and Release builds (including Release lint/R8) passed; all **155 JVM tests** and the final **24 Android UI tests passed** on the user's selected Waydroid. Three new regressions verify native/Main/Recurring leading, middle and trailing unchecked shapes, neutral gray bounded ripple, no selection during hold, cancellation restoration, and release-only callbacks. Android ripple uses real RenderThread time, so tests explicitly wait 400ms in addition to the controlled Compose clock; the initial timing failures and final passing output are retained.
+- ARTEMIS Pro exploration encountered service rate limits and was stopped after observing the theme path. Direct ARTEMIS screenshots with ADB continued live Assets, Recurring, entry-category and Daily chart hold/cancel exploration before test authoring. Static peer review found no blocking issue. Waydroid was updated in place without clearing data; the Samsung phone was not changed.
+- Original build artifacts and live feedback screenshots: `captures/dark-connected-feedback-2026-10-05/`. Final device test output and latest APKs including the debit filter: `captures/debit-filter-2026-10-05/`.
+
 ### 2026-10-04: Samsung Wallet BOC Go UnionPay Card ("BOC Go unionpay Diamond Card") Auto-Recognition & Transit Logging
 - **Problem**: When Samsung Wallet (`com.samsung.android.spay`) posted a transit ticket notification with title `BOC Go unionpay Diamond Card` and text `transit-ticket THE KOWLOOHHONGKONG HKG HK$3.60`, the app failed to recognize and bind the transaction to the user's BOC Go card account.
 - **Root Cause**:

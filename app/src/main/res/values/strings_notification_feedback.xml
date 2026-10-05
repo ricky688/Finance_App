@@ -9,4 +9,6 @@
     <string name="nf_logged_balance_suffix">" (Balance: $%1$.2f)"</string>
     <string name="nf_logged_expense_title">Automatically Logged Expense</string>
     <string name="nf_logged_expense_message">Logged $%1$.2f at %2$s to %3$s%4$s</string>
+    <string name="nf_logged_topup_title">Automatically Logged Top-up</string>
+    <string name="nf_logged_topup_message">Logged +$%1$.2f %2$s to %3$s%4$s</string>
 </resources>

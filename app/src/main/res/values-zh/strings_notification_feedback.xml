@@ -9,4 +9,6 @@
     <string name="nf_logged_balance_suffix">（餘額：$%1$.2f）</string>
     <string name="nf_logged_expense_title">已自動記錄支出</string>
     <string name="nf_logged_expense_message">已將於 %2$s 消費的 $%1$.2f 記入 %3$s%4$s</string>
+    <string name="nf_logged_topup_title">已自动记录充值</string>
+    <string name="nf_logged_topup_message">已将 %2$s 的 +$%1$.2f 计入 %3$s%4$s</string>
 </resources>

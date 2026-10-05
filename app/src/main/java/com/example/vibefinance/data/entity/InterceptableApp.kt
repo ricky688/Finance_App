@@ -145,9 +145,11 @@ enum class InterceptableApp(
         // If specific channel/title required (e.g. Octopus app payment alerts vs wallet promos, WeChat / LINE chat)
         if (requiredTitleKeywords.isNotEmpty()) {
             val titleMatches = if (this == OCTOPUS) {
-                // For Octopus app, strictly require title to identify Android Octopus / Smart Octopus
-                // to reject all irrelevant promo, wallet, and marketing notifications.
-                requiredTitleKeywords.any { kw -> lowerTitle.contains(kw.lowercase(Locale.US)) }
+                // For Octopus app, accept Android Octopus, Smart Octopus, OR authentic top-up notifications
+                val isOctopusTopUp = (lowerTitle.contains("八達通") || lowerTitle.contains("octopus")) &&
+                    (lowerText.contains("轉賬") || lowerText.contains("轉帳") || lowerText.contains("增值") ||
+                     lowerText.contains("充值") || lowerText.contains("儲值") || lowerText.contains("top-up") || lowerText.contains("topped up"))
+                requiredTitleKeywords.any { kw -> lowerTitle.contains(kw.lowercase(Locale.US)) } || isOctopusTopUp
             } else {
                 requiredTitleKeywords.any { kw ->
                     val kwLower = kw.lowercase(Locale.US)

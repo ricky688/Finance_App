@@ -63,32 +63,10 @@ internal fun PendingPaymentChoiceDialog(
         }.getOrDefault(payment.sourcePackage)
     }
     val suggestedId = remember(payment.id, payment.cardLast4, accounts) {
-        if (!payment.cardLast4.isNullOrBlank()) {
-            val matchingAccount = accounts.firstOrNull { it.cardLast4 == payment.cardLast4 }
-            if (matchingAccount != null) {
-                return@remember matchingAccount.id
-            }
-        }
-        val hintLower = payment.assetHint.trim().lowercase(Locale.ROOT)
-        if (hintLower in setOf("smart octopus", "octopus", "八達通", "android版八達通")) {
-            val octopusAccount = accounts.firstOrNull { account ->
-                val name = account.name.trim().lowercase(Locale.ROOT)
-                name in setOf("smart octopus", "octopus", "八達通", "android版八達通", "手機八達通", "wallet", "wallet (cash)", "現金", "錢包")
-            } ?: accounts.firstOrNull { it.type == AccountType.CASH }
-            if (octopusAccount != null) return@remember octopusAccount.id
-        }
-        if (PendingPaymentStore.isBocGoHint(payment.assetHint)) {
-            val bocAccount = PendingPaymentStore.findBocGoMatch(accounts)
-            if (bocAccount != null) return@remember bocAccount.id
-        }
-        accounts.firstOrNull { account ->
-            account.name.equals(payment.assetHint, ignoreCase = true)
-        }?.id ?: accounts.firstOrNull { account ->
-            payment.assetHint.contains(account.name, ignoreCase = true)
-        }?.id
+        PendingPaymentStore.findMatchingAccount(payment, accounts)?.id
     }
     var selectedId by remember(payment.id, suggestedId) { mutableStateOf(suggestedId) }
-    var rememberChoice by remember(payment.id) { mutableStateOf(false) }
+    var rememberChoice by remember(payment.id) { mutableStateOf(true) }
     val sortedAccounts = remember(accounts) {
         accounts.sortedWith(compareBy<AccountEntity>({
             when (it.type) {
@@ -100,7 +78,11 @@ internal fun PendingPaymentChoiceDialog(
         }, { it.name.lowercase(Locale.getDefault()) }))
     }
     val selectedAccount = sortedAccounts.firstOrNull { it.id == selectedId }
-    val canRemember = selectedAccount?.let { PendingPaymentStore.canRememberChoice(payment, it) } == true
+    val canRemember = selectedAccount?.let {
+        PendingPaymentStore.canRememberChoice(payment, it) ||
+            !payment.cardLast4.isNullOrBlank() ||
+            (!payment.assetHint.isBlank() && !PendingPaymentStore.isGenericHint(payment.assetHint))
+    } == true
 
     AlertDialog(
         onDismissRequest = { if (!saving) onLater() },
@@ -126,8 +108,9 @@ internal fun PendingPaymentChoiceDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(Modifier.padding(16.dp)) {
+                        val amountPrefix = if (payment.isTopUp) "+HK$" else "HK$"
                         Text(
-                            text = "HK$${String.format(Locale.getDefault(), "%,.2f", payment.amount)}",
+                            text = "$amountPrefix${String.format(Locale.getDefault(), "%,.2f", payment.amount)}",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer

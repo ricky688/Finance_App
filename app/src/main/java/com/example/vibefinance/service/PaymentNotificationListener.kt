@@ -120,7 +120,8 @@ class PaymentNotificationListener : NotificationListenerService() {
         val detectedAt: Long = System.currentTimeMillis(),
         val notificationKey: String = "",
         val cardLast4: String? = null,
-        val balanceRemaining: Double? = null
+        val balanceRemaining: Double? = null,
+        val isTopUp: Boolean = false
     )
 
     companion object {
@@ -182,6 +183,23 @@ class PaymentNotificationListener : NotificationListenerService() {
             "(?i)\\b(?:BOC\\s+Go|中銀\\s*Go)\\b(?:.*\\bUnion\\s*Pay\\b)?"
         )
         private val transitTicketLabel = Regex("\\btransit[-\\s]+ticket\\b", RegexOption.IGNORE_CASE)
+        val octopusTopUpBankTransfer = Regex(
+            "(?i)(?:你已成功)?由銀行戶口轉[賬帳]\\s*(?:HKD|HK\\$|\\$)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*至八達通(?:\\s*[*•●xX-]{1,8}(\\d{4}))?"
+        )
+        val octopusTopUpGeneral = Regex(
+            "(?i)(?:已成功|成功|已)?(?:自動)?(?:增值|充值|儲值)\\s*(?:八達通)?(?:\\s*[*•●xX-]{1,8}(\\d{4}))?\\s*(?:HKD|HK\\$|\\$)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)"
+        )
+        val octopusTopUpEnglish = Regex(
+            "(?i)(?:successfully\\s+)?(?:transferred|topped[- ]?up)\\s*(?:HKD|HK\\$|\\$)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*(?:from\\s+bank\\s+account\\s+)?to\\s+octopus(?:\\s*[*•●xX-]{1,8}(\\d{4}))?"
+        )
+
+        fun isOctopusTopUp(title: String, text: String): Boolean {
+            val combined = "$title $text"
+            return octopusTopUpBankTransfer.containsMatchIn(combined) ||
+                octopusTopUpGeneral.containsMatchIn(combined) ||
+                octopusTopUpEnglish.containsMatchIn(combined) ||
+                (combined.contains("八達通") && (combined.contains("由銀行戶口轉賬") || combined.contains("由銀行戶口轉帳")))
+        }
 
         /** Bank card transit alerts omit an outgoing verb but identify a card, merchant, and spend. */
         private fun isBocGoUnionPayTransitPurchase(title: String, text: String): Boolean {
@@ -198,6 +216,10 @@ class PaymentNotificationListener : NotificationListenerService() {
          * Rejects non-expense bank alerts as well as OTPs, login notices, and promotions.
          */
         fun isPaymentNotification(title: String, text: String): Boolean {
+            if (isOctopusTopUp(title, text)) {
+                return true
+            }
+
             val combined = "$title $text".lowercase(Locale.US)
 
             // A banking app may mention "payment" in a refund, deposit, or incoming
@@ -266,9 +288,9 @@ class PaymentNotificationListener : NotificationListenerService() {
             )
             explicitPattern.find(combined)?.groupValues?.get(1)?.let { return it }
 
-            // 2. Masked card pattern: ••1234, **** 1234, x-1234, ...1234, -1234
+            // 2. Masked card pattern: ••1234, **** 1234, *****1234, x-1234, ...1234, -1234
             val maskedPattern = Regex(
-                "(?:[•●*xX]{1,4}|-)\\s*([0-9]{4})(?!\\d)"
+                "(?:[•●*xX]{1,8}|-)\\s*([0-9]{4})(?!\\d)"
             )
             maskedPattern.find(combined)?.groupValues?.get(1)?.let { return it }
 
@@ -303,6 +325,61 @@ class PaymentNotificationListener : NotificationListenerService() {
 
             // Deterministic card last-4 extraction from real notification text
             val detectedCardLast4 = extractCardLast4(text, title)
+
+            // 0. Octopus top-up parsing (e.g. "你已成功由銀行戶口轉賬 HKD 300.0 至八達通 *****1719。")
+            if (isOctopusTopUp(title, text)) {
+                var amount: Double? = null
+                var topUpCardLast4: String? = detectedCardLast4
+
+                val m1 = octopusTopUpBankTransfer.find("$title $text")
+                if (m1 != null) {
+                    amount = m1.groupValues[1].replace(",", "").toDoubleOrNull()
+                    if (topUpCardLast4 == null && m1.groupValues.size > 2 && m1.groupValues[2].isNotBlank()) {
+                        topUpCardLast4 = m1.groupValues[2]
+                    }
+                }
+                if (amount == null) {
+                    val m2 = octopusTopUpGeneral.find("$title $text")
+                    if (m2 != null) {
+                        if (topUpCardLast4 == null && m2.groupValues.size > 1 && m2.groupValues[1].isNotBlank()) {
+                            topUpCardLast4 = m2.groupValues[1]
+                        }
+                        amount = m2.groupValues.lastOrNull()?.replace(",", "")?.toDoubleOrNull()
+                    }
+                }
+                if (amount == null) {
+                    val m3 = octopusTopUpEnglish.find("$title $text")
+                    if (m3 != null) {
+                        amount = m3.groupValues[1].replace(",", "").toDoubleOrNull()
+                        if (topUpCardLast4 == null && m3.groupValues.size > 2 && m3.groupValues[2].isNotBlank()) {
+                            topUpCardLast4 = m3.groupValues[2]
+                        }
+                    }
+                }
+                if (amount == null) {
+                    val m4 = localCurrencyAmount.find(text) ?: localCurrencyAmount.find(title)
+                    if (m4 != null) {
+                        amount = (m4.groupValues[1].ifEmpty { m4.groupValues[2] }).replace(",", "").toDoubleOrNull()
+                    }
+                }
+
+                if (amount != null && amount > 0.0) {
+                    val merchant = if (text.contains("增值") || title.contains("增值")) {
+                        "八達通增值"
+                    } else if (text.contains("轉賬") || text.contains("轉帳")) {
+                        "銀行戶口轉賬至八達通"
+                    } else {
+                        "八達通增值"
+                    }
+                    return ParsedPayment(
+                        amount = amount,
+                        merchant = merchant,
+                        assetName = "八達通",
+                        cardLast4 = topUpCardLast4 ?: detectedCardLast4,
+                        isTopUp = true
+                    )
+                }
+            }
 
             val combined = "$title $text".lowercase(Locale.US)
             val isOctopusAppPackage = packageName.contains("com.octopuscards", ignoreCase = true) ||
@@ -501,7 +578,19 @@ class PaymentNotificationListener : NotificationListenerService() {
                     val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull()
                     if (amount != null && amount > 0.0) {
                         val merchant = text.substring(0, amountMatch.range.first).trim().trimEnd { it == '$' || it == 'K' || it == 'H' || it == ' ' }.trim()
-                        val assetName = if (title.isNotBlank()) title.trim() else "Samsung Wallet"
+                        val isOctopus = text.contains("octopus", ignoreCase = true) ||
+                            text.contains("八達通") ||
+                            text.contains("八逹通") ||
+                            title.contains("octopus", ignoreCase = true) ||
+                            title.contains("八達通") ||
+                            title.contains("八逹通") ||
+                            merchant.contains("OCTOPUS", ignoreCase = true) ||
+                            merchant.startsWith("OCL*", ignoreCase = true)
+                        val assetName = when {
+                            isOctopus -> "Smart Octopus"
+                            title.isNotBlank() -> title.trim()
+                            else -> "Samsung Wallet"
+                        }
                         return ParsedPayment(amount, if (merchant.isBlank()) "Samsung Wallet Merchant" else merchant, assetName, cardLast4 = detectedCardLast4)
                     }
                 }
@@ -568,6 +657,10 @@ class PaymentNotificationListener : NotificationListenerService() {
         fun determineCategory(merchant: String, titleText: String = ""): String {
             val combined = "$merchant $titleText".lowercase(Locale.US)
             return when {
+                combined.contains("增值") || combined.contains("充值") || combined.contains("儲值") ||
+                combined.contains("轉賬至八達通") || combined.contains("轉帳至八達通") || combined.contains("至八達通") ||
+                combined.contains("top-up") || combined.contains("top up") -> "Top-up"
+
                 combined.contains("sushiro") || combined.contains("壽司郎") ||
                 combined.contains("mcdonald") || combined.contains("麥當勞") ||
                 combined.contains("starbucks") || combined.contains("星巴克") ||
@@ -633,12 +726,13 @@ class PaymentNotificationListener : NotificationListenerService() {
                 detectedAt = payment.detectedAt,
                 notificationKey = payment.notificationKey,
                 cardLast4 = payment.cardLast4,
-                balanceRemaining = payment.balanceRemaining
+                balanceRemaining = payment.balanceRemaining,
+                isTopUp = payment.isTopUp
             ) ?: return false
             val rememberedId = PendingPaymentStore.rememberedAccountId(context, queued)
             val rememberedAccount = InMemoryDatabase.accounts.value.firstOrNull { it.id == rememberedId }
             if (rememberedAccount != null && PendingPaymentStore.accept(context, queued.id, rememberedAccount.id, true)) {
-                showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining)
+                showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining, queued.isTopUp)
             }
             return true
         }
@@ -660,7 +754,14 @@ class PaymentNotificationListener : NotificationListenerService() {
             return consolidated
         }
 
-        private fun showLoggedNotification(context: Context, amount: Double, merchant: String, assetName: String, balanceRemaining: Double? = null) {
+        private fun showLoggedNotification(
+            context: Context,
+            amount: Double,
+            merchant: String,
+            assetName: String,
+            balanceRemaining: Double? = null,
+            isTopUp: Boolean = false
+        ) {
             val channelId = "payment_logging"
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -687,9 +788,19 @@ class PaymentNotificationListener : NotificationListenerService() {
             val balanceSuffix = if (balanceRemaining != null) {
                 context.appString(R.string.nf_logged_balance_suffix, balanceRemaining)
             } else ""
+            val titleStr = if (isTopUp) {
+                context.appString(R.string.nf_logged_topup_title)
+            } else {
+                context.appString(R.string.nf_logged_expense_title)
+            }
+            val contentStr = if (isTopUp) {
+                context.appString(R.string.nf_logged_topup_message, amount, merchant, assetName, balanceSuffix)
+            } else {
+                context.appString(R.string.nf_logged_expense_message, amount, merchant, assetName, balanceSuffix)
+            }
             val notification = Notification.Builder(context, channelId)
-                .setContentTitle(context.appString(R.string.nf_logged_expense_title))
-                .setContentText(context.appString(R.string.nf_logged_expense_message, amount, merchant, assetName, balanceSuffix))
+                .setContentTitle(titleStr)
+                .setContentText(contentStr)
                 .setSmallIcon(android.R.drawable.ic_menu_save)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)

@@ -540,6 +540,14 @@ class PaymentNotificationListenerTest {
         org.junit.Assert.assertFalse(weChat.matches("com.tencent.mm", "Friend", "Hey check this out"))
         // Official WeChat Pay notification MUST match
         org.junit.Assert.assertTrue(weChat.matches("com.tencent.mm", "微信支付", "已付款 HK$50.00"))
+
+        val octopus = com.example.vibefinance.data.entity.InterceptableApp.OCTOPUS
+        // Real Octopus top-up alert MUST match
+        org.junit.Assert.assertTrue(octopus.matches("com.octopuscards.nfc_reader", "八達通", "你已成功由銀行戶口轉賬 HKD 300.0 至八達通 *****1719。"))
+        // Android Octopus MUST match
+        org.junit.Assert.assertTrue(octopus.matches("com.octopuscards.nfc_reader", "Android版八達通", "八達通: 在 港鐵 支付 HKD 4.9。餘額: HKD 90.8"))
+        // Irrelevant promotional Octopus alert must NOT match
+        org.junit.Assert.assertFalse(octopus.matches("com.octopuscards.nfc_reader", "八達通", "【最新推廣】在 麥當勞 支付享 $10 回贈"))
     }
 
     @Test
@@ -720,6 +728,219 @@ class PaymentNotificationListenerTest {
             val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
             assertNull("Must NOT parse non-Android Octopus alert from Octopus app (title: $title)", parsed)
         }
+    }
+
+    @Test
+    fun testOctopusBankTransferTopUpParsing() {
+        val pkg = "com.octopuscards.nfc_reader"
+        val title = "八達通"
+        val text = "你已成功由銀行戶口轉賬 HKD 300.0 至八達通 *****1719。"
+
+        assertTrue("Top-up notification must pass guard", PaymentNotificationListener.isPaymentNotification(title, text))
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Top-up notification must be parsed", parsed)
+        assertEquals(300.0, parsed!!.amount, 0.001)
+        assertEquals("銀行戶口轉賬至八達通", parsed.merchant)
+        assertEquals("八達通", parsed.assetName)
+        assertEquals("1719", parsed.cardLast4)
+        assertTrue("isTopUp must be true", parsed.isTopUp)
+        assertEquals("Top-up", PaymentNotificationListener.determineCategory(parsed.merchant))
+
+        // Variant with 轉帳
+        val parsed2 = PaymentNotificationListener.parseNotification(title, "你已成功由銀行戶口轉帳 HKD 500.0 至八達通 *****1719。", pkg)
+        assertNotNull(parsed2)
+        assertEquals(500.0, parsed2!!.amount, 0.001)
+        assertEquals("1719", parsed2.cardLast4)
+        assertTrue(parsed2.isTopUp)
+
+        // Variant with English
+        val parsedEn = PaymentNotificationListener.parseNotification("Octopus", "Successfully transferred HKD 300.0 from bank account to Octopus *****1719.", pkg)
+        assertNotNull(parsedEn)
+        assertEquals(300.0, parsedEn!!.amount, 0.001)
+        assertEquals("1719", parsedEn.cardLast4)
+        assertTrue(parsedEn.isTopUp)
+    }
+
+    @Test
+    fun testExtractCardLast4WithFiveAsterisks() {
+        val last4 = PaymentNotificationListener.extractCardLast4("至八達通 *****1719。")
+        assertEquals("1719", last4)
+    }
+
+    @Test
+    fun testAutoLoggingWithCustomCardNameOctopus() {
+        val octopusAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 42L,
+            name = "octopus",
+            type = AccountType.CASH,
+            balance = 100.0,
+            icon = "account_balance_wallet"
+        )
+        val accounts = listOf(octopusAccount)
+
+        // 1. Smart Octopus from Samsung Wallet
+        val samsungPayment = PendingPayment(
+            id = "test1",
+            fingerprint = "fp1",
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "Smart Octopus",
+            merchant = "OCL* OCTOPUS AD1741037",
+            amount = 15.0,
+            detectedAt = System.currentTimeMillis()
+        )
+        val matchedSamsung = PendingPaymentStore.findMatchingAccount(samsungPayment, accounts)
+        assertNotNull("Should match account named 'octopus'", matchedSamsung)
+        assertEquals(42L, matchedSamsung!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(samsungPayment, matchedSamsung))
+
+        // 2. Octopus Top-up from Octopus App
+        val topUpPayment = PendingPayment(
+            id = "test2",
+            fingerprint = "fp2",
+            sourcePackage = "com.octopuscards.nfc_reader",
+            assetHint = "八達通",
+            merchant = "銀行戶口轉賬至八達通",
+            amount = 300.0,
+            detectedAt = System.currentTimeMillis(),
+            cardLast4 = "1719",
+            isTopUp = true
+        )
+        val matchedTopUp = PendingPaymentStore.findMatchingAccount(topUpPayment, accounts)
+        assertNotNull("Should match account named 'octopus'", matchedTopUp)
+        assertEquals(42L, matchedTopUp!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(topUpPayment, matchedTopUp))
+    }
+
+    @Test
+    fun customNotificationAliasesAutoMatchCustomNamedAccounts() {
+        // Account with a completely non-standard custom name
+        val customAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 99L,
+            name = "主力消費卡",
+            type = AccountType.CC,
+            balance = 0.0,
+            icon = "credit_card",
+            notificationAliases = "BOC Go unionpay Diamond Card, 4832"
+        )
+        val accounts = listOf(customAccount)
+
+        // 1. Payment matching by full card alias
+        val bocPayment = PendingPayment(
+            id = "boc1",
+            fingerprint = "fp_boc1",
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "BOC Go unionpay Diamond Card",
+            merchant = "transit-ticket THE KOWLOON HKG",
+            amount = 3.60,
+            detectedAt = System.currentTimeMillis()
+        )
+        val matchedBoc = PendingPaymentStore.findMatchingAccount(bocPayment, accounts)
+        assertNotNull(matchedBoc)
+        assertEquals(99L, matchedBoc!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(bocPayment, matchedBoc))
+
+        // 2. Payment matching by last 4 alias
+        val cardPayment = PendingPayment(
+            id = "boc2",
+            fingerprint = "fp_boc2",
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "Credit Card",
+            merchant = "McDonald's",
+            amount = 45.0,
+            detectedAt = System.currentTimeMillis(),
+            cardLast4 = "4832"
+        )
+        val matchedByLast4 = PendingPaymentStore.findMatchingAccount(cardPayment, accounts)
+        assertNotNull(matchedByLast4)
+        assertEquals(99L, matchedByLast4!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(cardPayment, matchedByLast4))
+    }
+
+    @Test
+    fun addNotificationAliasAppendsCorrectly() {
+        val initialAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 50L,
+            name = "My Octopus",
+            type = AccountType.DEBIT,
+            balance = 100.0,
+            icon = "wallet",
+            notificationAliases = "Smart Octopus"
+        )
+        val updated = PendingPaymentStore.addNotificationAlias(initialAccount, "1719")
+        assertEquals("Smart Octopus, 1719", updated.notificationAliases)
+        assertEquals(listOf("Smart Octopus", "1719"), updated.getNotificationAliasList())
+
+        // Duplicate addition is a no-op
+        val unchanged = PendingPaymentStore.addNotificationAlias(updated, "smart octopus")
+        assertEquals("Smart Octopus, 1719", unchanged.notificationAliases)
+    }
+
+    @Test
+    fun endToEndAliasLearningAutoLogsFutureNotifications() {
+        // User sets up account with a completely custom non-matching name
+        val customAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 777L,
+            name = "個人日常開支卡",
+            type = AccountType.CASH,
+            balance = 500.0,
+            icon = "wallet"
+        )
+
+        // 1. First alert comes in from Samsung Wallet with Smart Octopus
+        val pending1 = PendingPayment(
+            id = "test_p1",
+            fingerprint = "fp_p1",
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "Smart Octopus",
+            merchant = "7-Eleven HK",
+            amount = 18.5,
+            detectedAt = System.currentTimeMillis() - 1000L,
+            cardLast4 = "1719"
+        )
+
+        // 2. User simulates learning alias (e.g. via addNotificationAlias)
+        val learnedAccount = PendingPaymentStore.addNotificationAlias(
+            PendingPaymentStore.addNotificationAlias(customAccount, pending1.assetHint),
+            pending1.cardLast4!!
+        )
+        val updatedAccounts = listOf(learnedAccount)
+
+        assertTrue(
+            "Account should have 'Smart Octopus' and '1719' in notificationAliases",
+            learnedAccount.getNotificationAliasList().contains("Smart Octopus") &&
+                learnedAccount.getNotificationAliasList().contains("1719")
+        )
+
+        // 3. Second notification comes in from Samsung Wallet -> auto-matched!
+        val payment2 = PendingPayment(
+            id = "auto2",
+            fingerprint = "fp_auto2",
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "Smart Octopus",
+            merchant = "MTR",
+            amount = 4.5,
+            detectedAt = System.currentTimeMillis()
+        )
+        val matched2 = PendingPaymentStore.findMatchingAccount(payment2, updatedAccounts)
+        assertNotNull("Should auto-match via learned alias", matched2)
+        assertEquals(777L, matched2!!.id)
+
+        // 4. Third notification comes in from Octopus App (e.g. top-up with last 4: 1719) -> auto-matched!
+        val payment3 = PendingPayment(
+            id = "auto3",
+            fingerprint = "fp_auto3",
+            sourcePackage = "com.octopuscards.nfc_reader",
+            assetHint = "八達通",
+            merchant = "增值八達通",
+            amount = 100.0,
+            detectedAt = System.currentTimeMillis(),
+            cardLast4 = "1719",
+            isTopUp = true
+        )
+        val matched3 = PendingPaymentStore.findMatchingAccount(payment3, updatedAccounts)
+        assertNotNull("Should auto-match via learned cardLast4 alias", matched3)
+        assertEquals(777L, matched3!!.id)
     }
 }
 

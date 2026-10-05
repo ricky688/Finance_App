@@ -79,6 +79,7 @@
     <string name="asset_filter_all">All accounts</string>
     <string name="asset_filter_cash_bank">Assets</string>
     <string name="asset_filter_credit_cards">Credit Cards</string>
+    <string name="asset_filter_debit_cards">Debit Cards</string>
     <string name="net_worth_title">Total Net Worth</string>
     <string name="liquid_assets">Liquid Assets</string>
     <string name="credit_cards_debt">Credit Cards</string>
