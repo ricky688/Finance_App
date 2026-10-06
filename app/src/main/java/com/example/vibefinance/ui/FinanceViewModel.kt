@@ -1,6 +1,8 @@
 package com.example.vibefinance.ui
 
 import com.example.vibefinance.R
+import com.example.vibefinance.data.entity.CategoryKind
+import com.example.vibefinance.data.entity.CategoryMergeRules
 import com.example.vibefinance.util.appString
 import com.example.vibefinance.util.resolveAppLocale
 import androidx.lifecycle.ViewModel
@@ -61,6 +63,8 @@ data class FinanceUiState(
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val subscriptions: List<SubscriptionEntity> = emptyList(),
     val categoryLimits: Map<String, Double> = emptyMap(),
+    val categoryMergeRules: CategoryMergeRules = CategoryMergeRules(),
+    val isMergingCategories: Boolean = false,
     val discountShops: List<DiscountShop> = emptyList(),
     val importPreview: FinancialDataImportEngine.ImportDataPreview? = null,
     val isImporting: Boolean = false,
@@ -111,6 +115,7 @@ sealed interface FinanceIntent {
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
     data class DeleteSubscription(val sub: SubscriptionEntity, val deletePastTransactions: Boolean = false) : FinanceIntent
+    data class MergeCategories(val kind: CategoryKind, val sources: Set<String>, val target: String) : FinanceIntent
     data class SetCategoryLimit(val category: String, val limit: Double?) : FinanceIntent
     data class SaveDiscountShop(val shop: DiscountShop) : FinanceIntent
     data class DeleteDiscountShop(val shop: DiscountShop) : FinanceIntent
@@ -218,6 +223,11 @@ class FinanceViewModel @Inject constructor(
                     }
                 }
 
+                viewModelScope.launch {
+                    com.example.vibefinance.data.InMemoryDatabase.categoryMergeRules.collect { rules ->
+                        _uiState.update { it.copy(categoryMergeRules = rules) }
+                    }
+                }
                 // Reactive subscription to category limits list flow
                 viewModelScope.launch {
                     com.example.vibefinance.data.InMemoryDatabase.categoryLimits.collect { limitsMap ->
@@ -476,6 +486,20 @@ class FinanceViewModel @Inject constructor(
                         }
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                    }
+                }
+                is FinanceIntent.MergeCategories -> {
+                    if (_uiState.value.isMergingCategories) return@launch
+                    _uiState.update { it.copy(isMergingCategories = true) }
+                    try {
+                        withContext(Dispatchers.IO) {
+                            com.example.vibefinance.data.InMemoryDatabase.mergeCategories(intent.kind, intent.sources, intent.target)
+                        }
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.category_merge_success)))
+                    } catch (e: Exception) {
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.category_merge_failed)))
+                    } finally {
+                        _uiState.update { it.copy(isMergingCategories = false) }
                     }
                 }
                 is FinanceIntent.SetCategoryLimit -> {

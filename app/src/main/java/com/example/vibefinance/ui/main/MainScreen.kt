@@ -2,6 +2,11 @@
 
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import com.example.vibefinance.ui.components.completePressShape
+
+import com.example.vibefinance.ui.components.CompletePressButton
+
 import com.example.vibefinance.ui.common.horizontalFadingEdge
 import com.example.vibefinance.ui.common.verticalFadingEdge
 import com.example.vibefinance.ui.common.responsiveVerticalFadingEdge
@@ -77,9 +82,7 @@ import androidx.compose.ui.draw.shadow
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import kotlinx.coroutines.Job
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalView
@@ -207,6 +210,9 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
+import com.example.vibefinance.ui.home.LocalAmbientMotionEnabled
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.runtime.DisposableEffect
@@ -319,6 +325,7 @@ private fun ExpressiveCollapsingTopBar(
     state: FinanceUiState,
     isExpanded: Boolean,
     hazeState: HazeState,
+    backgroundObscured: Boolean,
     onHeightMeasured: (Float) -> Unit,
     actions: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
@@ -346,7 +353,8 @@ private fun ExpressiveCollapsingTopBar(
             .onGloballyPositioned { onHeightMeasured(it.size.height.toFloat()) }
             .hazeEffect(
                 state = hazeState,
-                style = HazeDefaults.style(backgroundColor = colors.surface)
+                style = HazeDefaults.style(backgroundColor = colors.surface),
+                block = { blurEnabled = !backgroundObscured }
             )
             .background(colors.surface.copy(alpha = 0.90f))
             .drawWithContent {
@@ -566,9 +574,21 @@ fun MainScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    // Cache history ranking while the page is loaded, not during every sheet's first frame.
+    val categoryFrequency = remember(state.transactions) {
+        state.transactions.groupingBy { it.category }.eachCount()
+    }
+    val accountFrequency = remember(state.transactions) {
+        state.transactions.groupingBy { it.accountId }.eachCount()
+    }
     var selectedTab by rememberSaveable { mutableStateOf(TabItem.HOME) }
     var historyAccountFilterId by rememberSaveable { mutableStateOf<Long?>(null) }
     var historyCategoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.categoryMergeRules) {
+        historyCategoryFilter = historyCategoryFilter?.let {
+            state.categoryMergeRules.resolve(it, com.example.vibefinance.data.entity.CategoryKind.EXPENSE)
+        }
+    }
     val requestedTab by viewModel.requestedTab.collectAsStateWithLifecycle()
     LaunchedEffect(requestedTab) {
         requestedTab?.let {
@@ -717,6 +737,18 @@ fun MainScreen(
     )
 
     val isAnyModalActive = showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || isFabMenuExpanded
+    val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddDialog || showAddRecurringSheet
+    // One bounded clock for depth, read in the layer rather than recomposing the page each frame.
+    val sheetDepthProgress = animateFloatAsState(
+        targetValue = if (isAnySheetOpen) 1f else 0f,
+        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        label = "sheetDepthProgress"
+    )
+    val isBackgroundObscured by remember(isAnyModalActive, paymentToChoose) {
+        derivedStateOf {
+            isAnyModalActive || paymentToChoose != null || sheetDepthProgress.value > 0f
+        }
+    }
     androidx.activity.compose.PredictiveBackHandler(
         enabled = selectedTab != TabItem.HOME && !isAnyModalActive
     ) { progressFlow ->
@@ -879,6 +911,7 @@ fun MainScreen(
                     state = state,
                     isExpanded = isTopBarExpanded,
                     hazeState = hazeState,
+                    backgroundObscured = isBackgroundObscured,
                     onHeightMeasured = { heightPx ->
                         if (isTopBarExpanded && heightPx > expandedTopBarHeightPx) {
                             expandedTopBarHeightPx = heightPx
@@ -974,14 +1007,20 @@ fun MainScreen(
                                     stiffness = Spring.StiffnessMediumLow
                                 )
                             )
-                        (enter togetherWith exit).using(
-                            SizeTransform(clip = false) { _, _ ->
-                                spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
-                            }
-                        )
+                        // The modal covers the FAB: avoid a second layout/scale spring while
+                        // the sheet is first composed. Keep the expressive tab-to-tab motion.
+                        if (targetState == null || initialState == null) {
+                            (fadeIn(tween(120)) togetherWith fadeOut(tween(90))).using(null)
+                        } else {
+                            (enter togetherWith exit).using(
+                                SizeTransform(clip = false) { _, _ ->
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                }
+                            )
+                        }
                     },
                     label = "dailyRecurringFabTransition"
                 ) { targetTab ->
@@ -1211,18 +1250,6 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddDialog || showAddRecurringSheet
-                val sheetDepthScale by animateFloatAsState(
-                    targetValue = if (isAnySheetOpen) 0.95f else 1.0f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                    label = "sheetDepthScale"
-                )
-                val sheetDepthCorner by animateDpAsState(
-                    targetValue = if (isAnySheetOpen) 24.dp else 0.dp,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
-                    label = "sheetDepthCorner"
-                )
-
                 // 1. Screen content (takes up whole screen, padded horizontally and top, bottom extends to screen edge)
                 Box(
                     modifier = Modifier
@@ -1235,11 +1262,13 @@ fun MainScreen(
                         )
                         .graphicsLayer {
                             val backScale = 1f - (animatedTabBackProgress * 0.08f)
-                            scaleX = sheetDepthScale * backScale
-                            scaleY = sheetDepthScale * backScale
+                            val depth = sheetDepthProgress.value
+                            val depthScale = 1f - 0.05f * depth
+                            scaleX = depthScale * backScale
+                            scaleY = depthScale * backScale
                             val backCorner = animatedTabBackProgress * 28.dp.toPx()
-                            val totalCorner = (sheetDepthCorner.toPx() + backCorner).coerceAtLeast(0f)
-                            clip = isAnySheetOpen || sheetDepthCorner > 0.dp || animatedTabBackProgress > 0f
+                            val totalCorner = (24.dp.toPx() * depth + backCorner).coerceAtLeast(0f)
+                            clip = depth > 0f || animatedTabBackProgress > 0f
                             shape = RoundedCornerShape(totalCorner)
                         }
                 ) {
@@ -1279,46 +1308,50 @@ fun MainScreen(
                         label = "tabChangeTopLevel"
                     ) { targetTab ->
                         when (targetTab) {
-                            TabItem.HOME -> HomeScreen(
-                                state = state,
-                                onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 400) 12.dp else 16.dp),
-                                topContentPadding = pageTopPadding,
-                                topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
-                                bottomVisibilityInset = (
-                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
-                                    else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
-                                onViewAllClick = {
-                                    historyAccountFilterId = null
-                                    historyCategoryFilter = null
-                                    selectedTab = TabItem.HISTORY
-                                },
-                                onCategoryClick = { category ->
-                                    historyAccountFilterId = null
-                                    historyCategoryFilter = category
-                                    selectedTab = TabItem.HISTORY
-                                },
-                                showAddDialog = showAddDialog,
-                                onDismissAddDialog = { showAddDialog = false },
-                                onOpenBudgetDialog = {
-                                    val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
-                                    if (isPeriodEnded || isBudgetEnd) {
-                                        showNewPeriodSheet = true
-                                    } else {
-                                        showBudgetDialog = true
+                            TabItem.HOME -> CompositionLocalProvider(
+                                LocalAmbientMotionEnabled provides !isBackgroundObscured
+                            ) {
+                                HomeScreen(
+                                    state = state,
+                                    onIntent = viewModel::dispatch,
+                                    modifier = Modifier.padding(horizontal = if (LocalConfiguration.current.screenWidthDp < 400) 12.dp else 16.dp),
+                                    topContentPadding = pageTopPadding,
+                                    topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
+                                    bottomVisibilityInset = (
+                                        if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                        else 100.dp
+                                    ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
+                                    onViewAllClick = {
+                                        historyAccountFilterId = null
+                                        historyCategoryFilter = null
+                                        selectedTab = TabItem.HISTORY
+                                    },
+                                    onCategoryClick = { category ->
+                                        historyAccountFilterId = null
+                                        historyCategoryFilter = category
+                                        selectedTab = TabItem.HISTORY
+                                    },
+                                    showAddDialog = showAddDialog,
+                                    onDismissAddDialog = { showAddDialog = false },
+                                    onOpenBudgetDialog = {
+                                        val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
+                                        if (isPeriodEnded || isBudgetEnd) {
+                                            showNewPeriodSheet = true
+                                        } else {
+                                            showBudgetDialog = true
+                                        }
+                                    },
+                                    onOpenRecalcSheet = {
+                                        val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
+                                        if (isPeriodEnded || isBudgetEnd) {
+                                            showNewPeriodSheet = true
+                                        } else {
+                                            isRecalcSheetMandatory = false
+                                            showRecalcSheet = true
+                                        }
                                     }
-                                },
-                                onOpenRecalcSheet = {
-                                    val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
-                                    if (isPeriodEnded || isBudgetEnd) {
-                                        showNewPeriodSheet = true
-                                    } else {
-                                        isRecalcSheetMandatory = false
-                                        showRecalcSheet = true
-                                    }
-                                }
-                            )
+                                )
+                            }
                             TabItem.ACCOUNTS -> AccountsScreen(
                                 state = state,
                                 onIntent = viewModel::dispatch,
@@ -1346,7 +1379,12 @@ fun MainScreen(
                                 accountFilterId = historyAccountFilterId,
                                 onClearAccountFilter = { historyAccountFilterId = null },
                                 categoryFilter = historyCategoryFilter,
-                                onClearCategoryFilter = { historyCategoryFilter = null }
+                                onClearCategoryFilter = { historyCategoryFilter = null },
+                                onAddTransaction = {
+                                    activeTransactionMode = TransactionMode.EXPENSE
+                                    isFabMenuExpanded = false
+                                    showAddDialog = true
+                                }
                             )
                         }
                     }
@@ -1398,6 +1436,8 @@ fun MainScreen(
                             onIntent = viewModel::dispatch,
                             onDismissAddDialog = { showAddDialog = false },
                             initialMode = activeTransactionMode,
+                            categoryFrequency = categoryFrequency,
+                            accountFrequency = accountFrequency,
                             modifier = Modifier.statusBarsPadding()
                         )
                     }
@@ -1504,7 +1544,7 @@ fun MainScreen(
                             }
 
                             val dateConfirmInteraction = remember { MutableInteractionSource() }
-                            Button(
+                            CompletePressButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val end = calendarState.calendarUiState.value.selectedEndDate
@@ -1695,29 +1735,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             val isSelected = index == selectedIndex
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed = interactionSource.collectIsPressedAsState()
-            var isPulsing by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
-            var releaseJob by remember { mutableStateOf<Job?>(null) }
-
-            LaunchedEffect(interactionSource) {
-                interactionSource.interactions.collect { interaction ->
-                    when (interaction) {
-                        is PressInteraction.Press -> {
-                            releaseJob?.cancel()
-                            isPulsing = true
-                        }
-                        is PressInteraction.Release, is PressInteraction.Cancel -> {
-                            releaseJob?.cancel()
-                            releaseJob = coroutineScope.launch {
-                                delay(140)
-                                isPulsing = false
-                            }
-                        }
-                    }
-                }
-            }
-
-            val isShapeActive = isPressed.value || isPulsing
+            val shapeProgress by rememberCompletePressProgress(interactionSource)
 
             val restingCorner = 20.dp
             val restingTopStart = if (isScrollable || isSelected) restingCorner else (if (index == 0) 24.dp else 8.dp)
@@ -1728,43 +1746,45 @@ fun <T> ExpressiveSegmentedButtonGroup(
             val pressedCorner = 6.dp
 
             val topStart by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingTopStart,
+                targetValue = restingTopStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "topStart_$index"
             )
             val bottomStart by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
+                targetValue = restingBottomStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "bottomStart_$index"
             )
             val topEnd by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
+                targetValue = restingTopEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "topEnd_$index"
             )
             val bottomEnd by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
+                targetValue = restingBottomEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "bottomEnd_$index"
             )
             
-            val shape = RoundedCornerShape(
-                topStart = topStart,
-                bottomStart = bottomStart,
-                topEnd = topEnd,
-                bottomEnd = bottomEnd
+            val shape = completePressShape(
+                RoundedCornerShape(
+                    topStart = topStart, bottomStart = bottomStart,
+                    topEnd = topEnd, bottomEnd = bottomEnd
+                ),
+                RoundedCornerShape(pressedCorner),
+                shapeProgress
             )
 
             val colorMotion = rememberConnectedButtonColorMotion(
@@ -1789,12 +1809,6 @@ fun <T> ExpressiveSegmentedButtonGroup(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             view.playSoundEffect(SoundEffectConstants.CLICK)
-                            releaseJob?.cancel()
-                            isPulsing = true
-                            releaseJob = coroutineScope.launch {
-                                delay(140)
-                                isPulsing = false
-                            }
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onItemSelected(index)
                         }
@@ -1854,40 +1868,10 @@ fun ExpressiveAddButton(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed = interactionSource.collectIsPressedAsState()
-    var isPulsing by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    var releaseJob by remember { mutableStateOf<Job?>(null) }
     val view = LocalView.current
     val haptic = LocalHapticFeedback.current
-
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is PressInteraction.Press -> {
-                    releaseJob?.cancel()
-                    isPulsing = true
-                }
-                is PressInteraction.Release, is PressInteraction.Cancel -> {
-                    releaseJob?.cancel()
-                    releaseJob = coroutineScope.launch {
-                        delay(140)
-                        isPulsing = false
-                    }
-                }
-            }
-        }
-    }
-
-    val isShapeActive = isPressed.value || isPulsing
-    val cornerRadius by animateDpAsState(
-        targetValue = if (isShapeActive) 8.dp else 20.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-        ),
-        label = "addBtnCorner"
-    )
+    val shapeProgress by rememberCompletePressProgress(interactionSource)
+    val cornerRadius = androidx.compose.ui.unit.lerp(20.dp, 8.dp, shapeProgress)
     val shape = RoundedCornerShape(cornerRadius)
 
     ConnectedButtonRipple {
@@ -1904,12 +1888,6 @@ fun ExpressiveAddButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         view.playSoundEffect(SoundEffectConstants.CLICK)
-                        releaseJob?.cancel()
-                        isPulsing = true
-                        releaseJob = coroutineScope.launch {
-                            delay(140)
-                            isPulsing = false
-                        }
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onClick()
                     }
@@ -1984,6 +1962,8 @@ fun AddExpenseSheetContent(
     onIntent: (com.example.vibefinance.ui.FinanceIntent) -> Unit,
     onDismissAddDialog: () -> Unit,
     initialMode: TransactionMode = TransactionMode.EXPENSE,
+    categoryFrequency: Map<String, Int>,
+    accountFrequency: Map<Long, Int>,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1997,16 +1977,14 @@ fun AddExpenseSheetContent(
     val isTransfer = initialMode == TransactionMode.TRANSFER
     var selectedCurrency by remember { mutableStateOf("HKD") }
  
-    // Smart Frequency Sorting based on transaction history
-    val categoryFrequency = remember(state.transactions) {
-        state.transactions.groupingBy { it.category }.eachCount()
+    val expenseCategories = remember(state.categoryMergeRules) {
+        com.example.vibefinance.data.entity.categoryChoices(com.example.vibefinance.data.entity.CategoryKind.EXPENSE,
+            state.transactions, state.subscriptions, state.categoryLimits, state.categoryMergeRules).toMutableStateList()
     }
-    val accountFrequency = remember(state.transactions) {
-        state.transactions.groupingBy { it.accountId }.eachCount()
+    val incomeCategories = remember(state.categoryMergeRules) {
+        com.example.vibefinance.data.entity.categoryChoices(com.example.vibefinance.data.entity.CategoryKind.INCOME,
+            state.transactions, state.subscriptions, state.categoryLimits, state.categoryMergeRules).toMutableStateList()
     }
-
-    val expenseCategories = remember { com.example.vibefinance.data.entity.DefaultExpenseCategories.toMutableStateList() }
-    val incomeCategories = remember { com.example.vibefinance.data.entity.DefaultIncomeCategories.toMutableStateList() }
 
     val sortedExpenseCategories = remember(expenseCategories.toList(), categoryFrequency) {
         expenseCategories.sortedWith(
@@ -2105,7 +2083,8 @@ fun AddExpenseSheetContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                // The sheet already animates its position. A second size spring here
+                // repeatedly moves its anchors when the measured header spacer updates.
                 .verticalFadingEdge(topFadeHeight = 0.dp, bottomFadeHeight = 40.dp)
                 .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp),
@@ -2383,7 +2362,7 @@ fun AddExpenseSheetContent(
                                 textStyle = MaterialTheme.typography.bodyMedium
                             )
                             val addCatInteraction = remember { MutableInteractionSource() }
-                            Button(
+                            CompletePressButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val name = newCatName.trim()
@@ -2519,7 +2498,7 @@ fun AddExpenseSheetContent(
                             modifier = Modifier.weight(1f)
                         )
                         val addAccountInteraction = remember { MutableInteractionSource() }
-                        Button(
+                        CompletePressButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 val name = newAssetName.trim()
@@ -3150,7 +3129,7 @@ fun AllowedInterceptAppsDialog(
         confirmButton = {
             val confirmInteraction = remember { MutableInteractionSource() }
             val haptic = LocalHapticFeedback.current
-            Button(
+            CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onDismiss()

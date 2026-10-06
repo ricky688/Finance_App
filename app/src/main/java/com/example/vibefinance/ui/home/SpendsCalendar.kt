@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import com.example.vibefinance.ui.components.completePressShape
+
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContent
@@ -19,7 +22,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -54,9 +56,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.layout.layoutId
@@ -113,29 +112,7 @@ fun ExpressiveDualViewSwitcher(
                 val isSelected = index == selectedIndex
                 val interactionSource = remember { MutableInteractionSource() }
                 val isPressed = interactionSource.collectIsPressedAsState()
-                var isPulsing by remember { mutableStateOf(false) }
-                val coroutineScope = rememberCoroutineScope()
-                var releaseJob by remember { mutableStateOf<Job?>(null) }
-
-                LaunchedEffect(interactionSource) {
-                    interactionSource.interactions.collect { interaction ->
-                        when (interaction) {
-                            is PressInteraction.Press -> {
-                                releaseJob?.cancel()
-                                isPulsing = true
-                            }
-                            is PressInteraction.Release, is PressInteraction.Cancel -> {
-                                releaseJob?.cancel()
-                                releaseJob = coroutineScope.launch {
-                                    delay(140)
-                                    isPulsing = false
-                                }
-                            }
-                        }
-                    }
-                }
-
-                val isShapeActive = isPressed.value || isPulsing
+                val shapeProgress by rememberCompletePressProgress(interactionSource)
 
                 // Material 3 Expressive Connected Button Geometry:
                 // Outer corners retain 18.dp rounding; inner adjacent corners are 4.dp when unselected.
@@ -149,53 +126,48 @@ fun ExpressiveDualViewSwitcher(
                 val pressedCorner = 6.dp
 
                 val topStart by animateDpAsState(
-                    targetValue = if (isShapeActive) pressedCorner else restingTopStart,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-                    ),
-                    label = "switcherTopStart_$index"
-                )
-                val bottomStart by animateDpAsState(
-                    targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-                    ),
-                    label = "switcherBottomStart_$index"
-                )
-                val topEnd by animateDpAsState(
-                    targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-                    ),
-                    label = "switcherTopEnd_$index"
-                )
-                val bottomEnd by animateDpAsState(
-                    targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-                    ),
-                    label = "switcherBottomEnd_$index"
-                )
-
-                val buttonShape = RoundedCornerShape(
-                    topStart = topStart,
-                    bottomStart = bottomStart,
-                    topEnd = topEnd,
-                    bottomEnd = bottomEnd
-                )
-
-                val scale by animateFloatAsState(
-                    targetValue = if (isShapeActive) 0.94f else 1f,
+                    targetValue = restingTopStart,
                     animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMediumLow
                     ),
-                    label = "switcherScale_$index"
+                    label = "switcherTopStart_$index"
                 )
+                val bottomStart by animateDpAsState(
+                    targetValue = restingBottomStart,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherBottomStart_$index"
+                )
+                val topEnd by animateDpAsState(
+                    targetValue = restingTopEnd,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherTopEnd_$index"
+                )
+                val bottomEnd by animateDpAsState(
+                    targetValue = restingBottomEnd,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
+                    label = "switcherBottomEnd_$index"
+                )
+
+                val buttonShape = completePressShape(
+                    RoundedCornerShape(
+                        topStart = topStart, bottomStart = bottomStart,
+                        topEnd = topEnd, bottomEnd = bottomEnd
+                    ),
+                    RoundedCornerShape(pressedCorner),
+                    shapeProgress
+                )
+
+                val scale = 1f - 0.06f * shapeProgress
 
                 val colorMotion = rememberConnectedButtonColorMotion(
                     isSelected = isSelected,
@@ -219,12 +191,6 @@ fun ExpressiveDualViewSwitcher(
                                 if (!isSelected) {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     view.playSoundEffect(SoundEffectConstants.CLICK)
-                                    releaseJob?.cancel()
-                                    isPulsing = true
-                                    releaseJob = coroutineScope.launch {
-                                        delay(140)
-                                        isPulsing = false
-                                    }
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onModeSelected(mode)
                                 }

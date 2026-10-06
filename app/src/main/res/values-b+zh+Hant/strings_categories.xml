@@ -1,0 +1,18 @@
+<resources>
+    <string name="category_merge_settings">管理分類</string>
+    <string name="category_merge_settings_hint">合併重複分類及相關記錄</string>
+    <string name="category_merge_title">合併分類</string>
+    <string name="category_merge_source_hint">勾選要合併的分類，再選擇保留的目標分類。收入與支出分類分開處理。</string>
+    <string name="category_merge_choose_target">保留的分類</string>
+    <string name="category_merge_search">搜尋分類</string>
+    <string name="category_merge_category_count">%1$d 筆記錄</string>
+    <string name="category_merge_future_hint">之後使用舊分類的記錄，也會自動轉到保留的分類。</string>
+    <string name="category_merge_review">檢視合併</string>
+    <string name="category_merge_busy">正在合併…</string>
+    <string name="category_merge_impact">更新 %1$d 筆交易及 %2$d 個定期項目，包括未來的分期記錄。</string>
+    <string name="category_merge_budget_sum">合併後分類預算：HK$%1$.2f</string>
+    <string name="category_merge_confirm_hint">金額及資產餘額不變。舊分類會從選項移除，分類預算上限會相加。合併後無法自動還原原分類，請確認目標後再合併。</string>
+    <string name="category_merge_confirm">確認合併</string>
+    <string name="category_merge_success">分類已合併</string>
+    <string name="category_merge_failed">無法合併分類，沒有儲存任何變更。</string>
+</resources>

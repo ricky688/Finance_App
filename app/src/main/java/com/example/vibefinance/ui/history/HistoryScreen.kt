@@ -2,6 +2,10 @@
 
 package com.example.vibefinance.ui.history
 
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+import com.example.vibefinance.ui.components.CompletePressToggleButton
+
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
 import androidx.compose.foundation.BorderStroke
@@ -123,7 +127,6 @@ import com.example.vibefinance.data.entity.DefaultIncomeCategories
 import com.example.vibefinance.theme.LocalIconShape
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
-import com.example.vibefinance.ui.components.GlassmorphicCard
 import com.example.vibefinance.ui.components.CategoryAnalyticsPeriodMode
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.components.ConnectedButtonRipple
@@ -150,7 +153,8 @@ fun HistoryScreen(
     accountFilterId: Long? = null,
     onClearAccountFilter: () -> Unit = {},
     categoryFilter: String? = null,
-    onClearCategoryFilter: () -> Unit = {}
+    onClearCategoryFilter: () -> Unit = {},
+    onAddTransaction: (() -> Unit)? = null
 ) {
     var selectedCategoryFilter by remember(categoryFilter) { mutableStateOf<String?>(categoryFilter) }
     var periodFilterMode by remember { mutableStateOf(com.example.vibefinance.ui.components.PeriodFilterMode.ALL) }
@@ -173,12 +177,15 @@ fun HistoryScreen(
     } else 0L
     var analyticsPeriodMode by remember(activePeriodStart, activePeriodEnd) {
         mutableStateOf(
-            if (hasBudgetPeriod) CategoryAnalyticsPeriodMode.BUDGET_PERIOD
+            if (categoryFilter != null) CategoryAnalyticsPeriodMode.ALL_TIME
+            else if (hasBudgetPeriod) CategoryAnalyticsPeriodMode.BUDGET_PERIOD
             else CategoryAnalyticsPeriodMode.MONTH
         )
     }
     var analyticsMonth by remember { mutableStateOf(YearMonth.now(zone)) }
-    val effectiveAnalyticsMode = if (hasBudgetPeriod) analyticsPeriodMode else CategoryAnalyticsPeriodMode.MONTH
+    val effectiveAnalyticsMode = if (!hasBudgetPeriod && analyticsPeriodMode == CategoryAnalyticsPeriodMode.BUDGET_PERIOD) {
+        CategoryAnalyticsPeriodMode.MONTH
+    } else analyticsPeriodMode
     val monthStart = analyticsMonth.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
     val nextMonthStart = analyticsMonth.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
     val analyticsStart = if (effectiveAnalyticsMode == CategoryAnalyticsPeriodMode.BUDGET_PERIOD) {
@@ -187,19 +194,31 @@ fun HistoryScreen(
     val analyticsEndExclusive = if (effectiveAnalyticsMode == CategoryAnalyticsPeriodMode.BUDGET_PERIOD) {
         activePeriodEndExclusive
     } else nextMonthStart
-    val analyticsPeriodLabel = if (effectiveAnalyticsMode == CategoryAnalyticsPeriodMode.BUDGET_PERIOD) {
-        val datePattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月d日" else "d MMM yyyy"
-        val formatter = DateTimeFormatter.ofPattern(datePattern, dateLocale)
-        val startDate = Instant.ofEpochMilli(activePeriodStart).atZone(zone).toLocalDate()
-        val endDate = Instant.ofEpochMilli(activePeriodEnd).atZone(zone).toLocalDate()
-        "${startDate.format(formatter)} – ${endDate.format(formatter)}"
-    } else {
-        val monthPattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月" else "MMMM yyyy"
-        analyticsMonth.atDay(1).format(DateTimeFormatter.ofPattern(monthPattern, dateLocale))
+    val analyticsPeriodLabel = when (effectiveAnalyticsMode) {
+        CategoryAnalyticsPeriodMode.ALL_TIME -> stringResource(R.string.category_analytics_all_time)
+        CategoryAnalyticsPeriodMode.BUDGET_PERIOD -> {
+            val datePattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月d日" else "d MMM yyyy"
+            val formatter = DateTimeFormatter.ofPattern(datePattern, dateLocale)
+            val startDate = Instant.ofEpochMilli(activePeriodStart).atZone(zone).toLocalDate()
+            val endDate = Instant.ofEpochMilli(activePeriodEnd).atZone(zone).toLocalDate()
+            "${startDate.format(formatter)} – ${endDate.format(formatter)}"
+        }
+        CategoryAnalyticsPeriodMode.MONTH -> {
+            val monthPattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月" else "MMMM yyyy"
+            analyticsMonth.atDay(1).format(DateTimeFormatter.ofPattern(monthPattern, dateLocale))
+        }
     }
 
+    LaunchedEffect(state.categoryMergeRules) {
+        selectedCategoryFilter = selectedCategoryFilter?.let {
+            state.categoryMergeRules.resolve(it, com.example.vibefinance.data.entity.CategoryKind.EXPENSE)
+        }
+    }
     LaunchedEffect(categoryFilter) {
-        selectedCategoryFilter = categoryFilter
+        selectedCategoryFilter = categoryFilter?.let {
+            state.categoryMergeRules.resolve(it, com.example.vibefinance.data.entity.CategoryKind.EXPENSE)
+        }
+        if (categoryFilter != null) analyticsPeriodMode = CategoryAnalyticsPeriodMode.ALL_TIME
     }
     LaunchedEffect(accountFilterId) {
         if (accountFilterId != null) {
@@ -229,8 +248,21 @@ fun HistoryScreen(
         }
     }
 
-    val analyticsTransactions = remember(accountTransactions, analyticsStart, analyticsEndExclusive) {
-        accountTransactions.filter { it.timestamp >= analyticsStart && it.timestamp < analyticsEndExclusive }
+    val analyticsTransactions = remember(accountTransactions, effectiveAnalyticsMode, analyticsStart, analyticsEndExclusive) {
+        if (effectiveAnalyticsMode == CategoryAnalyticsPeriodMode.ALL_TIME) accountTransactions
+        else accountTransactions.filter { it.timestamp >= analyticsStart && it.timestamp < analyticsEndExclusive }
+    }
+    val accountExpenses = remember(accountTransactions) {
+        accountTransactions.filter { it.amount > 0 && it.toAccountId == null && !it.isBalanceAdjustment }
+    }
+    val analyticsHasExpenses = remember(analyticsTransactions) {
+        analyticsTransactions.any { it.amount > 0 && it.toAccountId == null && !it.isBalanceAdjustment }
+    }
+    val viewAllRecords: () -> Unit = {
+        analyticsPeriodMode = CategoryAnalyticsPeriodMode.ALL_TIME
+        periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
+        selectedCategoryFilter = null
+        onClearCategoryFilter()
     }
 
     val periodFilteredTransactions = remember(
@@ -254,12 +286,8 @@ fun HistoryScreen(
     val filteredTransactions = remember(periodFilteredTransactions, analyticsTransactions, selectedCategoryFilter) {
         val catFilter = selectedCategoryFilter
         if (!catFilter.isNullOrBlank()) {
-            val baseList = if (analyticsTransactions.any { it.category.equals(catFilter, ignoreCase = true) }) {
-                analyticsTransactions
-            } else {
-                periodFilteredTransactions
-            }
-            baseList.filter {
+            // A selected chart category must retain its displayed scope, even when empty.
+            analyticsTransactions.filter {
                 it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 &&
                     it.category.equals(catFilter, ignoreCase = true)
             }
@@ -404,6 +432,9 @@ fun HistoryScreen(
                 hasBudgetPeriod = hasBudgetPeriod,
                 onSelectPeriod = { mode ->
                     analyticsPeriodMode = mode
+                    if (mode == CategoryAnalyticsPeriodMode.ALL_TIME) {
+                        periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
+                    }
                     selectedCategoryFilter = null
                     onClearCategoryFilter()
                 },
@@ -423,26 +454,29 @@ fun HistoryScreen(
                 onImportData = {
                     filePickerLauncher.launch("*/*")
                 },
+                emptyStateMessage = if (accountTransactions.isEmpty()) stringResource(R.string.no_transactions) else null,
+                emptyStateHint = if (accountTransactions.isEmpty()) stringResource(R.string.analytics_empty_hint) else null,
+                onAddTransaction = onAddTransaction,
+                onViewAllRecords = if (effectiveAnalyticsMode != CategoryAnalyticsPeriodMode.ALL_TIME &&
+                    accountExpenses.isNotEmpty() && !analyticsHasExpenses) viewAllRecords else null,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
 
 
-        if (transactionsList.isEmpty()) {
+        if (transactionsList.isEmpty() && analyticsHasExpenses) {
             item {
-                Spacer(modifier = Modifier.height(40.dp))
-                GlassmorphicCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 32.dp,
-                    borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                Surface(
+                    modifier = Modifier.fillMaxWidth().testTag("HistoryListEmptyCard"),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
                 ) {
-                    Text(
-                        text = stringResource(R.string.no_transactions),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                    com.example.vibefinance.ui.components.HistoryEmptyState(
+                        message = stringResource(R.string.analytics_no_matching_records),
+                        modifier = Modifier.padding(16.dp),
+                        onAddTransaction = onAddTransaction,
+                        onViewAllRecords = if (accountTransactions.isNotEmpty()) viewAllRecords else null
                     )
                 }
             }
@@ -814,6 +848,7 @@ fun HistoryScreen(
                             category = editCategoryText,
                             isIncome = editIsIncome,
                             transactions = state.transactions,
+                            categoryMergeRules = state.categoryMergeRules,
                             onCategorySelected = { editCategoryText = it }
                         )
                     } else {
@@ -886,7 +921,7 @@ fun HistoryScreen(
             confirmButton = {
                 val confirmInteraction = remember { MutableInteractionSource() }
                 val haptic = LocalHapticFeedback.current
-                Button(
+                CompletePressButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         val amount = editedMagnitude
@@ -915,7 +950,7 @@ fun HistoryScreen(
             dismissButton = {
                 val dismissInteraction = remember { MutableInteractionSource() }
                 val haptic = LocalHapticFeedback.current
-                TextButton(
+                CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         editingTransaction = null
@@ -983,7 +1018,7 @@ private fun HistoryTransactionTypeSelector(
                 backdropColor = colors.surfaceContainerHigh
             )
             ConnectedButtonRipple {
-                ToggleButton(
+                CompletePressToggleButton(
                     checked = isSelected,
                     onCheckedChange = {
                         onTypeSelected(incomeOption)
@@ -1045,10 +1080,13 @@ private fun HistoryCategoryDropdown(
     category: String,
     isIncome: Boolean,
     transactions: List<TransactionEntity>,
+    categoryMergeRules: com.example.vibefinance.data.entity.CategoryMergeRules,
     onCategorySelected: (String) -> Unit
 ) {
     var expanded by remember(isIncome) { mutableStateOf(false) }
-    val defaultCategories = if (isIncome) DefaultIncomeCategories else DefaultExpenseCategories
+    val kind = if (isIncome) com.example.vibefinance.data.entity.CategoryKind.INCOME else com.example.vibefinance.data.entity.CategoryKind.EXPENSE
+    val defaultCategories = (if (isIncome) DefaultIncomeCategories else DefaultExpenseCategories)
+        .map { categoryMergeRules.resolve(it, kind) }.distinct()
     val categoryFrequency = remember(transactions, isIncome) {
         transactions.filter {
             it.toAccountId == null && !it.isBalanceAdjustment && (it.amount < 0.0) == isIncome

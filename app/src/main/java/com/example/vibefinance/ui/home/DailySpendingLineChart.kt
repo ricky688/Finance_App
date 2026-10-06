@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -215,14 +217,8 @@ fun DailySpendingLineChart(
                         val isPressed by interactionSource.collectIsPressedAsState()
                         val buttonDensity = LocalDensity.current
                         var measuredButtonHeight by remember { mutableStateOf(28.dp) }
-                        val cornerRadius by animateDpAsState(
-                            targetValue = if (isPressed) 6.dp else measuredButtonHeight / 2,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            ),
-                            label = "chartModePressedCorner_${mode.name}"
-                        )
+                        val shapeProgress by rememberCompletePressProgress(interactionSource)
+                        val cornerRadius = androidx.compose.ui.unit.lerp(measuredButtonHeight / 2, 6.dp, shapeProgress)
                         val buttonShape = RoundedCornerShape(cornerRadius)
                         val colorMotion = rememberConnectedButtonColorMotion(
                             isSelected = isSel,

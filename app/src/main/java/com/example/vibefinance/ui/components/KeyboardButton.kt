@@ -1,17 +1,9 @@
 package com.example.vibefinance.ui.components
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.foundation.interaction.PressInteraction
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -22,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -52,41 +43,10 @@ fun KeyboardButton(
     var minSize by remember { mutableStateOf(MAX_VALUE.dp) }
     var minSizeFloat by remember { mutableStateOf(MAX_VALUE.toFloat()) }
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed = interactionSource.collectIsPressedAsState()
-    
-    var isPulsing by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    var releaseJob by remember { mutableStateOf<Job?>(null) }
-
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { interaction ->
-            when (interaction) {
-                is PressInteraction.Press -> {
-                    releaseJob?.cancel()
-                    isPulsing = true
-                }
-                is PressInteraction.Release, is PressInteraction.Cancel -> {
-                    releaseJob?.cancel()
-                    releaseJob = coroutineScope.launch {
-                        delay(140)
-                        isPulsing = false
-                    }
-                }
-            }
-        }
-    }
-
-    val isShapeActive = isPressed.value || isPulsing
+    val shapeProgress by rememberCompletePressProgress(interactionSource)
     val initialRadius = if (minSize == MAX_VALUE.dp) 28.dp else minSize / 2
     val pressedRadius = 10.dp
-    val radius by animateDpAsState(
-        targetValue = if (isShapeActive) pressedRadius else initialRadius,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
-        ),
-        label = "buttonRadius"
-    )
+    val radius = androidx.compose.ui.unit.lerp(initialRadius, pressedRadius, shapeProgress)
 
     val color = when (type) {
         KeyboardButtonType.DEFAULT -> MaterialTheme.colorScheme.surfaceVariant
@@ -126,12 +86,6 @@ fun KeyboardButton(
                     onClick = {
                         view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         view.playSoundEffect(SoundEffectConstants.CLICK)
-                        releaseJob?.cancel()
-                        isPulsing = true
-                        releaseJob = coroutineScope.launch {
-                            delay(140)
-                            isPulsing = false
-                        }
                         onClick.invoke()
                     },
                     onLongClick = {

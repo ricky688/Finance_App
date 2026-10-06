@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.radar
 
+import com.example.vibefinance.ui.components.CompletePressButton
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -359,7 +361,7 @@ fun AddDiscountShopSheet(
 
             // Submit Button
             val submitInteraction = remember { MutableInteractionSource() }
-            Button(
+            CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     val lat = if (useCurrentGnss) currentGnssPoint.latitude else customLat.toDoubleOrNull() ?: currentGnssPoint.latitude

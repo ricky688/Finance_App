@@ -199,6 +199,15 @@
     <string name="category_analytics_subtitle">Tap category to filter</string>
     <string name="category_analytics_filtering">Filtering: %s • Tap to reset</string>
     <string name="category_analytics_focused">Focused</string>
+    <string name="analytics_more_actions">More actions</string>
+    <string name="analytics_export_csv">Export CSV</string>
+    <string name="analytics_total_spending">Total spending</string>
+    <string name="analytics_view_all_records">View all records</string>
+    <string name="analytics_add_transaction">Add transaction</string>
+    <string name="analytics_empty_hint">Add a transaction to start tracking your spending.</string>
+    <string name="analytics_no_matching_records">No records match these filters.</string>
+    <string name="category_analytics_all_time">All time</string>
+    <string name="category_percentage_total">%1$.1f%% of total</string>
     <string name="category_analytics_month">Month</string>
     <string name="category_analytics_budget_period">Budget period</string>
     <string name="category_analytics_previous_month">Previous month</string>

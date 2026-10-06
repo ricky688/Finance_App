@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.home
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
@@ -15,6 +16,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlin.coroutines.coroutineContext
 
+/** Ambient drawing pauses under menus/dialogs without resetting the card or its phase. */
+internal val LocalAmbientMotionEnabled = compositionLocalOf { true }
+
 /** A repeating wave phase, consumed from draw/layer blocks rather than card composition. */
 @Composable
 internal fun rememberAmbientWavePhase(
@@ -23,9 +27,10 @@ internal fun rememberAmbientWavePhase(
 ): State<Float> {
     val phase = remember { mutableFloatStateOf(0f) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val running = enabled && LocalAmbientMotionEnabled.current
 
-    LaunchedEffect(lifecycleOwner, enabled, periodMillis) {
-        if (!enabled) return@LaunchedEffect
+    LaunchedEffect(lifecycleOwner, running, periodMillis) {
+        if (!running) return@LaunchedEffect
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val durationScale = coroutineContext[MotionDurationScale]
             snapshotFlow { durationScale?.scaleFactor ?: 1f }.collectLatest { scale ->

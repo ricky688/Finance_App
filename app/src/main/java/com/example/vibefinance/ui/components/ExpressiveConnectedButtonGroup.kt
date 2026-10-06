@@ -56,6 +56,7 @@ fun <T> ExpressiveConnectedButtonGroup(
     lightModeFocusMotion: Boolean = true,
     compact: Boolean = false,
     focusBackdropColor: Color = Color.Unspecified,
+    labelMaxLines: Int = 1,
     labelProvider: @Composable (T) -> String
 ) {
     val colors = MaterialTheme.colorScheme
@@ -83,7 +84,7 @@ fun <T> ExpressiveConnectedButtonGroup(
                 contentAlignment = Alignment.Center
             ) {
                 ConnectedButtonRipple {
-                    ToggleButton(
+                    CompletePressToggleButton(
                         checked = isSelected,
                         onCheckedChange = {
                             onItemSelected(index)
@@ -139,7 +140,8 @@ fun <T> ExpressiveConnectedButtonGroup(
                                     text = labelProvider(item),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
+                                    maxLines = labelMaxLines,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }

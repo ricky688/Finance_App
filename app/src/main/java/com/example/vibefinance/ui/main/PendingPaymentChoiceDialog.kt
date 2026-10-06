@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.CompletePressButton
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -252,7 +254,7 @@ internal fun PendingPaymentChoiceDialog(
             }
         },
         confirmButton = {
-            Button(
+            CompletePressButton(
                 enabled = selectedId != null && !saving,
                 onClick = { selectedId?.let { onRecord(it, rememberChoice && canRemember) } },
                 shapes = ButtonDefaults.shapes(

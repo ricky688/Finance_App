@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.CompletePressButton
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -634,7 +636,7 @@ internal fun AppearancePickerSheet(
 
                 val closeInteraction = remember { MutableInteractionSource() }
                 val haptic = LocalHapticFeedback.current
-                Button(
+                CompletePressButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onDismiss()

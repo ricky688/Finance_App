@@ -9,6 +9,10 @@ import com.example.vibefinance.data.entity.RolloverMode
 import com.example.vibefinance.data.entity.ShopDiscountOffer
 import com.example.vibefinance.data.entity.SubscriptionEntity
 import com.example.vibefinance.data.entity.TransactionEntity
+import com.example.vibefinance.data.entity.CategoryKind
+import com.example.vibefinance.data.entity.CategoryMergeRules
+import com.example.vibefinance.data.entity.CategoryMergePlan
+import com.example.vibefinance.data.entity.planCategoryMerge
 import com.example.vibefinance.util.LocalAppManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -24,6 +28,7 @@ object InMemoryDatabase {
     val transactions = MutableStateFlow<List<TransactionEntity>>(emptyList())
     val budgets = MutableStateFlow<List<BudgetEntity>>(emptyList())
     val subscriptions = MutableStateFlow<List<SubscriptionEntity>>(emptyList())
+    val categoryMergeRules = MutableStateFlow(CategoryMergeRules())
     val discountShops = MutableStateFlow<List<DiscountShop>>(emptyList())
     val savedAspects = MutableStateFlow<List<String>>(
         listOf("Coffee & Cafe", "Supermarket", "Gas & Fuel", "Electronics", "Dining", "Retail")
@@ -182,6 +187,8 @@ object InMemoryDatabase {
         subscriptions.value = emptyList()
         discountShops.value = emptyList()
         cashbackRules.value = emptyMap()
+        categoryLimits.value = emptyMap()
+        categoryMergeRules.value = CategoryMergeRules()
         nextAccountId = 1L
         nextTransactionId = 1L
         nextSubscriptionId = 1L
@@ -212,22 +219,23 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
-    fun insertSubscription(sub: SubscriptionEntity): Long {
+    fun insertSubscription(sub: SubscriptionEntity): Long = synchronized(diskIoLock) {
         val id = nextSubscriptionId++
-        val newSub = sub.copy(id = id)
+        val newSub = categoryMergeRules.value.normalize(sub.copy(id = id))
         subscriptions.update { it + newSub }
         persistToDisk()
-        return id
+        id
     }
 
-    fun updateSubscription(sub: SubscriptionEntity) {
+    fun updateSubscription(sub: SubscriptionEntity) = synchronized(diskIoLock) {
+        val normalized = categoryMergeRules.value.normalize(sub)
         subscriptions.update { list ->
-            list.map { if (it.id == sub.id) sub else it }
+            list.map { if (it.id == sub.id) normalized else it }
         }
         persistToDisk()
     }
 
-    fun deleteSubscription(sub: SubscriptionEntity) {
+    fun deleteSubscription(sub: SubscriptionEntity) = synchronized(diskIoLock) {
         subscriptions.update { list ->
             list.filter { it.id != sub.id }
         }
@@ -461,7 +469,7 @@ object InMemoryDatabase {
 
     private fun withAccountTypeSnapshot(transaction: TransactionEntity): TransactionEntity {
         val currentAccounts = accounts.value.associateBy { it.id }
-        return transaction.copy(
+        return categoryMergeRules.value.normalize(transaction).copy(
             sourceWasCreditCard = transaction.sourceWasCreditCard
                 ?: (currentAccounts[transaction.accountId]?.type == AccountType.CC),
             destinationWasCreditCard = if (transaction.toAccountId == null) null else (
@@ -536,7 +544,9 @@ object InMemoryDatabase {
             val transaction = TransactionEntity(
                 id = transactionIdCursor++,
                 amount = draft.amount,
-                category = draft.category,
+                category = if (destination != null) draft.category else categoryMergeRules.value.resolve(
+                    draft.category, if (draft.amount < 0.0) CategoryKind.INCOME else CategoryKind.EXPENSE
+                ),
                 timestamp = draft.timestamp,
                 accountId = source.id,
                 toAccountId = destination?.id,
@@ -607,8 +617,9 @@ object InMemoryDatabase {
     }
 
     fun updateTransaction(transaction: TransactionEntity) = synchronized(diskIoLock) {
+        val normalized = categoryMergeRules.value.normalize(transaction)
         transactions.update { list ->
-            list.map { if (it.id == transaction.id) transaction else it }
+            list.map { if (it.id == transaction.id) normalized else it }
         }
         persistToDisk()
     }
@@ -634,20 +645,37 @@ object InMemoryDatabase {
 
     val categoryLimits = MutableStateFlow<Map<String, Double>>(emptyMap())
 
-    fun setCategoryLimit(category: String, limit: Double?) {
+    fun setCategoryLimit(category: String, limit: Double?) = synchronized(diskIoLock) {
+        val canonical = categoryMergeRules.value.resolve(category, CategoryKind.EXPENSE)
         categoryLimits.update { current ->
             if (limit == null || limit <= 0.0) {
-                current - category
+                current - canonical
             } else {
-                current + (category to limit)
+                current + (canonical to limit)
             }
         }
         persistToDisk()
     }
 
+    /** Persist all category changes together before publishing; balances and IDs never change. */
+    fun mergeCategories(kind: CategoryKind, sources: Set<String>, target: String): CategoryMergePlan = synchronized(diskIoLock) {
+        val plan = planCategoryMerge(kind, sources, target, transactions.value, subscriptions.value,
+            categoryLimits.value, categoryMergeRules.value)
+        persistToDisk(transactionsSnapshot = plan.transactions, subscriptionsSnapshot = plan.subscriptions,
+            categoryLimitsSnapshot = plan.limits, categoryRulesSnapshot = plan.rules, throwOnFailure = true)
+        transactions.value = plan.transactions
+        subscriptions.value = plan.subscriptions
+        categoryLimits.value = plan.limits
+        categoryMergeRules.value = plan.rules
+        plan
+    }
+
     private fun persistToDisk(
         accountsSnapshot: List<AccountEntity>? = null,
         transactionsSnapshot: List<TransactionEntity>? = null,
+        subscriptionsSnapshot: List<SubscriptionEntity>? = null,
+        categoryLimitsSnapshot: Map<String, Double>? = null,
+        categoryRulesSnapshot: CategoryMergeRules? = null,
         nextAccountIdSnapshot: Long? = null,
         nextTransactionIdSnapshot: Long? = null,
         throwOnFailure: Boolean = false
@@ -733,7 +761,7 @@ object InMemoryDatabase {
 
             // subscriptions
             val subsArr = JSONArray()
-            for (s in subscriptions.value) {
+            for (s in subscriptionsSnapshot ?: subscriptions.value) {
                 val obj = JSONObject()
                 obj.put("id", s.id)
                 obj.put("name", s.name)
@@ -748,10 +776,11 @@ object InMemoryDatabase {
 
             // categoryLimits
             val catLimitsObj = JSONObject()
-            for ((cat, limit) in categoryLimits.value) {
+            for ((cat, limit) in categoryLimitsSnapshot ?: categoryLimits.value) {
                 catLimitsObj.put(cat, limit)
             }
             root.put("categoryLimits", catLimitsObj)
+            root.put("categoryMergeRules", (categoryRulesSnapshot ?: categoryMergeRules.value).toJson())
 
             // savedAspects
             val aspectsArr = JSONArray()
@@ -814,6 +843,8 @@ object InMemoryDatabase {
             val atomicFile = android.util.AtomicFile(file)
             val bytes = atomicFile.readFully()
             val root = JSONObject(String(bytes, Charsets.UTF_8))
+
+            categoryMergeRules.value = CategoryMergeRules.fromJson(root.optJSONObject("categoryMergeRules"))
 
             nextAccountId = root.optLong("nextAccountId", nextAccountId)
             nextTransactionId = root.optLong("nextTransactionId", nextTransactionId)

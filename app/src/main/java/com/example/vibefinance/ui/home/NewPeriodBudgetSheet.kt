@@ -2,6 +2,9 @@
 
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.animateContentSize
@@ -447,7 +450,7 @@ fun NewPeriodBudgetSheet(
                 // 7. Confirm Button
                 item {
                     val confirmInteraction = remember { MutableInteractionSource() }
-                    Button(
+                    CompletePressButton(
                         onClick = {
                             if (baseBudget > 0 && calculatedEndDateMillis > startDateMillis) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -486,7 +489,7 @@ fun NewPeriodBudgetSheet(
             onDismissRequest = { showDatePickerModal = false },
             confirmButton = {
                 val dateConfirmInteraction = remember { MutableInteractionSource() }
-                TextButton(
+                CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         datePickerState.selectedDateMillis?.let {
@@ -504,7 +507,7 @@ fun NewPeriodBudgetSheet(
             },
             dismissButton = {
                 val dateDismissInteraction = remember { MutableInteractionSource() }
-                TextButton(
+                CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showDatePickerModal = false

@@ -51,14 +51,14 @@ object MerchantRuleEngine {
         val allUserRules = prefs.all
         for ((key, value) in allUserRules) {
             if (value is String && cleanInput.contains(key.lowercase(Locale.ROOT))) {
-                return value
+                return com.example.vibefinance.data.InMemoryDatabase.categoryMergeRules.value.resolve(value, com.example.vibefinance.data.entity.CategoryKind.EXPENSE)
             }
         }
 
         // 2. Fall back to built-in rules
         for ((key, category) in defaultRules) {
             if (cleanInput.contains(key)) {
-                return category
+                return com.example.vibefinance.data.InMemoryDatabase.categoryMergeRules.value.resolve(category, com.example.vibefinance.data.entity.CategoryKind.EXPENSE)
             }
         }
 

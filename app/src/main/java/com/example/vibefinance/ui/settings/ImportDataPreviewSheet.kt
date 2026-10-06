@@ -2,6 +2,9 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -503,7 +506,7 @@ fun ImportDataPreviewSheet(
 
             // --- ACTION BUTTONS ---
             val confirmInteraction = remember { MutableInteractionSource() }
-            Button(
+            CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onConfirm(replaceExisting)
@@ -548,7 +551,7 @@ fun ImportDataPreviewSheet(
             }
 
             val cancelInteraction = remember { MutableInteractionSource() }
-            TextButton(
+            CompletePressTextButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onDismiss()

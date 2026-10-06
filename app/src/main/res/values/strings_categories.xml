@@ -1,0 +1,18 @@
+<resources>
+    <string name="category_merge_settings">Manage categories</string>
+    <string name="category_merge_settings_hint">Merge duplicate categories and their records</string>
+    <string name="category_merge_title">Merge categories</string>
+    <string name="category_merge_source_hint">Select categories to merge, then choose the category to keep. Income and expense categories stay separate.</string>
+    <string name="category_merge_choose_target">Category to keep</string>
+    <string name="category_merge_search">Search categories</string>
+    <string name="category_merge_category_count">%1$d records</string>
+    <string name="category_merge_future_hint">Future entries using an old category will use the category you keep.</string>
+    <string name="category_merge_review">Review merge</string>
+    <string name="category_merge_busy">Merging…</string>
+    <string name="category_merge_impact">Updates %1$d transactions and %2$d recurring items, including future installments.</string>
+    <string name="category_merge_budget_sum">Combined category budget: HK$%1$.2f</string>
+    <string name="category_merge_confirm_hint">Balances and amounts stay unchanged. Old categories disappear from selection; category budget limits are added together. Check the destination carefully; this merge cannot be automatically undone.</string>
+    <string name="category_merge_confirm">Merge categories</string>
+    <string name="category_merge_success">Categories merged</string>
+    <string name="category_merge_failed">Could not merge categories. No changes were saved.</string>
+</resources>

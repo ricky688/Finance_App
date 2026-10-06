@@ -199,6 +199,15 @@
     <string name="category_analytics_subtitle">點擊類別以篩選</string>
     <string name="category_analytics_filtering">正在篩選：%s • 點擊重置</string>
     <string name="category_analytics_focused">已篩選</string>
+    <string name="analytics_more_actions">更多操作</string>
+    <string name="analytics_export_csv">导出 CSV</string>
+    <string name="analytics_total_spending">总支出</string>
+    <string name="analytics_view_all_records">查看全部记录</string>
+    <string name="analytics_add_transaction">新增交易</string>
+    <string name="analytics_empty_hint">新增交易后，即可查看支出分析。</string>
+    <string name="analytics_no_matching_records">此筛选下没有交易记录。</string>
+    <string name="category_analytics_all_time">全部記錄</string>
+    <string name="category_percentage_total">佔總額 %1$.1f%%</string>
     <string name="category_analytics_month">月份</string>
     <string name="category_analytics_budget_period">预算周期</string>
     <string name="category_analytics_previous_month">上个月</string>

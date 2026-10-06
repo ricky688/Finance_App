@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.recurring
 
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import com.example.vibefinance.ui.components.completePressShape
+
 import com.example.vibefinance.ui.common.horizontalFadingEdge
 import com.example.vibefinance.theme.ChartColors
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -36,10 +39,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -633,6 +633,7 @@ fun RecurringScreen(
             subscription = editingSubscription,
             initialPreset = prefillPreset,
             accounts = state.accounts,
+            categoryMergeRules = state.categoryMergeRules,
             onDismiss = {
                 showAddEditSheet = false
                 editingSubscription = null
@@ -2452,6 +2453,7 @@ fun AddEditSubscriptionSheet(
     onDismiss: () -> Unit,
     onSave: (SubscriptionEntity) -> Unit,
     onDelete: (SubscriptionEntity) -> Unit,
+    categoryMergeRules: com.example.vibefinance.data.entity.CategoryMergeRules = com.example.vibefinance.data.entity.CategoryMergeRules(),
     onSaveInstallment: (totalAmount: Double, category: String, accountId: Long, description: String, installments: Int, firstDueDate: Long) -> Unit = { _, _, _, _, _, _ -> }
 ) {
     val haptic = LocalHapticFeedback.current
@@ -2497,8 +2499,8 @@ fun AddEditSubscriptionSheet(
     }
     var showInstallmentDatePicker by remember { mutableStateOf(false) }
 
-    val categoriesList = listOf("Entertainment", "Utilities", "Software / AI", "Food & Drink", "Fitness", "Shopping", "Other")
-    val installmentCategoriesList = listOf("Shopping", "Electronics", "Fitness", "Medical", "Travel", "Education", "Other")
+    val categoriesList = (listOf("Entertainment", "Utilities", "Software / AI", "Food & Drink", "Fitness", "Shopping", "Other") + categoryMergeRules.expense.values).map { categoryMergeRules.resolve(it, com.example.vibefinance.data.entity.CategoryKind.EXPENSE) }.distinct()
+    val installmentCategoriesList = (listOf("Shopping", "Electronics", "Fitness", "Medical", "Travel", "Education", "Other") + categoryMergeRules.expense.values).map { categoryMergeRules.resolve(it, com.example.vibefinance.data.entity.CategoryKind.EXPENSE) }.distinct()
     val frequenciesList = listOf("Monthly", "Yearly", "Weekly")
     val installmentMonthPresets = listOf(3, 6, 12, 24, 36)
 
@@ -3607,29 +3609,7 @@ fun <T> ConnectedButtonGroup(
             val isSelected = index == selectedIndex
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed = interactionSource.collectIsPressedAsState()
-            var isPulsing by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
-            var releaseJob by remember { mutableStateOf<Job?>(null) }
-
-            LaunchedEffect(interactionSource) {
-                interactionSource.interactions.collect { interaction ->
-                    when (interaction) {
-                        is PressInteraction.Press -> {
-                            releaseJob?.cancel()
-                            isPulsing = true
-                        }
-                        is PressInteraction.Release, is PressInteraction.Cancel -> {
-                            releaseJob?.cancel()
-                            releaseJob = coroutineScope.launch {
-                                delay(140)
-                                isPulsing = false
-                            }
-                        }
-                    }
-                }
-            }
-
-            val isShapeActive = isPressed.value || isPulsing
+            val shapeProgress by rememberCompletePressProgress(interactionSource)
 
             val restingTopStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
             val restingBottomStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
@@ -3639,43 +3619,45 @@ fun <T> ConnectedButtonGroup(
             val pressedCorner = 6.dp
 
             val topStart by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingTopStart,
+                targetValue = restingTopStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "topStart_$index"
             )
             val bottomStart by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingBottomStart,
+                targetValue = restingBottomStart,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "bottomStart_$index"
             )
             val topEnd by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingTopEnd,
+                targetValue = restingTopEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "topEnd_$index"
             )
             val bottomEnd by animateDpAsState(
-                targetValue = if (isShapeActive) pressedCorner else restingBottomEnd,
+                targetValue = restingBottomEnd,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = if (isShapeActive) Spring.StiffnessMedium else Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "bottomEnd_$index"
             )
 
-            val shape = RoundedCornerShape(
-                topStart = topStart,
-                bottomStart = bottomStart,
-                topEnd = topEnd,
-                bottomEnd = bottomEnd
+            val shape = completePressShape(
+                RoundedCornerShape(
+                    topStart = topStart, bottomStart = bottomStart,
+                    topEnd = topEnd, bottomEnd = bottomEnd
+                ),
+                RoundedCornerShape(pressedCorner),
+                shapeProgress
             )
 
             val colorMotion = rememberConnectedButtonColorMotion(
@@ -3700,12 +3682,6 @@ fun <T> ConnectedButtonGroup(
                         onClick = {
                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                             view.playSoundEffect(SoundEffectConstants.CLICK)
-                            releaseJob?.cancel()
-                            isPulsing = true
-                            releaseJob = coroutineScope.launch {
-                                delay(140)
-                                isPulsing = false
-                            }
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onItemSelected(index)
                         }

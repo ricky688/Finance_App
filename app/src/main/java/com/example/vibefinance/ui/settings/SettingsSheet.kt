@@ -2,6 +2,10 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
@@ -43,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Add
@@ -90,6 +95,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -156,6 +163,7 @@ fun SettingsSheet(
     onOpenDatePicker: () -> Unit,
     selectedEndDateMillis: Long?
 ) {
+    var showCategoryManager by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -240,7 +248,7 @@ fun SettingsSheet(
             confirmButton = {
                 val confirmInteraction = remember { MutableInteractionSource() }
                 val haptic = LocalHapticFeedback.current
-                Button(
+                CompletePressButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         viewModel.dispatch(FinanceIntent.SeedMockData)
@@ -258,7 +266,7 @@ fun SettingsSheet(
             dismissButton = {
                 val dismissInteraction = remember { MutableInteractionSource() }
                 val haptic = LocalHapticFeedback.current
-                TextButton(
+                CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showResetConfirmDialog = false
@@ -319,6 +327,12 @@ fun SettingsSheet(
             showShapePickerDialog = false
         } catch (e: kotlinx.coroutines.CancellationException) {
         }
+    }
+
+    if (showCategoryManager) {
+        CategoryMergeDialog(state,
+            onMerge = { kind, sources, target -> viewModel.dispatch(FinanceIntent.MergeCategories(kind, sources, target)) },
+            onDismiss = { showCategoryManager = false })
     }
 
     ModalBottomSheet(
@@ -996,6 +1010,20 @@ fun SettingsSheet(
                     }
                 }
 
+                Surface(
+                    onClick = { showCategoryManager = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer
+                ) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.category_merge_settings)) },
+                        supportingContent = { Text(stringResource(R.string.category_merge_settings_hint)) },
+                        leadingContent = { Icon(Icons.Default.Category, contentDescription = null) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
+
                 // ==========================================
                 // SECTION 4: BUDGET & PERIOD CONFIGURATION
                 // ==========================================
@@ -1348,7 +1376,7 @@ fun SettingsSheet(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     val importInteraction = remember { MutableInteractionSource() }
-                    FilledTonalButton(
+                    CompletePressFilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             filePickerLauncher.launch("*/*")

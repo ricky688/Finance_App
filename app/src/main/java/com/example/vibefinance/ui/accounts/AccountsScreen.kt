@@ -2,6 +2,12 @@
 
 package com.example.vibefinance.ui.accounts
 
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
+import com.example.vibefinance.ui.components.CompletePressOutlinedButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+import com.example.vibefinance.ui.components.CompletePressToggleButton
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
@@ -731,7 +737,7 @@ private fun AssetGroupSelector(
                     )
 
                     ConnectedButtonRipple {
-                        ToggleButton(
+                        CompletePressToggleButton(
                             checked = selected,
                             onCheckedChange = { onSelectFilter(filter) },
                             interactionSource = interactionSource,
@@ -1004,7 +1010,7 @@ fun AccountsScreen(
                         )
 
                         val addAssetInteractionSource = remember { MutableInteractionSource() }
-                        Button(
+                        CompletePressButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 editingAccount = null
@@ -1050,7 +1056,7 @@ fun AccountsScreen(
                     horizontalArrangement = Arrangement.End
                 ) {
                     val modeInteraction = remember { MutableInteractionSource() }
-                    FilledTonalButton(
+                    CompletePressFilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             isCompactMode = !isCompactMode
@@ -1132,7 +1138,7 @@ fun AccountsScreen(
                             Spacer(modifier = Modifier.height(16.dp))
 
                             val emptyAddInteraction = remember { MutableInteractionSource() }
-                            Button(
+                            CompletePressButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     editingAccount = null
@@ -1341,9 +1347,9 @@ fun AccountsScreen(
             },
             confirmButton = {
                 val saveInteraction = remember { MutableInteractionSource() }
-                Button(
+                CompletePressButton(
                     onClick = {
-                        val value = targetBalance ?: return@Button
+                        val value = targetBalance ?: return@CompletePressButton
                         onIntent(FinanceIntent.SaveAccount(
                             account = liveAccount.copy(balance = value),
                             originalBalance = selectedAccount.balance
@@ -1523,7 +1529,7 @@ fun AccountsScreen(
                 title = { Text(stringResource(R.string.ah_delete_account_title), fontWeight = FontWeight.Bold) },
                 text = { Text(stringResource(R.string.ah_delete_account_message, editingAccount?.name.orEmpty())) },
                 confirmButton = {
-                    Button(
+                    CompletePressButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             showDeleteConfirmDialog = false
@@ -1542,7 +1548,7 @@ fun AccountsScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(
+                    CompletePressTextButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             showDeleteConfirmDialog = false
@@ -2335,7 +2341,7 @@ fun AccountsScreen(
                                             modifier = Modifier.weight(1f)
                                         )
                                         val plusInteraction = remember { MutableInteractionSource() }
-                                        FilledTonalButton(
+                                        CompletePressFilledTonalButton(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 val currentVal = balanceText.toDoubleOrNull() ?: 0.0
@@ -2351,7 +2357,7 @@ fun AccountsScreen(
                                             Text("+", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                         }
                                         val minusInteraction = remember { MutableInteractionSource() }
-                                        FilledTonalButton(
+                                        CompletePressFilledTonalButton(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 val currentVal = balanceText.toDoubleOrNull() ?: 0.0
@@ -2873,7 +2879,7 @@ fun AccountsScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         val uploadInteraction = remember { MutableInteractionSource() }
-                                        OutlinedButton(
+                                        CompletePressOutlinedButton(
                                             onClick = {
                                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                 galleryLauncher.launch("image/*")
@@ -2890,7 +2896,7 @@ fun AccountsScreen(
                                         }
                                         if (selectedCardImageUri.isNotEmpty()) {
                                             val cropInteraction = remember { MutableInteractionSource() }
-                                            OutlinedButton(
+                                            CompletePressOutlinedButton(
                                                 onClick = {
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     try {
@@ -2916,7 +2922,7 @@ fun AccountsScreen(
                                             }
 
                                             val removeInteraction = remember { MutableInteractionSource() }
-                                            TextButton(
+                                            CompletePressTextButton(
                                                 onClick = {
                                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                                     selectedCardImageUri = ""
@@ -3467,7 +3473,7 @@ fun AccountsScreen(
                         ) {
                             if (editingAccount != null) {
                                 val deleteInteraction = remember { MutableInteractionSource() }
-                                OutlinedButton(
+                                CompletePressOutlinedButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         showDeleteConfirmDialog = true
@@ -3489,10 +3495,10 @@ fun AccountsScreen(
                             }
 
                             val saveInteraction = remember { MutableInteractionSource() }
-                            Button(
+                            CompletePressButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (invalidLastFour) return@Button
+                                    if (invalidLastFour) return@CompletePressButton
                                     val name = nameText.trim().ifEmpty { defaultAccountName }
                                     val balance = balanceText.toDoubleOrNull() ?: 0.0
                                     val limit = creditLimitText.toDoubleOrNull() ?: 0.0
@@ -5248,7 +5254,7 @@ fun ExpressiveAccountListItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val balanceInteraction = remember { MutableInteractionSource() }
-                FilledTonalButton(
+                CompletePressFilledTonalButton(
                     onClick = onBalanceClick,
                     interactionSource = balanceInteraction,
                     shapes = ButtonDefaults.shapes(
@@ -5262,7 +5268,7 @@ fun ExpressiveAccountListItem(
                     Text(stringResource(com.example.vibefinance.R.string.assets_edit_balance))
                 }
                 val historyInteraction = remember { MutableInteractionSource() }
-                TextButton(
+                CompletePressTextButton(
                     onClick = onHistoryClick,
                     interactionSource = historyInteraction,
                     shapes = ButtonDefaults.shapes(
@@ -5468,7 +5474,7 @@ fun InteractiveImageCropDialog(
         },
         confirmButton = {
             val confirmInteraction = remember { MutableInteractionSource() }
-            Button(
+            CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     val cropped = createCroppedBitmap(bitmap, scale, offset, aspectRatioFloat)
@@ -5483,7 +5489,7 @@ fun InteractiveImageCropDialog(
         },
         dismissButton = {
             val dismissInteraction = remember { MutableInteractionSource() }
-            TextButton(
+            CompletePressTextButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onDismiss()
