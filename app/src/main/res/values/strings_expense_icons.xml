@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="expense_icon_title">Expense icon</string>
+  <string name="expense_icon_hint">Choose an icon for this expense. Its category stays the same.</string>
+  <string name="expense_icon_default">Use category icon</string>
+  <string name="expense_icon_default_short">Default</string>
+  <string name="expense_icon_custom_short">Custom</string>
+  <string name="expense_icon_symbols">Built-in symbols</string>
+  <string name="expense_icon_emoji">Emoji</string>
+  <string name="expense_icon_enter_emoji">Custom emoji</string>
+  <string name="expense_icon_one_emoji">Enter one emoji using your keyboard.</string>
+  <string name="expense_icon_food">Food</string>
+  <string name="expense_icon_coffee">Coffee</string>
+  <string name="expense_icon_shopping">Shopping</string>
+  <string name="expense_icon_transport">Transit</string>
+  <string name="expense_icon_car">Car</string>
+  <string name="expense_icon_flight">Flight</string>
+  <string name="expense_icon_home">Home</string>
+  <string name="expense_icon_bills">Bills</string>
+  <string name="expense_icon_health">Health</string>
+  <string name="expense_icon_education">School</string>
+  <string name="expense_icon_fitness">Fitness</string>
+  <string name="expense_icon_gift">Gift</string>
+  <string name="expense_icon_games">Games</string>
+  <string name="expense_icon_movies">Movies</string>
+  <string name="expense_icon_pets">Pets</string>
+  <string name="expense_icon_work">Work</string>
+</resources>

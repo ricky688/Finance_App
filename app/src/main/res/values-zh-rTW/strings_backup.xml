@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="backup_title">備份整個應用程式</string>
+  <string name="backup_restore_title">還原備份</string>
+  <string name="backup_includes">包括設定、自訂外觀、交易紀錄、預算、定期付款、資產、卡片、圖片及已連結應用程式。</string>
+  <string name="backup_encrypt">使用密碼加密</string>
+  <string name="backup_plain_notice">此檔案包含財務資料。任何取得檔案的人都可以讀取內容。</string>
+  <string name="backup_password">密碼</string>
+  <string name="backup_confirm_password">確認密碼</string>
+  <string name="backup_password_notice">請妥善保管密碼，密碼無法復原。</string>
+  <string name="backup_save">儲存備份</string>
+  <string name="backup_continue">繼續</string>
+  <string name="backup_cancel">取消</string>
+  <string name="backup_done">完成</string>
+  <string name="backup_saving">正在儲存備份</string>
+  <string name="backup_restoring">正在準備還原</string>
+  <string name="backup_busy">請稍候，完成前請保持應用程式開啟。</string>
+  <string name="backup_password_required">輸入備份密碼</string>
+  <string name="backup_created">建立時間：%1$s</string>
+  <string name="backup_counts">%1$d 個帳戶 · %2$d 筆交易 · %3$d 項定期付款 · %4$d 張圖片</string>
+  <string name="backup_unavailable_apps">以下已連結的應用程式尚未安裝，已儲存的連結將會保留：
+%1$s</string>
+  <string name="backup_replace_notice">這會取代目前所有應用程式資料和設定。Android 權限需要另外授予。</string>
+  <string name="backup_replace">取代目前資料和設定</string>
+  <string name="backup_saved">備份已儲存</string>
+  <string name="backup_saved_notice">完整備份已儲存至所選位置。</string>
+  <string name="backup_failed">備份操作失敗</string>
+  <string name="backup_error_invalid">此備份已損壞或無效。目前資料未被取代。</string>
+  <string name="backup_error_newer">此備份需要較新版本的 VibeFinance。</string>
+  <string name="backup_error_password">密碼不正確或加密檔案已損壞，請重試。</string>
+  <string name="backup_error_image">無法讀取已儲存的卡片圖片。備份前請修正或移除該圖片。</string>
+  <string name="backup_error_state">已儲存的應用程式資料不一致，無法備份。</string>
+  <string name="backup_error_storage">操作未能完成。請檢查儲存空間及所選檔案的存取權限。原有資料已保留。</string>
+    <string name="backup_saved_app_unavailable">已儲存的應用程式：%1$s（尚未安裝）。此連結將會保留。</string>
+  <string name="backup_restored">備份已還原</string>
+</resources>

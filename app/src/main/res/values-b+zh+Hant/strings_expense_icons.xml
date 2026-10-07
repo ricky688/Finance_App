@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="expense_icon_title">支出圖示</string>
+  <string name="expense_icon_hint">為這筆支出選擇圖示，分類保持不變。</string>
+  <string name="expense_icon_default">使用分類圖示</string>
+  <string name="expense_icon_default_short">預設</string>
+  <string name="expense_icon_custom_short">自訂</string>
+  <string name="expense_icon_symbols">內建符號</string>
+  <string name="expense_icon_emoji">表情符號</string>
+  <string name="expense_icon_enter_emoji">自訂表情符號</string>
+  <string name="expense_icon_one_emoji">使用鍵盤輸入一個表情符號。</string>
+  <string name="expense_icon_food">餐飲</string>
+  <string name="expense_icon_coffee">咖啡</string>
+  <string name="expense_icon_shopping">購物</string>
+  <string name="expense_icon_transport">交通</string>
+  <string name="expense_icon_car">汽車</string>
+  <string name="expense_icon_flight">飛行</string>
+  <string name="expense_icon_home">居家</string>
+  <string name="expense_icon_bills">帳單</string>
+  <string name="expense_icon_health">醫療</string>
+  <string name="expense_icon_education">教育</string>
+  <string name="expense_icon_fitness">運動</string>
+  <string name="expense_icon_gift">禮物</string>
+  <string name="expense_icon_games">遊戲</string>
+  <string name="expense_icon_movies">電影</string>
+  <string name="expense_icon_pets">寵物</string>
+  <string name="expense_icon_work">工作</string>
+</resources>

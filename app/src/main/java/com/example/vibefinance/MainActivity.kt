@@ -153,7 +153,8 @@ class MainActivity : ComponentActivity() {
                         appearancePalette = state.appearancePalette,
                         appearanceContrast = state.appearanceContrast,
                         pureBlackDarkMode = state.pureBlackDarkMode,
-                        iconShape = state.iconShape.shape
+                        iconShape = state.iconShape.shape,
+                        randomIconShapes = state.iconShape == com.example.vibefinance.theme.IconShapeMode.RANDOM
                     ) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),

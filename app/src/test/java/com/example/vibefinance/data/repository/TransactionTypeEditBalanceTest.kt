@@ -101,5 +101,24 @@ class TransactionTypeEditBalanceTest {
         assertEquals("Salary", InMemoryDatabase.transactions.value.single { it.id == id }.category)
     }
 
+    @Test
+    fun iconOnlyEditsPreserveFinancialFieldsBalancesAndSurviveReload() = runTest {
+        val repository = TransactionRepository()
+        for (type in AccountType.entries) {
+            val accountId = InMemoryDatabase.insertAccount(AccountEntity(name = "Icon $type", type = type, balance = 400.0, icon = "bank"))
+            val id = repository.insertTransaction(TransactionEntity(amount = 9.9, category = "Food", timestamp = 1_700_000_000_000L,
+                accountId = accountId, description = "咖啡", isExcludedFromDailyBudget = true))
+            val before = InMemoryDatabase.transactions.value.single { it.id == id }
+            val balanceBefore = balance(accountId)
+            for (icon in listOf("emoji:☕", "symbol:COFFEE", null)) {
+                val current = InMemoryDatabase.transactions.value.single { it.id == id }
+                val edited = current.withHistoryEdit(9.9, false, "Food", "咖啡", false, icon)
+                repository.updateTransaction(edited, current)
+                InMemoryDatabase.reloadAfterFullRestore(context)
+                assertEquals(before.copy(customIcon = icon), InMemoryDatabase.transactions.value.single { it.id == id })
+                assertEquals(balanceBefore, balance(accountId), 0.000001)
+            }
+        }
+    }
     private fun balance(id: Long): Double = InMemoryDatabase.accounts.value.single { it.id == id }.balance
 }

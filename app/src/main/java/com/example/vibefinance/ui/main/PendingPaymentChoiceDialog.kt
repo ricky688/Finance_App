@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,8 +66,10 @@ internal fun PendingPaymentChoiceDialog(
             context.packageManager.getApplicationLabel(appInfo).toString()
         }.getOrDefault(payment.sourcePackage)
     }
-    val suggestedId = remember(payment.id, payment.cardLast4, accounts) {
-        PendingPaymentStore.findMatchingAccount(payment, accounts)?.id
+    var currentPayment by remember(payment.id) { mutableStateOf(payment) }
+    var showTaggingDialog by remember(payment.id) { mutableStateOf(false) }
+    val suggestedId = remember(payment.id, currentPayment.cardLast4, accounts) {
+        PendingPaymentStore.findMatchingAccount(currentPayment, accounts)?.id
     }
     var selectedId by remember(payment.id, suggestedId) { mutableStateOf(suggestedId) }
     var rememberChoice by remember(payment.id) { mutableStateOf(true) }
@@ -81,9 +85,9 @@ internal fun PendingPaymentChoiceDialog(
     }
     val selectedAccount = sortedAccounts.firstOrNull { it.id == selectedId }
     val canRemember = selectedAccount?.let {
-        PendingPaymentStore.canRememberChoice(payment, it) ||
-            !payment.cardLast4.isNullOrBlank() ||
-            (!payment.assetHint.isBlank() && !PendingPaymentStore.isGenericHint(payment.assetHint))
+        PendingPaymentStore.canRememberChoice(currentPayment, it) ||
+            !currentPayment.cardLast4.isNullOrBlank() ||
+            (!currentPayment.assetHint.isBlank() && !PendingPaymentStore.isGenericHint(currentPayment.assetHint))
     } == true
 
     AlertDialog(
@@ -110,42 +114,44 @@ internal fun PendingPaymentChoiceDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        val amountPrefix = if (payment.isTopUp) "+HK$" else "HK$"
+                        val isIncome = currentPayment.isTopUp || currentPayment.transactionType == "INCOME"
+                        val amountPrefix = if (isIncome) "+HK$" else "HK$"
                         Text(
-                            text = "$amountPrefix${String.format(Locale.getDefault(), "%,.2f", payment.amount)}",
+                            text = "$amountPrefix${String.format(Locale.getDefault(), "%,.2f", currentPayment.amount)}",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                         Text(
-                            text = payment.merchant,
+                            text = currentPayment.merchant,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (payment.assetHint.isNotBlank() &&
-                            !payment.assetHint.equals(payment.merchant, ignoreCase = true)
+                        if (currentPayment.assetHint.isNotBlank() &&
+                            !currentPayment.assetHint.equals(currentPayment.merchant, ignoreCase = true)
                         ) {
                             Text(
-                                text = stringResource(R.string.pending_payment_detected_hint, payment.assetHint),
+                                text = stringResource(R.string.pending_payment_detected_hint, currentPayment.assetHint),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f)
                             )
                         }
-                        if (!payment.cardLast4.isNullOrBlank()) {
+                        val last4 = currentPayment.cardLast4
+                        if (!last4.isNullOrBlank()) {
                             Text(
-                                text = stringResource(R.string.ui_pending_card_last_four, payment.cardLast4),
+                                text = stringResource(R.string.ui_pending_card_last_four, last4),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                         }
-                        if (payment.balanceRemaining != null) {
+                        if (currentPayment.balanceRemaining != null) {
                             Text(
                                 text = stringResource(
                                     R.string.pending_payment_balance_remaining,
-                                    "HK$${String.format(Locale.getDefault(), "%,.2f", payment.balanceRemaining)}"
+                                    "HK$${String.format(Locale.getDefault(), "%,.2f", currentPayment.balanceRemaining)}"
                                 ),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
@@ -154,6 +160,26 @@ internal fun PendingPaymentChoiceDialog(
                         }
                     }
                 }
+
+                // Button to open Visual Slot Tagging dialog
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { showTaggingDialog = true },
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.vst_open_button),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
                 Text(
                     text = stringResource(R.string.pending_payment_choose_account),
                     style = MaterialTheme.typography.titleSmall,
@@ -276,4 +302,23 @@ internal fun PendingPaymentChoiceDialog(
             }
         }
     )
+
+    if (showTaggingDialog) {
+        VisualSlotTaggingDialog(
+            payment = currentPayment,
+            onDismiss = { showTaggingDialog = false },
+            onSaveAndApply = { template, matchResult ->
+                com.example.vibefinance.data.InMemoryDatabase.saveNotificationTemplate(template)
+                val updated = currentPayment.copy(
+                    amount = matchResult.amount,
+                    merchant = matchResult.merchant,
+                    cardLast4 = matchResult.cardLast4 ?: currentPayment.cardLast4,
+                    transactionType = matchResult.transactionType.name
+                )
+                currentPayment = updated
+                PendingPaymentStore.updatePayment(payment.id, updated)
+                showTaggingDialog = false
+            }
+        )
+    }
 }

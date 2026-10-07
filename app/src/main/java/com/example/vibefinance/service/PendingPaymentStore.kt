@@ -23,7 +23,10 @@ data class PendingPayment(
     val detectedAt: Long,
     val cardLast4: String? = null,
     val balanceRemaining: Double? = null,
-    val isTopUp: Boolean = false
+    val isTopUp: Boolean = false,
+    val rawTitle: String = "",
+    val rawText: String = "",
+    val transactionType: String = "EXPENSE"
 )
 
 /**
@@ -50,7 +53,7 @@ object PendingPaymentStore {
     @Synchronized
     fun initialize(context: Context) {
         if (initialized) return
-        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(context.applicationContext, PREFS_NAME)
         _pending.value = runCatching {
             val array = JSONArray(prefs.getString(PENDING_KEY, "[]"))
             (0 until array.length()).mapNotNull { index ->
@@ -68,7 +71,10 @@ object PendingPaymentStore {
                     detectedAt = item.optLong("detectedAt", System.currentTimeMillis()),
                     cardLast4 = if (item.has("cardLast4") && !item.isNull("cardLast4")) item.getString("cardLast4") else null,
                     balanceRemaining = if (item.has("balanceRemaining") && !item.isNull("balanceRemaining")) item.getDouble("balanceRemaining") else null,
-                    isTopUp = item.optBoolean("isTopUp", false)
+                    isTopUp = item.optBoolean("isTopUp", false),
+                    rawTitle = item.optString("rawTitle", ""),
+                    rawText = item.optString("rawText", ""),
+                    transactionType = item.optString("transactionType", "EXPENSE")
                 )
             }
         }.getOrDefault(emptyList())
@@ -97,7 +103,10 @@ object PendingPaymentStore {
         notificationKey: String = "",
         cardLast4: String? = null,
         balanceRemaining: Double? = null,
-        isTopUp: Boolean = false
+        isTopUp: Boolean = false,
+        rawTitle: String = "",
+        rawText: String = "",
+        transactionType: String = "EXPENSE"
     ): PendingPayment? {
         initialize(context)
         if (!amount.isFinite() || amount <= 0.0 || sourcePackage.isBlank()) return null
@@ -133,7 +142,10 @@ object PendingPaymentStore {
             detectedAt = detectedAt,
             cardLast4 = cardLast4,
             balanceRemaining = balanceRemaining,
-            isTopUp = isTopUp
+            isTopUp = isTopUp,
+            rawTitle = rawTitle,
+            rawText = rawText,
+            transactionType = transactionType
         )
         _pending.value = _pending.value + payment
         persist(context)
@@ -418,8 +430,15 @@ object PendingPaymentStore {
         val payment = _pending.value.firstOrNull { it.id == paymentId } ?: return false
         val account = InMemoryDatabase.accounts.value.firstOrNull { it.id == accountId } ?: return false
         val transactionKey = "notification:${payment.id}"
-        val txAmount = if (payment.isTopUp) -payment.amount else payment.amount
-        val txCategory = if (payment.isTopUp) "Top-up" else PaymentNotificationListener.determineCategory(payment.merchant)
+        val isIncome = payment.isTopUp || payment.transactionType == "INCOME"
+        val txAmount = if (isIncome) -payment.amount else payment.amount
+        val txCategory = when {
+            payment.isTopUp -> "Top-up"
+            payment.transactionType == "INCOME" -> "Salary"
+            payment.transactionType == "REPAYMENT" -> "Repayment"
+            else -> PaymentNotificationListener.determineCategory(payment.merchant)
+        }
+        val isExcluded = isIncome || payment.transactionType == "REPAYMENT"
         val inserted = InMemoryDatabase.insertNotificationExpenseIfAbsent(
             TransactionEntity(
                 amount = txAmount,
@@ -427,7 +446,8 @@ object PendingPaymentStore {
                 timestamp = payment.detectedAt.coerceAtMost(System.currentTimeMillis()),
                 accountId = account.id,
                 description = payment.merchant,
-                groupId = transactionKey
+                groupId = transactionKey,
+                isExcludedFromDailyBudget = isExcluded
             )
         )
         if (!inserted && InMemoryDatabase.transactions.value.none { it.groupId == transactionKey }) {
@@ -499,6 +519,11 @@ object PendingPaymentStore {
         persist(context)
     }
 
+    @Synchronized
+    fun updatePayment(paymentId: String, updated: PendingPayment) {
+        _pending.value = _pending.value.map { if (it.id == paymentId) updated else it }
+    }
+
     private fun rememberKey(payment: PendingPayment): String {
         val pkg = payment.sourcePackage.lowercase(Locale.ROOT)
         val hint = payment.assetHint.trim().lowercase(Locale.ROOT)
@@ -531,6 +556,12 @@ object PendingPaymentStore {
         persist(context)
     }
 
+    @Synchronized
+    internal fun reloadAfterFullRestore(context: Context) {
+        initialized = false
+        initialize(context)
+    }
+
     private fun trimSeen() {
         val cutoff = System.currentTimeMillis() - SEEN_RETENTION_MS
         seen.entries.removeIf { it.value < cutoff }
@@ -551,6 +582,9 @@ object PendingPaymentStore {
                     payment.cardLast4?.let { put("cardLast4", it) }
                     payment.balanceRemaining?.let { put("balanceRemaining", it) }
                     put("isTopUp", payment.isTopUp)
+                    put("rawTitle", payment.rawTitle)
+                    put("rawText", payment.rawText)
+                    put("transactionType", payment.transactionType)
                 })
             }
         }
@@ -560,7 +594,7 @@ object PendingPaymentStore {
         val seenJson = JSONObject().apply {
             seen.forEach { (key, timestamp) -> put(key, timestamp) }
         }
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        com.example.vibefinance.util.CoordinatedPreferences.get(context.applicationContext, PREFS_NAME)
             .edit()
             .putString(PENDING_KEY, pendingJson.toString())
             .putString(REMEMBERED_KEY, rememberedJson.toString())

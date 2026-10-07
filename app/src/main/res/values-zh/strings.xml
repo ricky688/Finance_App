@@ -415,4 +415,16 @@
     <string name="non_daily_preview_title">非日常独立支出</string>
     <string name="non_daily_preview_desc">此笔消费不计入今日生活预算，不影响每日津贴</string>
     <string name="non_daily_preview_preserved">今日每日预算保持不变</string>
+
+    <!-- Visual Slot Tagging & Grammar Engine -->
+    <string name="vst_title">自定义标记模板</string>
+    <string name="vst_subtitle">点击文本区块标记“金额”、“商户”或“卡号”，未来相同格式通知将自动精准记账。</string>
+    <string name="vst_tap_tokens_hint">点击下方词块以标记或调整字段属性：</string>
+    <string name="vst_assign_slot_to">将“%s”标记为：</string>
+    <string name="vst_clear_slot">清除标记</string>
+    <string name="vst_transaction_direction">交易类型</string>
+    <string name="vst_live_preview">实时识别预览</string>
+    <string name="vst_save_and_apply">保存模板并应用</string>
+    <string name="vst_open_button">✨ 自定义标记模板</string>
+    <string name="vst_templates_title">自定义通知模板</string>
 </resources>

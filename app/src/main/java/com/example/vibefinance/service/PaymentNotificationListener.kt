@@ -92,7 +92,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         // 6. Strict Payment Intent Guard: Filter out non-payment alerts (OTP, promos, marketing, login alerts)
-        if (!isPaymentNotification(title, text)) {
+        if (!isPaymentNotification(title, text, packageName)) {
             android.util.Log.d("VibeFinanceNotification", "Notification from '$packageName' ('$title') filtered out: not a payment transaction.")
             return
         }
@@ -107,7 +107,9 @@ class PaymentNotificationListener : NotificationListenerService() {
             parsed.copy(
                 sourcePackage = packageName,
                 detectedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis(),
-                notificationKey = sbn.key.orEmpty()
+                notificationKey = sbn.key.orEmpty(),
+                rawTitle = if (parsed.rawTitle.isNotBlank()) parsed.rawTitle else title,
+                rawText = if (parsed.rawText.isNotBlank()) parsed.rawText else text
             )
         )
     }
@@ -121,7 +123,10 @@ class PaymentNotificationListener : NotificationListenerService() {
         val notificationKey: String = "",
         val cardLast4: String? = null,
         val balanceRemaining: Double? = null,
-        val isTopUp: Boolean = false
+        val isTopUp: Boolean = false,
+        val rawTitle: String = "",
+        val rawText: String = "",
+        val transactionType: String = "EXPENSE"
     )
 
     companion object {
@@ -215,7 +220,10 @@ class PaymentNotificationListener : NotificationListenerService() {
          * Privacy-First Payment Intent Guard:
          * Rejects non-expense bank alerts as well as OTPs, login notices, and promotions.
          */
-        fun isPaymentNotification(title: String, text: String): Boolean {
+        fun isPaymentNotification(title: String, text: String, packageName: String = ""): Boolean {
+            if (packageName.isNotBlank() && InMemoryDatabase.findMatchingTemplate(packageName, "$title $text".trim()) != null) {
+                return true
+            }
             if (isOctopusTopUp(title, text)) {
                 return true
             }
@@ -309,13 +317,60 @@ class PaymentNotificationListener : NotificationListenerService() {
             return null
         }
 
+        private fun resolveAssetName(
+            title: String,
+            text: String,
+            detectedCardLast4: String?,
+            isBocGoUnionPayTransit: Boolean = false,
+            fallbackHint: String = "Wallet (Cash)"
+        ): String {
+            val combinedAll = "$title $text".lowercase(Locale.US)
+            val cardHint = Regex(
+                "(?i)(?:visa|mastercard|amex|card|信用卡|扣賬卡)\\s*(?:[•*xX-]{1,4}\\s*)?\\d{4}"
+            ).find("$title $text")?.value?.trim()
+            return when {
+                isBocGoUnionPayTransit -> title.trim()
+                cardHint != null -> cardHint
+                combinedAll.contains("payme") -> "PayMe"
+                combinedAll.contains("fps") || combinedAll.contains("轉數快") -> "FPS"
+                combinedAll.contains("alipay") || combinedAll.contains("淘寶") || combinedAll.contains("支付寶") -> "Alipay"
+                combinedAll.contains("wechat") || combinedAll.contains("微信支付") -> "WeChat Pay"
+                combinedAll.contains("hsbc") -> "HSBC"
+                combinedAll.contains("citi") -> "Citi"
+                combinedAll.contains("chase") -> "Chase"
+                combinedAll.contains("boc") || combinedAll.contains("bank of china") || combinedAll.contains("中銀") -> "Bank of China"
+                combinedAll.contains("hang seng") || combinedAll.contains("恒生") -> "Hang Seng Bank"
+                combinedAll.contains("mox") -> "Mox Bank"
+                combinedAll.contains("octopus") || combinedAll.contains("八達通") -> "八達通"
+                detectedCardLast4 != null -> "Card ••$detectedCardLast4"
+                title.isNotBlank() -> title.trim()
+                else -> fallbackHint
+            }
+        }
+
         /**
          * On-device privacy-first parser for payment notifications.
          * Pure deterministic parsing without cloud inference, ensuring user privacy.
          */
         fun parseNotification(title: String, text: String, packageName: String): ParsedPayment? {
             if (title.isBlank() && text.isBlank()) return null
-            if (!isPaymentNotification(title, text)) return null
+
+            // 1. User's custom visual templates (Highest priority)
+            val customMatch = InMemoryDatabase.findMatchingTemplate(packageName, "$title $text".trim())
+            if (customMatch != null) {
+                val (tmpl, res) = customMatch
+                return ParsedPayment(
+                    amount = res.amount,
+                    merchant = res.merchant,
+                    assetName = tmpl.name,
+                    cardLast4 = res.cardLast4 ?: extractCardLast4(text, title),
+                    rawTitle = title,
+                    rawText = text,
+                    transactionType = res.transactionType.name
+                )
+            }
+
+            if (!isPaymentNotification(title, text, packageName)) return null
 
             // Account balances use HKD. Do not silently post a foreign-currency amount as HKD.
             val foreignCurrency = Regex(
@@ -596,6 +651,27 @@ class PaymentNotificationListener : NotificationListenerService() {
                 }
             }
 
+            // 2.5. Transaction Grammar Engine (Preposition Anchors & Grammar State Machine)
+            val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
+            if (grammarResult != null && grammarResult.amount > 0.0 && grammarResult.confidence >= 0.9f) {
+                val assetName = resolveAssetName(
+                    title = title,
+                    text = text,
+                    detectedCardLast4 = grammarResult.cardLast4 ?: detectedCardLast4,
+                    isBocGoUnionPayTransit = isBocGoUnionPayTransit,
+                    fallbackHint = grammarResult.assetHint
+                )
+                return ParsedPayment(
+                    amount = grammarResult.amount,
+                    merchant = grammarResult.merchant,
+                    assetName = assetName,
+                    cardLast4 = grammarResult.cardLast4 ?: detectedCardLast4,
+                    rawTitle = title,
+                    rawText = text,
+                    transactionType = grammarResult.intent.name
+                )
+            }
+
             // 3. Digital Payment Apps & Bank Alerts (PayMe, FPS, Alipay, WeChat, banks).
             val match = localCurrencyAmount.find(text) ?: localCurrencyAmount.find(title)
             
@@ -604,28 +680,12 @@ class PaymentNotificationListener : NotificationListenerService() {
                 val amount = rawAmountStr.toDoubleOrNull()
 
                 if (amount != null && amount > 0.0) {
-                    // Extract Card/Bank or App Asset Name
-                    val combinedAll = "$title $text".lowercase(Locale.US)
-                    val cardHint = Regex(
-                        "(?i)(?:visa|mastercard|amex|card|信用卡|扣賬卡)\\s*(?:[•*xX-]{1,4}\\s*)?\\d{4}"
-                    ).find("$title $text")?.value?.trim()
-                    val assetName = when {
-                        isBocGoUnionPayTransit -> title.trim()
-                        cardHint != null -> cardHint
-                        combinedAll.contains("payme") -> "PayMe"
-                        combinedAll.contains("fps") || combinedAll.contains("轉數快") -> "FPS"
-                        combinedAll.contains("alipay") || combinedAll.contains("淘寶") || combinedAll.contains("支付寶") -> "Alipay"
-                        combinedAll.contains("wechat") || combinedAll.contains("微信支付") -> "WeChat Pay"
-                        combinedAll.contains("hsbc") -> "HSBC"
-                        combinedAll.contains("citi") -> "Citi"
-                        combinedAll.contains("chase") -> "Chase"
-                        combinedAll.contains("boc") || combinedAll.contains("bank of china") || combinedAll.contains("中銀") -> "Bank of China"
-                        combinedAll.contains("hang seng") || combinedAll.contains("恒生") -> "Hang Seng Bank"
-                        combinedAll.contains("mox") -> "Mox Bank"
-                        combinedAll.contains("octopus") || combinedAll.contains("八達通") -> "八達通"
-                        title.isNotBlank() -> title.trim()
-                        else -> "Wallet (Cash)"
-                    }
+                    val assetName = resolveAssetName(
+                        title = title,
+                        text = text,
+                        detectedCardLast4 = detectedCardLast4,
+                        isBocGoUnionPayTransit = isBocGoUnionPayTransit
+                    )
 
                     // Extract Merchant Name cleanly
                     val cleanText = text.replace(match.value, "")
@@ -727,7 +787,10 @@ class PaymentNotificationListener : NotificationListenerService() {
                 notificationKey = payment.notificationKey,
                 cardLast4 = payment.cardLast4,
                 balanceRemaining = payment.balanceRemaining,
-                isTopUp = payment.isTopUp
+                isTopUp = payment.isTopUp,
+                rawTitle = payment.rawTitle,
+                rawText = payment.rawText,
+                transactionType = payment.transactionType
             ) ?: return false
             val rememberedId = PendingPaymentStore.rememberedAccountId(context, queued)
             val rememberedAccount = InMemoryDatabase.accounts.value.firstOrNull { it.id == rememberedId }

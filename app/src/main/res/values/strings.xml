@@ -415,4 +415,16 @@
     <string name="non_daily_preview_title">Non-Daily Purchase</string>
     <string name="non_daily_preview_desc">Excluded from daily budget calculation; does not affect daily allowance</string>
     <string name="non_daily_preview_preserved">Daily allowance unchanged</string>
+
+    <!-- Visual Slot Tagging & Grammar Engine -->
+    <string name="vst_title">Visual Slot Tagging</string>
+    <string name="vst_subtitle">Tap text pieces to assign Amount, Merchant, or Card last 4 digits for automatic future recognition.</string>
+    <string name="vst_tap_tokens_hint">Tap any token below to assign or adjust its slot:</string>
+    <string name="vst_assign_slot_to">Assign \"%s\" to:</string>
+    <string name="vst_clear_slot">Clear Slot</string>
+    <string name="vst_transaction_direction">Transaction Type</string>
+    <string name="vst_live_preview">Live Template Match Preview</string>
+    <string name="vst_save_and_apply">Save Template &amp; Apply</string>
+    <string name="vst_open_button">✨ Custom Tagging Template</string>
+    <string name="vst_templates_title">CUSTOM NOTIFICATION TEMPLATES</string>
 </resources>

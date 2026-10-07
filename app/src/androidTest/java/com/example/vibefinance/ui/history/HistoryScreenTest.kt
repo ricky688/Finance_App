@@ -49,6 +49,28 @@ class HistoryScreenTest {
     val composeTestRule = createComposeRule()
 
     @Test
+    fun customExpenseIconEditKeepsAmountCategoryAndBudgetChoice() {
+        val expense = TransactionEntity(id = 1L, amount = 9.9, category = "Food", accountId = 1L,
+            timestamp = System.currentTimeMillis(), description = "咖啡", isExcludedFromDailyBudget = true)
+        val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
+        composeTestRule.setContent {
+            HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(expense)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
+        }
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
+        composeTestRule.onNodeWithTag("TransactionRow_1").performClick()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("ExpenseIconChoose")).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithTag("ExpenseIconChoose").performScrollTo().performClick()
+        composeTestRule.onNodeWithTag("ExpenseIconSymbol_COFFEE").performClick()
+        composeTestRule.onNodeWithTag("ExpenseIconApply").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
+        composeTestRule.waitUntil(5_000) { submitted.get() != null }
+        org.junit.Assert.assertEquals(expense.copy(customIcon = "symbol:COFFEE"), submitted.get()!!.newTx)
+    }
+
+    @Test
     fun swipeRight_abort_returnsToSettled() {
         // Setup mock data
         val mockTransaction = TransactionEntity(

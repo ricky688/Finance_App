@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.theme
 
 import androidx.compose.foundation.shape.CircleShape
@@ -30,11 +32,15 @@ class ExpressiveThemeStressTest {
         val large = ExpressiveShapes.large as CornerBasedShape
         val extraLarge = ExpressiveShapes.extraLarge as CornerBasedShape
 
-        assertEquals(8f, extraSmall.topStart.toPx(testSize, density), 0.01f)
-        assertEquals(12f, small.topStart.toPx(testSize, density), 0.01f)
-        assertEquals(16f, medium.topStart.toPx(testSize, density), 0.01f)
-        assertEquals(24f, large.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(4f, extraSmall.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(8f, small.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(12f, medium.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(16f, large.topStart.toPx(testSize, density), 0.01f)
         assertEquals(28f, extraLarge.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(20f, ExpressiveShapes.largeIncreased.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(32f, ExpressiveShapes.extraLargeIncreased.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(48f, ExpressiveShapes.extraExtraLarge.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(50f, MaterialCornerScale.full.topStart.toPx(testSize, density), 0.01f)
     }
 
     @Test
@@ -46,7 +52,7 @@ class ExpressiveThemeStressTest {
         val floatingBar = FloatingBarShape as CornerBasedShape
         val sheetShape = ExpressiveSheetShape as CornerBasedShape
 
-        assertEquals(24f, bentoCard.topStart.toPx(testSize, density), 0.01f)
+        assertEquals(28f, bentoCard.topStart.toPx(testSize, density), 0.01f)
         assertEquals(20f, bentoSubCard.topStart.toPx(testSize, density), 0.01f)
         assertEquals(16f, bentoSmallCard.topStart.toPx(testSize, density), 0.01f)
         assertEquals(28f, heroCard.topStart.toPx(testSize, density), 0.01f)
@@ -80,6 +86,10 @@ class ExpressiveThemeStressTest {
             ExpressiveShapes.medium,
             ExpressiveShapes.large,
             ExpressiveShapes.extraLarge,
+            ExpressiveShapes.largeIncreased,
+            ExpressiveShapes.extraLargeIncreased,
+            ExpressiveShapes.extraExtraLarge,
+            MaterialCornerScale.full,
             BentoCardShape,
             BentoSubCardShape,
             BentoSmallCardShape,

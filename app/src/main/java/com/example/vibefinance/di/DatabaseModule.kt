@@ -26,7 +26,11 @@ object DatabaseModule {
             context,
             VibeFinanceDatabase::class.java,
             "vibefinance_db"
-        ).fallbackToDestructiveMigration().build()
+        ).addMigrations(object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN customIcon TEXT")
+            }
+        }).fallbackToDestructiveMigration().build()
     }
 
     @Provides

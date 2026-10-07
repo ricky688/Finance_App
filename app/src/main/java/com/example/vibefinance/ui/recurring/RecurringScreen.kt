@@ -112,7 +112,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
-import com.example.vibefinance.theme.LocalIconShape
+import com.example.vibefinance.theme.rememberIconShape
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -1712,7 +1712,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                         // 1. Leading Avatar Visual Container (M3 Expressive)
                         Surface(
                             modifier = Modifier.size(44.dp),
-                            shape = LocalIconShape.current,
+                            shape = rememberIconShape("subscription.${subscription.id}"),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         ) {
@@ -1916,7 +1916,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                             // 1. Leading Container
                             Surface(
                                 modifier = Modifier.size(44.dp),
-                                shape = LocalIconShape.current,
+                                shape = rememberIconShape("installment.${plan.groupId}"),
                                 color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             ) {
@@ -2247,7 +2247,7 @@ fun LiveSubscriptionPreviewCard(
                     // Leading Emoji / Category Icon Avatar
                     Surface(
                         modifier = Modifier.size(44.dp),
-                        shape = LocalIconShape.current,
+                        shape = rememberIconShape("subscription.preview"),
                         color = (presetColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, (presetColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.3f))
                     ) {

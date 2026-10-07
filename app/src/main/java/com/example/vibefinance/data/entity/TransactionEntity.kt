@@ -44,5 +44,6 @@ data class TransactionEntity(
     // Keep the account types used when this entry affected balances: editing an account's
     // type later must not reinterpret its earlier History entries or reversal amounts.
     val sourceWasCreditCard: Boolean? = null,
-    val destinationWasCreditCard: Boolean? = null
+    val destinationWasCreditCard: Boolean? = null,
+    val customIcon: String? = null // Optional emoji or stable built-in symbol identifier
 )

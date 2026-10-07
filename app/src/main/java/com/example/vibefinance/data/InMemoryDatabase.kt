@@ -13,6 +13,8 @@ import com.example.vibefinance.data.entity.CategoryKind
 import com.example.vibefinance.data.entity.CategoryMergeRules
 import com.example.vibefinance.data.entity.CategoryMergePlan
 import com.example.vibefinance.data.entity.planCategoryMerge
+import com.example.vibefinance.data.entity.NotificationTemplate
+import com.example.vibefinance.data.entity.TemplateMatchResult
 import com.example.vibefinance.util.LocalAppManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -30,6 +32,7 @@ object InMemoryDatabase {
     val subscriptions = MutableStateFlow<List<SubscriptionEntity>>(emptyList())
     val categoryMergeRules = MutableStateFlow(CategoryMergeRules())
     val discountShops = MutableStateFlow<List<DiscountShop>>(emptyList())
+    val notificationTemplates = MutableStateFlow<List<NotificationTemplate>>(emptyList())
     val savedAspects = MutableStateFlow<List<String>>(
         listOf("Coffee & Cafe", "Supermarket", "Gas & Fuel", "Electronics", "Dining", "Retail")
     )
@@ -43,10 +46,10 @@ object InMemoryDatabase {
     private var nextDiscountShopId = 1L
 
     private var appContext: android.content.Context? = null
-    private val diskIoLock = Any()
+    internal val diskIoLock = Any()
     private const val DATA_FILE_NAME = "vibefinance_data.json"
 
-    fun saveAspect(aspect: String) {
+    fun saveAspect(aspect: String) = synchronized(diskIoLock) {
         val trimmed = aspect.trim()
         if (trimmed.isNotBlank()) {
             savedAspects.update { current ->
@@ -61,9 +64,9 @@ object InMemoryDatabase {
 
     private var sharedPrefs: android.content.SharedPreferences? = null
 
-    fun initialize(context: android.content.Context) {
+    fun initialize(context: android.content.Context) = synchronized(diskIoLock) {
         appContext = context.applicationContext
-        sharedPrefs = context.getSharedPreferences("cashback_rules_prefs", android.content.Context.MODE_PRIVATE)
+        sharedPrefs = com.example.vibefinance.util.CoordinatedPreferences.get(context, "cashback_rules_prefs")
         isNotificationLoggingEnabled = sharedPrefs?.getBoolean("notification_logging_enabled", true) ?: true
         val rulesMap = mutableMapOf<String, Double>()
         sharedPrefs?.all?.forEach { (key, value) ->
@@ -109,12 +112,12 @@ object InMemoryDatabase {
                     installedByName[keyword.lowercase(Locale.US)]
                 }
             } else {
-                listOfNotNull(installedByName[selected.lowercase(Locale.US)])
+                listOf(installedByName[selected.lowercase(Locale.US)] ?: selected)
             }
         }
     }
 
-    fun toggleInterceptApp(appId: String) {
+    fun toggleInterceptApp(appId: String) = synchronized(diskIoLock) {
         selectedInterceptApps.update { current ->
             val updated = if (current.contains(appId)) {
                 current - appId
@@ -126,12 +129,12 @@ object InMemoryDatabase {
         }
     }
 
-    fun setInterceptApps(appIds: Set<String>) {
+    fun setInterceptApps(appIds: Set<String>) = synchronized(diskIoLock) {
         selectedInterceptApps.value = appIds
         sharedPrefs?.edit()?.putStringSet("selected_intercept_apps", appIds)?.apply()
     }
 
-    fun updateNotificationLoggingEnabled(enabled: Boolean) {
+    fun updateNotificationLoggingEnabled(enabled: Boolean) = synchronized(diskIoLock) {
         isNotificationLoggingEnabled = enabled
         sharedPrefs?.edit()?.putBoolean("notification_logging_enabled", enabled)?.apply()
     }
@@ -152,7 +155,44 @@ object InMemoryDatabase {
         return knownApp?.matches(packageName, title, text) ?: true
     }
 
-    fun setCashbackRule(accountId: Long, category: String, rate: Double?) {
+    fun saveNotificationTemplate(template: NotificationTemplate) = synchronized(diskIoLock) {
+        notificationTemplates.update { current ->
+            val existingIndex = current.indexOfFirst { it.id == template.id }
+            if (existingIndex >= 0) {
+                current.toMutableList().apply { set(existingIndex, template) }
+            } else {
+                listOf(template) + current
+            }
+        }
+        persistToDisk()
+    }
+
+    fun deleteNotificationTemplate(id: String) = synchronized(diskIoLock) {
+        notificationTemplates.update { current ->
+            current.filterNot { it.id == id }
+        }
+        persistToDisk()
+    }
+
+    fun findMatchingTemplate(packageName: String, text: String): Pair<NotificationTemplate, TemplateMatchResult>? {
+        for (tmpl in notificationTemplates.value) {
+            if (tmpl.sourcePackage.isBlank() || tmpl.sourcePackage.equals(packageName, ignoreCase = true)) {
+                val res = tmpl.match(text)
+                if (res != null) {
+                    synchronized(diskIoLock) {
+                        notificationTemplates.update { list ->
+                            list.map { if (it.id == tmpl.id) it.copy(matchCount = it.matchCount + 1) else it }
+                        }
+                        persistToDisk()
+                    }
+                    return Pair(tmpl, res)
+                }
+            }
+        }
+        return null
+    }
+
+    fun setCashbackRule(accountId: Long, category: String, rate: Double?) = synchronized(diskIoLock) {
         val key = "${accountId}_$category"
         cashbackRules.update { current ->
             if (rate == null || rate <= 0.0) {
@@ -197,22 +237,22 @@ object InMemoryDatabase {
         }
     }
 
-    fun insertDiscountShop(shop: DiscountShop): Long {
+    fun insertDiscountShop(shop: DiscountShop): Long = synchronized(diskIoLock) {
         val id = if (shop.id == 0L) nextDiscountShopId++ else shop.id
         val newShop = shop.copy(id = id)
         discountShops.update { it + newShop }
         persistToDisk()
-        return id
+        id
     }
 
-    fun updateDiscountShop(shop: DiscountShop) {
+    fun updateDiscountShop(shop: DiscountShop) = synchronized(diskIoLock) {
         discountShops.update { list ->
             list.map { if (it.id == shop.id) shop else it }
         }
         persistToDisk()
     }
 
-    fun deleteDiscountShop(shop: DiscountShop) {
+    fun deleteDiscountShop(shop: DiscountShop) = synchronized(diskIoLock) {
         discountShops.update { list ->
             list.filter { it.id != shop.id }
         }
@@ -631,7 +671,7 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
-    fun insertBudget(budget: BudgetEntity) {
+    fun insertBudget(budget: BudgetEntity) = synchronized(diskIoLock) {
         budgets.update { list ->
             val existing = list.find { it.id == budget.id }
             if (existing != null) {
@@ -739,6 +779,7 @@ object InMemoryDatabase {
                 obj.put("isBalanceAdjustment", tx.isBalanceAdjustment)
                 tx.balanceAdjustmentDelta?.let { obj.put("balanceAdjustmentDelta", it) }
                 obj.put("description", tx.description)
+                tx.customIcon?.let { obj.put("customIcon", it) }
                 tx.installmentNumber?.let { obj.put("installmentNumber", it) }
                 tx.totalInstallments?.let { obj.put("totalInstallments", it) }
                 tx.groupId?.let { obj.put("groupId", it) }
@@ -815,6 +856,13 @@ object InMemoryDatabase {
             }
             root.put("discountShops", shopsArr)
 
+            // notificationTemplates
+            val templatesArr = JSONArray()
+            for (tmpl in notificationTemplates.value) {
+                templatesArr.put(tmpl.toJson())
+            }
+            root.put("notificationTemplates", templatesArr)
+
             val jsonString = root.toString()
             val file = File(ctx.filesDir, DATA_FILE_NAME)
             val atomicFile = android.util.AtomicFile(file)
@@ -834,6 +882,26 @@ object InMemoryDatabase {
             android.util.Log.e("InMemoryDatabase", "Failed to serialize data for disk", e)
             if (throwOnFailure) throw e
         }
+    }
+
+    internal fun snapshotForBackup(): JSONObject = synchronized(diskIoLock) {
+        persistToDisk(throwOnFailure = true)
+        val context = checkNotNull(appContext) { "Storage is not initialized" }
+        JSONObject(String(android.util.AtomicFile(File(context.filesDir, DATA_FILE_NAME)).readFully(), Charsets.UTF_8))
+    }
+
+    internal fun reloadAfterFullRestore(context: android.content.Context) = synchronized(diskIoLock) {
+        accounts.value = emptyList()
+        transactions.value = emptyList()
+        budgets.value = emptyList()
+        subscriptions.value = emptyList()
+        discountShops.value = emptyList()
+        notificationTemplates.value = emptyList()
+        categoryLimits.value = emptyMap()
+        categoryMergeRules.value = CategoryMergeRules()
+        savedAspects.value = emptyList()
+        nextAccountId = 1L; nextTransactionId = 1L; nextSubscriptionId = 1L; nextDiscountShopId = 1L
+        initialize(context)
     }
 
     private fun loadFromDisk(context: android.content.Context) {
@@ -918,6 +986,7 @@ object InMemoryDatabase {
                             isBalanceAdjustment = obj.optBoolean("isBalanceAdjustment", false),
                             balanceAdjustmentDelta = if (obj.has("balanceAdjustmentDelta") && !obj.isNull("balanceAdjustmentDelta")) obj.getDouble("balanceAdjustmentDelta") else null,
                             description = obj.optString("description", ""),
+                            customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(obj.optString("customIcon").takeIf { it.isNotBlank() }),
                             installmentNumber = if (obj.has("installmentNumber") && !obj.isNull("installmentNumber")) obj.getInt("installmentNumber") else null,
                             totalInstallments = if (obj.has("totalInstallments") && !obj.isNull("totalInstallments")) obj.getInt("totalInstallments") else null,
                             groupId = if (obj.has("groupId") && !obj.isNull("groupId")) obj.getString("groupId") else null
@@ -996,9 +1065,7 @@ object InMemoryDatabase {
                 for (i in 0 until arr.length()) {
                     list.add(arr.getString(i))
                 }
-                if (list.isNotEmpty()) {
-                    savedAspects.value = list
-                }
+                savedAspects.value = list
             }
 
             // discountShops
@@ -1041,6 +1108,17 @@ object InMemoryDatabase {
                     val maxId = list.maxOf { it.id }
                     if (maxId >= nextDiscountShopId) nextDiscountShopId = maxId + 1
                 }
+            }
+
+            // notificationTemplates
+            if (root.has("notificationTemplates")) {
+                val arr = root.getJSONArray("notificationTemplates")
+                val list = mutableListOf<NotificationTemplate>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    NotificationTemplate.fromJson(obj)?.let { list.add(it) }
+                }
+                notificationTemplates.value = list
             }
 
             if (!root.optBoolean("creditCardSourceTransfersReconciled", false)) {

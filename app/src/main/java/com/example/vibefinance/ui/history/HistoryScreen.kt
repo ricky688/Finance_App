@@ -124,7 +124,7 @@ import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.historyAmountFor
 import com.example.vibefinance.data.entity.DefaultExpenseCategories
 import com.example.vibefinance.data.entity.DefaultIncomeCategories
-import com.example.vibefinance.theme.LocalIconShape
+import com.example.vibefinance.theme.rememberIconShape
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.CategoryAnalyticsPeriodMode
@@ -327,6 +327,7 @@ fun HistoryScreen(
     var editAmountText by remember { mutableStateOf("") }
     var editCategoryText by remember { mutableStateOf("") }
     var editDescriptionText by remember { mutableStateOf("") }
+    var editCustomIcon by remember { mutableStateOf<String?>(null) }
     var editIsIncome by remember { mutableStateOf(false) }
     var editIsDailyBudget by remember { mutableStateOf(true) }
 
@@ -593,6 +594,7 @@ fun HistoryScreen(
                                         editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
                                         editCategoryText = tx.category
                                         editDescriptionText = tx.description
+                                        editCustomIcon = tx.customIcon
                                         editIsIncome = tx.amount < 0
                                         editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
                                     }
@@ -609,7 +611,7 @@ fun HistoryScreen(
                                         // 1. Leading Avatar Visual Container (M3 Expressive)
                                         Surface(
                                             modifier = Modifier.size(44.dp),
-                                            shape = LocalIconShape.current,
+                                            shape = rememberIconShape("history.${tx.id}"),
                                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
                                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                         ) {
@@ -625,7 +627,8 @@ fun HistoryScreen(
                                                         modifier = Modifier.size(22.dp)
                                                     )
                                                 } else {
-                                                    CategoryIcon(
+                                                    com.example.vibefinance.ui.components.ExpenseEventIcon(
+                                                        customIcon = tx.customIcon.takeIf { tx.amount > 0 && tx.toAccountId == null },
                                                         category = tx.category,
                                                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                                         modifier = Modifier.size(22.dp)
@@ -862,6 +865,12 @@ fun HistoryScreen(
                         )
                     }
 
+                    if (canChangeType && !editIsIncome) {
+                        com.example.vibefinance.ui.components.ExpenseIconChoice(
+                            value = editCustomIcon, category = editCategoryText, onValueChange = { editCustomIcon = it }
+                        )
+                    }
+
                     OutlinedTextField(
                         value = editDescriptionText,
                         onValueChange = { editDescriptionText = it },
@@ -931,7 +940,8 @@ fun HistoryScreen(
                                 isIncome = editIsIncome,
                                 category = editCategoryText,
                                 description = editDescriptionText,
-                                countsTowardDailyBudget = editIsDailyBudget
+                                countsTowardDailyBudget = editIsDailyBudget,
+                                customIcon = editCustomIcon
                             )
                             onIntent(FinanceIntent.EditTransaction(tx, newTx))
                             editingTransaction = null
@@ -1184,7 +1194,8 @@ internal fun TransactionEntity.withHistoryEdit(
     isIncome: Boolean,
     category: String,
     description: String,
-    countsTowardDailyBudget: Boolean
+    countsTowardDailyBudget: Boolean,
+    customIcon: String? = this.customIcon
 ): TransactionEntity {
     require(magnitude.isFinite() && magnitude > 0.0) { "Amount must be positive and finite" }
     require(!isBalanceAdjustment) { "Balance adjustments are read only" }
@@ -1194,6 +1205,7 @@ internal fun TransactionEntity.withHistoryEdit(
         amount = if (targetIsIncome) -magnitude else magnitude,
         category = category,
         description = description,
+        customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(customIcon),
         isExcludedFromDailyBudget = if (canChangeType) isIncome || !countsTowardDailyBudget else isExcludedFromDailyBudget
     )
 }

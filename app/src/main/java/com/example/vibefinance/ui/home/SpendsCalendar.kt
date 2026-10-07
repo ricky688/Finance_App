@@ -198,7 +198,9 @@ fun ExpressiveDualViewSwitcher(
                         )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp).then(colorMotion.contentModifier),
+                        modifier = Modifier
+                            .then(colorMotion.contentModifier)
+                            .padding(horizontal = 6.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
@@ -726,7 +728,12 @@ fun SpendsCalendar(
                                             shape = RoundedCornerShape(8.dp)
                                         ) {
                                             Box(modifier = Modifier.padding(6.dp)) {
-                                                Icon(
+                                                if (tx.customIcon != null) {
+                                                    com.example.vibefinance.ui.components.ExpenseEventIcon(
+                                                        tx.customIcon, tx.category, MaterialTheme.colorScheme.primary,
+                                                        Modifier.size(16.dp)
+                                                    )
+                                                } else Icon(
                                                     imageVector = Icons.Default.ReceiptLong,
                                                     contentDescription = null,
                                                     tint = MaterialTheme.colorScheme.primary,

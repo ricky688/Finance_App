@@ -413,4 +413,16 @@
     <string name="chart_daily_avg">日均</string>
     <string name="category_transactions_count">%d 筆消費</string>
     <string name="category_tap_to_filter">點擊長條或圖例篩選</string>
+
+    <!-- Visual Slot Tagging & Grammar Engine -->
+    <string name="vst_title">自訂標記模板</string>
+    <string name="vst_subtitle">點擊文字區塊標記「金額」、「商戶」或「卡號」，未來相同格式通知將自動精準記帳。</string>
+    <string name="vst_tap_tokens_hint">點擊下方詞塊以標記或調整欄位屬性：</string>
+    <string name="vst_assign_slot_to">將「%s」標記為：</string>
+    <string name="vst_clear_slot">清除標記</string>
+    <string name="vst_transaction_direction">交易類型</string>
+    <string name="vst_live_preview">即時辨識預覽</string>
+    <string name="vst_save_and_apply">儲存模板並套用</string>
+    <string name="vst_open_button">✨ 自訂標記模板</string>
+    <string name="vst_templates_title">自訂通知模板</string>
 </resources>

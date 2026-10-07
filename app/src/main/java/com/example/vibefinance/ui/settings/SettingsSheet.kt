@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,7 +76,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.net.Uri
 import com.example.vibefinance.theme.IconShapeMode
-import com.example.vibefinance.theme.LocalIconShape
+import com.example.vibefinance.theme.rememberIconShape
 import com.example.vibefinance.theme.ScallopBadgeShape
 import com.example.vibefinance.theme.paletteColorScheme
 import com.example.vibefinance.ui.components.ExpressiveSwitch
@@ -95,8 +96,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -149,7 +148,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private enum class SettingsGroup {
-    APPEARANCE, LANGUAGE, SMART_LOGGING, BUDGET, PACING, PRIVACY
+    APPEARANCE, LANGUAGE, SMART_LOGGING, CATEGORIES, BUDGET, PACING, PRIVACY
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -176,6 +175,16 @@ fun SettingsSheet(
             val fileName = com.example.vibefinance.util.FinancialDataImportEngine.getFileNameFromUri(context, uri)
             viewModel.dispatch(FinanceIntent.AnalyzeImportFile(uri, fileName))
         }
+    }
+
+    val backupActions = rememberFullBackupActions {
+        viewModel.refreshAppearanceAfterRestore()
+        onDismiss()
+        var hostContext: android.content.Context = context
+        while (hostContext is android.content.ContextWrapper && hostContext !is android.app.Activity) {
+            hostContext = hostContext.baseContext
+        }
+        (hostContext as? android.app.Activity)?.recreate()
     }
 
     // Local mutable state for editing budget limits and category caps
@@ -472,7 +481,7 @@ fun SettingsSheet(
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.palette")),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -582,7 +591,7 @@ fun SettingsSheet(
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.dynamic-color")),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -629,7 +638,7 @@ fun SettingsSheet(
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.pure-black")),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -675,7 +684,7 @@ fun SettingsSheet(
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.icon-shape")),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -701,21 +710,32 @@ fun SettingsSheet(
                                     )
                                 }
                                 Spacer(Modifier.width(10.dp))
+                                val shapePreview = if (state.iconShape == IconShapeMode.RANDOM) {
+                                    RoundedCornerShape(16.dp)
+                                } else state.iconShape.shape
                                 Box(
                                     modifier = Modifier
                                         .size(54.dp)
                                         .background(
                                             MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
-                                            state.iconShape.shape
+                                            shapePreview
                                         )
                                         .border(
                                             1.dp,
                                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                            state.iconShape.shape
+                                            shapePreview
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
+                                    if (state.iconShape == IconShapeMode.RANDOM) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            listOf(IconShapeMode.COOKIE_4, IconShapeMode.CIRCLE, IconShapeMode.ARCH).forEach { mode ->
+                                                Box(Modifier.size(13.dp).background(
+                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), mode.shape
+                                                ))
+                                            }
+                                        }
+                                    } else Box(
                                         modifier = Modifier
                                             .size(32.dp)
                                             .border(
@@ -1006,22 +1026,94 @@ fun SettingsSheet(
                                     }
                                 }
                             }
+
+                            // Custom Notification Templates
+                            val templates by InMemoryDatabase.notificationTemplates.collectAsStateWithLifecycle()
+                            if (templates.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Text(
+                                    text = stringResource(R.string.vst_templates_title),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    templates.forEach { tmpl ->
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = tmpl.name,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Text(
+                                                        text = if (tmpl.rawSample.isNotBlank()) tmpl.rawSample else tmpl.regexPattern,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                androidx.compose.material3.IconButton(
+                                                    onClick = { InMemoryDatabase.deleteNotificationTemplate(tmpl.id) },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = stringResource(R.string.btn_delete),
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
-                Surface(
-                    onClick = { showCategoryManager = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer
+                SettingsSectionContainer(
+                    title = stringResource(R.string.entry_settings_categories),
+                    icon = Icons.Default.Category,
+                    expanded = expandedSection == SettingsGroup.CATEGORIES.name,
+                    onToggle = {
+                        expandedSection = if (expandedSection == SettingsGroup.CATEGORIES.name) null else SettingsGroup.CATEGORIES.name
+                    }
                 ) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.category_merge_settings)) },
-                        supportingContent = { Text(stringResource(R.string.category_merge_settings_hint)) },
-                        leadingContent = { Icon(Icons.Default.Category, contentDescription = null) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                    )
+                    Text(stringResource(R.string.category_merge_settings_hint), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(12.dp))
+                    CompletePressFilledTonalButton(
+                        onClick = { showCategoryManager = true },
+                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Icon(Icons.Default.Category, null, Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.category_merge_title))
+                    }
                 }
 
                 // ==========================================
@@ -1375,6 +1467,9 @@ fun SettingsSheet(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    backupActions()
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     val importInteraction = remember { MutableInteractionSource() }
                     CompletePressFilledTonalButton(
                         onClick = {
@@ -1543,7 +1638,7 @@ private fun SettingsSectionContainer(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    shape = LocalIconShape.current,
+                    shape = rememberIconShape("settings.section.$title"),
                     color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier.size(46.dp)
                 ) {

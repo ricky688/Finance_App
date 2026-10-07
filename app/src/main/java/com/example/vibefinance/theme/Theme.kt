@@ -108,7 +108,8 @@ fun VibeFinanceTheme(
     appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
     appearanceContrast: Int = 0,
     pureBlackDarkMode: Boolean = false,
-    iconShape: androidx.compose.ui.graphics.Shape = CloverIconShape,
+    iconShape: androidx.compose.ui.graphics.Shape = IconShapeMode.COOKIE_4.shape,
+    randomIconShapes: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -154,6 +155,7 @@ fun VibeFinanceTheme(
 
     CompositionLocalProvider(
         LocalIconShape provides iconShape,
+        LocalRandomIconShapes provides randomIconShapes,
         LocalIsDarkTheme provides darkTheme
     ) {
         MaterialTheme(

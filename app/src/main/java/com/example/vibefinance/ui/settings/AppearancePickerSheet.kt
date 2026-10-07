@@ -83,7 +83,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.R
 import com.example.vibefinance.theme.AppearancePalette
-import com.example.vibefinance.theme.LocalIconShape
+import com.example.vibefinance.theme.rememberIconShape
 import com.example.vibefinance.theme.ScallopBadgeShape
 import com.example.vibefinance.theme.ThemeMode
 import com.example.vibefinance.theme.paletteColorScheme
@@ -291,7 +291,7 @@ internal fun AppearancePickerSheet(
                 Box(
                     modifier = Modifier
                         .size(42.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("appearance.title")),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -327,7 +327,7 @@ internal fun AppearancePickerSheet(
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("appearance.style")),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -374,7 +374,7 @@ internal fun AppearancePickerSheet(
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("appearance.invert")),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -419,7 +419,7 @@ internal fun AppearancePickerSheet(
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("appearance.emoji")),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -468,7 +468,7 @@ internal fun AppearancePickerSheet(
                             Box(
                                 modifier = Modifier
                                     .size(42.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                                    .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("appearance.contrast")),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(

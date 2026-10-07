@@ -3,27 +3,28 @@ package com.example.vibefinance.ui.settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,15 +32,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.R
 import com.example.vibefinance.theme.IconShapeMode
-import com.example.vibefinance.theme.LocalIconShape
+import com.example.vibefinance.theme.MaterialCornerScale
+import com.example.vibefinance.theme.rememberIconShape
 
 @Composable
 fun IconShapePickerDialog(
@@ -48,157 +53,121 @@ fun IconShapePickerDialog(
     onDismiss: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val config = LocalConfiguration.current
-    val isZh = config.locales[0].language.startsWith("zh")
+    val isZh = LocalConfiguration.current.locales[0].language.startsWith("zh")
+    val select: (IconShapeMode) -> Unit = { mode ->
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        onSelectShape(mode)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, LocalIconShape.current),
+                    modifier = Modifier.size(40.dp).background(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        rememberIconShape("shape-picker.title")
+                    ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = null,
+                    Icon(Icons.Filled.AutoAwesome, null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(22.dp)
-                    )
+                        modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = stringResource(R.string.appearance_icon_shape_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = stringResource(R.string.appearance_icon_shape_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(stringResource(R.string.appearance_icon_shape_title),
+                    style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
         },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                IconShapeMode.entries.forEach { mode ->
-                    val isSelected = mode == currentShape
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        },
-                        border = BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                            }
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onSelectShape(mode)
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Shape preview container
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceContainerHighest,
-                                        mode.shape
-                                    )
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                        mode.shape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .border(
-                                                1.5.dp,
-                                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                mode.shape
-                                            )
-                                    )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().selectableGroup()) {
+                val random = IconShapeMode.RANDOM
+                val randomSelected = currentShape == random
+                Surface(
+                    shape = MaterialCornerScale.largeIncreased,
+                    color = if (randomSelected) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHighest,
+                    border = BorderStroke(if (randomSelected) 2.dp else 1.dp,
+                        if (randomSelected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth().clip(MaterialCornerScale.largeIncreased)
+                        .selectable(randomSelected, role = Role.RadioButton, onClick = { select(random) })
+                ) {
+                    Row(modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Shuffle, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(random.localizedTitle(isZh), fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall)
+                            Text(random.localizedSubtitle(isZh),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(top = 8.dp)) {
+                                listOf(IconShapeMode.COOKIE_4, IconShapeMode.CIRCLE, IconShapeMode.ARCH,
+                                    IconShapeMode.SUNNY).forEach { mode ->
+                                    Box(Modifier.size(20.dp).background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.65f), mode.shape))
                                 }
                             }
-                            Spacer(Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = mode.localizedTitle(isZh),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                    else MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = mode.localizedSubtitle(isZh),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        }
+                        if (randomSelected) Icon(Icons.Filled.Check, null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    }
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(64.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                ) {
+                    items(IconShapeMode.roundedModes, key = { it.name }) { mode ->
+                        val selected = mode == currentShape
+                        val label = mode.localizedTitle(isZh)
+                        Surface(
+                            shape = MaterialCornerScale.largeIncreased,
+                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                            border = BorderStroke(if (selected) 2.dp else 1.dp,
+                                if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth().size(64.dp)
+                                .clip(MaterialCornerScale.largeIncreased)
+                                .semantics { contentDescription = label }
+                                .selectable(selected, role = Role.RadioButton, onClick = { select(mode) })
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(38.dp)
+                                    .background(if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceContainerLow, mode.shape)
+                                    .border(2.dp, if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant, mode.shape),
+                                    contentAlignment = Alignment.Center) {
+                                    if (selected) Icon(Icons.Filled.Check, null,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(20.dp))
+                                }
                             }
-                            Spacer(Modifier.width(8.dp))
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onSelectShape(mode)
-                                },
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = MaterialTheme.colorScheme.primary
-                                )
-                            )
                         }
                     }
+                }
+                Column {
+                    Text(currentShape.localizedTitle(isZh), fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall)
+                    Text(currentShape.localizedSubtitle(isZh),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(
-                    text = stringResource(R.string.btn_confirm),
-                    fontWeight = FontWeight.Bold
-                )
+                Text(stringResource(R.string.btn_confirm), fontWeight = FontWeight.Bold)
             }
         },
-        shape = RoundedCornerShape(28.dp),
+        shape = MaterialCornerScale.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }

@@ -8,7 +8,7 @@ import org.junit.Test
 class InterceptAppSelectionTest {
 
     @Test
-    fun legacySelectionsBecomeOnlyInstalledPackageNames() {
+    fun legacySelectionsResolveAndMissingPackageLinksArePreserved() {
         val installed = setOf(
             "com.google.android.apps.walletnfcrel",
             "com.google.android.apps.wallet",
@@ -18,7 +18,7 @@ class InterceptAppSelectionTest {
         val selection = setOf("google_pay", "wechat_pay", "com.example.mail", "com.fake.wallet")
 
         assertEquals(
-            installed,
+            installed + "com.fake.wallet",
             InMemoryDatabase.migrateInterceptAppSelections(selection, installed)
         )
     }

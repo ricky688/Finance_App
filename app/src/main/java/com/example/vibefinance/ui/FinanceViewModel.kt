@@ -59,7 +59,7 @@ data class FinanceUiState(
     val appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
     val appearanceContrast: Int = 0,
     val pureBlackDarkMode: Boolean = false,
-    val iconShape: IconShapeMode = IconShapeMode.CLOVER,
+    val iconShape: IconShapeMode = IconShapeMode.COOKIE_4,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val subscriptions: List<SubscriptionEntity> = emptyList(),
     val categoryLimits: Map<String, Double> = emptyMap(),
@@ -87,7 +87,8 @@ sealed interface FinanceIntent {
         val accountId: Long,
         val description: String,
         val toAccountId: Long? = null,
-        val isExcludedFromDailyBudget: Boolean = false
+        val isExcludedFromDailyBudget: Boolean = false,
+        val customIcon: String? = null
     ) : FinanceIntent
     data class AddInstallmentTransaction(
         val amount: Double,
@@ -95,7 +96,8 @@ sealed interface FinanceIntent {
         val accountId: Long,
         val description: String,
         val installments: Int,
-        val firstDueDate: Long = System.currentTimeMillis()
+        val firstDueDate: Long = System.currentTimeMillis(),
+        val customIcon: String? = null
     ) : FinanceIntent
     data class DeleteInstallmentGroup(val groupId: String, val accountId: Long) : FinanceIntent
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
@@ -162,38 +164,45 @@ class FinanceViewModel @Inject constructor(
         loadData()
     }
 
+    fun refreshAppearanceAfterRestore() {
+        // Restore saved preferences
+        val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+        val savedLangName = prefs.getString("app_language", AppLanguage.SYSTEM.name) ?: AppLanguage.SYSTEM.name
+        val savedLang = try { AppLanguage.valueOf(savedLangName) } catch (e: Exception) { AppLanguage.SYSTEM }
+
+        val savedThemeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+        val savedTheme = try { ThemeMode.valueOf(savedThemeName) } catch (e: Exception) { ThemeMode.SYSTEM }
+
+        val savedDynamicColor = prefs.getBoolean("dynamic_color_enabled", false) // default false or loaded
+        val savedPalette = runCatching {
+            AppearancePalette.valueOf(prefs.getString("appearance_palette", AppearancePalette.ORIGINAL.name)!!)
+        }.getOrDefault(AppearancePalette.ORIGINAL)
+        val savedContrast = prefs.getInt("appearance_contrast", 0).coerceIn(-1, 1)
+        val savedPureBlack = prefs.getBoolean("pure_black_dark_mode", false)
+        val storedIconShape = prefs.getString("icon_shape", IconShapeMode.COOKIE_4.name)
+        val savedIconShape = IconShapeMode.fromStoredName(storedIconShape)
+        if (storedIconShape != savedIconShape.name) {
+            prefs.edit().putString("icon_shape", savedIconShape.name).apply()
+        }
+
+        _uiState.update {
+            it.copy(
+                appLanguage = savedLang,
+                themeMode = savedTheme,
+                dynamicColorEnabled = savedDynamicColor,
+                appearancePalette = savedPalette,
+                appearanceContrast = savedContrast,
+                pureBlackDarkMode = savedPureBlack,
+                iconShape = savedIconShape
+            )
+        }
+
+    }
+
     private fun loadData() {
         viewModelScope.launch {
             try {
-                // Restore saved preferences
-                val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
-                val savedLangName = prefs.getString("app_language", AppLanguage.SYSTEM.name) ?: AppLanguage.SYSTEM.name
-                val savedLang = try { AppLanguage.valueOf(savedLangName) } catch (e: Exception) { AppLanguage.SYSTEM }
-
-                val savedThemeName = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
-                val savedTheme = try { ThemeMode.valueOf(savedThemeName) } catch (e: Exception) { ThemeMode.SYSTEM }
-
-                val savedDynamicColor = prefs.getBoolean("dynamic_color_enabled", false) // default false or loaded
-                val savedPalette = runCatching {
-                    AppearancePalette.valueOf(prefs.getString("appearance_palette", AppearancePalette.ORIGINAL.name)!!)
-                }.getOrDefault(AppearancePalette.ORIGINAL)
-                val savedContrast = prefs.getInt("appearance_contrast", 0).coerceIn(-1, 1)
-                val savedPureBlack = prefs.getBoolean("pure_black_dark_mode", false)
-                val savedIconShape = runCatching {
-                    IconShapeMode.valueOf(prefs.getString("icon_shape", IconShapeMode.CLOVER.name)!!)
-                }.getOrDefault(IconShapeMode.CLOVER)
-
-                _uiState.update {
-                    it.copy(
-                        appLanguage = savedLang,
-                        themeMode = savedTheme,
-                        dynamicColorEnabled = savedDynamicColor,
-                        appearancePalette = savedPalette,
-                        appearanceContrast = savedContrast,
-                        pureBlackDarkMode = savedPureBlack,
-                        iconShape = savedIconShape
-                    )
-                }
+                refreshAppearanceAfterRestore()
 
                 // Reactive subscription to accounts
                 viewModelScope.launch {
@@ -294,7 +303,8 @@ class FinanceViewModel @Inject constructor(
                             accountId = intent.accountId,
                             toAccountId = intent.toAccountId,
                             isExcludedFromDailyBudget = intent.isExcludedFromDailyBudget,
-                            description = intent.description
+                            description = intent.description,
+                            customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(intent.customIcon)
                         )
                         transactionRepository.insertTransaction(tx)
                         
@@ -315,7 +325,8 @@ class FinanceViewModel @Inject constructor(
                             category = intent.category,
                             timestamp = intent.firstDueDate,
                             accountId = intent.accountId,
-                            description = intent.description
+                            description = intent.description,
+                            customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(intent.customIcon)
                         )
                         transactionRepository.insertInstallmentTransaction(baseTx, intent.installments)
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_installment_created, intent.installments)))
@@ -393,7 +404,7 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.SetThemeMode -> {
                     _uiState.update { it.copy(themeMode = intent.themeMode) }
-                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                     prefs.edit().putString("theme_mode", intent.themeMode.name).apply()
                     val message = when (intent.themeMode) {
                         ThemeMode.SYSTEM -> application.appString(R.string.feedback_theme_system)
@@ -404,39 +415,39 @@ class FinanceViewModel @Inject constructor(
                 }
                 is FinanceIntent.SetDynamicColorEnabled -> {
                     _uiState.update { it.copy(dynamicColorEnabled = intent.enabled) }
-                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                     prefs.edit().putBoolean("dynamic_color_enabled", intent.enabled).apply()
                     val message = if (intent.enabled) application.appString(R.string.feedback_dynamic_on) else application.appString(R.string.feedback_dynamic_off)
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
                 is FinanceIntent.SetAppearancePalette -> {
                     _uiState.update { it.copy(appearancePalette = intent.palette, dynamicColorEnabled = false) }
-                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putString("appearance_palette", intent.palette.name)
                         .putBoolean("dynamic_color_enabled", false).apply()
                 }
                 is FinanceIntent.SetAppearanceContrast -> {
                     val level = intent.level.coerceIn(-1, 1)
                     _uiState.update { it.copy(appearanceContrast = level, dynamicColorEnabled = false) }
-                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putInt("appearance_contrast", level)
                         .putBoolean("dynamic_color_enabled", false).apply()
                 }
                 is FinanceIntent.SetPureBlackDarkMode -> {
                     _uiState.update { it.copy(pureBlackDarkMode = intent.enabled) }
-                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putBoolean("pure_black_dark_mode", intent.enabled).apply()
                 }
                 is FinanceIntent.SetIconShape -> {
                     _uiState.update { it.copy(iconShape = intent.shape) }
-                    application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putString("icon_shape", intent.shape.name).apply()
                     val message = application.appString(R.string.feedback_icon_shape, intent.shape.localizedTitle(resolveAppLocale(_uiState.value.appLanguage).language == "zh"))
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
                 }
                 is FinanceIntent.SetAppLanguage -> {
                     _uiState.update { it.copy(appLanguage = intent.language) }
-                    val prefs = application.getSharedPreferences("vibe_finance_prefs", android.content.Context.MODE_PRIVATE)
+                    val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                     prefs.edit().putString("app_language", intent.language.name).apply()
                     val message = when (intent.language) {
                         AppLanguage.SYSTEM -> application.appString(R.string.feedback_language_system)

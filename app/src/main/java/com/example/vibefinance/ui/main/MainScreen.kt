@@ -7,15 +7,20 @@ import com.example.vibefinance.ui.components.completePressShape
 
 import com.example.vibefinance.ui.components.CompletePressButton
 
+import com.example.vibefinance.ui.common.ScrollBlurContainer
 import com.example.vibefinance.ui.common.horizontalFadingEdge
+import androidx.compose.ui.platform.testTag
 import com.example.vibefinance.ui.common.verticalFadingEdge
-import com.example.vibefinance.ui.common.responsiveVerticalFadingEdge
+import com.example.vibefinance.ui.components.SubtleGlass
+import com.example.vibefinance.ui.components.SubtleGlassTransition
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableIntStateOf
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
@@ -57,6 +62,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
@@ -276,7 +283,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.drawWithContent
 import com.example.vibefinance.ui.recurring.RecurringScreen
 import androidx.compose.runtime.saveable.rememberSaveable
-import dev.chrisbanes.haze.HazeDefaults
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
@@ -341,9 +347,9 @@ private fun ExpressiveCollapsingTopBar(
     )
     val specularEdge = Brush.horizontalGradient(
         0f to Color.Transparent,
-        0.22f to colors.outlineVariant.copy(alpha = 0.40f),
-        0.50f to colors.surfaceTint.copy(alpha = 0.60f),
-        0.78f to colors.outlineVariant.copy(alpha = 0.40f),
+        0.22f to colors.outlineVariant.copy(alpha = 0.18f),
+        0.50f to colors.surfaceTint.copy(alpha = 0.25f),
+        0.78f to colors.outlineVariant.copy(alpha = 0.18f),
         1f to Color.Transparent
     )
 
@@ -353,7 +359,7 @@ private fun ExpressiveCollapsingTopBar(
             .onGloballyPositioned { onHeightMeasured(it.size.height.toFloat()) }
             .hazeEffect(
                 state = hazeState,
-                style = HazeDefaults.style(backgroundColor = colors.surface),
+                style = SubtleGlass.style(colors.surface),
                 block = { blurEnabled = !backgroundObscured }
             )
             .background(colors.surface.copy(alpha = 0.90f))
@@ -736,7 +742,7 @@ fun MainScreen(
         label = "tabBackProgress"
     )
 
-    val isAnyModalActive = showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || isFabMenuExpanded
+    val isAnyModalActive = showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || isFabMenuExpanded || state.importPreview != null
     val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddDialog || showAddRecurringSheet
     // One bounded clock for depth, read in the layer rather than recomposing the page each frame.
     val sheetDepthProgress = animateFloatAsState(
@@ -744,9 +750,10 @@ fun MainScreen(
         animationSpec = tween(220, easing = FastOutSlowInEasing),
         label = "sheetDepthProgress"
     )
-    val isBackgroundObscured by remember(isAnyModalActive, paymentToChoose) {
+    val windowFocused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    val isBackgroundObscured by remember(isAnyModalActive, paymentToChoose, windowFocused) {
         derivedStateOf {
-            isAnyModalActive || paymentToChoose != null || sheetDepthProgress.value > 0f
+            !windowFocused || isAnyModalActive || paymentToChoose != null || sheetDepthProgress.value > 0f
         }
     }
     androidx.activity.compose.PredictiveBackHandler(
@@ -775,7 +782,7 @@ fun MainScreen(
 
     // Automatic New-Day Rollover Recalculation & Period Ended Trigger
     // Waits for app launch/loading to complete, then adds an 800ms smooth delay so the splash screen is gone and user sees Daily page first
-    val prefs = remember(context) { context.getSharedPreferences("vibefinance_prefs", android.content.Context.MODE_PRIVATE) }
+    val prefs = remember(context) { com.example.vibefinance.util.CoordinatedPreferences.get(context, "vibefinance_prefs") }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val autoSheetScope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner) {
@@ -1127,6 +1134,9 @@ fun MainScreen(
                     NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .hazeEffect(hazeState, SubtleGlass.style(MaterialTheme.colorScheme.surfaceContainer)) {
+                                blurEnabled = !isBackgroundObscured
+                            }
                             .drawBehind {
                                 drawLine(
                                     color = outlineVariant.copy(alpha = 0.35f),
@@ -1293,18 +1303,7 @@ fun MainScreen(
                         },
                         modifier = Modifier
                             .fillMaxSize()
-                            .hazeSource(state = hazeState)
-                            .responsiveVerticalFadingEdge(
-                                topFadeHeight = 0.dp,
-                                bottomFadeHeight = 110.dp,
-                                bottomBarHeightProvider = {
-                                    if (measuredBottomBarHeightPx > 0f) measuredBottomBarHeightPx
-                                    else with(density) { 100.dp.toPx() }
-                                },
-                                navBarOffsetProvider = {
-                                    with(density) { navBarOffsetY.toPx() }
-                                }
-                            ),
+                            .hazeSource(state = hazeState),
                         label = "tabChangeTopLevel"
                     ) { targetTab ->
                         when (targetTab) {
@@ -1442,6 +1441,20 @@ fun MainScreen(
                         )
                     }
                 }
+
+                SubtleGlassTransition(
+                    state = hazeState, top = true, obscured = isBackgroundObscured,
+                    modifier = Modifier.align(Alignment.TopCenter)
+                        .offset(y = paddingValues.calculateTopPadding())
+                )
+                val visibleBottomBarHeight = (
+                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                    else 100.dp
+                ).minus(navBarOffsetY)
+                SubtleGlassTransition(
+                    state = hazeState, top = false, obscured = isBackgroundObscured,
+                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = -visibleBottomBarHeight)
+                )
 
                 // 6. Backdrop Scrim Overlay when Speed Dial FAB Menu is Open
                 AnimatedVisibility(
@@ -1720,19 +1733,32 @@ fun <T> ExpressiveSegmentedButtonGroup(
     isScrollable: Boolean = false,
     iconProvider: @Composable ((T, Color) -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
+    itemModifierProvider: ((Int) -> Modifier)? = null,
+    fadeTagPrefix: String? = null,
+    selectionRevealRequest: Int = 0,
     labelProvider: @Composable (T) -> String
 ) {
+    val groupScroll = rememberScrollState()
+    ScrollBlurContainer(groupScroll, modifier.fillMaxWidth(), enabled = isScrollable, tagPrefix = fadeTagPrefix) { sourceModifier ->
     Row(
         modifier = if (isScrollable) {
-            modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).horizontalFadingEdge(12.dp, 12.dp)
+            sourceModifier.fillMaxWidth().horizontalScroll(groupScroll)
         } else {
-            modifier.fillMaxWidth()
+            sourceModifier.fillMaxWidth()
         },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         items.forEachIndexed { index, item ->
             val isSelected = index == selectedIndex
+            val revealRequester = remember { BringIntoViewRequester() }
+            LaunchedEffect(selectionRevealRequest, isSelected) {
+                if (isScrollable && isSelected && selectionRevealRequest > 0) {
+                    // Wait for the newly selected label/check layout before locating its bounds.
+                    withFrameNanos { }
+                    revealRequester.bringIntoView()
+                }
+            }
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed = interactionSource.collectIsPressedAsState()
             val shapeProgress by rememberCompletePressProgress(interactionSource)
@@ -1802,6 +1828,8 @@ fun <T> ExpressiveSegmentedButtonGroup(
                 contentColor = colorMotion.contentColor,
                 shape = shape,
                 modifier = itemModifier
+                    .then(itemModifierProvider?.invoke(index) ?: Modifier)
+                    .then(if (isScrollable) Modifier.bringIntoViewRequester(revealRequester) else Modifier)
                     .clip(shape)
                     .clickable(
                         interactionSource = interactionSource,
@@ -1859,6 +1887,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
         }
         trailingContent?.invoke()
     }
+}
 }
 
 @Composable
@@ -1971,6 +2000,7 @@ fun AddExpenseSheetContent(
     val haptic = LocalHapticFeedback.current
     var typedAmount by remember { mutableStateOf("0.00") }
     var descriptionText by remember { mutableStateOf("") }
+    var expenseIcon by remember { mutableStateOf<String?>(null) }
     var isDailyBudget by remember { mutableStateOf(true) }
     
     val transactionMode = initialMode
@@ -2014,6 +2044,8 @@ fun AddExpenseSheetContent(
     var showInlineAddCategory by remember { mutableStateOf(false) }
     var showInlineAddAsset by remember { mutableStateOf(false) }
 
+    val selectorOverlay = remember { EntrySelectorOverlayState() }
+    BackHandler(enabled = selectorOverlay.activeTag != null) { selectorOverlay.activeTag = null }
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
     var headerHeightPx by remember { mutableIntStateOf(0) }
@@ -2076,6 +2108,7 @@ fun AddExpenseSheetContent(
         }
     }
 
+    CompositionLocalProvider(LocalEntrySelectorOverlay provides selectorOverlay) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -2395,8 +2428,13 @@ fun AddExpenseSheetContent(
                 val currentCategories = if (transactionMode == TransactionMode.INCOME) sortedIncomeCategories else sortedExpenseCategories
                 val currentCategoryText = if (transactionMode == TransactionMode.INCOME) incomeCategoryText else expenseCategoryText
 
-                ExpressiveSegmentedButtonGroup(
+                ExpandableEntrySelector(
                     items = currentCategories,
+                    title = if (transactionMode == TransactionMode.INCOME) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
+                    tagPrefix = "EntryCategory",
+                    overlayIncludesAssets = true,
+                    keyProvider = { it },
+                    subtitleProvider = { it },
                     selectedIndex = currentCategories.indexOf(currentCategoryText),
                     onItemSelected = { index ->
                         if (transactionMode == TransactionMode.INCOME) {
@@ -2405,18 +2443,7 @@ fun AddExpenseSheetContent(
                             expenseCategoryText = currentCategories[index]
                         }
                     },
-                    isScrollable = true,
-                    iconProvider = { cat, tintColor ->
-                        CategoryIcon(category = cat, tint = tintColor, modifier = Modifier.size(16.dp))
-                    },
-                    trailingContent = {
-                        ExpressiveAddButton(
-                            text = stringResource(R.string.btn_add),
-                            onClick = {
-                                showInlineAddCategory = !showInlineAddCategory
-                            }
-                        )
-                    },
+                    onAdd = { showInlineAddCategory = !showInlineAddCategory },
                     labelProvider = { cat -> com.example.vibefinance.ui.home.getCategoryDisplayName(cat) }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -2425,8 +2452,17 @@ fun AddExpenseSheetContent(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        if (transactionMode == TransactionMode.EXPENSE) {
+            com.example.vibefinance.ui.components.ExpenseIconChoice(
+                value = expenseIcon, category = expenseCategoryText, onValueChange = { expenseIcon = it }
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+
         // 3. Asset Selection Horizontal Grid
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().testTag("EntryAssetSection").onGloballyPositioned {
+            selectorOverlay.assetBounds = it.boundsInWindow()
+        }) {
             Text(
                 text = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
                 style = MaterialTheme.typography.labelSmall,
@@ -2534,11 +2570,17 @@ fun AddExpenseSheetContent(
                 }
             }
             
-            ExpressiveSegmentedButtonGroup(
+            ExpandableEntrySelector(
                 items = sortedAccounts,
+                title = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
+                tagPrefix = "EntryAccount",
+                keyProvider = { it.id.toString() },
+                subtitleProvider = { accountTypeLabel(it.type) },
                 selectedIndex = sortedAccounts.indexOfFirst { it.id == selectedAccount?.id },
-                onItemSelected = { index -> selectedAccount = sortedAccounts[index] },
-                isScrollable = true,
+                onItemSelected = { index ->
+                    selectedAccount = sortedAccounts[index]
+                    if (isTransfer && selectedToAccount?.id == selectedAccount?.id) selectedToAccount = null
+                },
                 iconProvider = { acc, tintColor ->
                     val accIcon = when (acc.type) {
                         AccountType.CASH -> Icons.Default.Savings
@@ -2553,14 +2595,7 @@ fun AddExpenseSheetContent(
                         tint = tintColor
                     )
                 },
-                trailingContent = {
-                    ExpressiveAddButton(
-                        text = stringResource(R.string.btn_add),
-                        onClick = {
-                            showInlineAddAsset = !showInlineAddAsset
-                        }
-                    )
-                },
+                onAdd = { showInlineAddAsset = !showInlineAddAsset },
                 labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
             )
         }
@@ -2588,11 +2623,14 @@ fun AddExpenseSheetContent(
                 val destAccounts = remember(sortedAccounts, selectedAccount) {
                     sortedAccounts.filter { it.id != selectedAccount?.id }
                 }
-                ExpressiveSegmentedButtonGroup(
+                ExpandableEntrySelector(
                     items = destAccounts,
+                    title = stringResource(R.string.ui_main_destination_account),
+                    tagPrefix = "EntryDestination",
+                    keyProvider = { it.id.toString() },
+                    subtitleProvider = { accountTypeLabel(it.type) },
                     selectedIndex = destAccounts.indexOfFirst { it.id == selectedToAccount?.id },
                     onItemSelected = { index -> selectedToAccount = destAccounts[index] },
-                    isScrollable = true,
                     iconProvider = { acc, tintColor ->
                         val accIcon = when (acc.type) {
                             AccountType.CASH -> Icons.Default.Savings
@@ -2620,7 +2658,9 @@ fun AddExpenseSheetContent(
 
         Column(
             verticalArrangement = Arrangement.spacedBy(gap),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().testTag("EntryKeypad").onGloballyPositioned {
+                selectorOverlay.keypadBounds = it.boundsInWindow()
+            }
         ) {
             // Row 1: 7, 8, 9, Backspace
             Row(
@@ -2759,9 +2799,10 @@ fun AddExpenseSheetContent(
 
                 // Right Column (Tall Apply/Check Button)
                 val amt = typedAmount.toDoubleOrNull()
-                val isApplyEnabled = amt != null && amt > 0.0 && selectedAccount?.id != null
+                val isApplyEnabled = amt != null && amt > 0.0 && selectedAccount?.id != null &&
+                    (!isTransfer || (selectedToAccount != null && selectedToAccount?.id != selectedAccount?.id))
                 KeyboardButton(
-                    modifier = Modifier.weight(1f).fillMaxHeight().alpha(if (isApplyEnabled) 1f else 0.5f),
+                    modifier = Modifier.weight(1f).fillMaxHeight().alpha(if (isApplyEnabled) 1f else 0.5f).testTag("EntrySubmit"),
                     type = KeyboardButtonType.PRIMARY,
                     icon = rememberVectorPainter(Icons.Default.Check),
                     onClick = {
@@ -2802,7 +2843,8 @@ fun AddExpenseSheetContent(
                                         category = expenseCategoryText,
                                         accountId = accId,
                                         description = descWithFx,
-                                        isExcludedFromDailyBudget = !isDailyBudget
+                                        isExcludedFromDailyBudget = !isDailyBudget,
+                                        customIcon = expenseIcon
                                     )
                                 )
                             }
@@ -2950,6 +2992,7 @@ fun AddExpenseSheetContent(
             }
         }
     }
+}
 }
 
 private fun Modifier.layoutSize(

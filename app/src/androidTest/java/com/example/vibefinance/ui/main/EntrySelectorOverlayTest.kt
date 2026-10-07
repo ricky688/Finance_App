@@ -1,0 +1,294 @@
+package com.example.vibefinance.ui.main
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import android.os.SystemClock
+import android.view.MotionEvent
+import com.example.vibefinance.data.entity.AccountEntity
+import com.example.vibefinance.data.entity.AccountType
+import com.example.vibefinance.ui.FinanceIntent
+import com.example.vibefinance.ui.FinanceUiState
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** ARTEMIS/ADB verified on Waydroid: toggle -> keypad overlay -> select/scroll -> collapse/Back.
+ * Memory-only fixtures exercise the real form without modifying the installed financial dataset.
+ */
+@RunWith(AndroidJUnit4::class)
+class EntrySelectorOverlayTest {
+    @get:Rule val compose = createComposeRule()
+    private val accounts = (1L..14L).map {
+        AccountEntity(it, "Account $it", type = AccountType.BANK, balance = 100.0, icon = "bank")
+    }
+    private var submitted: FinanceIntent.AddTransaction? = null
+
+    private fun host(mode: TransactionMode) {
+        compose.setContent {
+            MaterialTheme {
+                AddExpenseSheetContent(FinanceUiState(isLoading = false, accounts = accounts),
+                    onIntent = { if (it is FinanceIntent.AddTransaction) submitted = it },
+                    onDismissAddDialog = {}, initialMode = mode,
+                    categoryFrequency = emptyMap(), accountFrequency = emptyMap(), modifier = Modifier.fillMaxSize())
+            }
+        }
+    }
+
+    /** Dynamic tags first; device pointer fallback derives coordinates from the located bounds. */
+    private fun click(tag: String) {
+        val node = compose.onNodeWithTag(tag)
+        try { node.performClick() } catch (failure: AssertionError) {
+            val center = screenBounds(tag).center
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val downTime = SystemClock.uptimeMillis()
+            listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP).forEach { action ->
+                val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, center.x, center.y, 0)
+                try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    private fun open(prefix: String) {
+        val toggle = compose.onNodeWithTag("${prefix}_toggle")
+        try { toggle.assertIsDisplayed() } catch (_: AssertionError) { toggle.performScrollTo() }
+        click("${prefix}_toggle")
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isNotEmpty() }
+    }
+
+    private fun screenBounds(tag: String): Rect {
+        val coordinates = compose.onNodeWithTag(tag).fetchSemanticsNode().layoutInfo.coordinates
+        return Rect(coordinates.localToScreen(Offset.Zero), coordinates.size.toSize())
+    }
+
+    private fun assertRowReveals(prefix: String, key: String) {
+        compose.waitUntil(5_000) {
+            val viewport = screenBounds("${prefix}_row")
+            val choice = screenBounds("${prefix}_row_$key")
+            choice.left >= viewport.left - 1f && choice.right <= viewport.right + 1f
+        }
+        compose.onNodeWithTag("${prefix}_row_$key").assertIsDisplayed()
+    }
+
+    @Test fun expandedCategoryRevealsTheChoiceIncludingRepeatedSelection() {
+        host(TransactionMode.EXPENSE)
+        val row = screenBounds("EntryCategory_row")
+        open("EntryCategory")
+        compose.onNodeWithTag("EntryCategory_grid_Utilities").performScrollTo()
+        click("EntryCategory_grid_Utilities")
+        assertRowReveals("EntryCategory", "Utilities")
+        assertEquals(row, screenBounds("EntryCategory_row"))
+        click("EntryCategory_collapse")
+        val rowScroll = compose.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag("EntryCategory_row")))
+        rowScroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(-100_000f, 0f) }
+        compose.waitForIdle()
+        assertTrue("The selected choice must no longer be fully visible after scrolling away",
+            screenBounds("EntryCategory_row_Utilities").right > screenBounds("EntryCategory_row").right + 1f)
+        open("EntryCategory")
+        compose.onNodeWithTag("EntryCategory_grid_Utilities").performScrollTo()
+        click("EntryCategory_grid_Utilities")
+        assertRowReveals("EntryCategory", "Utilities")
+        click("EntryCategory_collapse")
+    }
+
+    @Test fun categoryOverlayCoversAssetsAndKeypadWithoutMovingTheForm() {
+        host(TransactionMode.EXPENSE)
+        val row = compose.onNodeWithTag("EntryCategory_row").fetchSemanticsNode().boundsInWindow
+        val keypad = compose.onNodeWithTag("EntryKeypad").fetchSemanticsNode().boundsInWindow
+        open("EntryCategory")
+        assertEquals(row, compose.onNodeWithTag("EntryCategory_row").fetchSemanticsNode().boundsInWindow)
+        assertEquals(keypad, compose.onNodeWithTag("EntryKeypad").fetchSemanticsNode().boundsInWindow)
+        val menu = screenBounds("EntryCategory_expanded")
+        val keypadScreen = screenBounds("EntryKeypad")
+        assertEquals(keypadScreen.left, menu.left, 1f)
+        assertEquals(screenBounds("EntryAssetSection").top, menu.top, 1f)
+        assertEquals(keypadScreen.width, menu.width, 1f)
+        assertEquals(keypadScreen.bottom, menu.bottom, 1f)
+        click("EntryCategory_grid_Food")
+        compose.onNodeWithTag("EntryCategory_grid_Food").assertIsSelected()
+        click("EntryCategory_collapse")
+        compose.onNodeWithTag("EntryCategory_expanded").assertDoesNotExist()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals("Food", submitted?.category)
+            assertEquals(7.0, submitted!!.amount, 0.001)
+        }
+    }
+
+    @Test fun accountOverlayScrollsAndCommitsSelectedAccount() {
+        host(TransactionMode.INCOME)
+        open("EntryAccount")
+        compose.onNodeWithTag("EntryAccount_grid_14").performScrollTo()
+        click("EntryAccount_grid_14")
+        compose.onNodeWithTag("EntryAccount_grid_14").assertIsSelected()
+        assertRowReveals("EntryAccount", "14")
+        click("EntryAccount_collapse")
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(14L, submitted?.accountId)
+            assertEquals(-7.0, submitted!!.amount, 0.001)
+        }
+    }
+
+    @Test fun transferDestinationExcludesSourceAndSubmitRequiresDestination() {
+        host(TransactionMode.TRANSFER)
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle { assertNull(submitted) }
+        open("EntryDestination")
+        compose.onNodeWithTag("EntryDestination_grid_1").assertDoesNotExist()
+        click("EntryDestination_grid_2")
+        click("EntryDestination_collapse")
+        // Choosing the former destination as source clears the invalid destination.
+        open("EntryAccount")
+        click("EntryAccount_grid_2")
+        click("EntryAccount_collapse")
+        click("EntrySubmit")
+        compose.runOnIdle { assertNull(submitted) }
+        open("EntryDestination")
+        compose.onNodeWithTag("EntryDestination_grid_14").performScrollTo()
+        click("EntryDestination_grid_14")
+        assertRowReveals("EntryDestination", "14")
+        click("EntryDestination_collapse")
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(2L, submitted?.accountId)
+            assertEquals(14L, submitted?.toAccountId)
+        }
+    }
+
+    @Test fun overflowBlurEdgesTrackHorizontalAndVerticalScrollLimits() {
+        host(TransactionMode.INCOME)
+        compose.onNodeWithTag("EntryAccount_row_start_fade").assertDoesNotExist()
+        compose.onNodeWithTag("EntryAccount_row_end_fade").assertExists()
+        val rowScroll = compose.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag("EntryAccount_row")))
+        rowScroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(70f, 0f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_row_start_fade").assertExists()
+        compose.onNodeWithTag("EntryAccount_row_end_fade").assertExists()
+        rowScroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(100_000f, 0f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_row_start_fade").assertExists()
+        compose.onNodeWithTag("EntryAccount_row_end_fade").assertDoesNotExist()
+        rowScroll.performSemanticsAction(SemanticsActions.ScrollBy) { it(-100_000f, 0f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_row_start_fade").assertDoesNotExist()
+        open("EntryAccount")
+        compose.onNodeWithTag("EntryAccount_grid_start_fade").assertDoesNotExist()
+        compose.onNodeWithTag("EntryAccount_grid_end_fade").assertExists()
+        val grid = compose.onNodeWithTag("EntryAccount_grid")
+        grid.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 50f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_grid_start_fade").assertExists()
+        compose.onNodeWithTag("EntryAccount_grid_end_fade").assertExists()
+        grid.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_grid_start_fade").assertExists()
+        compose.onNodeWithTag("EntryAccount_grid_end_fade").assertDoesNotExist()
+        grid.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -100_000f) }
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryAccount_grid_start_fade").assertDoesNotExist()
+        click("EntryAccount_collapse")
+    }
+
+    @Test fun expansionAndCollapseAnimateWithinFixedOverlayBounds() {
+        host(TransactionMode.EXPENSE)
+        val row = screenBounds("EntryCategory_row")
+        val expectedHeight = screenBounds("EntryKeypad").bottom - screenBounds("EntryAssetSection").top
+        compose.mainClock.autoAdvance = false
+        click("EntryCategory_toggle")
+        compose.mainClock.advanceTimeBy(80)
+        compose.waitForIdle()
+        // A newly attached popup can still be waiting for its first platform layout frame.
+        // Zero visible height is valid here; an immediate, fully expanded menu is not.
+        val openingHeight = compose.onNodeWithTag("EntryCategory_expanded").fetchSemanticsNode().boundsInRoot.height
+        assertTrue("Opening must not jump immediately to full height", openingHeight < expectedHeight)
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
+        assertEquals(expectedHeight, screenBounds("EntryCategory_expanded").height, 1f)
+        assertEquals(row, screenBounds("EntryCategory_row"))
+        click("EntryCategory_collapse")
+        compose.mainClock.advanceTimeBy(80)
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryCategory_expanded").assertExists()
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
+        compose.onNodeWithTag("EntryCategory_expanded").assertDoesNotExist()
+        compose.mainClock.autoAdvance = true
+    }
+
+    @Test fun choicesThatFitHaveNoBlurFades() {
+        compose.setContent {
+            val overlay = remember { EntrySelectorOverlayState() }
+            CompositionLocalProvider(LocalEntrySelectorOverlay provides overlay) {
+                MaterialTheme {
+                    Column {
+                        ExpandableEntrySelector(listOf("Food"), 0, {}, "Category", "Short", { it }, { it })
+                        Box(Modifier.fillMaxWidth().height(218.dp).onGloballyPositioned {
+                            overlay.keypadBounds = it.boundsInWindow()
+                        })
+                    }
+                }
+            }
+        }
+        compose.onNodeWithTag("Short_row_start_fade").assertDoesNotExist()
+        compose.onNodeWithTag("Short_row_end_fade").assertDoesNotExist()
+        open("Short")
+        compose.onNodeWithTag("Short_grid_start_fade").assertDoesNotExist()
+        compose.onNodeWithTag("Short_grid_end_fade").assertDoesNotExist()
+        click("Short_collapse")
+    }
+
+    private fun verifyOriginalHeight(fontScale: Float, dark: Boolean) {
+        compose.setContent {
+            val density = LocalDensity.current.density
+            val overlay = remember { EntrySelectorOverlayState() }
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale), LocalEntrySelectorOverlay provides overlay) {
+                MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+                    Column {
+                        val items = (1..14).map { "Choice $it" }
+                        var selected by remember { mutableIntStateOf(0) }
+                        ExpressiveSegmentedButtonGroup(items, selected, { selected = it },
+                            modifier = Modifier.testTag("OriginalGroup"), isScrollable = true, labelProvider = { it })
+                        ExpandableEntrySelector(items, selected, { selected = it }, "Category", "Fixture", { it }, { it })
+                        Box(Modifier.fillMaxWidth().height(218.dp).testTag("FixtureKeypad").onGloballyPositioned {
+                            overlay.keypadBounds = it.boundsInWindow()
+                        })
+                    }
+                }
+            }
+        }
+        val originalHeight = compose.onNodeWithTag("OriginalGroup").fetchSemanticsNode().boundsInWindow.height
+        assertEquals(originalHeight, compose.onNodeWithTag("Fixture_row").fetchSemanticsNode().boundsInWindow.height, 0f)
+        val row = compose.onNodeWithTag("Fixture_row").fetchSemanticsNode().boundsInWindow
+        open("Fixture")
+        assertEquals(row, compose.onNodeWithTag("Fixture_row").fetchSemanticsNode().boundsInWindow)
+        compose.onNodeWithTag("Fixture_grid_Choice 14").performScrollTo()
+        click("Fixture_grid_Choice 14")
+        compose.onNodeWithTag("Fixture_grid_Choice 14").assertIsSelected()
+        assertRowReveals("Fixture", "Choice 14")
+        click("Fixture_collapse")
+    }
+
+    @Test fun defaultFontKeepsOriginalConnectedButtonHeight() = verifyOriginalHeight(1f, false)
+    @Test fun largeFontDarkThemeKeepsOriginalHeightAndScrollableGrid() = verifyOriginalHeight(2f, true)
+}

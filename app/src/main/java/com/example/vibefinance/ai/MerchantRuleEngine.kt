@@ -35,7 +35,7 @@ object MerchantRuleEngine {
     )
 
     private fun getPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return com.example.vibefinance.util.CoordinatedPreferences.get(context, PREFS_NAME)
     }
 
     /**

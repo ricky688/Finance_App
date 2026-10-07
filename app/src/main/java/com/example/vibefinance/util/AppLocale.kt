@@ -17,7 +17,7 @@ fun resolveAppLocale(language: AppLanguage): Locale = when (language) {
 
 /** Background feedback uses the same saved preference as the Compose screens. */
 fun Context.appLocalizedContext(): Context {
-    val name = getSharedPreferences("vibe_finance_prefs", Context.MODE_PRIVATE)
+    val name = CoordinatedPreferences.get(this, "vibe_finance_prefs")
         .getString("app_language", AppLanguage.SYSTEM.name)
     val language = runCatching { AppLanguage.valueOf(name ?: AppLanguage.SYSTEM.name) }
         .getOrDefault(AppLanguage.SYSTEM)

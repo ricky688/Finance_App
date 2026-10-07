@@ -830,7 +830,7 @@ fun AccountsScreen(
     var selectedAssetFilter by remember { mutableStateOf(AssetFilter.ALL) }
     val context = LocalContext.current
     val displayPreferences = remember(context) {
-        context.getSharedPreferences("assets_display", android.content.Context.MODE_PRIVATE)
+        com.example.vibefinance.util.CoordinatedPreferences.get(context, "assets_display")
     }
     var isCompactMode by remember(displayPreferences) {
         mutableStateOf(displayPreferences.getBoolean("compact_mode", false))
@@ -4422,6 +4422,17 @@ fun AppPickerDialog(
                         .testTag("QuickLaunchAppList"),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    if (catalogResult?.isSuccess == true && !currentPackage.isNullOrBlank() &&
+                        !currentPackage.equals("none", ignoreCase = true) && installedApps.none { it.packageName == currentPackage }) {
+                        item(key = "unavailable-saved-app") {
+                            Text(
+                                text = stringResource(R.string.backup_saved_app_unavailable, currentPackage),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(8.dp).testTag("QuickLaunchUnavailableApp")
+                            )
+                        }
+                    }
                     if (searchQuery.isBlank()) {
                         // Option: None / Disable ("none")
                         item {
