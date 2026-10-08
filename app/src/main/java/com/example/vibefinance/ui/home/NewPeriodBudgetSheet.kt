@@ -2,6 +2,7 @@
 
 package com.example.vibefinance.ui.home
 
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.ui.components.CompletePressButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
 
@@ -287,7 +288,7 @@ fun NewPeriodBudgetSheet(
                                         selectedDaysPreset = days
                                         customEndDateMillis = null
                                     },
-                                    label = { Text(label) },
+                                    label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                     leadingIcon = if (isSelected) {
                                         { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) }
                                     } else null,

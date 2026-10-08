@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui.radar
 
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -404,7 +405,7 @@ fun RadarScreen(
                                     FilterChip(
                                         selected = isSelected,
                                         onClick = { scanRadiusMeters = radiusVal },
-                                        label = { Text(radarDistanceLabel(radiusVal.toDouble())) },
+                                        label = { Text(radarDistanceLabel(radiusVal.toDouble()), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                             selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -449,7 +450,7 @@ fun RadarScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedAspect = option },
-                                label = { Text(radarAspectLabel(option)) },
+                                label = { Text(radarAspectLabel(option), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                 leadingIcon = {
                                     if (isSelected) {
                                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))

@@ -233,7 +233,6 @@ fun CategoryBreakdownCard(
                     modifier = Modifier.fillMaxWidth().testTag("CategoryAnalyticsRange"),
                     lightModeFocusMotion = true,
                     compact = true,
-                    labelMaxLines = 2,
                     focusBackdropColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                         .compositeOver(MaterialTheme.colorScheme.background),
                     labelProvider = { mode ->

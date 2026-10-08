@@ -2740,7 +2740,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             categoryText = cat
                                                         },
-                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -3068,7 +3068,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             installmentCategoryText = cat
                                                         },
-                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(getCategoryDisplayName(cat), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -3170,7 +3170,7 @@ fun AddEditSubscriptionSheet(
                                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             installmentMonths = months
                                                         },
-                                                        label = { Text(stringResource(R.string.ui_recurring_months_short, months), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                                                        label = { Text(stringResource(R.string.ui_recurring_months_short, months), fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                         shape = RoundedCornerShape(12.dp)
                                                     )
                                                 }
@@ -3708,7 +3708,8 @@ fun <T> ConnectedButtonGroup(
                         ),
                         color = colorMotion.contentColor,
                         maxLines = 1,
-                        softWrap = false
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

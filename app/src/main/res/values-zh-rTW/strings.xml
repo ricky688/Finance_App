@@ -326,17 +326,12 @@
     <string name="settings_section_category_caps">類別支出上限</string>
     <string name="settings_category_caps_desc">為各交易類別設定支出上限 (留空代表不設限)</string>
     <string name="settings_no_limit_placeholder">不設上限</string>
-    <string name="settings_section_pacing">預算消耗進度比較</string>
-    <string name="settings_pacing_desc">圖表顯示當前週期累計支出、理想進度曲線及上月表現。</string>
-    <string name="settings_pacing_active">當前週期</string>
-    <string name="settings_pacing_prev">上月紀錄</string>
-    <string name="settings_pacing_ideal">理想進度</string>
     <string name="settings_section_data_privacy">資料管理與隱私</string>
     <string name="settings_privacy_badge">🔒 100% 本地端裝置運算 • 零資料上傳雲端</string>
     <string name="settings_btn_reset_mock">重置並載入範例資料</string>
     <string name="settings_reset_confirm_title">確認重設資料庫？</string>
     <string name="settings_reset_confirm_message">此操作將會清空現有自訂帳戶、交易與預算，並重置為範例演示資料。此動作無法復原。</string>
-    <string name="settings_about_app_info">VibeFinance v1.2.0 • Material You 靈動設計</string>
+    <string name="settings_about_app_info">VibeFinance v%1$s • Material You 靈動設計</string>
     <string name="settings_saved_success">設定已成功儲存</string>
 
     <!-- Allowed Intercept Apps Dialog -->

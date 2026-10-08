@@ -128,7 +128,9 @@ fun CountDaysChip(modifier: Modifier = Modifier, daysCount: Int) {
                     "—"
                 },
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
-                maxLines = 1
+                maxLines = 1,
+                softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         }
     }

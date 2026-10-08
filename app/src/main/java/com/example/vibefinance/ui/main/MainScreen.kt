@@ -608,6 +608,7 @@ fun MainScreen(
         }
     }
     var showBudgetDialog by remember { mutableStateOf(false) }
+    var budgetConfigurationOnly by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showAddRecurringSheet by remember { mutableStateOf(false) }
     var showLoadingIndicator by remember { mutableStateOf(false) }
@@ -982,7 +983,10 @@ fun MainScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { showBudgetDialog = true }) {
+                        IconButton(onClick = {
+                            budgetConfigurationOnly = false
+                            showBudgetDialog = true
+                        }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = stringResource(R.string.settings_title)
@@ -1338,12 +1342,8 @@ fun MainScreen(
                                     showAddDialog = showAddDialog,
                                     onDismissAddDialog = { showAddDialog = false },
                                     onOpenBudgetDialog = {
-                                        val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
-                                        if (isPeriodEnded || isBudgetEnd) {
-                                            showNewPeriodSheet = true
-                                        } else {
-                                            showBudgetDialog = true
-                                        }
+                                        budgetConfigurationOnly = true
+                                        showBudgetDialog = true
                                     },
                                     onOpenRecalcSheet = {
                                         val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
@@ -1678,7 +1678,8 @@ fun MainScreen(
                 showNewPeriodSheet = true
             },
             onOpenDatePicker = { showDatePickerModal = true },
-            selectedEndDateMillis = selectedEndDateMillis
+            selectedEndDateMillis = selectedEndDateMillis,
+            budgetConfigurationOnly = budgetConfigurationOnly
         )
     }
 
@@ -1902,6 +1903,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
                         fontWeight = FontWeight.Bold,
                         color = colorMotion.contentColor,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
@@ -1961,7 +1963,9 @@ fun ExpressiveAddButton(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }

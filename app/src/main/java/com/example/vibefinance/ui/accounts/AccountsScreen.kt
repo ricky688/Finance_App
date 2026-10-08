@@ -789,7 +789,8 @@ private fun AssetGroupSelector(
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     textAlign = TextAlign.Center,
-                                    maxLines = 2,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
@@ -1904,7 +1905,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.BANK
                                                 },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.BANK)) },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.BANK), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1916,7 +1917,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.CASH
                                                 },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.CASH)) },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.CASH), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1928,7 +1929,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.DEBIT
                                                 },
-                                                label = { Text(stringResource(com.example.vibefinance.R.string.assets_type_debit)) },
+                                                label = { Text(stringResource(com.example.vibefinance.R.string.assets_type_debit), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1940,7 +1941,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     typeState = AccountType.CC
                                                 },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.CC)) },
+                                                label = { Text(accountTypeDisplayLabel(AccountType.CC), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                 leadingIcon = {
                                                     Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
                                                 },
@@ -1990,7 +1991,7 @@ fun AccountsScreen(
                                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                     selectedAccentColorKey = key
                                                 },
-                                                label = { Text(stringResource(labelRes)) },
+                                                label = { Text(stringResource(labelRes), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                 leadingIcon = {
                                                     Box(
                                                         Modifier
@@ -2171,7 +2172,7 @@ fun AccountsScreen(
                                                     onClick = {
                                                         notificationAliasesList = notificationAliasesList.filterNot { it.equals(alias, ignoreCase = true) }
                                                     },
-                                                    label = { Text(alias) },
+                                                    label = { Text(alias, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                     trailingIcon = {
                                                         Icon(
                                                             imageVector = Icons.Default.Close,
@@ -2196,7 +2197,7 @@ fun AccountsScreen(
                                             onClick = {
                                                 notificationAliasesList = notificationAliasesList + cardLast4Text
                                             },
-                                            label = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_suggest_last4, cardLast4Text)) },
+                                            label = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_suggest_last4, cardLast4Text), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = {
                                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                             }
@@ -2321,7 +2322,7 @@ fun AccountsScreen(
                                                         val curr = balanceText.toDoubleOrNull() ?: 0.0
                                                         balanceText = String.format(Locale.US, "%.2f", curr + delta)
                                                     },
-                                                    label = { Text("+$${delta.toInt()}", fontWeight = FontWeight.SemiBold) },
+                                                    label = { Text("+$${delta.toInt()}", fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                     colors = SuggestionChipDefaults.suggestionChipColors(
                                                         containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
                                                         labelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -2336,7 +2337,7 @@ fun AccountsScreen(
                                                         val curr = balanceText.toDoubleOrNull() ?: 0.0
                                                         balanceText = String.format(Locale.US, "%.2f", (curr - delta).coerceAtLeast(0.0))
                                                     },
-                                                    label = { Text("-$${delta.toInt()}", fontWeight = FontWeight.SemiBold) },
+                                                    label = { Text("-$${delta.toInt()}", fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                                                     colors = SuggestionChipDefaults.suggestionChipColors(
                                                         containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
                                                         labelColor = MaterialTheme.colorScheme.onErrorContainer
@@ -3265,7 +3266,7 @@ fun AccountsScreen(
                                                                 selectedCardBgOffsetX = pos.first
                                                                 selectedCardBgOffsetY = pos.second
                                                             },
-                                                            label = { Text(stringResource(name), style = MaterialTheme.typography.labelSmall) }
+                                                            label = { Text(stringResource(name), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                                                         )
                                                     }
                                                 }
@@ -5498,7 +5499,10 @@ fun InteractiveImageCropDialog(
                                 Text(
                                     text = stringResource(label),
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(

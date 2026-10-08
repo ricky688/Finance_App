@@ -306,7 +306,7 @@ fun VisualSlotTaggingDialog(
                     FilterChip(
                         selected = transactionType == ParsedTransactionType.EXPENSE,
                         onClick = { transactionType = ParsedTransactionType.EXPENSE },
-                        label = { Text("支出") },
+                        label = { Text("支出", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = if (transactionType == ParsedTransactionType.EXPENSE) {
                             { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) }
                         } else null,
@@ -315,7 +315,7 @@ fun VisualSlotTaggingDialog(
                     FilterChip(
                         selected = transactionType == ParsedTransactionType.INCOME,
                         onClick = { transactionType = ParsedTransactionType.INCOME },
-                        label = { Text("薪金 / 收入") },
+                        label = { Text("薪金 / 收入", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = if (transactionType == ParsedTransactionType.INCOME) {
                             { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) }
                         } else null,
@@ -324,7 +324,7 @@ fun VisualSlotTaggingDialog(
                     FilterChip(
                         selected = transactionType == ParsedTransactionType.REPAYMENT,
                         onClick = { transactionType = ParsedTransactionType.REPAYMENT },
-                        label = { Text("信用卡還款") },
+                        label = { Text("信用卡還款", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = if (transactionType == ParsedTransactionType.REPAYMENT) {
                             { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) }
                         } else null,

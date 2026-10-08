@@ -23,7 +23,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,7 +53,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -113,13 +111,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -152,7 +145,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 private enum class SettingsGroup {
-    APPEARANCE, LANGUAGE, SMART_LOGGING, CATEGORIES, BUDGET, PACING, PRIVACY
+    APPEARANCE, LANGUAGE, SMART_LOGGING, CATEGORIES, BUDGET, PRIVACY
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -164,12 +157,16 @@ fun SettingsSheet(
     onDismiss: () -> Unit,
     onOpenNewPeriod: () -> Unit,
     onOpenDatePicker: () -> Unit,
-    selectedEndDateMillis: Long?
+    selectedEndDateMillis: Long?,
+    budgetConfigurationOnly: Boolean = false
 ) {
     var showCategoryManager by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val settingsScrollState = rememberScrollState()
     val context = LocalContext.current
+    val appVersion = remember(context) {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+    }
     val haptic = LocalHapticFeedback.current
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -398,7 +395,7 @@ fun SettingsSheet(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Filled.Tune,
+                            imageVector = if (budgetConfigurationOnly) Icons.Filled.AccountBalanceWallet else Icons.Filled.Tune,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(26.dp)
@@ -408,12 +405,12 @@ fun SettingsSheet(
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
                         Text(
-                            text = stringResource(R.string.settings_sheet_title),
+                            text = stringResource(if (budgetConfigurationOnly) R.string.settings_section_budget_mgmt else R.string.settings_sheet_title),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
+                        if (!budgetConfigurationOnly) Text(
                             text = stringResource(R.string.settings_sheet_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -457,7 +454,7 @@ fun SettingsSheet(
                         .testTag("SettingsScrollContent"),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-
+                    if (!budgetConfigurationOnly) {
                     // ==========================================
                     // ==========================================
                     // SECTION 1: CUSTOMIZATION (自訂)
@@ -1128,13 +1125,15 @@ fun SettingsSheet(
                         }
                     }
 
+                    }
                     // ==========================================
                     // SECTION 4: BUDGET & PERIOD CONFIGURATION
                     // ==========================================
                     SettingsSectionContainer(
                         title = stringResource(R.string.settings_section_budget_mgmt),
                         icon = Icons.Filled.AccountBalanceWallet,
-                        expanded = expandedSection == SettingsGroup.BUDGET.name,
+                        expanded = budgetConfigurationOnly || expandedSection == SettingsGroup.BUDGET.name,
+                        showHeader = !budgetConfigurationOnly,
                         onToggle = {
                             expandedSection = if (expandedSection == SettingsGroup.BUDGET.name) null
                             else SettingsGroup.BUDGET.name
@@ -1282,165 +1281,9 @@ fun SettingsSheet(
                         }
                     }
 
+                    if (!budgetConfigurationOnly) {
                     // ==========================================
-                    // SECTION 5: PACING COMPARISON CHART
-                    // ==========================================
-                    SettingsSectionContainer(
-                        title = stringResource(R.string.settings_section_pacing),
-                        icon = Icons.AutoMirrored.Filled.ShowChart,
-                        expanded = expandedSection == SettingsGroup.PACING.name,
-                        onToggle = {
-                            expandedSection = if (expandedSection == SettingsGroup.PACING.name) null
-                            else SettingsGroup.PACING.name
-                        }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.settings_pacing_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        val budgetStart = if (budgetInfo.startDate > 0L) budgetInfo.startDate else LocalDate.now().minusDays(30).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val budgetEnd = if (budgetInfo.endDate > 0L) budgetInfo.endDate else LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-                        val startLocalDate = Instant.ofEpochMilli(budgetStart).atZone(ZoneId.systemDefault()).toLocalDate()
-                        val endLocalDate = Instant.ofEpochMilli(budgetEnd).atZone(ZoneId.systemDefault()).toLocalDate()
-                        val endExclusive = endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val totalDays = (ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1).coerceAtLeast(1).toInt()
-
-                        val activeCumulativeList = remember(state.transactions, budgetStart, endExclusive, totalDays) {
-                            val dailySum = DoubleArray(totalDays)
-                            state.transactions.forEach { tx ->
-                                if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0.0) {
-                                    if (tx.timestamp >= budgetStart && tx.timestamp < endExclusive) {
-                                        val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
-                                        val dayIdx = ChronoUnit.DAYS.between(startLocalDate, txDate).toInt().coerceIn(0, totalDays - 1)
-                                        dailySum[dayIdx] += tx.amount
-                                    }
-                                }
-                            }
-                            val cumList = mutableListOf<Double>()
-                            var sum = 0.0
-                            for (i in 0 until totalDays) {
-                                sum += dailySum[i]
-                                cumList.add(sum)
-                            }
-                            cumList
-                        }
-
-                        val limitAmt = if (budgetInfo.totalMonthlyBudget > 0.0) budgetInfo.totalMonthlyBudget else 1000.0
-                        val previousCumulativeList = remember(totalDays, limitAmt) {
-                            val list = mutableListOf<Double>()
-                            for (i in 0 until totalDays) {
-                                val progress = i.toDouble() / (totalDays - 1).coerceAtLeast(1)
-                                val baseVal = limitAmt * 0.85 * progress
-                                val variation = limitAmt * 0.04 * kotlin.math.sin(progress * Math.PI * 4)
-                                list.add((baseVal + variation).coerceAtLeast(0.0))
-                            }
-                            list
-                        }
-
-                        val maxVal = maxOf(
-                            activeCumulativeList.maxOrNull() ?: 0.0,
-                            previousCumulativeList.maxOrNull() ?: 0.0,
-                            limitAmt
-                        ) * 1.15
-
-                        val chartPrimaryColor = MaterialTheme.colorScheme.primary
-                        val chartSecondaryColor = MaterialTheme.colorScheme.secondary
-                        val chartGridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(150.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                                .padding(14.dp)
-                        ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val canvasWidth = size.width
-                                val canvasHeight = size.height
-                                val stepX = canvasWidth / (totalDays - 1).coerceAtLeast(1)
-
-                                // Horizontal Grid Lines
-                                val gridCount = 4
-                                for (i in 0 until gridCount) {
-                                    val gridY = (canvasHeight / (gridCount - 1)) * i
-                                    drawLine(
-                                        color = chartGridColor,
-                                        start = Offset(0f, gridY),
-                                        end = Offset(canvasWidth, gridY),
-                                        strokeWidth = 1.dp.toPx()
-                                    )
-                                }
-
-                                // Target Diagonal Pacing Line
-                                drawLine(
-                                    color = chartSecondaryColor.copy(alpha = 0.5f),
-                                    start = Offset(0f, canvasHeight),
-                                    end = Offset(canvasWidth, canvasHeight - ((limitAmt / maxVal) * canvasHeight).toFloat()),
-                                    strokeWidth = 2.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                                )
-
-                                // Previous Month Line
-                                val prevPath = Path()
-                                previousCumulativeList.forEachIndexed { idx, valAmt ->
-                                    val x = idx * stepX
-                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                    if (idx == 0) prevPath.moveTo(x, y) else prevPath.lineTo(x, y)
-                                }
-                                drawPath(
-                                    path = prevPath,
-                                    color = Color.Gray.copy(alpha = 0.6f),
-                                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                                )
-
-                                // Active Month Line
-                                val activePath = Path()
-                                activeCumulativeList.forEachIndexed { idx, valAmt ->
-                                    val x = idx * stepX
-                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                    if (idx == 0) activePath.moveTo(x, y) else activePath.lineTo(x, y)
-                                }
-                                drawPath(
-                                    path = activePath,
-                                    color = chartPrimaryColor,
-                                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Legend
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartPrimaryColor))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.settings_pacing_active), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Gray))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.settings_pacing_prev), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartSecondaryColor))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.settings_pacing_ideal), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-
-                    // ==========================================
-                    // SECTION 7: DATA & PRIVACY
+                    // SECTION 5: DATA & PRIVACY
                     // ==========================================
                     SettingsSectionContainer(
                         title = stringResource(R.string.settings_section_data_privacy),
@@ -1545,10 +1388,11 @@ fun SettingsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = stringResource(R.string.settings_about_app_info),
+                            text = stringResource(R.string.settings_about_app_info, appVersion),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                         )
+                    }
                     }
                 }
             }
@@ -1603,6 +1447,7 @@ private fun SettingsSectionContainer(
     icon: ImageVector,
     expanded: Boolean,
     onToggle: () -> Unit,
+    showHeader: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val corner by animateDpAsState(
@@ -1641,7 +1486,7 @@ private fun SettingsSectionContainer(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     ) {
         Column {
-            Row(
+            if (showHeader) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(headerShape)
@@ -1690,7 +1535,7 @@ private fun SettingsSectionContainer(
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                 ) + fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
             ) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = if (showHeader) 0.dp else 16.dp)) {
                     content()
                 }
             }

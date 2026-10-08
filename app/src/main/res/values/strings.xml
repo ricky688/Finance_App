@@ -326,17 +326,12 @@
     <string name="settings_section_category_caps">CATEGORY SPENDING CAPS</string>
     <string name="settings_category_caps_desc">Set spending limits for transaction categories (leave blank to disable)</string>
     <string name="settings_no_limit_placeholder">No limit</string>
-    <string name="settings_section_pacing">Budget pacing</string>
-    <string name="settings_pacing_desc">Visualizes cumulative expenses against ideal pacing and previous month performance.</string>
-    <string name="settings_pacing_active">Active Period</string>
-    <string name="settings_pacing_prev">Prev Month</string>
-    <string name="settings_pacing_ideal">Ideal Pacing</string>
     <string name="settings_section_data_privacy">Data &amp; privacy</string>
     <string name="settings_privacy_badge">100% On-Device Processing • Zero Cloud Upload</string>
     <string name="settings_btn_reset_mock">Reset &amp; Seed Mock Data</string>
     <string name="settings_reset_confirm_title">Reset Database?</string>
     <string name="settings_reset_confirm_message">This will reset all accounts, transactions, and budgets back to sample demonstration data. This action cannot be undone.</string>
-    <string name="settings_about_app_info">VibeFinance v1.2.0 • Material You Expressive Design</string>
+    <string name="settings_about_app_info">VibeFinance v%1$s • Material You Expressive Design</string>
     <string name="settings_saved_success">Settings saved successfully</string>
 
     <!-- Allowed Intercept Apps Dialog -->

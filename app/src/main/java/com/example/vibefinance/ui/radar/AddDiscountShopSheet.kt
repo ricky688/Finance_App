@@ -2,6 +2,7 @@
 
 package com.example.vibefinance.ui.radar
 
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.ui.components.CompletePressButton
 
 import androidx.compose.animation.AnimatedVisibility
@@ -241,7 +242,7 @@ fun AddDiscountShopSheet(
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedAccountId = card.id },
-                        label = { Text(card.name) },
+                        label = { Text(card.name, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.CreditCard,

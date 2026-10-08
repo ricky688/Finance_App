@@ -56,7 +56,6 @@ fun <T> ExpressiveConnectedButtonGroup(
     lightModeFocusMotion: Boolean = true,
     compact: Boolean = false,
     focusBackdropColor: Color = Color.Unspecified,
-    labelMaxLines: Int = 1,
     labelProvider: @Composable (T) -> String
 ) {
     val colors = MaterialTheme.colorScheme
@@ -140,7 +139,8 @@ fun <T> ExpressiveConnectedButtonGroup(
                                     text = labelProvider(item),
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    maxLines = labelMaxLines,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     overflow = TextOverflow.Ellipsis
                                 )
