@@ -423,4 +423,6 @@
     <string name="vst_open_button">✨ 自定义标记模板</string>
     <string name="vst_templates_title">自定义通知模板</string>
     <string name="edit_transfer_accounts_required">请选择两个不同账户以保存转账。</string>
+    <string name="appearance_launch_animation_title">啟動動畫</string>
+    <string name="appearance_launch_animation_desc">開啟應用程式時顯示 VibeFinance 與 Material You 啟動動畫。</string>
 </resources>

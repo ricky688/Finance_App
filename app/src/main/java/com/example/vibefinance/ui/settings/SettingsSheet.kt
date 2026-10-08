@@ -56,6 +56,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -116,6 +117,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -674,6 +676,39 @@ fun SettingsSheet(
                                     ExpressiveSwitch(
                                         checked = state.pureBlackDarkMode,
                                         onCheckedChange = { viewModel.dispatch(FinanceIntent.SetPureBlackDarkMode(it)) }
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth().testTag("LaunchAnimationSetting")
+                            ) {
+                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.size(42.dp).background(MaterialTheme.colorScheme.primaryContainer,
+                                            rememberIconShape("settings.launch-animation")),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Filled.Animation, null, Modifier.size(22.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.appearance_launch_animation_title),
+                                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(stringResource(R.string.appearance_launch_animation_desc),
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    ExpressiveSwitch(
+                                        checked = state.launchAnimationEnabled,
+                                        onCheckedChange = { viewModel.dispatch(FinanceIntent.SetLaunchAnimationEnabled(it)) },
+                                        modifier = Modifier.testTag("LaunchAnimationSwitch").semantics {
+                                            contentDescription = context.getString(R.string.appearance_launch_animation_title)
+                                        }
                                     )
                                 }
                             }

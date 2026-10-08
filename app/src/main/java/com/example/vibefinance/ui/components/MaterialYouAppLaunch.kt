@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,17 +60,22 @@ import kotlinx.coroutines.delay
 fun MaterialYouAppLaunchOverlay(
     modifier: Modifier = Modifier,
     splashDurationMillis: Long = 900L,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    var isLaunching by remember { mutableStateOf(true) }
+    // Remember the launch decision once; enabling in Settings must not replay the intro.
+    var isLaunching by remember { mutableStateOf(enabled) }
+    val showLaunch = enabled && isLaunching
 
     LaunchedEffect(Unit) {
-        delay(splashDurationMillis)
-        isLaunching = false
+        if (isLaunching) {
+            delay(splashDurationMillis)
+            isLaunching = false
+        }
     }
 
     val contentScale by animateFloatAsState(
-        targetValue = if (isLaunching) 0.88f else 1.0f,
+        targetValue = if (showLaunch) 0.88f else 1.0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessLow
@@ -78,13 +84,13 @@ fun MaterialYouAppLaunchOverlay(
     )
 
     val contentAlpha by animateFloatAsState(
-        targetValue = if (isLaunching) 0.0f else 1.0f,
+        targetValue = if (showLaunch) 0.0f else 1.0f,
         animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
         label = "contentLaunchAlpha"
     )
 
     val cornerRadius by animateFloatAsState(
-        targetValue = if (isLaunching) 40f else 0f,
+        targetValue = if (showLaunch) 40f else 0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessLow
@@ -110,7 +116,7 @@ fun MaterialYouAppLaunchOverlay(
 
         // Material You Brand Splash Container Overlay
         AnimatedVisibility(
-            visible = isLaunching,
+            visible = showLaunch,
             enter = fadeIn(tween(150)),
             exit = fadeOut(tween(350)) + scaleOut(
                 targetScale = 1.4f,
@@ -124,6 +130,7 @@ fun MaterialYouAppLaunchOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .testTag("MaterialYouLaunchAnimation")
                     .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {

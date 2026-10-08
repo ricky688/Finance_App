@@ -46,7 +46,8 @@ internal object BackupStateCodec {
         // Known consumer types must match, not merely the archive's own declared type.
         val known = mapOf(
             "vibe_finance_prefs" to mapOf("app_language" to "string", "theme_mode" to "string", "icon_shape" to "string",
-                "appearance_palette" to "string", "appearance_contrast" to "int", "dynamic_color_enabled" to "boolean", "pure_black_dark_mode" to "boolean"),
+                "appearance_palette" to "string", "appearance_contrast" to "int", "dynamic_color_enabled" to "boolean", "pure_black_dark_mode" to "boolean",
+                "launch_animation_enabled" to "boolean"),
             "vibefinance_prefs" to mapOf("last_daily_recalc_date" to "string", "auto_apply_recalc_choice" to "boolean"),
             "assets_display" to mapOf("compact_mode" to "boolean"),
             "cashback_rules_prefs" to mapOf("selected_intercept_apps" to "stringSet", "notification_logging_enabled" to "boolean"),

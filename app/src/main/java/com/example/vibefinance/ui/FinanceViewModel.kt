@@ -59,6 +59,7 @@ data class FinanceUiState(
     val appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
     val appearanceContrast: Int = 0,
     val pureBlackDarkMode: Boolean = false,
+    val launchAnimationEnabled: Boolean = true,
     val iconShape: IconShapeMode = IconShapeMode.COOKIE_4,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val subscriptions: List<SubscriptionEntity> = emptyList(),
@@ -113,6 +114,7 @@ sealed interface FinanceIntent {
     data class SetAppearancePalette(val palette: AppearancePalette) : FinanceIntent
     data class SetAppearanceContrast(val level: Int) : FinanceIntent
     data class SetPureBlackDarkMode(val enabled: Boolean) : FinanceIntent
+    data class SetLaunchAnimationEnabled(val enabled: Boolean) : FinanceIntent
     data class SetIconShape(val shape: IconShapeMode) : FinanceIntent
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
@@ -143,7 +145,11 @@ class FinanceViewModel @Inject constructor(
     private val application: Application
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(FinanceUiState())
+    // Read before the first composition so a disabled intro cannot flash during loading.
+    private val _uiState = MutableStateFlow(FinanceUiState(
+        launchAnimationEnabled = com.example.vibefinance.util.CoordinatedPreferences
+            .get(application, "vibe_finance_prefs").getBoolean("launch_animation_enabled", true)
+    ))
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
     private val _requestedTab = MutableStateFlow<com.example.vibefinance.ui.main.TabItem?>(null)
@@ -179,6 +185,7 @@ class FinanceViewModel @Inject constructor(
         }.getOrDefault(AppearancePalette.ORIGINAL)
         val savedContrast = prefs.getInt("appearance_contrast", 0).coerceIn(-1, 1)
         val savedPureBlack = prefs.getBoolean("pure_black_dark_mode", false)
+        val savedLaunchAnimation = prefs.getBoolean("launch_animation_enabled", true)
         val storedIconShape = prefs.getString("icon_shape", IconShapeMode.COOKIE_4.name)
         val savedIconShape = IconShapeMode.fromStoredName(storedIconShape)
         if (storedIconShape != savedIconShape.name) {
@@ -193,6 +200,7 @@ class FinanceViewModel @Inject constructor(
                 appearancePalette = savedPalette,
                 appearanceContrast = savedContrast,
                 pureBlackDarkMode = savedPureBlack,
+                launchAnimationEnabled = savedLaunchAnimation,
                 iconShape = savedIconShape
             )
         }
@@ -437,6 +445,11 @@ class FinanceViewModel @Inject constructor(
                     _uiState.update { it.copy(pureBlackDarkMode = intent.enabled) }
                     com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putBoolean("pure_black_dark_mode", intent.enabled).apply()
+                }
+                is FinanceIntent.SetLaunchAnimationEnabled -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putBoolean("launch_animation_enabled", intent.enabled).apply()
+                    _uiState.update { it.copy(launchAnimationEnabled = intent.enabled) }
                 }
                 is FinanceIntent.SetIconShape -> {
                     _uiState.update { it.copy(iconShape = intent.shape) }

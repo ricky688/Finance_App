@@ -423,4 +423,6 @@
     <string name="vst_open_button">✨ Custom Tagging Template</string>
     <string name="vst_templates_title">CUSTOM NOTIFICATION TEMPLATES</string>
     <string name="edit_transfer_accounts_required">Choose two different accounts to save a transfer.</string>
+    <string name="appearance_launch_animation_title">Launch animation</string>
+    <string name="appearance_launch_animation_desc">Show the VibeFinance with Material You animation when opening the app.</string>
 </resources>

@@ -160,7 +160,9 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = MaterialTheme.colorScheme.background
                         ) {
-                            com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay {
+                            com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay(
+                                enabled = state.launchAnimationEnabled
+                            ) {
                                 MainScreen(viewModel = viewModel)
                             }
                         }
