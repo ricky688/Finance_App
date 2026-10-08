@@ -55,7 +55,8 @@ internal fun rememberConnectedButtonColorMotion(
     activeContainerColor: Color = MaterialTheme.colorScheme.primary,
     activeContentColor: Color = MaterialTheme.colorScheme.onPrimary,
     backdropColor: Color = MaterialTheme.colorScheme.surface,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    preserveContentColors: Boolean = false
 ): ConnectedButtonColorMotion {
     val isDarkTheme = isConnectedButtonDarkTheme()
     val useFocusMotion = enabled && !isDarkTheme
@@ -90,14 +91,15 @@ internal fun rememberConnectedButtonColorMotion(
 
     return ConnectedButtonColorMotion(
         containerColor = if (useFocusMotion) Color.Transparent else containerColor,
-        contentColor = if (useFocusMotion) inactiveContentColor else contentColor,
+        contentColor = if (useFocusMotion && !preserveContentColors) inactiveContentColor else contentColor,
         contentModifier = if (useFocusMotion) Modifier.insetFocusColorMotion(
             progress = progress,
             inactiveColor = inactiveContainerColor,
             primaryColor = activeContainerColor,
             inactiveContentColor = inactiveContentColor,
             primaryContentColor = activeContentColor,
-            backdropColor = backdropColor
+            backdropColor = backdropColor,
+            preserveContentColors = preserveContentColors
         ) else Modifier,
         rippleColor = if (isDarkTheme) DarkConnectedButtonRippleColor else Color.Unspecified
     )

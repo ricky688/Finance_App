@@ -27,7 +27,8 @@ internal fun Modifier.insetFocusColorMotion(
     primaryColor: Color,
     inactiveContentColor: Color,
     primaryContentColor: Color,
-    backdropColor: Color
+    backdropColor: Color,
+    preserveContentColors: Boolean = false
 ): Modifier = drawWithCache {
     val bounds = Rect(0f, 0f, size.width, size.height)
     val contentPaint = Paint()
@@ -39,10 +40,10 @@ internal fun Modifier.insetFocusColorMotion(
         drawRect(inactiveColor)
 
         when (focus) {
-            0f -> drawTintedContent(inactiveContentColor, bounds, contentPaint)
+            0f -> drawTintedContent(inactiveContentColor, bounds, contentPaint, preserveContentColors)
             1f -> {
                 drawRect(primaryColor)
-                drawTintedContent(primaryContentColor, bounds, contentPaint)
+                drawTintedContent(primaryContentColor, bounds, contentPaint, preserveContentColors)
             }
             else -> {
                 val inset = Rect(
@@ -61,11 +62,11 @@ internal fun Modifier.insetFocusColorMotion(
                 ) primaryContentColor else inactiveContentColor
 
                 clipRect(inset.left, inset.top, inset.right, inset.bottom) {
-                    this@onDrawWithContent.drawTintedContent(inactiveContentColor, bounds, contentPaint)
+                    this@onDrawWithContent.drawTintedContent(inactiveContentColor, bounds, contentPaint, preserveContentColors)
                 }
                 clipRect(inset.left, inset.top, inset.right, inset.bottom, ClipOp.Difference) {
                     drawRect(washColor)
-                    this@onDrawWithContent.drawTintedContent(washContentColor, bounds, contentPaint)
+                    this@onDrawWithContent.drawTintedContent(washContentColor, bounds, contentPaint, preserveContentColors)
                 }
             }
         }
@@ -75,8 +76,14 @@ internal fun Modifier.insetFocusColorMotion(
 private fun ContentDrawScope.drawTintedContent(
     color: Color,
     bounds: Rect,
-    paint: Paint
+    paint: Paint,
+    preserveContentColors: Boolean
 ) {
+    // Emoji are multicolored glyphs. A SrcIn filter turns them into silhouettes.
+    if (preserveContentColors) {
+        drawContent()
+        return
+    }
     val canvas = drawContext.canvas
     canvas.save()
     try {

@@ -222,6 +222,10 @@ class PaymentNotificationListener : NotificationListenerService() {
             return merchant.any(Char::isLetter)
         }
 
+        val octopusCompletionReceipt = Regex(
+            "(?i)(?:已完成向\\s*(?:Smart\\s*Octopus|八達通).*增值|已成功向\\s*(?:Smart\\s*Octopus|八達通).*增值)"
+        )
+
         /**
          * Privacy-First Payment Intent Guard:
          * Rejects non-expense bank alerts as well as OTPs, login notices, and promotions.
@@ -229,6 +233,11 @@ class PaymentNotificationListener : NotificationListenerService() {
         fun isPaymentNotification(title: String, text: String, packageName: String = ""): Boolean {
             if (packageName.isNotBlank() && InMemoryDatabase.findMatchingTemplate(packageName, "$title $text".trim()) != null) {
                 return true
+            }
+            if (octopusCompletionReceipt.containsMatchIn("$title $text") &&
+                !localCurrencyAmount.containsMatchIn(text) && !localCurrencyAmount.containsMatchIn(title)
+            ) {
+                return false
             }
             if (isOctopusTopUp(title, text)) {
                 return true
@@ -442,10 +451,15 @@ class PaymentNotificationListener : NotificationListenerService() {
                         text.contains("轉賬") || text.contains("轉帳") -> "銀行戶口轉賬至八達通"
                         else -> "八達通增值"
                     }
-                    val assetName = if (topUpCardLast4 != null && (title.contains("卡") || text.contains("信用卡") || text.contains("扣賬卡") || text.contains("credit", ignoreCase = true))) {
-                        resolveAssetName(title, text, topUpCardLast4)
-                    } else {
-                        "八達通"
+                    val assetName = when {
+                        topUpCardLast4 != null -> resolveAssetName(title, text, topUpCardLast4)
+                        title.contains("卡") || text.contains("信用卡") || text.contains("扣賬卡") ||
+                            title.contains("card", ignoreCase = true) || title.contains("credit", ignoreCase = true) ||
+                            title.contains("hang seng", ignoreCase = true) || title.contains("恒生") ||
+                            title.contains("hsbc", ignoreCase = true) || title.contains("匯豐") ||
+                            title.contains("boc", ignoreCase = true) || title.contains("中銀") -> resolveAssetName(title, text, null, fallbackHint = title.trim())
+                        title.isNotBlank() && !title.contains("八達通") && !title.contains("octopus", ignoreCase = true) -> title.trim()
+                        else -> "八達通"
                     }
                     return ParsedPayment(
                         amount = amount,

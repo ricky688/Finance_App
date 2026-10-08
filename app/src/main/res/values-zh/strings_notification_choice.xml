@@ -17,4 +17,7 @@
     <string name="pending_payment_failed">无法记录这笔支出，请重试。</string>
     <string name="pending_payment_remember_unavailable">未能辨識指定卡片，因此每次均會詢問。</string>
     <string name="pending_payment_balance_remaining">卡片余额：%1$s</string>
+    <string name="pending_payment_choose_source_account">选择付款 / 转出账户（充值至八达通）</string>
+    <string name="pending_payment_record_topup">记录充值转账</string>
+    <string name="pending_payment_destination_octopus">充值目标（转入）</string>
 </resources>

@@ -17,4 +17,7 @@
     <string name="pending_payment_failed">Could not record this expense. Try again.</string>
     <string name="pending_payment_remember_unavailable">No specific card was identified, so you will choose each time.</string>
     <string name="pending_payment_balance_remaining">Remaining card balance: %1$s</string>
+    <string name="pending_payment_choose_source_account">Choose payment source (to top up Octopus)</string>
+    <string name="pending_payment_record_topup">Record Top-up</string>
+    <string name="pending_payment_destination_octopus">Destination (Top-up)</string>
 </resources>

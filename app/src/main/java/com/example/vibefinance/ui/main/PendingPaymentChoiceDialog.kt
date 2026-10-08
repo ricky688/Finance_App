@@ -68,21 +68,24 @@ internal fun PendingPaymentChoiceDialog(
     }
     var currentPayment by remember(payment.id) { mutableStateOf(payment) }
     var showTaggingDialog by remember(payment.id) { mutableStateOf(false) }
-    val suggestedId = remember(payment.id, currentPayment.cardLast4, accounts) {
-        PendingPaymentStore.findMatchingAccount(currentPayment, accounts)?.id
-    }
-    var selectedId by remember(payment.id, suggestedId) { mutableStateOf(suggestedId) }
-    var rememberChoice by remember(payment.id) { mutableStateOf(true) }
-    val sortedAccounts = remember(accounts) {
+    val isTopUp = currentPayment.isTopUp || currentPayment.transactionType == "TRANSFER"
+    val sortedAccounts = remember(accounts, isTopUp) {
         accounts.sortedWith(compareBy<AccountEntity>({
-            when (it.type) {
-                AccountType.CASH -> 0
+            if (isTopUp && PendingPaymentStore.isOctopusAccount(it)) 99
+            else when (it.type) {
+                AccountType.CC -> 0
                 AccountType.BANK -> 1
                 AccountType.DEBIT -> 2
-                AccountType.CC -> 3
+                AccountType.CASH -> 3
             }
         }, { it.name.lowercase(Locale.getDefault()) }))
     }
+    val suggestedId = remember(payment.id, currentPayment.cardLast4, accounts, isTopUp) {
+        PendingPaymentStore.findMatchingAccount(currentPayment, accounts)?.id
+            ?: sortedAccounts.firstOrNull { !isTopUp || !PendingPaymentStore.isOctopusAccount(it) }?.id
+    }
+    var selectedId by remember(payment.id, suggestedId) { mutableStateOf(suggestedId) }
+    var rememberChoice by remember(payment.id) { mutableStateOf(true) }
     val selectedAccount = sortedAccounts.firstOrNull { it.id == selectedId }
     val canRemember = selectedAccount?.let {
         PendingPaymentStore.canRememberChoice(currentPayment, it) ||
@@ -190,7 +193,8 @@ internal fun PendingPaymentChoiceDialog(
                 }
 
                 Text(
-                    text = stringResource(R.string.pending_payment_choose_account),
+                    text = if (isTopUp) stringResource(R.string.pending_payment_choose_source_account)
+                           else stringResource(R.string.pending_payment_choose_account),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
@@ -206,12 +210,14 @@ internal fun PendingPaymentChoiceDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(sortedAccounts, key = { it.id }) { account ->
+                            val isDestinationOctopus = isTopUp && PendingPaymentStore.isOctopusAccount(account)
+                            val isSelectable = !isDestinationOctopus && !saving
                             val selected = selectedId == account.id
                             val rowShape = RoundedCornerShape(18.dp)
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .bouncyClickable(enabled = !saving, shape = rowShape) {
+                                    .bouncyClickable(enabled = isSelectable, shape = rowShape) {
                                         selectedId = account.id
                                     },
                                 shape = rowShape,
@@ -222,14 +228,29 @@ internal fun PendingPaymentChoiceDialog(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    RadioButton(selected = selected, onClick = null)
+                                    RadioButton(
+                                        selected = selected,
+                                        onClick = null,
+                                        enabled = !isDestinationOctopus
+                                    )
                                     Spacer(Modifier.width(8.dp))
                                     Column {
-                                        Text(
-                                            text = account.nickname?.takeIf { it.isNotBlank() } ?: account.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = account.nickname?.takeIf { it.isNotBlank() } ?: account.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (isDestinationOctopus) {
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    text = "(${stringResource(R.string.pending_payment_destination_octopus)})",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
                                         if (!account.nickname.isNullOrBlank() && account.nickname != account.name) {
                                             Text(
                                                 text = account.name,
@@ -297,7 +318,10 @@ internal fun PendingPaymentChoiceDialog(
                     pressedShape = RoundedCornerShape(16.dp)
                 )
             ) {
-                Text(stringResource(R.string.pending_payment_record))
+                Text(
+                    text = if (isTopUp) stringResource(R.string.pending_payment_record_topup)
+                           else stringResource(R.string.pending_payment_record)
+                )
             }
         },
         dismissButton = {

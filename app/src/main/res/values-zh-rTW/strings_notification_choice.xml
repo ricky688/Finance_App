@@ -17,4 +17,7 @@
     <string name="pending_payment_failed">無法記錄這筆支出，請再試一次。</string>
     <string name="pending_payment_remember_unavailable">未能辨識指定卡片，因此每次均會詢問。</string>
     <string name="pending_payment_balance_remaining">八達通/卡片餘額：%1$s</string>
+    <string name="pending_payment_choose_source_account">選擇付款 / 轉出帳戶（儲值至悠遊卡/八達通）</string>
+    <string name="pending_payment_record_topup">記錄儲值轉帳</string>
+    <string name="pending_payment_destination_octopus">儲值目標（轉入）</string>
 </resources>

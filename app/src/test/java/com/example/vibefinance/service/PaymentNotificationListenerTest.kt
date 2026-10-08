@@ -946,34 +946,72 @@ class PaymentNotificationListenerTest {
     @Test
     fun testOctopusTopUpCreditCardAndSamsungWalletClassification() {
         val bankPkg = "com.hangseng.rbmobile"
-        val title = "恒生信用卡"
-        val text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289 簽賬HK$300.00"
+        // 1. Exact Hang Seng Bank push notification from user screenshot
+        val bankTitle = "恒生銀行"
+        val bankText = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289進行HKD300.00「無卡支付」交易。如懷疑電29988888。"
 
-        assertTrue("Octopus top-up via credit card must be recognized as payment", PaymentNotificationListener.isPaymentNotification(title, text, bankPkg))
-        val parsedBank = PaymentNotificationListener.parseNotification(title, text, bankPkg)
-        assertNotNull("Credit card top-up alert must be parsed", parsedBank)
+        assertTrue("Octopus top-up via Hang Seng bank alert must be recognized", PaymentNotificationListener.isPaymentNotification(bankTitle, bankText, bankPkg))
+        val parsedBank = PaymentNotificationListener.parseNotification(bankTitle, bankText, bankPkg)
+        assertNotNull("Hang Seng bank top-up alert must be parsed", parsedBank)
         assertEquals(300.00, parsedBank!!.amount, 0.001)
         assertEquals("1691", parsedBank.cardLast4)
         assertTrue("isTopUp must be true for credit card Octopus top-up", parsedBank.isTopUp)
         assertEquals("TRANSFER", parsedBank.transactionType)
+        assertEquals("Hang Seng Bank", parsedBank.assetName)
         assertEquals("Top-up", PaymentNotificationListener.determineCategory(parsedBank.merchant))
 
+        // 2. Exact Samsung Wallet push notification from user screenshot
         val spayPkg = "com.samsung.android.spay"
+        val spayTitle = "Hang Seng enJoy Card (Vanilla)"
         val spayText = "OCL* OCTOPUS AD1315289 HK$300.00"
-        assertTrue("Samsung Wallet Octopus top-up must be recognized", PaymentNotificationListener.isPaymentNotification("Samsung Wallet", spayText, spayPkg))
-        val parsedSpay = PaymentNotificationListener.parseNotification("Samsung Wallet", spayText, spayPkg)
+        assertTrue("Samsung Wallet Octopus top-up must be recognized", PaymentNotificationListener.isPaymentNotification(spayTitle, spayText, spayPkg))
+        val parsedSpay = PaymentNotificationListener.parseNotification(spayTitle, spayText, spayPkg)
         assertNotNull("Samsung Wallet alert must be parsed", parsedSpay)
         assertEquals(300.00, parsedSpay!!.amount, 0.001)
         assertTrue("Samsung Wallet isTopUp must be true", parsedSpay.isTopUp)
         assertEquals("TRANSFER", parsedSpay.transactionType)
+        assertEquals("Hang Seng Bank", parsedSpay.assetName)
         assertEquals("Top-up", PaymentNotificationListener.determineCategory(parsedSpay.merchant))
+
+        // 3. Exact Octopus confirmation notice from user screenshot (without amount)
+        val octTitle = "八達通"
+        val octText = "已完成向 Smart Octopus 增值。"
+        assertFalse("Amountless Octopus completion receipt must be rejected", PaymentNotificationListener.isPaymentNotification(octTitle, octText, spayPkg))
+        assertNull("Amountless Octopus receipt must not parse as payment", PaymentNotificationListener.parseNotification(octTitle, octText, spayPkg))
+
+        // 4. Verify findMatchingAccount matches funding credit card, NEVER destination Octopus
+        val accounts = listOf(
+            com.example.vibefinance.data.entity.AccountEntity(id = 1L, name = "八達通", type = com.example.vibefinance.data.entity.AccountType.CASH, balance = 150.0, icon = "wallet"),
+            com.example.vibefinance.data.entity.AccountEntity(id = 2L, name = "Hang Seng enJoy Card", cardLast4 = "1691", type = com.example.vibefinance.data.entity.AccountType.CC, balance = 1200.0, icon = "credit_card")
+        )
+        val matchedForBank = PendingPaymentStore.findMatchingAccount(
+            PendingPayment(
+                id = "p1", fingerprint = "fp1", sourcePackage = bankPkg, assetHint = parsedBank.assetName,
+                merchant = parsedBank.merchant, amount = parsedBank.amount, detectedAt = 1000L,
+                cardLast4 = parsedBank.cardLast4, isTopUp = true, transactionType = "TRANSFER"
+            ),
+            accounts
+        )
+        assertNotNull("Must match Hang Seng Credit Card account", matchedForBank)
+        assertEquals("Should match Hang Seng Credit Card id=2", 2L, matchedForBank!!.id)
+
+        val matchedForSpay = PendingPaymentStore.findMatchingAccount(
+            PendingPayment(
+                id = "p2", fingerprint = "fp2", sourcePackage = spayPkg, assetHint = parsedSpay.assetName,
+                merchant = parsedSpay.merchant, amount = parsedSpay.amount, detectedAt = 1000L,
+                cardLast4 = null, isTopUp = true, transactionType = "TRANSFER"
+            ),
+            accounts
+        )
+        assertNotNull("Must match Hang Seng Credit Card even without cardLast4 in Samsung Wallet", matchedForSpay)
+        assertEquals("Should match Hang Seng Credit Card id=2", 2L, matchedForSpay!!.id)
     }
 
     @Test
     fun testTransactionGrammarEngineTransferDetection() {
         val grammarResult = TransactionGrammarEngine.parse(
-            title = "恒生信用卡",
-            text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289 消費HK$300.00",
+            title = "恒生銀行",
+            text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289進行HKD300.00「無卡支付」交易。如懷疑電29988888。",
             packageName = "com.hangseng.rbmobile"
         )
         assertNotNull(grammarResult)

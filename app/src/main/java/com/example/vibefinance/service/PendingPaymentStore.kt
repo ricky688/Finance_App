@@ -135,12 +135,28 @@ object PendingPaymentStore {
 
         if (isOctopusTopUpTx) {
             // Deduplicate concurrent top-up notifications (e.g. Bank app + Samsung Wallet) within 90s
-            val duplicateInPending = _pending.value.any {
+            val duplicateIndex = _pending.value.indexOfFirst {
                 (it.isTopUp || it.transactionType == "TRANSFER" || it.merchant.contains("OCL*", ignoreCase = true) || it.merchant.contains("OCTOPUS", ignoreCase = true)) &&
                     kotlin.math.abs(it.amount - amount) < 0.01 &&
                     kotlin.math.abs(it.detectedAt - detectedAt) <= 90_000L
             }
-            if (duplicateInPending) {
+            if (duplicateIndex >= 0) {
+                val existing = _pending.value[duplicateIndex]
+                val shouldEnrichCard = existing.cardLast4.isNullOrBlank() && !cardLast4.isNullOrBlank()
+                val shouldEnrichAsset = (existing.assetHint.isBlank() || existing.assetHint == "八達通" || isGenericHint(existing.assetHint)) &&
+                    (assetHint.isNotBlank() && assetHint != "八達通")
+                if (shouldEnrichCard || shouldEnrichAsset) {
+                    val enriched = existing.copy(
+                        cardLast4 = if (!cardLast4.isNullOrBlank()) cardLast4 else existing.cardLast4,
+                        assetHint = if (shouldEnrichAsset) assetHint else existing.assetHint,
+                        rawTitle = if (rawTitle.isNotBlank()) rawTitle else existing.rawTitle,
+                        rawText = if (rawText.isNotBlank()) rawText else existing.rawText
+                    )
+                    val updatedList = _pending.value.toMutableList()
+                    updatedList[duplicateIndex] = enriched
+                    _pending.value = updatedList
+                    persist(context)
+                }
                 return null
             }
 
@@ -254,8 +270,13 @@ object PendingPaymentStore {
     fun findMatchingAccount(payment: PendingPayment, accounts: List<AccountEntity>): AccountEntity? {
         if (accounts.isEmpty()) return null
 
+        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
+        val nonOctopus = if (isTopUp) accounts.filter { !isOctopusAccount(it) } else emptyList()
+        val hasNonOctopusFunding = isTopUp && nonOctopus.isNotEmpty()
+        val searchPool = if (hasNonOctopusFunding) nonOctopus else accounts
+
         // 0. User's explicit notification aliases / IDs (HIGHEST PRIORITY)
-        for (acc in accounts) {
+        for (acc in searchPool) {
             val aliases = acc.getNotificationAliasList()
             if (aliases.isEmpty()) continue
             for (alias in aliases) {
@@ -282,33 +303,33 @@ object PendingPaymentStore {
         // 1. Direct card last 4 match
         if (!payment.cardLast4.isNullOrBlank()) {
             val last4 = payment.cardLast4
-            accounts.firstOrNull { it.cardLast4 == last4 }?.let { return it }
-            accounts.firstOrNull { it.name.contains(last4) || it.nickname?.contains(last4) == true }?.let { return it }
+            searchPool.firstOrNull { it.cardLast4 == last4 }?.let { return it }
+            searchPool.firstOrNull { it.name.contains(last4) || it.nickname?.contains(last4) == true }?.let { return it }
         }
 
-        // 2. Octopus matching: robust matching against user custom names (e.g. "octopus", "Octopus", "八達通")
-        if (isOctopusPayment(payment)) {
+        // 2. Octopus matching: for spending, or if user ONLY has Octopus accounts
+        if ((!isTopUp || !hasNonOctopusFunding) && isOctopusPayment(payment)) {
             // First: if payment has cardLast4, check if any Octopus account matches that cardLast4
             if (!payment.cardLast4.isNullOrBlank()) {
-                accounts.firstOrNull { isOctopusAccount(it) && it.cardLast4 == payment.cardLast4 }?.let { return it }
+                searchPool.firstOrNull { isOctopusAccount(it) && it.cardLast4 == payment.cardLast4 }?.let { return it }
             }
             // Second: exact name/nickname match (e.g. user set custom card name as "octopus", "八達通", "Smart Octopus")
-            accounts.firstOrNull {
+            searchPool.firstOrNull {
                 val n = it.name.trim().lowercase(Locale.ROOT)
                 val nk = it.nickname?.trim()?.lowercase(Locale.ROOT).orEmpty()
                 n == "octopus" || nk == "octopus" || n == "八達通" || nk == "八達通" || n == "smart octopus" || nk == "smart octopus"
             }?.let { return it }
             // Third: any account containing octopus or 八達通
-            accounts.firstOrNull { isOctopusAccount(it) }?.let { return it }
+            searchPool.firstOrNull { isOctopusAccount(it) }?.let { return it }
             // Fourth: fallback if user only has a single Cash / Wallet account
-            accounts.firstOrNull {
+            searchPool.firstOrNull {
                 it.name.trim().lowercase(Locale.ROOT) in setOf("wallet", "wallet (cash)", "現金", "錢包")
             }?.let { return it }
         }
 
         // 3. BOC Go / UnionPay match
         if (isBocGoHint(payment.assetHint) || payment.merchant.contains("BOC Go", ignoreCase = true) || payment.merchant.contains("中銀 Go")) {
-            findBocGoMatch(accounts)?.let { return it }
+            findBocGoMatch(searchPool)?.let { return it }
         }
 
         val hint = payment.assetHint.trim().lowercase(Locale.ROOT)
@@ -317,34 +338,42 @@ object PendingPaymentStore {
         // 4. Dedicated Wallets & Bank matchers
         when {
             hint.contains("payme") || merch.contains("payme") ->
-                accounts.firstOrNull { it.name.contains("payme", ignoreCase = true) }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("payme", ignoreCase = true) }?.let { return it }
             hint.contains("alipay") || hint.contains("支付寶") || merch.contains("alipay") || merch.contains("支付寶") ->
-                accounts.firstOrNull { it.name.contains("alipay", ignoreCase = true) || it.name.contains("支付寶") || it.name.contains("支付宝") }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("alipay", ignoreCase = true) || it.name.contains("支付寶") || it.name.contains("支付宝") }?.let { return it }
             hint.contains("wechat") || hint.contains("微信") || merch.contains("wechat") || merch.contains("微信") ->
-                accounts.firstOrNull { it.name.contains("wechat", ignoreCase = true) || it.name.contains("微信") }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("wechat", ignoreCase = true) || it.name.contains("微信") }?.let { return it }
             hint.contains("fps") || hint.contains("轉數快") || merch.contains("fps") || merch.contains("轉數快") ->
-                accounts.firstOrNull { it.name.contains("fps", ignoreCase = true) || it.name.contains("轉數快") || it.name.contains("转数快") }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("fps", ignoreCase = true) || it.name.contains("轉數快") || it.name.contains("转数快") }?.let { return it }
             hint.contains("hsbc") || hint.contains("匯豐") || merch.contains("hsbc") || merch.contains("匯豐") ->
-                accounts.firstOrNull { it.name.contains("hsbc", ignoreCase = true) || it.name.contains("匯豐") || it.name.contains("汇丰") }?.let { return it }
-            hint.contains("hang seng") || hint.contains("恒生") || merch.contains("hang seng") || merch.contains("恒生") ->
-                accounts.firstOrNull { it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("hsbc", ignoreCase = true) || it.name.contains("匯豐") || it.name.contains("汇丰") }?.let { return it }
+            hint.contains("hang seng") || hint.contains("恒生") || merch.contains("hang seng") || merch.contains("恒生") || hint.contains("enjoy") ->
+                searchPool.firstOrNull { it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) }?.let { return it }
             hint.contains("mox") || merch.contains("mox") ->
-                accounts.firstOrNull { it.name.contains("mox", ignoreCase = true) }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("mox", ignoreCase = true) }?.let { return it }
             hint.contains("citi") || hint.contains("花旗") || merch.contains("citi") || merch.contains("花旗") ->
-                accounts.firstOrNull { it.name.contains("citi", ignoreCase = true) || it.name.contains("花旗") }?.let { return it }
+                searchPool.firstOrNull { it.name.contains("citi", ignoreCase = true) || it.name.contains("花旗") }?.let { return it }
         }
 
         // 5. Normalized string containment / matching
         fun norm(s: String) = s.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9\\u4e00-\\u9fa5]"), "")
         val normHint = norm(payment.assetHint)
         if (normHint.length >= 2) {
-            accounts.firstOrNull { norm(it.name) == normHint || (it.nickname?.let { nk -> norm(nk) == normHint } == true) }?.let { return it }
-            accounts.firstOrNull {
+            searchPool.firstOrNull { norm(it.name) == normHint || (it.nickname?.let { nk -> norm(nk) == normHint } == true) }?.let { return it }
+            searchPool.firstOrNull {
                 val n = norm(it.name)
                 val nk = it.nickname?.let(::norm).orEmpty()
                 (n.length >= 2 && normHint.contains(n)) || (nk.length >= 2 && normHint.contains(nk)) ||
                     (n.length >= 2 && n.contains(normHint))
             }?.let { return it }
+        }
+
+        // 6. Top-up funding source fallback: choose primary credit card, bank, or debit
+        if (isTopUp) {
+            searchPool.firstOrNull { it.type == AccountType.CC || it.type == AccountType.BANK || it.type == AccountType.DEBIT }?.let { return it }
+            if (!hasNonOctopusFunding) {
+                searchPool.firstOrNull()?.let { return it }
+            }
         }
 
         return null
@@ -411,10 +440,25 @@ object PendingPaymentStore {
             return true
         }
 
+        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
+
         // Dedicated Octopus matching: auto-logging without manual friction
         if (isOctopusPayment(payment)) {
-            return isOctopusAccount(account) || account.type == AccountType.CASH ||
+            if (isOctopusAccount(account) || account.type == AccountType.CASH ||
                 accountName in setOf("smart octopus", "octopus", "八達通", "android版八達通", "手機八達通", "wallet", "wallet (cash)", "現金", "錢包")
+            ) {
+                return true
+            }
+        }
+
+        if (isTopUp) {
+            if (account.type == AccountType.CC || account.type == AccountType.BANK || account.type == AccountType.DEBIT) {
+                if (hint.contains("enjoy") && (accountName.contains("enjoy") || accountName.contains("hang seng"))) return true
+                if ((hint.contains("hang seng") || hint.contains("恒生")) && (accountName.contains("hang seng") || accountName.contains("恒生"))) return true
+                if ((hint.contains("hsbc") || hint.contains("匯豐")) && (accountName.contains("hsbc") || accountName.contains("匯豐"))) return true
+                if ((hint.contains("boc") || hint.contains("中銀")) && (accountName.contains("boc") || accountName.contains("中銀"))) return true
+                if (!isGenericHint(hint)) return true
+            }
         }
 
         // BOC Go / BOC UnionPay cards can bind to any account matching BOC Go or BOC credit cards

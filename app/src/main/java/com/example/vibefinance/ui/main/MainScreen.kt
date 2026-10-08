@@ -1756,6 +1756,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
     itemModifierProvider: ((Int) -> Modifier)? = null,
     fadeTagPrefix: String? = null,
     selectionRevealRequest: Int = 0,
+    preserveContentColors: Boolean = false,
     labelProvider: @Composable (T) -> String
 ) {
     val groupScroll = rememberScrollState()
@@ -1835,7 +1836,8 @@ fun <T> ExpressiveSegmentedButtonGroup(
 
             val colorMotion = rememberConnectedButtonColorMotion(
                 isSelected = isSelected,
-                isPressed = isPressed.value
+                isPressed = isPressed.value,
+                preserveContentColors = preserveContentColors
             )
             
             val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
@@ -2488,7 +2490,6 @@ fun AddExpenseSheetContent(
                     items = currentCategories,
                     title = if (transactionMode == TransactionMode.INCOME) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
                     tagPrefix = "EntryCategory",
-                    overlayIncludesAssets = true,
                     compactChoices = true,
                     keyProvider = { it },
                     subtitleProvider = { it },
@@ -2517,9 +2518,7 @@ fun AddExpenseSheetContent(
         }
 
         // 3. Asset Selection Horizontal Grid
-        Column(modifier = Modifier.fillMaxWidth().testTag("EntryAssetSection").onGloballyPositioned {
-            selectorOverlay.assetBounds = it.boundsInWindow()
-        }) {
+        Column(modifier = Modifier.fillMaxWidth().testTag("EntryAssetSection")) {
             Text(
                 text = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
                 style = MaterialTheme.typography.labelSmall,

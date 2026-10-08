@@ -13,6 +13,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.PopupPositionProvider
@@ -54,10 +57,9 @@ internal fun accountTypeLabel(type: AccountType): String = stringResource(when (
     AccountType.CC -> R.string.ui_main_credit_short
 })
 
-/** The menu is hosted over the measured keypad, independent of the form's layout. */
+/** All entry modes share a panel anchored below its connected row, over the remaining form. */
 internal class EntrySelectorOverlayState {
     var activeTag by mutableStateOf<String?>(null)
-    var assetBounds by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
     var keypadBounds by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
 }
 internal val LocalEntrySelectorOverlay = staticCompositionLocalOf<EntrySelectorOverlayState> {
@@ -69,7 +71,6 @@ internal fun <T> ExpandableEntrySelector(
     items: List<T>, selectedIndex: Int, onItemSelected: (Int) -> Unit,
     title: String, tagPrefix: String, keyProvider: (T) -> String,
     labelProvider: @Composable (T) -> String, modifier: Modifier = Modifier,
-    overlayIncludesAssets: Boolean = false,
     compactChoices: Boolean = false,
     subtitleProvider: (@Composable (T) -> String)? = null,
     iconProvider: (@Composable (T, Color) -> Unit)? = null,
@@ -79,16 +80,19 @@ internal fun <T> ExpandableEntrySelector(
     val expanded = host.activeTag == tagPrefix
     val density = LocalDensity.current
     var rowHeight by remember { mutableIntStateOf(0) }
+    var selectorBounds by remember { mutableStateOf(Rect.Zero) }
     var selectionRevealRequest by remember { mutableIntStateOf(0) }
     val expandLabel = stringResource(if (expanded) R.string.entry_selector_collapse else R.string.entry_selector_expand, title)
     fun add() { host.activeTag = null; onAdd?.invoke() }
-    Row(modifier.fillMaxWidth().testTag(tagPrefix), verticalAlignment = Alignment.CenterVertically,
+    Row(modifier.fillMaxWidth().onGloballyPositioned { selectorBounds = it.boundsInWindow() }
+        .testTag(tagPrefix), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         // Reuse the original connected group, including its natural height and motion.
         ExpressiveSegmentedButtonGroup(items, selectedIndex, onItemSelected,
             modifier = Modifier.weight(1f).onSizeChanged { rowHeight = it.height }.testTag("${tagPrefix}_row"),
             isScrollable = true, iconProvider = iconProvider, fadeTagPrefix = "${tagPrefix}_row",
             selectionRevealRequest = selectionRevealRequest,
+            preserveContentColors = true,
             itemModifierProvider = { index -> Modifier.testTag("${tagPrefix}_row_${keyProvider(items[index])}") },
             trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add) } } else null,
             labelProvider = labelProvider)
@@ -108,10 +112,14 @@ internal fun <T> ExpandableEntrySelector(
         }
     }
     val keypad = host.keypadBounds
-    val assets = host.assetBounds
-    val bounds = if (overlayIncludesAssets && assets.height > 0) {
-        keypad.copy(top = minOf(assets.top, keypad.top))
-    } else keypad
+    // Income's panel sits immediately beneath its row. Use that same placement for
+    // every selector, covering intervening expense controls or transfer destinations.
+    // Keep the keypad's bottom edge so expansion never changes the form or row height.
+    val gapPx = with(density) { 8.dp.toPx() }
+    val panelTop = if (selectorBounds.height > 0) {
+        (selectorBounds.bottom + gapPx).coerceAtMost(keypad.bottom)
+    } else keypad.top
+    val bounds = keypad.copy(top = panelTop)
     val visibility = remember { MutableTransitionState(false) }
     visibility.targetState = expanded
     val panelTransition = rememberTransition(visibility, label = "${tagPrefix}_panel")
@@ -216,7 +224,8 @@ private fun EntryChoiceTile(
     val shape = completePressShape(RoundedCornerShape(16.dp), RoundedCornerShape(16.dp), progress)
     val colors = rememberConnectedButtonColorMotion(selected, pressed,
         inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        inactiveContentColor = MaterialTheme.colorScheme.onSurface)
+        inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+        preserveContentColors = true)
     Surface(shape = shape, color = colors.containerColor, contentColor = colors.contentColor,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier.heightIn(min = if (compact) 56.dp else 72.dp).clip(shape)

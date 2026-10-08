@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInWindow
@@ -45,6 +46,53 @@ class EntrySelectorOverlayTest {
         AccountEntity(it, "Account $it", type = AccountType.BANK, balance = 100.0, icon = "bank")
     }
     private var submitted: FinanceIntent.AddTransaction? = null
+
+    @Test fun emojiKeepTheirColorsInLightPanelsAndConnectedRows() = verifyEmojiColors(false)
+
+    @Test fun emojiKeepTheirColorsInDarkPanelsAtLargeFontSize() = verifyEmojiColors(true)
+
+    /** Gift and flag choices mirror emoji-prefixed categories observed on the imported device. */
+    private fun verifyEmojiColors(dark: Boolean) {
+        val labels = listOf("🎁 Gift", "🇭🇰 Hong Kong", "👩🏽‍💻 Work", "1️⃣ One")
+        compose.setContent {
+            val density = LocalDensity.current.density
+            val overlay = remember { EntrySelectorOverlayState() }
+            var selected by remember { mutableIntStateOf(1) }
+            CompositionLocalProvider(LocalDensity provides Density(density, 1.6f), LocalEntrySelectorOverlay provides overlay) {
+                MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
+                    Column {
+                        ExpandableEntrySelector(labels, selected, { selected = it }, "Category", "Emoji", { it }, { it }, compactChoices = true)
+                        Box(Modifier.fillMaxWidth().height(400.dp).onGloballyPositioned { overlay.keypadBounds = it.boundsInWindow() })
+                    }
+                }
+            }
+        }
+        val gift = "🎁 Gift"
+        open("Emoji")
+        assertRedEmojiPixels("Emoji_grid_$gift")
+        compose.mainClock.autoAdvance = false
+        click("Emoji_grid_$gift")
+        compose.mainClock.advanceTimeBy(80)
+        assertRedEmojiPixels("Emoji_grid_$gift")
+        compose.mainClock.advanceTimeBy(2_000)
+        assertRedEmojiPixels("Emoji_grid_$gift")
+        compose.onNodeWithTag("Emoji_grid_$gift").assertIsSelected()
+        click("Emoji_collapse")
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.mainClock.autoAdvance = true
+        assertRowReveals("Emoji", gift)
+        assertRedEmojiPixels("Emoji_row_$gift")
+    }
+
+    private fun assertRedEmojiPixels(tag: String) {
+        val pixels = compose.onNodeWithTag(tag).captureToImage().toPixelMap()
+        var redPixels = 0
+        for (y in 0 until pixels.height) for (x in 0 until pixels.width) {
+            val color = pixels[x, y]
+            if (color.red > 0.65f && color.red > color.green * 1.4f && color.red > color.blue * 1.4f) redPixels++
+        }
+        assertTrue("$tag must retain the gift emoji's red pixels instead of a tinted silhouette", redPixels > 3)
+    }
 
     private fun host(mode: TransactionMode, rateLoader: ExchangeRateLoader? = null, budget: DailyBudgetInfo? = null) {
         compose.setContent {
@@ -316,7 +364,9 @@ class EntrySelectorOverlayTest {
         val menu = screenBounds("EntryCategory_expanded")
         val keypadScreen = screenBounds("EntryKeypad")
         assertEquals(keypadScreen.left, menu.left, 1f)
-        assertEquals(screenBounds("EntryAssetSection").top, menu.top, 1f)
+        assertTrue("Panel begins below its connected row", menu.top > screenBounds("EntryCategory_row").bottom)
+        assertTrue("Panel covers the expense icon control as well as assets",
+            menu.top < screenBounds("ExpenseIconChoose").top)
         assertEquals(keypadScreen.width, menu.width, 1f)
         assertEquals(keypadScreen.bottom, menu.bottom, 1f)
         click("EntryCategory_grid_Food")
@@ -411,7 +461,7 @@ class EntrySelectorOverlayTest {
     @Test fun expansionAndCollapseAnimateWithinFixedOverlayBounds() {
         host(TransactionMode.EXPENSE)
         val row = screenBounds("EntryCategory_row")
-        val expectedHeight = screenBounds("EntryKeypad").bottom - screenBounds("EntryAssetSection").top
+        val availableHeight = screenBounds("EntryKeypad").bottom - row.bottom
         compose.mainClock.autoAdvance = false
         click("EntryCategory_toggle")
         compose.mainClock.advanceTimeBy(80)
@@ -419,10 +469,12 @@ class EntrySelectorOverlayTest {
         // A newly attached popup can still be waiting for its first platform layout frame.
         // Zero visible height is valid here; an immediate, fully expanded menu is not.
         val openingHeight = compose.onNodeWithTag("EntryCategory_expanded").fetchSemanticsNode().boundsInRoot.height
-        assertTrue("Opening must not jump immediately to full height", openingHeight < expectedHeight)
+        assertTrue("Opening must not jump immediately to full height", openingHeight < availableHeight)
         compose.mainClock.advanceTimeBy(2_000)
         compose.waitForIdle()
-        assertEquals(expectedHeight, screenBounds("EntryCategory_expanded").height, 1f)
+        val openedMenu = screenBounds("EntryCategory_expanded")
+        assertTrue("Panel height grows during opening", openingHeight < openedMenu.height)
+        assertEquals(screenBounds("EntryKeypad").bottom, openedMenu.bottom, 1f)
         assertEquals(row, screenBounds("EntryCategory_row"))
         click("EntryCategory_collapse")
         compose.mainClock.advanceTimeBy(80)
