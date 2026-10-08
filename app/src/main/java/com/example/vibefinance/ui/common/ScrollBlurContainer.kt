@@ -24,6 +24,7 @@ internal fun ScrollBlurContainer(
     vertical: Boolean = false,
     enabled: Boolean = true,
     tagPrefix: String? = null,
+    blurActive: Boolean = true,
     content: @Composable (Modifier) -> Unit
 ) {
     if (!enabled) { content(modifier); return }
@@ -62,6 +63,7 @@ internal fun ScrollBlurContainer(
                         if (vertical) Modifier.fillMaxWidth().height(extent) else Modifier.fillMaxHeight().width(extent))
                     if (tagPrefix != null) edgeModifier = edgeModifier.testTag("${tagPrefix}_${if (first) "start" else "end"}_fade")
                     Box(edgeModifier.hazeEffect(haze, style) {
+                        blurEnabled = blurActive
                         mask = if (vertical) Brush.verticalGradient(colors) else Brush.horizontalGradient(colors)
                         progressive = if (vertical) HazeProgressive.verticalGradient(
                             startIntensity = if (first) 1f else 0f, endIntensity = if (first) 0f else 1f, preferPerformance = true)

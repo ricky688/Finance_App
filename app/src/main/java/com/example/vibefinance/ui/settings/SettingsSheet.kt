@@ -2,6 +2,10 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.common.ScrollBlurContainer
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
+
 import com.example.vibefinance.ui.components.CompletePressButton
 import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
@@ -164,6 +168,7 @@ fun SettingsSheet(
 ) {
     var showCategoryManager by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val settingsScrollState = rememberScrollState()
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
@@ -436,654 +441,662 @@ fun SettingsSheet(
                 }
             }
 
-            // Scrollable Content
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-
-                // ==========================================
-                // ==========================================
-                // SECTION 1: CUSTOMIZATION (自訂)
-                // ==========================================
-                val isDark = when (state.themeMode) {
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.DARK -> true
-                }
-
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_appearance),
-                    icon = Icons.Filled.Palette,
-                    expanded = expandedSection == SettingsGroup.APPEARANCE.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.APPEARANCE.name) null
-                        else SettingsGroup.APPEARANCE.name
-                    }
+            // Only overflowing scroll edges fade/blur; the pinned header remains sharp.
+            ScrollBlurContainer(
+                scrollState = settingsScrollState,
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                vertical = true,
+                tagPrefix = "SettingsScroll",
+                blurActive = LocalWindowInfo.current.isWindowFocused
+            ) { sourceModifier ->
+                Column(
+                    modifier = sourceModifier
+                        .fillMaxWidth()
+                        .verticalScroll(settingsScrollState)
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .testTag("SettingsScrollContent"),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Item 1: 色彩方案 (Color scheme) -> Opens AppearancePickerSheet
-                        Surface(
-                            onClick = { showPaletteSheet = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
+
+                    // ==========================================
+                    // ==========================================
+                    // SECTION 1: CUSTOMIZATION (自訂)
+                    // ==========================================
+                    val isDark = when (state.themeMode) {
+                        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                        ThemeMode.LIGHT -> false
+                        ThemeMode.DARK -> true
+                    }
+
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_appearance),
+                        icon = Icons.Filled.Palette,
+                        expanded = expandedSection == SettingsGroup.APPEARANCE.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.APPEARANCE.name) null
+                            else SettingsGroup.APPEARANCE.name
+                        }
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Item 1: 色彩方案 (Color scheme) -> Opens AppearancePickerSheet
+                            Surface(
+                                onClick = { showPaletteSheet = true },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.palette")),
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Palette,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.appearance_palette_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = stringResource(R.string.appearance_palette_desc),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                // Scallop Rosette badge with live preview & edit pencil
-                                val currentPreview = remember(state.appearancePalette, isDark, state.appearanceContrast) {
-                                    paletteColorScheme(state.appearancePalette, isDark, state.appearanceContrast)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(54.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
-                                            ScallopBadgeShape
-                                        )
-                                        .border(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                            ScallopBadgeShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // Circular color disc
                                     Box(
                                         modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                    ) {
-                                        Column(Modifier.fillMaxSize()) {
-                                            Box(
-                                                Modifier
-                                                    .fillMaxWidth()
-                                                    .weight(1f)
-                                                    .background(currentPreview.primary)
-                                            )
-                                            Row(Modifier.fillMaxWidth().weight(1f)) {
-                                                Box(
-                                                    Modifier
-                                                        .fillMaxHeight()
-                                                        .weight(1f)
-                                                        .background(currentPreview.tertiary)
-                                                )
-                                                Box(
-                                                    Modifier
-                                                        .fillMaxHeight()
-                                                        .weight(1f)
-                                                        .background(currentPreview.secondary)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // Center edit badge
-                                    Box(
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .background(currentPreview.primary, CircleShape)
-                                            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                            .size(42.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.palette")),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Filled.Edit,
+                                            imageVector = Icons.Filled.Palette,
                                             contentDescription = null,
-                                            tint = currentPreview.onPrimary,
-                                            modifier = Modifier.size(11.dp)
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
                                         )
                                     }
-                                }
-                            }
-                        }
-
-                        // Item 2: 動態色彩 (Dynamic color)
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(!state.dynamicColorEnabled))
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.dynamic-color")),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Colorize,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.dynamic_color_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = stringResource(R.string.dynamic_color_desc),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                ExpressiveSwitch(
-                                    checked = state.dynamicColorEnabled,
-                                    onCheckedChange = { enabled ->
-                                        viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(enabled))
-                                    }
-                                )
-                            }
-                        }
-
-                        // Item 3: 純黑深色模式 (Pure black dark mode)
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.pure-black")),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.DarkMode,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.appearance_pure_black_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        text = stringResource(R.string.appearance_pure_black_desc),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                ExpressiveSwitch(
-                                    checked = state.pureBlackDarkMode,
-                                    onCheckedChange = { viewModel.dispatch(FinanceIntent.SetPureBlackDarkMode(it)) }
-                                )
-                            }
-                        }
-
-                        // Item 4: 圖示形狀 (Icon shape)
-                        Surface(
-                            onClick = { showShapePickerDialog = true },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.icon-shape")),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(R.string.appearance_icon_shape_title),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    val isZh = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language.startsWith("zh")
-                                    Text(
-                                        text = "${state.iconShape.localizedTitle(isZh)} · ${stringResource(R.string.appearance_icon_shape_desc)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(Modifier.width(10.dp))
-                                val shapePreview = if (state.iconShape == IconShapeMode.RANDOM) {
-                                    RoundedCornerShape(16.dp)
-                                } else state.iconShape.shape
-                                Box(
-                                    modifier = Modifier
-                                        .size(54.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
-                                            shapePreview
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(R.string.appearance_palette_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
                                         )
-                                        .border(
-                                            1.dp,
-                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                            shapePreview
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (state.iconShape == IconShapeMode.RANDOM) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                            listOf(IconShapeMode.COOKIE_4, IconShapeMode.CIRCLE, IconShapeMode.ARCH).forEach { mode ->
-                                                Box(Modifier.size(13.dp).background(
-                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), mode.shape
-                                                ))
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = stringResource(R.string.appearance_palette_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    // Scallop Rosette badge with live preview & edit pencil
+                                    val currentPreview = remember(state.appearancePalette, isDark, state.appearanceContrast) {
+                                        paletteColorScheme(state.appearancePalette, isDark, state.appearanceContrast)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
+                                                ScallopBadgeShape
+                                            )
+                                            .border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                ScallopBadgeShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        // Circular color disc
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                        ) {
+                                            Column(Modifier.fillMaxSize()) {
+                                                Box(
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .weight(1f)
+                                                        .background(currentPreview.primary)
+                                                )
+                                                Row(Modifier.fillMaxWidth().weight(1f)) {
+                                                    Box(
+                                                        Modifier
+                                                            .fillMaxHeight()
+                                                            .weight(1f)
+                                                            .background(currentPreview.tertiary)
+                                                    )
+                                                    Box(
+                                                        Modifier
+                                                            .fillMaxHeight()
+                                                            .weight(1f)
+                                                            .background(currentPreview.secondary)
+                                                    )
+                                                }
                                             }
                                         }
-                                    } else Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .border(
-                                                2.dp,
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                state.iconShape.shape
+                                        // Center edit badge
+                                        Box(
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .background(currentPreview.primary, CircleShape)
+                                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Edit,
+                                                contentDescription = null,
+                                                tint = currentPreview.onPrimary,
+                                                modifier = Modifier.size(11.dp)
                                             )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Item 2: 動態色彩 (Dynamic color)
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(!state.dynamicColorEnabled))
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.dynamic-color")),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Colorize,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(R.string.dynamic_color_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = stringResource(R.string.dynamic_color_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    ExpressiveSwitch(
+                                        checked = state.dynamicColorEnabled,
+                                        onCheckedChange = { enabled ->
+                                            viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(enabled))
+                                        }
                                     )
                                 }
                             }
-                        }
 
-                        // Theme Mode Selector (夜間模式)
-                        Spacer(modifier = Modifier.height(4.dp))
+                            // Item 3: 純黑深色模式 (Pure black dark mode)
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.pure-black")),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.DarkMode,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(R.string.appearance_pure_black_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = stringResource(R.string.appearance_pure_black_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    ExpressiveSwitch(
+                                        checked = state.pureBlackDarkMode,
+                                        onCheckedChange = { viewModel.dispatch(FinanceIntent.SetPureBlackDarkMode(it)) }
+                                    )
+                                }
+                            }
+
+                            // Item 4: 圖示形狀 (Icon shape)
+                            Surface(
+                                onClick = { showShapePickerDialog = true },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .background(MaterialTheme.colorScheme.primaryContainer, rememberIconShape("settings.icon-shape")),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(R.string.appearance_icon_shape_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        val isZh = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language.startsWith("zh")
+                                        Text(
+                                            text = "${state.iconShape.localizedTitle(isZh)} · ${stringResource(R.string.appearance_icon_shape_desc)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(Modifier.width(10.dp))
+                                    val shapePreview = if (state.iconShape == IconShapeMode.RANDOM) {
+                                        RoundedCornerShape(16.dp)
+                                    } else state.iconShape.shape
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
+                                                shapePreview
+                                            )
+                                            .border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                shapePreview
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (state.iconShape == IconShapeMode.RANDOM) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                listOf(IconShapeMode.COOKIE_4, IconShapeMode.CIRCLE, IconShapeMode.ARCH).forEach { mode ->
+                                                    Box(Modifier.size(13.dp).background(
+                                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), mode.shape
+                                                    ))
+                                                }
+                                            }
+                                        } else Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .border(
+                                                    2.dp,
+                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                                    state.iconShape.shape
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Theme Mode Selector (夜間模式)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.theme_mode_label),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val currentTheme = state.themeMode
+                                ThemeOptionCard(
+                                    title = stringResource(R.string.theme_system),
+                                    icon = Icons.Filled.BrightnessAuto,
+                                    isSelected = currentTheme == ThemeMode.SYSTEM,
+                                    onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.SYSTEM)) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionCard(
+                                    title = stringResource(R.string.theme_light),
+                                    icon = Icons.Filled.LightMode,
+                                    isSelected = currentTheme == ThemeMode.LIGHT,
+                                    onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.LIGHT)) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ThemeOptionCard(
+                                    title = stringResource(R.string.theme_dark),
+                                    icon = Icons.Filled.DarkMode,
+                                    isSelected = currentTheme == ThemeMode.DARK,
+                                    onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.DARK)) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    // ==========================================
+                    // SECTION 2: LANGUAGE & REGION
+                    // ==========================================
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_language),
+                        icon = Icons.Filled.Language,
+                        expanded = expandedSection == SettingsGroup.LANGUAGE.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.LANGUAGE.name) null
+                            else SettingsGroup.LANGUAGE.name
+                        }
+                    ) {
                         Text(
-                            text = stringResource(R.string.theme_mode_label),
+                            text = stringResource(R.string.language_label),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val currentTheme = state.themeMode
-                            ThemeOptionCard(
-                                title = stringResource(R.string.theme_system),
-                                icon = Icons.Filled.BrightnessAuto,
-                                isSelected = currentTheme == ThemeMode.SYSTEM,
-                                onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.SYSTEM)) },
+                            val currentLang = state.appLanguage
+                            LanguageOptionCard(
+                                title = stringResource(R.string.lang_system),
+                                subtitle = stringResource(R.string.loc_automatic),
+                                isSelected = currentLang == AppLanguage.SYSTEM,
+                                onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.SYSTEM)) },
                                 modifier = Modifier.weight(1f)
                             )
-                            ThemeOptionCard(
-                                title = stringResource(R.string.theme_light),
-                                icon = Icons.Filled.LightMode,
-                                isSelected = currentTheme == ThemeMode.LIGHT,
-                                onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.LIGHT)) },
+                            LanguageOptionCard(
+                                title = stringResource(R.string.lang_en),
+                                subtitle = "EN",
+                                isSelected = currentLang == AppLanguage.ENGLISH,
+                                onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.ENGLISH)) },
                                 modifier = Modifier.weight(1f)
                             )
-                            ThemeOptionCard(
-                                title = stringResource(R.string.theme_dark),
-                                icon = Icons.Filled.DarkMode,
-                                isSelected = currentTheme == ThemeMode.DARK,
-                                onClick = { viewModel.dispatch(FinanceIntent.SetThemeMode(ThemeMode.DARK)) },
+                            LanguageOptionCard(
+                                title = stringResource(R.string.lang_zh_hant),
+                                subtitle = "中文",
+                                isSelected = currentLang == AppLanguage.TRADITIONAL_CHINESE,
+                                onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.TRADITIONAL_CHINESE)) },
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
-                }
 
-                // ==========================================
-                // SECTION 2: LANGUAGE & REGION
-                // ==========================================
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_language),
-                    icon = Icons.Filled.Language,
-                    expanded = expandedSection == SettingsGroup.LANGUAGE.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.LANGUAGE.name) null
-                        else SettingsGroup.LANGUAGE.name
-                    }
-                ) {
-                    Text(
-                        text = stringResource(R.string.language_label),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // ==========================================
+                    // SECTION 3: SMART NOTIFICATIONS & AUTO-LOGGING
+                    // ==========================================
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_smart_logging),
+                        icon = Icons.Filled.NotificationsActive,
+                        expanded = expandedSection == SettingsGroup.SMART_LOGGING.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.SMART_LOGGING.name) null
+                            else SettingsGroup.SMART_LOGGING.name
+                        }
                     ) {
-                        val currentLang = state.appLanguage
-                        LanguageOptionCard(
-                            title = stringResource(R.string.lang_system),
-                            subtitle = stringResource(R.string.loc_automatic),
-                            isSelected = currentLang == AppLanguage.SYSTEM,
-                            onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.SYSTEM)) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        LanguageOptionCard(
-                            title = stringResource(R.string.lang_en),
-                            subtitle = "EN",
-                            isSelected = currentLang == AppLanguage.ENGLISH,
-                            onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.ENGLISH)) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        LanguageOptionCard(
-                            title = stringResource(R.string.lang_zh_hant),
-                            subtitle = "中文",
-                            isSelected = currentLang == AppLanguage.TRADITIONAL_CHINESE,
-                            onClick = { viewModel.dispatch(FinanceIntent.SetAppLanguage(AppLanguage.TRADITIONAL_CHINESE)) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                // ==========================================
-                // SECTION 3: SMART NOTIFICATIONS & AUTO-LOGGING
-                // ==========================================
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_smart_logging),
-                    icon = Icons.Filled.NotificationsActive,
-                    expanded = expandedSection == SettingsGroup.SMART_LOGGING.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.SMART_LOGGING.name) null
-                        else SettingsGroup.SMART_LOGGING.name
-                    }
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
-                                            .contains(context.packageName)
-                                        if (!isGranted) {
-                                            try {
-                                                context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                })
-                                            } catch (e: Exception) {
-                                                // Fallback
-                                            }
-                                        } else {
-                                            val target = !autoLogEnabled
-                                            InMemoryDatabase.updateNotificationLoggingEnabled(target)
-                                            autoLogEnabled = target
-                                        }
-                                    },
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(MaterialTheme.colorScheme.primaryContainer),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.NotificationsActive,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            text = stringResource(R.string.settings_auto_logging_title),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.settings_auto_logging_desc),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                    }
-                                }
-                                ExpressiveSwitch(
-                                    checked = autoLogEnabled,
-                                    onCheckedChange = { checked ->
-                                        val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
-                                            .contains(context.packageName)
-                                        if (!isGranted) {
-                                            try {
-                                                context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                })
-                                            } catch (e: Exception) {
-                                                // Fallback
-                                            }
-                                        } else {
-                                            InMemoryDatabase.updateNotificationLoggingEnabled(checked)
-                                            autoLogEnabled = checked
-                                        }
-                                    }
-                                )
-                            }
-
-                            // App Selection Chips Preview
-                            if (autoLogEnabled) {
-                                val installedPackages = remember(context, selectedApps) {
-                                    LocalAppManager.getInstalledPackageNames(context)
-                                }
-                                val selectedInstalledPackages = remember(installedPackages, selectedApps) {
-                                    selectedApps.filter { it in installedPackages }.sorted()
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { showAppSelectionDialog = true }
-                                        .padding(vertical = 4.dp),
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
+                                                .contains(context.packageName)
+                                            if (!isGranted) {
+                                                try {
+                                                    context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    })
+                                                } catch (e: Exception) {
+                                                    // Fallback
+                                                }
+                                            } else {
+                                                val target = !autoLogEnabled
+                                                InMemoryDatabase.updateNotificationLoggingEnabled(target)
+                                                autoLogEnabled = target
+                                            }
+                                        },
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = stringResource(R.string.settings_manage_apps_label),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                        Text(
-                                            text = if (selectedInstalledPackages.size == 1) {
-                                                stringResource(R.string.settings_apps_enabled_one)
-                                            } else if (selectedInstalledPackages.isNotEmpty()) {
-                                                stringResource(R.string.settings_apps_enabled_count, selectedInstalledPackages.size)
-                                            } else {
-                                                stringResource(R.string.settings_apps_none_enabled)
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                    }
-
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        selectedInstalledPackages.take(5).forEach { packageName ->
-                                            val bitmap = remember(context, packageName) {
-                                                LocalAppManager.getAppIcon(context, packageName)
-                                            }
-                                            bitmap?.let {
-                                                Image(
-                                                    bitmap = it.asImageBitmap(),
-                                                    contentDescription = remember(context, packageName) {
-                                                        LocalAppManager.getAppLabel(context, packageName)
-                                                    },
-                                                    modifier = Modifier
-                                                        .size(28.dp)
-                                                        .clip(RoundedCornerShape(7.dp))
-                                                        .border(
-                                                            0.8.dp,
-                                                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                                            RoundedCornerShape(7.dp)
-                                                        )
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            modifier = Modifier.size(28.dp),
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Add,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                            }
+                                            Icon(
+                                                imageVector = Icons.Filled.NotificationsActive,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = stringResource(R.string.settings_auto_logging_title),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.settings_auto_logging_desc),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
                                         }
                                     }
+                                    ExpressiveSwitch(
+                                        checked = autoLogEnabled,
+                                        onCheckedChange = { checked ->
+                                            val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
+                                                .contains(context.packageName)
+                                            if (!isGranted) {
+                                                try {
+                                                    context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                    })
+                                                } catch (e: Exception) {
+                                                    // Fallback
+                                                }
+                                            } else {
+                                                InMemoryDatabase.updateNotificationLoggingEnabled(checked)
+                                                autoLogEnabled = checked
+                                            }
+                                        }
+                                    )
                                 }
-                            }
 
-                            // Custom Notification Templates
-                            val templates by InMemoryDatabase.notificationTemplates.collectAsStateWithLifecycle()
-                            if (templates.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
+                                // App Selection Chips Preview
+                                if (autoLogEnabled) {
+                                    val installedPackages = remember(context, selectedApps) {
+                                        LocalAppManager.getInstalledPackageNames(context)
+                                    }
+                                    val selectedInstalledPackages = remember(installedPackages, selectedApps) {
+                                        selectedApps.filter { it in installedPackages }.sorted()
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
 
-                                Text(
-                                    text = stringResource(R.string.vst_templates_title),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { showAppSelectionDialog = true }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.settings_manage_apps_label),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = if (selectedInstalledPackages.size == 1) {
+                                                    stringResource(R.string.settings_apps_enabled_one)
+                                                } else if (selectedInstalledPackages.isNotEmpty()) {
+                                                    stringResource(R.string.settings_apps_enabled_count, selectedInstalledPackages.size)
+                                                } else {
+                                                    stringResource(R.string.settings_apps_none_enabled)
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        }
 
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    templates.forEach { tmpl ->
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.surface,
-                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                                            modifier = Modifier.fillMaxWidth()
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.horizontalScroll(rememberScrollState())
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = tmpl.name,
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                    Text(
-                                                        text = if (tmpl.rawSample.isNotBlank()) tmpl.rawSample else tmpl.regexPattern,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                            selectedInstalledPackages.take(5).forEach { packageName ->
+                                                val bitmap = remember(context, packageName) {
+                                                    LocalAppManager.getAppIcon(context, packageName)
+                                                }
+                                                bitmap?.let {
+                                                    Image(
+                                                        bitmap = it.asImageBitmap(),
+                                                        contentDescription = remember(context, packageName) {
+                                                            LocalAppManager.getAppLabel(context, packageName)
+                                                        },
+                                                        modifier = Modifier
+                                                            .size(28.dp)
+                                                            .clip(RoundedCornerShape(7.dp))
+                                                            .border(
+                                                                0.8.dp,
+                                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                                                RoundedCornerShape(7.dp)
+                                                            )
                                                     )
                                                 }
-                                                androidx.compose.material3.IconButton(
-                                                    onClick = { InMemoryDatabase.deleteNotificationTemplate(tmpl.id) },
-                                                    modifier = Modifier.size(32.dp)
+                                            }
+
+                                            Surface(
+                                                modifier = Modifier.size(28.dp),
+                                                shape = RoundedCornerShape(7.dp),
+                                                color = MaterialTheme.colorScheme.primaryContainer,
+                                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = stringResource(R.string.btn_delete),
-                                                        tint = MaterialTheme.colorScheme.error,
-                                                        modifier = Modifier.size(16.dp)
+                                                        imageVector = Icons.Default.Add,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.size(14.dp)
                                                     )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Custom Notification Templates
+                                val templates by InMemoryDatabase.notificationTemplates.collectAsStateWithLifecycle()
+                                if (templates.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        text = stringResource(R.string.vst_templates_title),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        templates.forEach { tmpl ->
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surface,
+                                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(
+                                                            text = tmpl.name,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                        Text(
+                                                            text = if (tmpl.rawSample.isNotBlank()) tmpl.rawSample else tmpl.regexPattern,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    androidx.compose.material3.IconButton(
+                                                        onClick = { InMemoryDatabase.deleteNotificationTemplate(tmpl.id) },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = stringResource(R.string.btn_delete),
+                                                            tint = MaterialTheme.colorScheme.error,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -1092,451 +1105,451 @@ fun SettingsSheet(
                             }
                         }
                     }
-                }
 
-                SettingsSectionContainer(
-                    title = stringResource(R.string.entry_settings_categories),
-                    icon = Icons.Default.Category,
-                    expanded = expandedSection == SettingsGroup.CATEGORIES.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.CATEGORIES.name) null else SettingsGroup.CATEGORIES.name
-                    }
-                ) {
-                    Text(stringResource(R.string.category_merge_settings_hint), style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                    CompletePressFilledTonalButton(
-                        onClick = { showCategoryManager = true },
-                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.entry_settings_categories),
+                        icon = Icons.Default.Category,
+                        expanded = expandedSection == SettingsGroup.CATEGORIES.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.CATEGORIES.name) null else SettingsGroup.CATEGORIES.name
+                        }
                     ) {
-                        Icon(Icons.Default.Category, null, Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.category_merge_title))
+                        Text(stringResource(R.string.category_merge_settings_hint), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        CompletePressFilledTonalButton(
+                            onClick = { showCategoryManager = true },
+                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Category, null, Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.category_merge_title))
+                        }
                     }
-                }
 
-                // ==========================================
-                // SECTION 4: BUDGET & PERIOD CONFIGURATION
-                // ==========================================
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_budget_mgmt),
-                    icon = Icons.Filled.AccountBalanceWallet,
-                    expanded = expandedSection == SettingsGroup.BUDGET.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.BUDGET.name) null
-                        else SettingsGroup.BUDGET.name
-                    }
-                ) {
-                    // Budget Limit Text Field
-                    OutlinedTextField(
-                        value = budgetAmountText,
-                        onValueChange = { budgetAmountText = it },
-                        textStyle = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        prefix = {
-                            Text(
-                                "HK$ ",
-                                style = MaterialTheme.typography.headlineSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                    // ==========================================
+                    // SECTION 4: BUDGET & PERIOD CONFIGURATION
+                    // ==========================================
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_budget_mgmt),
+                        icon = Icons.Filled.AccountBalanceWallet,
+                        expanded = expandedSection == SettingsGroup.BUDGET.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.BUDGET.name) null
+                            else SettingsGroup.BUDGET.name
+                        }
+                    ) {
+                        // Budget Limit Text Field
+                        OutlinedTextField(
+                            value = budgetAmountText,
+                            onValueChange = { budgetAmountText = it },
+                            textStyle = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            prefix = {
+                                Text(
+                                    "HK$ ",
+                                    style = MaterialTheme.typography.headlineSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 )
-                            )
-                        },
-                        label = { Text(stringResource(R.string.settings_budget_limit_label)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // End Date Selector Button
-                    val today = LocalDate.now()
-                    val endLocalDate = selectedEndDateMillis?.let {
-                        Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-                    }
-                    val days = if (endLocalDate != null) {
-                        (ChronoUnit.DAYS.between(today, endLocalDate) + 1).coerceAtLeast(1).toInt()
-                    } else 0
-
-                    val endTextFormatted = endLocalDate?.let {
-                        val pattern = if (state.appLanguage == AppLanguage.TRADITIONAL_CHINESE ||
-                            (state.appLanguage == AppLanguage.SYSTEM && Locale.getDefault().language == "zh")
-                        ) "yyyy年M月d日" else "dd MMM yyyy"
-                        it.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
-                    } ?: stringResource(R.string.settings_select_end_date)
-
-                    val buttonText = if (days > 0 && endLocalDate != null) {
-                        stringResource(R.string.settings_period_ends_format, endTextFormatted, days)
-                    } else endTextFormatted
-
-                    Button(
-                        onClick = onOpenDatePicker,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
+                            },
+                            label = { Text(stringResource(R.string.settings_budget_limit_label)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = buttonText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                    // Rollover Mode Selector
-                    Text(
-                        text = stringResource(R.string.settings_rollover_section_title),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_rollover_section_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Rollover Option 1
-                    val isDistribute = selectedRolloverMode == RolloverMode.DISTRIBUTE_EVENLY
-                    RolloverOptionCard(
-                        title = stringResource(R.string.settings_rollover_distribute_title),
-                        desc = stringResource(R.string.settings_rollover_distribute_desc),
-                        isSelected = isDistribute,
-                        onClick = { selectedRolloverMode = RolloverMode.DISTRIBUTE_EVENLY }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Rollover Option 2
-                    val isAddNext = selectedRolloverMode == RolloverMode.ADD_TO_NEXT_DAY
-                    RolloverOptionCard(
-                        title = stringResource(R.string.settings_rollover_next_day_title),
-                        desc = stringResource(R.string.settings_rollover_next_day_desc),
-                        isSelected = isAddNext,
-                        onClick = { selectedRolloverMode = RolloverMode.ADD_TO_NEXT_DAY }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Start New Period Action Button
-                    OutlinedButton(
-                        onClick = {
-                            onDismiss()
-                            onOpenNewPeriod()
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.settings_btn_start_new_period),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                // ==========================================
-                // SECTION 5: PACING COMPARISON CHART
-                // ==========================================
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_pacing),
-                    icon = Icons.AutoMirrored.Filled.ShowChart,
-                    expanded = expandedSection == SettingsGroup.PACING.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.PACING.name) null
-                        else SettingsGroup.PACING.name
-                    }
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_pacing_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val budgetStart = if (budgetInfo.startDate > 0L) budgetInfo.startDate else LocalDate.now().minusDays(30).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val budgetEnd = if (budgetInfo.endDate > 0L) budgetInfo.endDate else LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-                    val startLocalDate = Instant.ofEpochMilli(budgetStart).atZone(ZoneId.systemDefault()).toLocalDate()
-                    val endLocalDate = Instant.ofEpochMilli(budgetEnd).atZone(ZoneId.systemDefault()).toLocalDate()
-                    val endExclusive = endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val totalDays = (ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1).coerceAtLeast(1).toInt()
-
-                    val activeCumulativeList = remember(state.transactions, budgetStart, endExclusive, totalDays) {
-                        val dailySum = DoubleArray(totalDays)
-                        state.transactions.forEach { tx ->
-                            if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0.0) {
-                                if (tx.timestamp >= budgetStart && tx.timestamp < endExclusive) {
-                                    val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
-                                    val dayIdx = ChronoUnit.DAYS.between(startLocalDate, txDate).toInt().coerceIn(0, totalDays - 1)
-                                    dailySum[dayIdx] += tx.amount
-                                }
-                            }
+                        // End Date Selector Button
+                        val today = LocalDate.now()
+                        val endLocalDate = selectedEndDateMillis?.let {
+                            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
                         }
-                        val cumList = mutableListOf<Double>()
-                        var sum = 0.0
-                        for (i in 0 until totalDays) {
-                            sum += dailySum[i]
-                            cumList.add(sum)
-                        }
-                        cumList
-                    }
+                        val days = if (endLocalDate != null) {
+                            (ChronoUnit.DAYS.between(today, endLocalDate) + 1).coerceAtLeast(1).toInt()
+                        } else 0
 
-                    val limitAmt = if (budgetInfo.totalMonthlyBudget > 0.0) budgetInfo.totalMonthlyBudget else 1000.0
-                    val previousCumulativeList = remember(totalDays, limitAmt) {
-                        val list = mutableListOf<Double>()
-                        for (i in 0 until totalDays) {
-                            val progress = i.toDouble() / (totalDays - 1).coerceAtLeast(1)
-                            val baseVal = limitAmt * 0.85 * progress
-                            val variation = limitAmt * 0.04 * kotlin.math.sin(progress * Math.PI * 4)
-                            list.add((baseVal + variation).coerceAtLeast(0.0))
-                        }
-                        list
-                    }
+                        val endTextFormatted = endLocalDate?.let {
+                            val pattern = if (state.appLanguage == AppLanguage.TRADITIONAL_CHINESE ||
+                                (state.appLanguage == AppLanguage.SYSTEM && Locale.getDefault().language == "zh")
+                            ) "yyyy年M月d日" else "dd MMM yyyy"
+                            it.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+                        } ?: stringResource(R.string.settings_select_end_date)
 
-                    val maxVal = maxOf(
-                        activeCumulativeList.maxOrNull() ?: 0.0,
-                        previousCumulativeList.maxOrNull() ?: 0.0,
-                        limitAmt
-                    ) * 1.15
+                        val buttonText = if (days > 0 && endLocalDate != null) {
+                            stringResource(R.string.settings_period_ends_format, endTextFormatted, days)
+                        } else endTextFormatted
 
-                    val chartPrimaryColor = MaterialTheme.colorScheme.primary
-                    val chartSecondaryColor = MaterialTheme.colorScheme.secondary
-                    val chartGridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                            .padding(14.dp)
-                    ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val canvasWidth = size.width
-                            val canvasHeight = size.height
-                            val stepX = canvasWidth / (totalDays - 1).coerceAtLeast(1)
-
-                            // Horizontal Grid Lines
-                            val gridCount = 4
-                            for (i in 0 until gridCount) {
-                                val gridY = (canvasHeight / (gridCount - 1)) * i
-                                drawLine(
-                                    color = chartGridColor,
-                                    start = Offset(0f, gridY),
-                                    end = Offset(canvasWidth, gridY),
-                                    strokeWidth = 1.dp.toPx()
-                                )
-                            }
-
-                            // Target Diagonal Pacing Line
-                            drawLine(
-                                color = chartSecondaryColor.copy(alpha = 0.5f),
-                                start = Offset(0f, canvasHeight),
-                                end = Offset(canvasWidth, canvasHeight - ((limitAmt / maxVal) * canvasHeight).toFloat()),
-                                strokeWidth = 2.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                            )
-
-                            // Previous Month Line
-                            val prevPath = Path()
-                            previousCumulativeList.forEachIndexed { idx, valAmt ->
-                                val x = idx * stepX
-                                val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                if (idx == 0) prevPath.moveTo(x, y) else prevPath.lineTo(x, y)
-                            }
-                            drawPath(
-                                path = prevPath,
-                                color = Color.Gray.copy(alpha = 0.6f),
-                                style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                            )
-
-                            // Active Month Line
-                            val activePath = Path()
-                            activeCumulativeList.forEachIndexed { idx, valAmt ->
-                                val x = idx * stepX
-                                val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
-                                if (idx == 0) activePath.moveTo(x, y) else activePath.lineTo(x, y)
-                            }
-                            drawPath(
-                                path = activePath,
-                                color = chartPrimaryColor,
-                                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Legend
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartPrimaryColor))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_pacing_active), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Gray))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_pacing_prev), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartSecondaryColor))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.settings_pacing_ideal), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-
-                // ==========================================
-                // SECTION 7: DATA & PRIVACY
-                // ==========================================
-                SettingsSectionContainer(
-                    title = stringResource(R.string.settings_section_data_privacy),
-                    icon = Icons.Filled.Security,
-                    expanded = expandedSection == SettingsGroup.PRIVACY.name,
-                    onToggle = {
-                        expandedSection = if (expandedSection == SettingsGroup.PRIVACY.name) null
-                        else SettingsGroup.PRIVACY.name
-                    }
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Button(
+                            onClick = onOpenDatePicker,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Security,
+                                imageVector = Icons.Default.DateRange,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = stringResource(R.string.settings_privacy_badge),
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = buttonText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Rollover Mode Selector
+                        Text(
+                            text = stringResource(R.string.settings_rollover_section_title),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_rollover_section_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Rollover Option 1
+                        val isDistribute = selectedRolloverMode == RolloverMode.DISTRIBUTE_EVENLY
+                        RolloverOptionCard(
+                            title = stringResource(R.string.settings_rollover_distribute_title),
+                            desc = stringResource(R.string.settings_rollover_distribute_desc),
+                            isSelected = isDistribute,
+                            onClick = { selectedRolloverMode = RolloverMode.DISTRIBUTE_EVENLY }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Rollover Option 2
+                        val isAddNext = selectedRolloverMode == RolloverMode.ADD_TO_NEXT_DAY
+                        RolloverOptionCard(
+                            title = stringResource(R.string.settings_rollover_next_day_title),
+                            desc = stringResource(R.string.settings_rollover_next_day_desc),
+                            isSelected = isAddNext,
+                            onClick = { selectedRolloverMode = RolloverMode.ADD_TO_NEXT_DAY }
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Start New Period Action Button
+                        OutlinedButton(
+                            onClick = {
+                                onDismiss()
+                                onOpenNewPeriod()
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.settings_btn_start_new_period),
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    backupActions()
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val importInteraction = remember { MutableInteractionSource() }
-                    CompletePressFilledTonalButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            filePickerLauncher.launch("*/*")
-                        },
-                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        interactionSource = importInteraction,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .pressBounce(interactionSource = importInteraction)
+                    // ==========================================
+                    // SECTION 5: PACING COMPARISON CHART
+                    // ==========================================
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_pacing),
+                        icon = Icons.AutoMirrored.Filled.ShowChart,
+                        expanded = expandedSection == SettingsGroup.PACING.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.PACING.name) null
+                            else SettingsGroup.PACING.name
+                        }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.UploadFile,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.import_btn_select_file),
-                            fontWeight = FontWeight.Bold
+                            text = stringResource(R.string.settings_pacing_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val budgetStart = if (budgetInfo.startDate > 0L) budgetInfo.startDate else LocalDate.now().minusDays(30).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val budgetEnd = if (budgetInfo.endDate > 0L) budgetInfo.endDate else LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+                        val startLocalDate = Instant.ofEpochMilli(budgetStart).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val endLocalDate = Instant.ofEpochMilli(budgetEnd).atZone(ZoneId.systemDefault()).toLocalDate()
+                        val endExclusive = endLocalDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val totalDays = (ChronoUnit.DAYS.between(startLocalDate, endLocalDate) + 1).coerceAtLeast(1).toInt()
+
+                        val activeCumulativeList = remember(state.transactions, budgetStart, endExclusive, totalDays) {
+                            val dailySum = DoubleArray(totalDays)
+                            state.transactions.forEach { tx ->
+                                if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0.0) {
+                                    if (tx.timestamp >= budgetStart && tx.timestamp < endExclusive) {
+                                        val txDate = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+                                        val dayIdx = ChronoUnit.DAYS.between(startLocalDate, txDate).toInt().coerceIn(0, totalDays - 1)
+                                        dailySum[dayIdx] += tx.amount
+                                    }
+                                }
+                            }
+                            val cumList = mutableListOf<Double>()
+                            var sum = 0.0
+                            for (i in 0 until totalDays) {
+                                sum += dailySum[i]
+                                cumList.add(sum)
+                            }
+                            cumList
+                        }
+
+                        val limitAmt = if (budgetInfo.totalMonthlyBudget > 0.0) budgetInfo.totalMonthlyBudget else 1000.0
+                        val previousCumulativeList = remember(totalDays, limitAmt) {
+                            val list = mutableListOf<Double>()
+                            for (i in 0 until totalDays) {
+                                val progress = i.toDouble() / (totalDays - 1).coerceAtLeast(1)
+                                val baseVal = limitAmt * 0.85 * progress
+                                val variation = limitAmt * 0.04 * kotlin.math.sin(progress * Math.PI * 4)
+                                list.add((baseVal + variation).coerceAtLeast(0.0))
+                            }
+                            list
+                        }
+
+                        val maxVal = maxOf(
+                            activeCumulativeList.maxOrNull() ?: 0.0,
+                            previousCumulativeList.maxOrNull() ?: 0.0,
+                            limitAmt
+                        ) * 1.15
+
+                        val chartPrimaryColor = MaterialTheme.colorScheme.primary
+                        val chartSecondaryColor = MaterialTheme.colorScheme.secondary
+                        val chartGridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(150.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                .padding(14.dp)
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val canvasWidth = size.width
+                                val canvasHeight = size.height
+                                val stepX = canvasWidth / (totalDays - 1).coerceAtLeast(1)
+
+                                // Horizontal Grid Lines
+                                val gridCount = 4
+                                for (i in 0 until gridCount) {
+                                    val gridY = (canvasHeight / (gridCount - 1)) * i
+                                    drawLine(
+                                        color = chartGridColor,
+                                        start = Offset(0f, gridY),
+                                        end = Offset(canvasWidth, gridY),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
+                                }
+
+                                // Target Diagonal Pacing Line
+                                drawLine(
+                                    color = chartSecondaryColor.copy(alpha = 0.5f),
+                                    start = Offset(0f, canvasHeight),
+                                    end = Offset(canvasWidth, canvasHeight - ((limitAmt / maxVal) * canvasHeight).toFloat()),
+                                    strokeWidth = 2.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                                )
+
+                                // Previous Month Line
+                                val prevPath = Path()
+                                previousCumulativeList.forEachIndexed { idx, valAmt ->
+                                    val x = idx * stepX
+                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
+                                    if (idx == 0) prevPath.moveTo(x, y) else prevPath.lineTo(x, y)
+                                }
+                                drawPath(
+                                    path = prevPath,
+                                    color = Color.Gray.copy(alpha = 0.6f),
+                                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                                )
+
+                                // Active Month Line
+                                val activePath = Path()
+                                activeCumulativeList.forEachIndexed { idx, valAmt ->
+                                    val x = idx * stepX
+                                    val y = canvasHeight - ((valAmt / maxVal) * canvasHeight).toFloat()
+                                    if (idx == 0) activePath.moveTo(x, y) else activePath.lineTo(x, y)
+                                }
+                                drawPath(
+                                    path = activePath,
+                                    color = chartPrimaryColor,
+                                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Legend
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartPrimaryColor))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.settings_pacing_active), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color.Gray))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.settings_pacing_prev), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(chartSecondaryColor))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.settings_pacing_ideal), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    // ==========================================
+                    // SECTION 7: DATA & PRIVACY
+                    // ==========================================
+                    SettingsSectionContainer(
+                        title = stringResource(R.string.settings_section_data_privacy),
+                        icon = Icons.Filled.Security,
+                        expanded = expandedSection == SettingsGroup.PRIVACY.name,
+                        onToggle = {
+                            expandedSection = if (expandedSection == SettingsGroup.PRIVACY.name) null
+                            else SettingsGroup.PRIVACY.name
+                        }
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_privacy_badge),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
 
-                    OutlinedButton(
-                        onClick = { showResetConfirmDialog = true },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(16.dp),
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        backupActions()
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val importInteraction = remember { MutableInteractionSource() }
+                        CompletePressFilledTonalButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                filePickerLauncher.launch("*/*")
+                            },
+                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            interactionSource = importInteraction,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .pressBounce(interactionSource = importInteraction)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.UploadFile,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.import_btn_select_file),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = { showResetConfirmDialog = true },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.settings_btn_reset_mock),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // App Info & Version Footer
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.settings_btn_reset_mock),
-                            fontWeight = FontWeight.Bold
+                            text = stringResource(R.string.settings_about_app_info),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                         )
                     }
-                }
-
-                // App Info & Version Footer
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_app_info),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                    )
                 }
             }
         }
