@@ -2,4 +2,11 @@
 <resources>
     <string name="entry_selector_expand">展開%1$s選項</string>
     <string name="entry_selector_collapse">收起%1$s選項</string>
+    <string name="currency_rate_loading">正在取得最新 %1$s/HKD 匯率…</string>
+    <string name="currency_rate_unavailable">未能取得匯率。請重試後儲存。</string>
+    <string name="currency_rate_value">1 %1$s = HK$%2$s</string>
+    <string name="currency_converted_amount">港幣金額：%1$s</string>
+    <string name="currency_rate_date">%1$s · 每日參考匯率 · %2$s</string>
+    <string name="currency_rate_cached">離線中 — 正在使用上方顯示的已儲存匯率。</string>
+    <string name="currency_rate_refresh">更新匯率</string>
 </resources>

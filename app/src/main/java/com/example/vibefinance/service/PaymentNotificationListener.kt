@@ -254,6 +254,12 @@ class PaymentNotificationListener : NotificationListenerService() {
                 return false
             }
 
+            // High-confidence Transaction Grammar Engine match for active expense payments
+            val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
+            if (grammarResult != null && grammarResult.confidence >= 0.9f && grammarResult.amount > 0.0 && grammarResult.intent == com.example.vibefinance.data.entity.ParsedTransactionType.EXPENSE) {
+                return true
+            }
+
             // Positive Payment Indicators:
             val positiveIndicators = listOf(
                 "已付款", "成功付款", "已扣款", "消費", "支出",

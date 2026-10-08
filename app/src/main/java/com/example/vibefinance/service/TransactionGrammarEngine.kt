@@ -23,13 +23,15 @@ object TransactionGrammarEngine {
     private val zhAnchorPatterns = listOf(
         Regex("(?:在|於)\\s*([^，,。\\n]+?)\\s*(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡)", RegexOption.IGNORE_CASE),
         Regex("(?:向|付款予|付款給|支付予|支付給)\\s*([^，,。\\n]+?)\\s*(?:付款|支付|轉帳|轉賬|完成|$)", RegexOption.IGNORE_CASE),
-        Regex("(?:商戶|特約商戶|交易商戶)[:：]\\s*([^，,。\\n]+?)(?:\\s+(?:消費金額|交易金額|金額|HK|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE)
+        Regex("(?:商戶|特約商戶|交易商戶)[:：]\\s*([^，,。\\n]+?)(?:\\s+(?:消費金額|交易金額|金額|HK|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
+        Regex("(?:來自|由|轉帳自|轉賬自|收到來自)\\s*([^，,。\\n]+?)(?:\\s+(?:的轉入|的存入|的轉帳|的轉賬|的款項|轉入|存入|付款|轉帳|轉賬|完成)|的轉[帳賬]|[，,。\\n]|$)", RegexOption.IGNORE_CASE)
     )
 
     private val enAnchorPatterns = listOf(
         Regex("(?i)\\b(?:at|to)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?i)\\b(?:paid|sent)\\s+(?:to\\s+)?([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?i)\\bcharged\\s+(?:at|by)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
+        Regex("(?i)\\b(?:from|received from)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:via|into|to|for|amount|was|with|using|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?i)\\bmerchant[:：]\\s*([A-Za-z0-9&'._ -]{2,40})", RegexOption.IGNORE_CASE)
     )
 
@@ -55,8 +57,8 @@ object TransactionGrammarEngine {
 
     // Intent patterns
     private val incomePatterns = listOf(
-        Regex("(?i)\\b(?:salary|payroll|dividend|deposit|incoming|credited)\\b"),
-        Regex("薪金|工資|入息|出糧|存入戶口|存入帳戶|轉入戶口|轉入帳戶|收到轉帳|收到轉賬|收款成功|收到款項|已存入")
+        Regex("(?i)\\b(?:salary|payroll|dividend|deposit|incoming|credited|receiv(?:e|ed|ing))\\b"),
+        Regex("薪金|工資|入息|出糧|存入戶口|存入帳戶|轉入戶口|轉入帳戶|收到轉帳|收到轉賬|收款成功|收到款項|已存入|已轉入|收到來自|已收款")
     )
 
     private val repaymentPatterns = listOf(
@@ -151,6 +153,8 @@ object TransactionGrammarEngine {
 
     private fun cleanMerchantString(raw: String): String {
         return raw.replace(Regex("(?:[0-9.,]+|[•*xX]{2,}|HKD|HK\\$|\\$|USD|TWD)"), "")
+            .replace(Regex("^(?:由|來自|向|於|在)\\s*"), "")
+            .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|付款|支付)$"), "")
             .replace(Regex("^[，,。：:\\-\\s]+|[，,。：:\\-\\s]+$"), "")
             .trim()
             .take(40)

@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.recurring
 
+import com.example.vibefinance.ui.common.ContentEntranceViewport
+import com.example.vibefinance.ui.common.PageContentEntrance
+
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.components.completePressShape
 
@@ -335,6 +338,8 @@ fun RecurringScreen(
     onIntent: (FinanceIntent) -> Unit,
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 16.dp,
+    topVisibilityInset: Dp = 0.dp,
+    bottomVisibilityInset: Dp = 0.dp,
     showAddSheet: Boolean = false,
     onDismissAddSheet: () -> Unit = {}
 ) {
@@ -392,234 +397,245 @@ fun RecurringScreen(
         state.subscriptions.minByOrNull { it.nextPaymentDate }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val isWideScreen = maxWidth >= 600.dp
+    ContentEntranceViewport(
+        modifier = modifier.fillMaxSize(),
+        topVisibilityInset = topVisibilityInset,
+        bottomVisibilityInset = bottomVisibilityInset,
+        tagPrefix = "RecurringArrival"
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isWideScreen = maxWidth >= 600.dp
 
-        if (!isWideScreen) {
-            // Compact Single Column Layout (< 600dp)
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = topContentPadding),
-                verticalArrangement = Arrangement.Top
-            ) {
-                // 1. Bento Hero Summary Card
-                item {
-                    RecurringHeroSummaryCard(
-                        totalMonthly = totalMonthlyRecurring,
-                        totalAnnual = totalAnnualRecurring,
-                        dailyImpact = dailyImpact,
-                        subscriptionCount = state.subscriptions.size + activeInstallments.size,
-                        earliestUpcoming = earliestUpcoming,
-                        subscriptions = state.subscriptions,
-                        onAddClick = {
+            if (!isWideScreen) {
+                // Compact Single Column Layout (< 600dp)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .testTag("RecurringList"),
+                    contentPadding = PaddingValues(top = topContentPadding),
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    // 1. Bento Hero Summary Card
+                    item {
+                        PageContentEntrance("summary") {
+                            RecurringHeroSummaryCard(
+                                totalMonthly = totalMonthlyRecurring,
+                                totalAnnual = totalAnnualRecurring,
+                                dailyImpact = dailyImpact,
+                                subscriptionCount = state.subscriptions.size + activeInstallments.size,
+                                earliestUpcoming = earliestUpcoming,
+                                subscriptions = state.subscriptions,
+                                onAddClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    editingSubscription = null
+                                    prefillPreset = null
+                                    showAddEditSheet = true
+                                },
+                                modifier = Modifier.padding(bottom = 14.dp)
+                            )
+                        }
+                    }
+
+                    // 1.5 Recurring Category Donut Chart
+                    item {
+                        PageContentEntrance("category-chart") {
+                            RecurringCategoryDonutChart(
+                                subscriptions = state.subscriptions,
+                                installments = activeInstallments,
+                                modifier = Modifier.padding(bottom = 14.dp)
+                            )
+                        }
+                    }
+
+                    // 2. Filter & View Mode Controls
+                    item {
+                        PageContentEntrance("controls") {
+                            FilterAndControlsRow(
+                                selectedFilter = selectedFilter,
+                                onFilterSelected = { selectedFilter = it },
+                                isTimelineView = isTimelineView,
+                                onToggleTimeline = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    isTimelineView = !isTimelineView
+                                },
+                                subscriptions = state.subscriptions,
+                                installments = installmentPlans,
+                                today = today,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                        }
+                    }
+
+                    // 4. Subscriptions & Installments List / Timeline View
+                    subscriptionItemsSection(
+                        filteredSubscriptions = filteredSubscriptions,
+                        filteredInstallments = filteredInstallments,
+                        accounts = state.accounts,
+                        isTimelineView = isTimelineView,
+                        today = today,
+                        activeSwipeId = activeSwipeId,
+                        activeSwipeOffset = activeSwipeOffset,
+                        onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
+                        activeSwipeGroupId = activeSwipeInstallmentId,
+                        activeSwipeGroupOffset = activeSwipeInstallmentOffset,
+                        onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
+                        onEdit = { sub ->
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            editingSubscription = sub
+                            prefillPreset = null
+                            showAddEditSheet = true
+                        },
+                        onDelete = { sub ->
+                            pendingDeleteSub = sub
+                        },
+                        onDeleteInstallment = { groupId, accountId ->
+                            onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
+                        },
+                        onAddNew = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             editingSubscription = null
                             prefillPreset = null
                             showAddEditSheet = true
-                        },
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
-                }
-
-                // 1.5 Recurring Category Donut Chart
-                item {
-                    RecurringCategoryDonutChart(
-                        subscriptions = state.subscriptions,
-                        installments = activeInstallments,
-                        modifier = Modifier.padding(bottom = 14.dp)
-                    )
-                }
-
-                // 2. Filter & View Mode Controls
-                item {
-                    FilterAndControlsRow(
-                        selectedFilter = selectedFilter,
-                        onFilterSelected = { selectedFilter = it },
-                        isTimelineView = isTimelineView,
-                        onToggleTimeline = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            isTimelineView = !isTimelineView
-                        },
-                        subscriptions = state.subscriptions,
-                        installments = installmentPlans,
-                        today = today,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                }
-
-                // 4. Subscriptions & Installments List / Timeline View
-                subscriptionItemsSection(
-                    filteredSubscriptions = filteredSubscriptions,
-                    filteredInstallments = filteredInstallments,
-                    accounts = state.accounts,
-                    isTimelineView = isTimelineView,
-                    today = today,
-                    activeSwipeId = activeSwipeId,
-                    activeSwipeOffset = activeSwipeOffset,
-                    onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
-                    activeSwipeGroupId = activeSwipeInstallmentId,
-                    activeSwipeGroupOffset = activeSwipeInstallmentOffset,
-                    onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
-                    onEdit = { sub ->
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        editingSubscription = sub
-                        prefillPreset = null
-                        showAddEditSheet = true
-                    },
-                    onDelete = { sub ->
-                        pendingDeleteSub = sub
-                    },
-                    onDeleteInstallment = { groupId, accountId ->
-                        onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
-                    },
-                    onAddPreset = { preset ->
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        editingSubscription = null
-                        prefillPreset = preset
-                        showAddEditSheet = true
-                    },
-                    onAddNew = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        editingSubscription = null
-                        prefillPreset = null
-                        showAddEditSheet = true
-                    }
-                )
-
-                item {
-                    Spacer(modifier = Modifier.height(100.dp))
-                }
-            }
-        } else {
-            // Wide Dual-Pane Layout (>= 600dp)
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 24.dp, end = 24.dp, top = topContentPadding)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    // Left Pane: Sticky / Scrollable Analytics Column (weight 0.45f)
-                    Column(
-                        modifier = Modifier
-                            .weight(0.45f)
-                            .fillMaxHeight()
-                            .verticalScroll(rememberScrollState())
-                            .padding(bottom = 100.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        RecurringHeroSummaryCard(
-                            totalMonthly = totalMonthlyRecurring,
-                            totalAnnual = totalAnnualRecurring,
-                            dailyImpact = dailyImpact,
-                            subscriptionCount = state.subscriptions.size + activeInstallments.size,
-                            earliestUpcoming = earliestUpcoming,
-                            subscriptions = state.subscriptions,
-                            onAddClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editingSubscription = null
-                                prefillPreset = null
-                                showAddEditSheet = true
-                            }
-                        )
-
-                        RecurringCategoryDonutChart(
-                            subscriptions = state.subscriptions,
-                            installments = activeInstallments
-                        )
-
-                        Button(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editingSubscription = null
-                                prefillPreset = null
-                                showAddEditSheet = true
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.btn_add_subscription), fontWeight = FontWeight.Bold)
                         }
+                    )
+
+                    item {
+                        Spacer(modifier = Modifier.height(100.dp))
                     }
-
-                    // Right Pane: Filter & Timeline/List (weight 0.55f)
-                    Column(
+                }
+            } else {
+                // Wide Dual-Pane Layout (>= 600dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 24.dp, end = 24.dp, top = topContentPadding)
+                ) {
+                    Row(
                         modifier = Modifier
-                            .weight(0.55f)
-                            .fillMaxHeight()
+                            .fillMaxWidth()
+                            .weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        FilterAndControlsRow(
-                            selectedFilter = selectedFilter,
-                            onFilterSelected = { selectedFilter = it },
-                            isTimelineView = isTimelineView,
-                            onToggleTimeline = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                isTimelineView = !isTimelineView
-                            },
-                            subscriptions = state.subscriptions,
-                            installments = installmentPlans,
-                            today = today,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
-
-                        LazyColumn(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentPadding = PaddingValues(bottom = 100.dp),
-                            verticalArrangement = Arrangement.Top
-                        ) {
-                            subscriptionItemsSection(
-                                filteredSubscriptions = filteredSubscriptions,
-                                filteredInstallments = filteredInstallments,
-                                accounts = state.accounts,
-                                isTimelineView = isTimelineView,
-                                today = today,
-                                activeSwipeId = activeSwipeId,
-                                activeSwipeOffset = activeSwipeOffset,
-                                onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
-                                activeSwipeGroupId = activeSwipeInstallmentId,
-                                activeSwipeGroupOffset = activeSwipeInstallmentOffset,
-                                onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
-                                onEdit = { sub ->
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    editingSubscription = sub
-                                    prefillPreset = null
-                                    showAddEditSheet = true
-                                },
-                                onDelete = { sub ->
-                                    pendingDeleteSub = sub
-                                },
-                                onDeleteInstallment = { groupId, accountId ->
-                                    onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
-                                },
-                                onAddPreset = { preset ->
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    editingSubscription = null
-                                    prefillPreset = preset
-                                    showAddEditSheet = true
-                                },
-                                onAddNew = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    editingSubscription = null
-                                    prefillPreset = null
-                                    showAddEditSheet = true
+                        // Left Pane: Sticky / Scrollable Analytics Column (weight 0.45f)
+                        ContentEntranceViewport(modifier = Modifier.weight(0.45f).fillMaxHeight()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(bottom = 100.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                PageContentEntrance("summary") {
+                                    RecurringHeroSummaryCard(
+                                        totalMonthly = totalMonthlyRecurring,
+                                        totalAnnual = totalAnnualRecurring,
+                                        dailyImpact = dailyImpact,
+                                        subscriptionCount = state.subscriptions.size + activeInstallments.size,
+                                        earliestUpcoming = earliestUpcoming,
+                                        subscriptions = state.subscriptions,
+                                        onAddClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            editingSubscription = null
+                                            prefillPreset = null
+                                            showAddEditSheet = true
+                                        }
+                                    )
                                 }
-                            )
+
+                                PageContentEntrance("category-chart") {
+                                    RecurringCategoryDonutChart(
+                                        subscriptions = state.subscriptions,
+                                        installments = activeInstallments
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        editingSubscription = null
+                                        prefillPreset = null
+                                        showAddEditSheet = true
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(50.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.btn_add_subscription), fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // Right Pane: Filter & Timeline/List (weight 0.55f)
+                        Column(
+                            modifier = Modifier
+                                .weight(0.55f)
+                                .fillMaxHeight()
+                        ) {
+                            PageContentEntrance("controls") {
+                                FilterAndControlsRow(
+                                    selectedFilter = selectedFilter,
+                                    onFilterSelected = { selectedFilter = it },
+                                    isTimelineView = isTimelineView,
+                                    onToggleTimeline = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        isTimelineView = !isTimelineView
+                                    },
+                                    subscriptions = state.subscriptions,
+                                    installments = installmentPlans,
+                                    today = today,
+                                    modifier = Modifier.padding(bottom = 12.dp)
+                                )
+                            }
+
+                            ContentEntranceViewport(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .testTag("RecurringList"),
+                                    contentPadding = PaddingValues(bottom = 100.dp),
+                                    verticalArrangement = Arrangement.Top
+                                ) {
+                                    subscriptionItemsSection(
+                                        filteredSubscriptions = filteredSubscriptions,
+                                        filteredInstallments = filteredInstallments,
+                                        accounts = state.accounts,
+                                        isTimelineView = isTimelineView,
+                                        today = today,
+                                        activeSwipeId = activeSwipeId,
+                                        activeSwipeOffset = activeSwipeOffset,
+                                        onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
+                                        activeSwipeGroupId = activeSwipeInstallmentId,
+                                        activeSwipeGroupOffset = activeSwipeInstallmentOffset,
+                                        onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
+                                        onEdit = { sub ->
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            editingSubscription = sub
+                                            prefillPreset = null
+                                            showAddEditSheet = true
+                                        },
+                                        onDelete = { sub ->
+                                            pendingDeleteSub = sub
+                                        },
+                                        onDeleteInstallment = { groupId, accountId ->
+                                            onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
+                                        },
+                                        onAddNew = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            editingSubscription = null
+                                            prefillPreset = null
+                                            showAddEditSheet = true
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -840,16 +856,16 @@ fun LazyListScope.subscriptionItemsSection(
     onEdit: (SubscriptionEntity) -> Unit,
     onDelete: (SubscriptionEntity) -> Unit,
     onDeleteInstallment: (String, Long) -> Unit = { _, _ -> },
-    onAddPreset: (SubscriptionPreset) -> Unit,
     onAddNew: () -> Unit
 ) {
     if (filteredSubscriptions.isEmpty() && filteredInstallments.isEmpty()) {
         item {
             Spacer(modifier = Modifier.height(20.dp))
-            EmptyRecurringCard(
-                onAddPreset = onAddPreset,
-                onAddNew = onAddNew
-            )
+            PageContentEntrance("empty") {
+                EmptyRecurringCard(
+                    onAddNew = onAddNew
+                )
+            }
         }
     } else if (isTimelineView) {
         // Timeline Schedule View Grouped
@@ -881,11 +897,13 @@ fun LazyListScope.subscriptionItemsSection(
         if (dueNext7DaysSubs.isNotEmpty() || dueNext7DaysInst.isNotEmpty()) {
             val total7 = dueNext7DaysSubs.sumOf { it.amount } + dueNext7DaysInst.sumOf { it.monthlyAmount }
             item {
-                SubscriptionGroupHeader(
-                    title = stringResource(R.string.section_due_7_days),
-                    badgeText = stringResource(R.string.ui_recurring_count_due, dueNext7DaysSubs.size + dueNext7DaysInst.size),
-                    isInActivePeriod = true
-                )
+                PageContentEntrance("heading:due-soon") {
+                    SubscriptionGroupHeader(
+                        title = stringResource(R.string.section_due_7_days),
+                        badgeText = stringResource(R.string.ui_recurring_count_due, dueNext7DaysSubs.size + dueNext7DaysInst.size),
+                        isInActivePeriod = true
+                    )
+                }
             }
             itemsIndexed(dueNext7DaysSubs, key = { _, sub -> "sub_${sub.id}" }) { idx, sub ->
                 SubscriptionRowItem(
@@ -913,18 +931,22 @@ fun LazyListScope.subscriptionItemsSection(
                 )
             }
             item {
-                SubscriptionGroupFooter(total = total7)
+                PageContentEntrance("total:due-soon") {
+                    SubscriptionGroupFooter(total = total7)
+                }
             }
         }
 
         if (dueLaterThisMonthSubs.isNotEmpty() || dueLaterThisMonthInst.isNotEmpty()) {
             val totalMonth = dueLaterThisMonthSubs.sumOf { it.amount } + dueLaterThisMonthInst.sumOf { it.monthlyAmount }
             item {
-                SubscriptionGroupHeader(
-                    title = stringResource(R.string.section_later_month),
-                    badgeText = stringResource(R.string.ui_recurring_count_later, dueLaterThisMonthSubs.size + dueLaterThisMonthInst.size),
-                    isInActivePeriod = false
-                )
+                PageContentEntrance("heading:this-month") {
+                    SubscriptionGroupHeader(
+                        title = stringResource(R.string.section_later_month),
+                        badgeText = stringResource(R.string.ui_recurring_count_later, dueLaterThisMonthSubs.size + dueLaterThisMonthInst.size),
+                        isInActivePeriod = false
+                    )
+                }
             }
             itemsIndexed(dueLaterThisMonthSubs, key = { _, sub -> "sub_${sub.id}" }) { idx, sub ->
                 SubscriptionRowItem(
@@ -952,18 +974,22 @@ fun LazyListScope.subscriptionItemsSection(
                 )
             }
             item {
-                SubscriptionGroupFooter(total = totalMonth)
+                PageContentEntrance("total:this-month") {
+                    SubscriptionGroupFooter(total = totalMonth)
+                }
             }
         }
 
         if (dueLaterSubs.isNotEmpty() || dueLaterInst.isNotEmpty()) {
             val totalLater = dueLaterSubs.sumOf { it.amount } + dueLaterInst.sumOf { it.monthlyAmount }
             item {
-                SubscriptionGroupHeader(
-                    title = stringResource(R.string.section_next_month_beyond),
-                    badgeText = stringResource(R.string.ui_recurring_count_upcoming, dueLaterSubs.size + dueLaterInst.size),
-                    isInActivePeriod = false
-                )
+                PageContentEntrance("heading:later") {
+                    SubscriptionGroupHeader(
+                        title = stringResource(R.string.section_next_month_beyond),
+                        badgeText = stringResource(R.string.ui_recurring_count_upcoming, dueLaterSubs.size + dueLaterInst.size),
+                        isInActivePeriod = false
+                    )
+                }
             }
             itemsIndexed(dueLaterSubs, key = { _, sub -> "sub_${sub.id}" }) { idx, sub ->
                 SubscriptionRowItem(
@@ -991,7 +1017,9 @@ fun LazyListScope.subscriptionItemsSection(
                 )
             }
             item {
-                SubscriptionGroupFooter(total = totalLater)
+                PageContentEntrance("total:later") {
+                    SubscriptionGroupFooter(total = totalLater)
+                }
             }
         }
     } else {
@@ -999,11 +1027,13 @@ fun LazyListScope.subscriptionItemsSection(
         if (filteredSubscriptions.isNotEmpty()) {
             val totalFiltered = filteredSubscriptions.sumOf { it.amount }
             item {
-                SubscriptionGroupHeader(
-                    title = stringResource(R.string.section_all_subscriptions),
-                    badgeText = stringResource(R.string.active_count_format, filteredSubscriptions.size),
-                    isInActivePeriod = true
-                )
+                PageContentEntrance("heading:subscriptions") {
+                    SubscriptionGroupHeader(
+                        title = stringResource(R.string.section_all_subscriptions),
+                        badgeText = stringResource(R.string.active_count_format, filteredSubscriptions.size),
+                        isInActivePeriod = true
+                    )
+                }
             }
             itemsIndexed(filteredSubscriptions, key = { _, sub -> "sub_${sub.id}" }) { idx, sub ->
                 SubscriptionRowItem(
@@ -1019,18 +1049,22 @@ fun LazyListScope.subscriptionItemsSection(
                 )
             }
             item {
-                SubscriptionGroupFooter(total = totalFiltered)
+                PageContentEntrance("total:subscriptions") {
+                    SubscriptionGroupFooter(total = totalFiltered)
+                }
             }
         }
 
         if (filteredInstallments.isNotEmpty()) {
             val totalInstMonthly = filteredInstallments.filter { !it.isCompleted }.sumOf { it.monthlyAmount }
             item {
-                SubscriptionGroupHeader(
-                    title = stringResource(R.string.section_installment_plans),
-                    badgeText = stringResource(R.string.ui_recurring_count_plans, filteredInstallments.size),
-                    isInActivePeriod = true
-                )
+                PageContentEntrance("heading:installments") {
+                    SubscriptionGroupHeader(
+                        title = stringResource(R.string.section_installment_plans),
+                        badgeText = stringResource(R.string.ui_recurring_count_plans, filteredInstallments.size),
+                        isInActivePeriod = true
+                    )
+                }
             }
             itemsIndexed(filteredInstallments, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
                 InstallmentRowItem(
@@ -1045,7 +1079,9 @@ fun LazyListScope.subscriptionItemsSection(
                 )
             }
             item {
-                SubscriptionGroupFooter(total = totalInstMonthly)
+                PageContentEntrance("total:installments") {
+                    SubscriptionGroupFooter(total = totalInstMonthly)
+                }
             }
         }
     }
@@ -1693,123 +1729,125 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
             )
         )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            ExpressiveSwipeRow(
-                shape = itemShape,
-                onEdit = onClick,
-                onDelete = { transitionState.targetState = false },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("SubscriptionRow_${subscription.id}")
-            ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // 1. Leading Avatar Visual Container (M3 Expressive)
-                        Surface(
-                            modifier = Modifier.size(44.dp),
-                            shape = rememberIconShape("subscription.${subscription.id}"),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        PageContentEntrance("subscription:${subscription.id}") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                ExpressiveSwipeRow(
+                    shape = itemShape,
+                    onEdit = onClick,
+                    onDelete = { transitionState.targetState = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("SubscriptionRow_${subscription.id}")
+                ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
+                            // 1. Leading Avatar Visual Container (M3 Expressive)
+                            Surface(
+                                modifier = Modifier.size(44.dp),
+                                shape = rememberIconShape("subscription.${subscription.id}"),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             ) {
-                                if (brandEmoji != null) {
-                                    Text(text = brandEmoji, fontSize = 20.sp)
-                                } else {
-                                    CategoryIcon(
-                                        category = subscription.category,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(22.dp)
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (brandEmoji != null) {
+                                        Text(text = brandEmoji, fontSize = 20.sp)
+                                    } else {
+                                        CategoryIcon(
+                                            category = subscription.category,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // 2. Center Content: Headline (Title) & Supporting Metadata (Subtitles)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Text(
+                                    text = subscription.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Text(
+                                    text = "${getCategoryDisplayName(subscription.category)} • $cardName",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                // Status Tag Pill
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .clip(RoundedCornerShape(99.dp))
+                                        .background(badgeBg)
+                                        .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = countdownText,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = badgeFg,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
-                        }
 
-                        // 2. Center Content: Headline (Title) & Supporting Metadata (Subtitles)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Text(
-                                text = subscription.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Text(
-                                text = "${getCategoryDisplayName(subscription.category)} • $cardName",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            // Status Tag Pill
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 2.dp)
-                                    .clip(RoundedCornerShape(99.dp))
-                                    .background(badgeBg)
-                                    .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            // 3. Trailing Content: Metric (Amount) & Secondary Metadata
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Text(
-                                    text = countdownText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = badgeFg,
-                                    fontWeight = FontWeight.Bold
+                                    text = String.format(Locale.US, "HK$ %,.2f", subscription.amount),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                            }
-                        }
 
-                        // 3. Trailing Content: Metric (Amount) & Secondary Metadata
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = String.format(Locale.US, "HK$ %,.2f", subscription.amount),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = recurringFrequencySuffix(subscription.frequency),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                                IconButton(
-                                    onClick = { transitionState.targetState = false },
-                                    modifier = Modifier.size(20.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = stringResource(R.string.btn_delete),
-                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(14.dp)
+                                    Text(
+                                        text = recurringFrequencySuffix(subscription.frequency),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     )
+                                    IconButton(
+                                        onClick = { transitionState.targetState = false },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = stringResource(R.string.btn_delete),
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+                if (!isLast) {
+                    Spacer(modifier = Modifier.height(5.dp))
                 }
-            if (!isLast) {
-                Spacer(modifier = Modifier.height(5.dp))
             }
         }
     }
@@ -1893,169 +1931,171 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
             )
         )
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            ExpressiveSwipeRow(
-                shape = itemShape,
-                onEdit = {},
-                onDelete = { transitionState.targetState = false },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("InstallmentRow_${plan.groupId}")
-            ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            // 1. Leading Container
-                            Surface(
-                                modifier = Modifier.size(44.dp),
-                                shape = rememberIconShape("installment.${plan.groupId}"),
-                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                            ) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    CategoryIcon(
-                                        category = plan.category,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-
-                            // 2. Center Content
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = if (plan.description == "Installment Plan") stringResource(R.string.tab_installment) else plan.description,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "${getCategoryDisplayName(plan.category)} • $cardName",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            // 3. Trailing Amount
-                            Column(
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = String.format(Locale.US, "HK$ %,.2f", plan.monthlyAmount),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = stringResource(R.string.ui_recurring_per_month_short),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                                IconButton(
-                                    onClick = { transitionState.targetState = false },
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = stringResource(R.string.btn_delete),
-                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Linear Progress Indicator
-                        val progress = if (plan.totalInstallments > 0) {
-                            (plan.paidInstallments.toFloat() / plan.totalInstallments.toFloat()).coerceIn(0f, 1f)
-                        } else 0f
-
-                        LinearProgressIndicator(
-                            progress = { progress },
+        PageContentEntrance("installment:${plan.groupId}") {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                ExpressiveSwipeRow(
+                    shape = itemShape,
+                    onEdit = {},
+                    onDelete = { transitionState.targetState = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("InstallmentRow_${plan.groupId}")
+                ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        )
-
-                        // Bottom Pills Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                // Progress pill
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(99.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(99.dp))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                // 1. Leading Container
+                                Surface(
+                                    modifier = Modifier.size(44.dp),
+                                    shape = rememberIconShape("installment.${plan.groupId}"),
+                                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CategoryIcon(
+                                            category = plan.category,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+
+                                // 2. Center Content
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.ui_recurring_months_progress, plan.paidInstallments, plan.totalInstallments),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = if (plan.description == "Installment Plan") stringResource(R.string.tab_installment) else plan.description,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${getCategoryDisplayName(plan.category)} • $cardName",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
 
-                                // Remaining Debt pill
+                                // 3. Trailing Amount
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = String.format(Locale.US, "HK$ %,.2f", plan.monthlyAmount),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.ui_recurring_per_month_short),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                    IconButton(
+                                        onClick = { transitionState.targetState = false },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = stringResource(R.string.btn_delete),
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Linear Progress Indicator
+                            val progress = if (plan.totalInstallments > 0) {
+                                (plan.paidInstallments.toFloat() / plan.totalInstallments.toFloat()).coerceIn(0f, 1f)
+                            } else 0f
+
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            )
+
+                            // Bottom Pills Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    // Progress pill
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(99.dp))
+                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(99.dp))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.ui_recurring_months_progress, plan.paidInstallments, plan.totalInstallments),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+
+                                    // Remaining Debt pill
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(99.dp))
+                                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(99.dp))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.ui_recurring_amount_left, plan.remainingAmount),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                // Due status pill
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(99.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
-                                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(99.dp))
+                                        .background(badgeBg)
+                                        .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = stringResource(R.string.ui_recurring_amount_left, plan.remainingAmount),
+                                        text = statusText,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = badgeFg,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
-
-                            // Due status pill
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(99.dp))
-                                    .background(badgeBg)
-                                    .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = statusText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = badgeFg,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
                         }
                     }
+                if (!isLast) {
+                    Spacer(modifier = Modifier.height(5.dp))
                 }
-            if (!isLast) {
-                Spacer(modifier = Modifier.height(5.dp))
             }
         }
     }
@@ -2066,7 +2106,6 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
 // -------------------------------------------------------------
 @Composable
 fun EmptyRecurringCard(
-    onAddPreset: (SubscriptionPreset) -> Unit,
     onAddNew: () -> Unit
 ) {
     GlassmorphicCard(
@@ -2114,46 +2153,14 @@ fun EmptyRecurringCard(
                 textAlign = TextAlign.Center
             )
 
+
             Spacer(modifier = Modifier.height(18.dp))
-
-            Text(
-                text = stringResource(R.string.ui_recurring_quick_presets),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                POPULAR_SUBSCRIPTION_PRESETS.take(4).forEach { preset ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .bouncyClickable(shape = RoundedCornerShape(12.dp)) { onAddPreset(preset) }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(text = preset.emoji, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${recurringPresetLabel(preset)} (HK$ ${preset.defaultAmount.toInt()})",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
+            Button(onClick = onAddNew, shape = RoundedCornerShape(16.dp)) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.btn_add_subscription))
             }
+
         }
     }
 }

@@ -48,6 +48,29 @@ class TransactionGrammarEngineTest {
     }
 
     @Test
+    fun parseIncomingTransferAnchors() {
+        val testCases = listOf(
+            Triple("轉數快 FPS", "收款成功：收到轉帳 HK$ 500.00 來自 陳大文", "陳大文" to 500.0),
+            Triple("FPS Alert", "Incoming transfer of HKD 1,200.00 from John Doe", "John Doe" to 1200.0),
+            Triple("入息通知", "薪金入息 HK$ 28,000.00 由 ABC Corp 轉入", "ABC Corp" to 28000.0),
+            Triple("中銀香港", "已存入 HK$ 3,500.00 來自 王小明", "王小明" to 3500.0),
+            Triple("Hang Seng Bank", "You have received a transfer of HKD 750.00 from CHAN TAI MAN via FPS", "CHAN TAI MAN" to 750.0),
+            Triple("匯豐銀行", "已轉入 HK$ 1,500.00 由 李四 存入", "李四" to 1500.0),
+            Triple("PayMe", "已收款 HK$ 200.00 來自 張三", "張三" to 200.0),
+            Triple("渣打銀行", "收到來自 劉德華 的轉帳 HK$ 888.00", "劉德華" to 888.0)
+        )
+
+        for ((title, text, expected) in testCases) {
+            val result = TransactionGrammarEngine.parse(title, text, "com.generic.bank")
+            assertNotNull("Expected parse result for: $text", result)
+            assertEquals("Merchant/Sender mismatch for: $text", expected.first, result!!.merchant)
+            assertEquals("Amount mismatch for: $text", expected.second, result.amount, 0.001)
+            assertEquals(ParsedTransactionType.INCOME, result.intent)
+            assertTrue(result.confidence >= 0.9f)
+        }
+    }
+
+    @Test
     fun extractCardLast4Digits() {
         val textWithEnding = "Paid HK$ 100.00 at Store ending in 7788"
         assertEquals("7788", TransactionGrammarEngine.extractCardLast4("Alert", textWithEnding))

@@ -24,6 +24,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableIntStateOf
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
+import com.example.vibefinance.data.currency.ExchangeRateLoader
+import com.example.vibefinance.data.currency.ExchangeRateRepository
+import com.example.vibefinance.data.currency.ExchangeRateResult
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1356,6 +1361,11 @@ fun MainScreen(
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.fillMaxSize(),
                                 topContentPadding = pageTopPadding,
+                                topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
+                                bottomVisibilityInset = (
+                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    else 100.dp
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
                                 onViewAccountHistory = { accountId ->
                                     historyAccountFilterId = accountId
                                     historyCategoryFilter = null
@@ -1367,6 +1377,11 @@ fun MainScreen(
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.fillMaxSize(),
                                 topContentPadding = pageTopPadding,
+                                topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
+                                bottomVisibilityInset = (
+                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    else 100.dp
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
                                 showAddSheet = showAddRecurringSheet,
                                 onDismissAddSheet = { showAddRecurringSheet = false }
                             )
@@ -1375,6 +1390,11 @@ fun MainScreen(
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 topContentPadding = pageTopPadding,
+                                topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
+                                bottomVisibilityInset = (
+                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    else 100.dp
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
                                 accountFilterId = historyAccountFilterId,
                                 onClearAccountFilter = { historyAccountFilterId = null },
                                 categoryFilter = historyCategoryFilter,
@@ -1993,7 +2013,8 @@ fun AddExpenseSheetContent(
     initialMode: TransactionMode = TransactionMode.EXPENSE,
     categoryFrequency: Map<String, Int>,
     accountFrequency: Map<Long, Int>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    exchangeRateLoader: ExchangeRateLoader? = null
 ) {
     val context = LocalContext.current
     val localFocusManager = LocalFocusManager.current
@@ -2006,6 +2027,34 @@ fun AddExpenseSheetContent(
     val transactionMode = initialMode
     val isTransfer = initialMode == TransactionMode.TRANSFER
     var selectedCurrency by remember { mutableStateOf("HKD") }
+    val defaultRateLoader = remember(context.applicationContext) {
+        ExchangeRateRepository(java.io.File(context.applicationContext.cacheDir, "exchange_rates"))
+    }
+    val rateLoader = exchangeRateLoader ?: defaultRateLoader
+    var rateResult by remember { mutableStateOf<ExchangeRateResult?>(null) }
+    var rateLoading by remember { mutableStateOf(false) }
+    var rateRefreshRequest by remember { mutableIntStateOf(0) }
+    var lastRequestedCurrency by remember { mutableStateOf<String?>(null) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { rateRefreshRequest++ }
+    LaunchedEffect(selectedCurrency, rateRefreshRequest, rateLoader) {
+        val forceRefresh = lastRequestedCurrency == selectedCurrency
+        lastRequestedCurrency = selectedCurrency
+        rateResult = null
+        rateLoading = selectedCurrency != "HKD"
+        if (selectedCurrency != "HKD") {
+            rateResult = rateLoader.load(selectedCurrency, forceRefresh)
+            rateLoading = false
+        }
+    }
+    // A result from the previous currency cannot be used between selection and its effect.
+    val rateQuote = rateResult?.quote?.takeIf { it.currencyCode == selectedCurrency }
+    val rawAmount = typedAmount.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
+    val convertedAmount = rawAmount?.let { amount ->
+        if (selectedCurrency == "HKD") amount else rateQuote?.let { quote ->
+            runCatching { quote.convert(amount) }.getOrNull()
+        }
+    }
+
  
     val expenseCategories = remember(state.categoryMergeRules) {
         com.example.vibefinance.data.entity.categoryChoices(com.example.vibefinance.data.entity.CategoryKind.EXPENSE,
@@ -2126,6 +2175,13 @@ fun AddExpenseSheetContent(
             val headerHeightDp = with(density) { if (headerHeightPx > 0) headerHeightPx.toDp() else 68.dp }
             Spacer(modifier = Modifier.height(headerHeightDp + 10.dp))
 
+            if (selectedCurrency != "HKD") {
+                CurrencyRateStatus(selectedCurrency,
+                    rateResult?.takeIf { it.quote == null || it.quote.currencyCode == selectedCurrency },
+                    rateLoading || rateResult == null, convertedAmount,
+                    onRefresh = { rateRefreshRequest++ })
+            }
+
             if (transactionMode == TransactionMode.EXPENSE) {
                 // 1. Count in Daily Budget Switch Card
                 Surface(
@@ -2181,8 +2237,8 @@ fun AddExpenseSheetContent(
 
                 // 2. Budget Preview Card (Dynamic calculation / Non-daily notice)
                 val budgetInfo = state.budgetInfo
-                if (budgetInfo != null) {
-                    val inputAmount = typedAmount.toDoubleOrNull() ?: 0.0
+                if (budgetInfo != null && convertedAmount != null) {
+                    val inputAmount = convertedAmount
                     val currentDailyRem = budgetInfo.dailyRemaining
                     val simDailyRem = currentDailyRem - inputAmount
                     val isOverBudget = simDailyRem < 0
@@ -2433,6 +2489,7 @@ fun AddExpenseSheetContent(
                     title = if (transactionMode == TransactionMode.INCOME) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
                     tagPrefix = "EntryCategory",
                     overlayIncludesAssets = true,
+                    compactChoices = true,
                     keyProvider = { it },
                     subtitleProvider = { it },
                     selectedIndex = currentCategories.indexOf(currentCategoryText),
@@ -2799,19 +2856,23 @@ fun AddExpenseSheetContent(
 
                 // Right Column (Tall Apply/Check Button)
                 val amt = typedAmount.toDoubleOrNull()
-                val isApplyEnabled = amt != null && amt > 0.0 && selectedAccount?.id != null &&
+                val isApplyEnabled = amt != null && amt.isFinite() && amt > 0.0 && convertedAmount != null &&
+                    (selectedCurrency == "HKD" || (!rateLoading && rateQuote != null)) && selectedAccount?.id != null &&
                     (!isTransfer || (selectedToAccount != null && selectedToAccount?.id != selectedAccount?.id))
                 KeyboardButton(
                     modifier = Modifier.weight(1f).fillMaxHeight().alpha(if (isApplyEnabled) 1f else 0.5f).testTag("EntrySubmit"),
                     type = KeyboardButtonType.PRIMARY,
                     icon = rememberVectorPainter(Icons.Default.Check),
+                    enabled = isApplyEnabled,
                     onClick = {
                         val accId = selectedAccount?.id
                         if (isApplyEnabled && accId != null && amt != null) {
-                            val finalHkdAmt = com.example.vibefinance.util.CurrencyEngine.convertToHkd(amt, selectedCurrency)
+                            val finalHkdAmt = convertedAmount
                             val descWithFx = if (selectedCurrency != "HKD") {
                                 val origStr = com.example.vibefinance.util.CurrencyEngine.formatOriginal(amt, selectedCurrency)
-                                if (descriptionText.isNotEmpty()) "$descriptionText ($origStr)" else "Foreign Expense ($origStr)"
+                                val quote = rateQuote ?: return@KeyboardButton
+                                val detail = "$origStr; 1 ${quote.currencyCode} = ${quote.rateText()} HKD; ${quote.source} ${quote.rateDate}"
+                                "${descriptionText.ifEmpty { if (isTransfer) "Transfer" else if (transactionMode == TransactionMode.INCOME) "Income" else "Purchase" }} ($detail)"
                             } else {
                                 descriptionText.ifEmpty { "Purchase" }
                             }
@@ -2824,7 +2885,7 @@ fun AddExpenseSheetContent(
                                         accountId = accId,
                                         toAccountId = selectedToAccount?.id,
                                         isExcludedFromDailyBudget = true,
-                                        description = descriptionText.ifEmpty { "CC Payment Transfer" }
+                                        description = if (selectedCurrency != "HKD") descWithFx else descriptionText.ifEmpty { "CC Payment Transfer" }
                                     )
                                 )
                             } else if (transactionMode == TransactionMode.INCOME) {
@@ -2935,7 +2996,8 @@ fun AddExpenseSheetContent(
                         }
                         
                         Text(
-                            text = "$",
+                            text = if (selectedCurrency == "HKD") "$" else
+                                com.example.vibefinance.util.CurrencyEngine.supportedCurrencies.first { it.code == selectedCurrency }.symbol,
                             style = MaterialTheme.typography.titleMedium.copy(fontSize = dynamicFontSize),
                             color = dollarColor,
                             fontWeight = FontWeight.ExtraBold
@@ -2959,7 +3021,8 @@ fun AddExpenseSheetContent(
                         shape = RoundedCornerShape(16.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                        onClick = { showCurrencyMenu = !showCurrencyMenu }
+                        onClick = { showCurrencyMenu = !showCurrencyMenu },
+                        modifier = Modifier.testTag("EntryCurrency")
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -2981,12 +3044,14 @@ fun AddExpenseSheetContent(
                         com.example.vibefinance.util.CurrencyEngine.supportedCurrencies.forEach { curr ->
                             DropdownMenuItem(
                                 text = { Text("${curr.flagEmoji} ${curr.code} (${curr.symbol})") },
+                                modifier = Modifier.testTag("EntryCurrency_${curr.code}"),
                                 onClick = {
                                     selectedCurrency = curr.code
                                     showCurrencyMenu = false
                                 }
                             )
                         }
+
                     }
                 }
             }

@@ -2,6 +2,9 @@
 
 package com.example.vibefinance.ui.history
 
+import com.example.vibefinance.ui.common.ContentEntranceViewport
+import com.example.vibefinance.ui.common.PageContentEntrance
+
 import com.example.vibefinance.ui.components.CompletePressButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
 import com.example.vibefinance.ui.components.CompletePressToggleButton
@@ -150,6 +153,8 @@ fun HistoryScreen(
     onIntent: (FinanceIntent) -> Unit,
     modifier: Modifier = Modifier,
     topContentPadding: Dp = 16.dp,
+    topVisibilityInset: Dp = 0.dp,
+    bottomVisibilityInset: Dp = 0.dp,
     accountFilterId: Long? = null,
     onClearAccountFilter: () -> Unit = {},
     categoryFilter: String? = null,
@@ -360,445 +365,462 @@ fun HistoryScreen(
     }
 
 
-    AnimatedContent(
-        targetState = state.isLoading,
-        transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
-        label = "historySkeletonCrossfade"
-    ) { isLoading ->
-        if (isLoading) {
-            com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = modifier)
-        } else {
-            LazyColumn(
-                modifier = modifier.fillMaxSize().testTag("HistoryList"),
-                contentPadding = PaddingValues(top = topContentPadding),
-                verticalArrangement = Arrangement.Top
-            ) {
-        if (accountFilterId != null) {
-            item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+    ContentEntranceViewport(
+        modifier = modifier.fillMaxSize(),
+        topVisibilityInset = topVisibilityInset,
+        bottomVisibilityInset = bottomVisibilityInset,
+        tagPrefix = "HistoryArrival"
+    ) {
+        AnimatedContent(
+            targetState = state.isLoading,
+            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
+            label = "historySkeletonCrossfade"
+        ) { isLoading ->
+            if (isLoading) {
+                com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = Modifier)
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().testTag("HistoryList"),
+                    contentPadding = PaddingValues(top = topContentPadding),
+                    verticalArrangement = Arrangement.Top
                 ) {
-                    Row(
-                        modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.account_history_filter, filteredAccount?.displayLabel() ?: "#${accountFilterId}"),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(onClick = onClearAccountFilter) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.show_all_history))
-                        }
-                    }
-                }
-            }
-        }
-        // --- 📅 ACTIVE BUDGET PERIOD INDICATOR & FILTER CARD ---
-        if (accountFilterId == null) item {
-            com.example.vibefinance.ui.components.BudgetPeriodIndicatorCard(
-                budgetInfo = state.budgetInfo,
-                selectedFilter = periodFilterMode,
-                onSelectFilter = { mode -> periodFilterMode = mode },
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-        }
-
-        // --- 📊 CATEGORY BREAKDOWN & CSV EXPORT CARD ---
-        item {
-            val context = LocalContext.current
-            com.example.vibefinance.ui.components.CategoryBreakdownCard(
-                transactions = analyticsTransactions,
-                onExportCsv = {
-                    val csvContent = com.example.vibefinance.util.CsvExportEngine.generateCsvContent(
-                        transactions = state.transactions,
-                        accounts = state.accounts
-                    )
-                    com.example.vibefinance.util.CsvExportEngine.shareCsvFile(context, csvContent)
-                },
-                selectedCategory = selectedCategoryFilter,
-                onSelectCategory = { cat ->
-                    selectedCategoryFilter = cat
-                    if (cat == null) onClearCategoryFilter()
-                },
-                periodMode = effectiveAnalyticsMode,
-                periodLabel = analyticsPeriodLabel,
-                hasBudgetPeriod = hasBudgetPeriod,
-                onSelectPeriod = { mode ->
-                    analyticsPeriodMode = mode
-                    if (mode == CategoryAnalyticsPeriodMode.ALL_TIME) {
-                        periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
-                    }
-                    selectedCategoryFilter = null
-                    onClearCategoryFilter()
-                },
-                onPreviousMonth = {
-                    analyticsMonth = analyticsMonth.minusMonths(1)
-                    selectedCategoryFilter = null
-                    onClearCategoryFilter()
-                },
-                onNextMonth = {
-                    if (analyticsMonth.isBefore(YearMonth.now(zone))) {
-                        analyticsMonth = analyticsMonth.plusMonths(1)
-                        selectedCategoryFilter = null
-                        onClearCategoryFilter()
-                    }
-                },
-                canGoToNextMonth = analyticsMonth.isBefore(YearMonth.now(zone)),
-                onImportData = {
-                    filePickerLauncher.launch("*/*")
-                },
-                emptyStateMessage = if (accountTransactions.isEmpty()) stringResource(R.string.no_transactions) else null,
-                emptyStateHint = if (accountTransactions.isEmpty()) stringResource(R.string.analytics_empty_hint) else null,
-                onAddTransaction = onAddTransaction,
-                onViewAllRecords = if (effectiveAnalyticsMode != CategoryAnalyticsPeriodMode.ALL_TIME &&
-                    accountExpenses.isNotEmpty() && !analyticsHasExpenses) viewAllRecords else null,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-        }
-
-
-
-        if (transactionsList.isEmpty() && analyticsHasExpenses) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().testTag("HistoryListEmptyCard"),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
-                ) {
-                    com.example.vibefinance.ui.components.HistoryEmptyState(
-                        message = stringResource(R.string.analytics_no_matching_records),
-                        modifier = Modifier.padding(16.dp),
-                        onAddTransaction = onAddTransaction,
-                        onViewAllRecords = if (accountTransactions.isNotEmpty()) viewAllRecords else null
-                    )
-                }
-            }
-        } else {
-            val groupedList = groupedTransactions.toList()
-            groupedList.forEachIndexed { groupIndex, (localDate, txsForDate) ->
-                // 1. Date Header Group (Muted, Clean Typography)
-                val today = LocalDate.now()
-                val isZh = dateLocale.language.startsWith("zh")
-                val datePattern = if (isZh) "yyyy年M月d日" else "MMM dd, yyyy"
-                val dateLabel = when (localDate) {
-                    today -> strToday
-                    today.minusDays(1) -> strYesterday
-                    else -> localDate.format(DateTimeFormatter.ofPattern(datePattern, dateLocale))
-                }
-                val weekday = localDate.format(DateTimeFormatter.ofPattern("EEEE", dateLocale))
-                val headerText = "$dateLabel · $weekday"
-
+            if (accountFilterId != null) {
                 item {
-                    val bInfo = state.budgetInfo
-                    val isInActivePeriod = hasBudgetPeriod && txsForDate.any { tx ->
-                        tx.timestamp >= activePeriodStart && tx.timestamp < activePeriodEndExclusive
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = headerText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        if (bInfo != null && bInfo.startDate > 0L && bInfo.endDate > 0L) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (isInActivePeriod) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    PageContentEntrance("account-filter") {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Text(
-                                    text = if (isInActivePeriod) stringResource(R.string.badge_active_period) else stringResource(R.string.badge_past_period),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isInActivePeriod) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                    text = stringResource(R.string.account_history_filter, filteredAccount?.displayLabel() ?: "#${accountFilterId}"),
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
+                                IconButton(onClick = onClearAccountFilter) {
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.show_all_history))
+                                }
                             }
                         }
                     }
                 }
+            }
+            // --- 📅 ACTIVE BUDGET PERIOD INDICATOR & FILTER CARD ---
+            if (accountFilterId == null) item {
+                PageContentEntrance("period") {
+                    com.example.vibefinance.ui.components.BudgetPeriodIndicatorCard(
+                        budgetInfo = state.budgetInfo,
+                        selectedFilter = periodFilterMode,
+                        onSelectFilter = { mode -> periodFilterMode = mode },
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+            }
 
-                // 2. Transaction Item Flat list (M3 grouped list items)
-                itemsIndexed(items = txsForDate, key = { _, tx -> tx.id }) { index, tx ->
-                    val sourceAccount = state.accounts.find { it.id == tx.accountId }
-                    val destAccount = tx.toAccountId?.let { toId -> state.accounts.find { it.id == toId } }
-                    val isFuture = tx.timestamp > System.currentTimeMillis()
-                    val isTransfer = tx.toAccountId != null
-                    val isInstallment = tx.installmentNumber != null
-                    val displayDelta = tx.historyAmountFor(accountFilterId)
-                    val isIncome = displayDelta > 0
+            // --- 📊 CATEGORY BREAKDOWN & CSV EXPORT CARD ---
+            item {
+                val context = LocalContext.current
+                PageContentEntrance("analytics") {
+                    com.example.vibefinance.ui.components.CategoryBreakdownCard(
+                        transactions = analyticsTransactions,
+                        onExportCsv = {
+                            val csvContent = com.example.vibefinance.util.CsvExportEngine.generateCsvContent(
+                                transactions = state.transactions,
+                                accounts = state.accounts
+                            )
+                            com.example.vibefinance.util.CsvExportEngine.shareCsvFile(context, csvContent)
+                        },
+                        selectedCategory = selectedCategoryFilter,
+                        onSelectCategory = { cat ->
+                            selectedCategoryFilter = cat
+                            if (cat == null) onClearCategoryFilter()
+                        },
+                        periodMode = effectiveAnalyticsMode,
+                        periodLabel = analyticsPeriodLabel,
+                        hasBudgetPeriod = hasBudgetPeriod,
+                        onSelectPeriod = { mode ->
+                            analyticsPeriodMode = mode
+                            if (mode == CategoryAnalyticsPeriodMode.ALL_TIME) {
+                                periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
+                            }
+                            selectedCategoryFilter = null
+                            onClearCategoryFilter()
+                        },
+                        onPreviousMonth = {
+                            analyticsMonth = analyticsMonth.minusMonths(1)
+                            selectedCategoryFilter = null
+                            onClearCategoryFilter()
+                        },
+                        onNextMonth = {
+                            if (analyticsMonth.isBefore(YearMonth.now(zone))) {
+                                analyticsMonth = analyticsMonth.plusMonths(1)
+                                selectedCategoryFilter = null
+                                onClearCategoryFilter()
+                            }
+                        },
+                        canGoToNextMonth = analyticsMonth.isBefore(YearMonth.now(zone)),
+                        onImportData = {
+                            filePickerLauncher.launch("*/*")
+                        },
+                        emptyStateMessage = if (accountTransactions.isEmpty()) stringResource(R.string.no_transactions) else null,
+                        emptyStateHint = if (accountTransactions.isEmpty()) stringResource(R.string.analytics_empty_hint) else null,
+                        onAddTransaction = onAddTransaction,
+                        onViewAllRecords = if (effectiveAnalyticsMode != CategoryAnalyticsPeriodMode.ALL_TIME &&
+                            accountExpenses.isNotEmpty() && !analyticsHasExpenses) viewAllRecords else null,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+            }
 
-                    val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(tx.timestamp), ZoneId.systemDefault())
-                    val timeText = date.format(DateTimeFormatter.ofPattern("HH:mm", dateLocale))
 
-                    val transitionState = remember { MutableTransitionState(true) }
 
-                    LaunchedEffect(transitionState.currentState, transitionState.targetState) {
-                        if (!transitionState.currentState && !transitionState.targetState) {
-                            onIntent(FinanceIntent.DeleteTransaction(tx))
+            if (transactionsList.isEmpty() && analyticsHasExpenses) {
+                item {
+                    PageContentEntrance("empty") {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().testTag("HistoryListEmptyCard"),
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow
+                        ) {
+                            com.example.vibefinance.ui.components.HistoryEmptyState(
+                                message = stringResource(R.string.analytics_no_matching_records),
+                                modifier = Modifier.padding(16.dp),
+                                onAddTransaction = onAddTransaction,
+                                onViewAllRecords = if (accountTransactions.isNotEmpty()) viewAllRecords else null
+                            )
+                        }
+                    }
+                }
+            } else {
+                val groupedList = groupedTransactions.toList()
+                groupedList.forEachIndexed { groupIndex, (localDate, txsForDate) ->
+                    // 1. Date Header Group (Muted, Clean Typography)
+                    val today = LocalDate.now()
+                    val isZh = dateLocale.language.startsWith("zh")
+                    val datePattern = if (isZh) "yyyy年M月d日" else "MMM dd, yyyy"
+                    val dateLabel = when (localDate) {
+                        today -> strToday
+                        today.minusDays(1) -> strYesterday
+                        else -> localDate.format(DateTimeFormatter.ofPattern(datePattern, dateLocale))
+                    }
+                    val weekday = localDate.format(DateTimeFormatter.ofPattern("EEEE", dateLocale))
+                    val headerText = "$dateLabel · $weekday"
+
+                    item {
+                        val bInfo = state.budgetInfo
+                        val isInActivePeriod = hasBudgetPeriod && txsForDate.any { tx ->
+                            tx.timestamp >= activePeriodStart && tx.timestamp < activePeriodEndExclusive
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = headerText,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            if (bInfo != null && bInfo.startDate > 0L && bInfo.endDate > 0L) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isInActivePeriod) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Text(
+                                        text = if (isInActivePeriod) stringResource(R.string.badge_active_period) else stringResource(R.string.badge_past_period),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isInActivePeriod) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    val isFirst = index == 0
-                    val isLast = index == txsForDate.size - 1
+                    // 2. Transaction Item Flat list (M3 grouped list items)
+                    itemsIndexed(items = txsForDate, key = { _, tx -> tx.id }) { index, tx ->
+                        val sourceAccount = state.accounts.find { it.id == tx.accountId }
+                        val destAccount = tx.toAccountId?.let { toId -> state.accounts.find { it.id == toId } }
+                        val isFuture = tx.timestamp > System.currentTimeMillis()
+                        val isTransfer = tx.toAccountId != null
+                        val isInstallment = tx.installmentNumber != null
+                        val displayDelta = tx.historyAmountFor(accountFilterId)
+                        val isIncome = displayDelta > 0
 
-                    AnimatedVisibility(
-                        visibleState = transitionState,
-                        exit = shrinkVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
+                        val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(tx.timestamp), ZoneId.systemDefault())
+                        val timeText = date.format(DateTimeFormatter.ofPattern("HH:mm", dateLocale))
+
+                        val transitionState = remember { MutableTransitionState(true) }
+
+                        LaunchedEffect(transitionState.currentState, transitionState.targetState) {
+                            if (!transitionState.currentState && !transitionState.targetState) {
+                                onIntent(FinanceIntent.DeleteTransaction(tx))
+                            }
+                        }
+
+                        val isFirst = index == 0
+                        val isLast = index == txsForDate.size - 1
+
+                        AnimatedVisibility(
+                            visibleState = transitionState,
+                            exit = shrinkVertically(
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            ) + fadeOut(animationSpec = tween(150)),
+                            modifier = Modifier.animateItem(
+                                placementSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
                             )
-                        ) + fadeOut(animationSpec = tween(150)),
-                        modifier = Modifier.animateItem(
-                            placementSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        )
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            val itemShape = RoundedCornerShape(
-                                topStart = if (isFirst) 26.dp else 8.dp,
-                                topEnd = if (isFirst) 26.dp else 8.dp,
-                                bottomStart = if (isLast) 26.dp else 8.dp,
-                                bottomEnd = if (isLast) 26.dp else 8.dp
-                            )
-                            ExpressiveSwipeRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("TransactionRow_${tx.id}"),
-                                shape = itemShape,
-                                onEdit = {
-                                    if (tx.isBalanceAdjustment) {
-                                        viewingAdjustment = tx
-                                    } else {
-                                        editingTransaction = tx
-                                        editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
-                                        editCategoryText = tx.category
-                                        editDescriptionText = tx.description
-                                        editCustomIcon = tx.customIcon
-                                        editIsIncome = tx.amount < 0
-                                        editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
-                                    }
-                                },
-                                onDelete = { transitionState.targetState = false }
-                            ) {
-                                    Row(
+                        ) {
+                            PageContentEntrance("transaction:${tx.id}") {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    val itemShape = RoundedCornerShape(
+                                        topStart = if (isFirst) 26.dp else 8.dp,
+                                        topEnd = if (isFirst) 26.dp else 8.dp,
+                                        bottomStart = if (isLast) 26.dp else 8.dp,
+                                        bottomEnd = if (isLast) 26.dp else 8.dp
+                                    )
+                                    ExpressiveSwipeRow(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                                            .testTag("TransactionRow_${tx.id}"),
+                                        shape = itemShape,
+                                        onEdit = {
+                                            if (tx.isBalanceAdjustment) {
+                                                viewingAdjustment = tx
+                                            } else {
+                                                editingTransaction = tx
+                                                editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
+                                                editCategoryText = tx.category
+                                                editDescriptionText = tx.description
+                                                editCustomIcon = tx.customIcon
+                                                editIsIncome = tx.amount < 0
+                                                editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
+                                            }
+                                        },
+                                        onDelete = { transitionState.targetState = false }
                                     ) {
-                                        // 1. Leading Avatar Visual Container (M3 Expressive)
-                                        Surface(
-                                            modifier = Modifier.size(44.dp),
-                                            shape = rememberIconShape("history.${tx.id}"),
-                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                                        ) {
-                                            Box(
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (tx.isBalanceAdjustment) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Edit,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                } else {
-                                                    com.example.vibefinance.ui.components.ExpenseEventIcon(
-                                                        customIcon = tx.customIcon.takeIf { tx.amount > 0 && tx.toAccountId == null },
-                                                        category = tx.category,
-                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // 2. Center Content: Headline (Title) & Supporting Metadata (Subtitles)
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                                        ) {
-                                            val titleText = when {
-                                                tx.isBalanceAdjustment -> stringResource(R.string.balance_adjustment_title)
-                                                tx.description.isNotBlank() -> tx.description
-                                                else -> com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
-                                            }
                                             Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                horizontalArrangement = Arrangement.spacedBy(14.dp)
                                             ) {
-                                                Text(
-                                                    text = titleText,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                if (tx.isExcludedFromDailyBudget && !tx.isBalanceAdjustment && tx.toAccountId == null && !isIncome) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                                                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+                                                // 1. Leading Avatar Visual Container (M3 Expressive)
+                                                Surface(
+                                                    modifier = Modifier.size(44.dp),
+                                                    shape = rememberIconShape("history.${tx.id}"),
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (tx.isBalanceAdjustment) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Edit,
+                                                                contentDescription = null,
+                                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        } else {
+                                                            com.example.vibefinance.ui.components.ExpenseEventIcon(
+                                                                customIcon = tx.customIcon.takeIf { tx.amount > 0 && tx.toAccountId == null },
+                                                                category = tx.category,
+                                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                                modifier = Modifier.size(22.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                // 2. Center Content: Headline (Title) & Supporting Metadata (Subtitles)
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                                ) {
+                                                    val titleText = when {
+                                                        tx.isBalanceAdjustment -> stringResource(R.string.balance_adjustment_title)
+                                                        tx.description.isNotBlank() -> tx.description
+                                                        else -> com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
+                                                    }
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                     ) {
                                                         Text(
-                                                            text = stringResource(R.string.non_daily_expense_badge),
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
-                                                            fontWeight = FontWeight.SemiBold
+                                                            text = titleText,
+                                                            style = MaterialTheme.typography.titleMedium,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurface,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f, fill = false)
                                                         )
+                                                        if (tx.isExcludedFromDailyBudget && !tx.isBalanceAdjustment && tx.toAccountId == null && !isIncome) {
+                                                            Surface(
+                                                                shape = RoundedCornerShape(6.dp),
+                                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
+                                                                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
+                                                            ) {
+                                                                Text(
+                                                                    text = stringResource(R.string.non_daily_expense_badge),
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                                                    fontWeight = FontWeight.SemiBold
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    val cardName = sourceAccount?.displayLabel() ?: stringResource(R.string.acc_type_cash)
+                                                    val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
+                                                    val cardSubtitle = when {
+                                                        tx.isBalanceAdjustment -> cardName
+                                                        isTransfer -> "${sourceAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)} ➔ ${destAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)}"
+                                                        isInstallment -> "$categoryName • $cardName (${tx.installmentNumber}/${tx.totalInstallments})"
+                                                        else -> "$categoryName • $cardName"
+                                                    }
+                                                    Text(
+                                                        text = cardSubtitle,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+
+                                                }
+
+                                                // 3. Trailing Content: Metric (Amount) & Secondary Metadata (Timestamp/Delete)
+                                                Column(
+                                                    horizontalAlignment = Alignment.End,
+                                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    val amtString = String.format(Locale.US, if (isIncome) "+HK$%,.2f" else "-HK$%,.2f", Math.abs(displayDelta))
+                                                    val amountColor = when {
+                                                        isTransfer -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                        isIncome -> MaterialTheme.colorScheme.secondary
+                                                        isFuture -> activeVibeColor.copy(alpha = 0.5f)
+                                                        else -> activeVibeColor
+                                                    }
+
+                                                    Text(
+                                                        text = amtString,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = amountColor
+                                                    )
+
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = timeText,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                                        )
+                                                        IconButton(
+                                                            onClick = { transitionState.targetState = false },
+                                                            modifier = Modifier.size(20.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Delete,
+                                                                contentDescription = stringResource(R.string.btn_delete),
+                                                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
-
-                                            val cardName = sourceAccount?.displayLabel() ?: stringResource(R.string.acc_type_cash)
-                                            val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
-                                            val cardSubtitle = when {
-                                                tx.isBalanceAdjustment -> cardName
-                                                isTransfer -> "${sourceAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)} ➔ ${destAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)}"
-                                                isInstallment -> "$categoryName • $cardName (${tx.installmentNumber}/${tx.totalInstallments})"
-                                                else -> "$categoryName • $cardName"
-                                            }
-                                            Text(
-                                                text = cardSubtitle,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-
-                                        }
-
-                                        // 3. Trailing Content: Metric (Amount) & Secondary Metadata (Timestamp/Delete)
-                                        Column(
-                                            horizontalAlignment = Alignment.End,
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            val amtString = String.format(Locale.US, if (isIncome) "+HK$%,.2f" else "-HK$%,.2f", Math.abs(displayDelta))
-                                            val amountColor = when {
-                                                isTransfer -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                                isIncome -> MaterialTheme.colorScheme.secondary
-                                                isFuture -> activeVibeColor.copy(alpha = 0.5f)
-                                                else -> activeVibeColor
-                                            }
-
-                                            Text(
-                                                text = amtString,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = amountColor
-                                            )
-
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = timeText,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                )
-                                                IconButton(
-                                                    onClick = { transitionState.targetState = false },
-                                                    modifier = Modifier.size(20.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Delete,
-                                                        contentDescription = stringResource(R.string.btn_delete),
-                                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
                                     }
-                            }
-                            if (!isLast) {
-                                Spacer(modifier = Modifier.height(5.dp))
+                                    if (!isLast) {
+                                        Spacer(modifier = Modifier.height(5.dp))
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                // Transfers only move money between accounts, so they never contribute to
-                // a day's income-minus-spending total. Balance corrections remain visible
-                // in an account's own history, where they change that account's balance.
-                val dailySummaryTransactions = txsForDate.filter { tx ->
-                    tx.toAccountId == null && (accountFilterId != null || !tx.isBalanceAdjustment)
-                }
-                val dailyNet = dailySummaryTransactions.sumOf { tx ->
-                    tx.historyAmountFor(accountFilterId)
-                }
-                if (dailySummaryTransactions.isNotEmpty()) item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.daily_net_format,
-                                when {
-                                    dailyNet > 0.0 -> "+"
-                                    dailyNet < 0.0 -> "-"
-                                    else -> ""
-                                },
-                                kotlin.math.abs(dailyNet)
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = activeVibeColor.copy(alpha = 0.8f),
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        )
+                    // Transfers only move money between accounts, so they never contribute to
+                    // a day's income-minus-spending total. Balance corrections remain visible
+                    // in an account's own history, where they change that account's balance.
+                    val dailySummaryTransactions = txsForDate.filter { tx ->
+                        tx.toAccountId == null && (accountFilterId != null || !tx.isBalanceAdjustment)
                     }
-                }
-
-                // 4. Day Divider (if this is not the last group/day)
-                if (groupIndex < groupedList.size - 1) {
-                    item {
-                        androidx.compose.material3.HorizontalDivider(
+                    val dailyNet = dailySummaryTransactions.sumOf { tx ->
+                        tx.historyAmountFor(accountFilterId)
+                    }
+                    if (dailySummaryTransactions.isNotEmpty()) item {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            thickness = 1.dp
-                        )
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.daily_net_format,
+                                    when {
+                                        dailyNet > 0.0 -> "+"
+                                        dailyNet < 0.0 -> "-"
+                                        else -> ""
+                                    },
+                                    kotlin.math.abs(dailyNet)
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = activeVibeColor.copy(alpha = 0.8f),
+                                modifier = Modifier.align(Alignment.CenterEnd)
+                            )
+                        }
+                    }
+
+                    // 4. Day Divider (if this is not the last group/day)
+                    if (groupIndex < groupedList.size - 1) {
+                        item {
+                            androidx.compose.material3.HorizontalDivider(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                thickness = 1.dp
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            Spacer(modifier = Modifier.height(100.dp))
+            item {
+                Spacer(modifier = Modifier.height(100.dp))
+            }
         }
-    }
-    }
+        }
+        }
     }
 
     // Real Transaction Edit Dialog with Container Transform Morphing

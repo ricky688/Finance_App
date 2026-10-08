@@ -35,6 +35,7 @@ fun KeyboardButton(
     type: KeyboardButtonType,
     text: String? = null,
     icon: Painter? = null,
+    enabled: Boolean = true,
     onClick: (() -> Unit) = {},
     onLongClick: (() -> Unit) = {},
 ) {
@@ -81,6 +82,7 @@ fun KeyboardButton(
                 .fillMaxSize()
                 .clip(RoundedCornerShape(radius))
                 .combinedClickable(
+                    enabled = enabled,
                     interactionSource = interactionSource,
                     indication = ripple(),
                     onClick = {

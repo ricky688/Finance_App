@@ -24,6 +24,12 @@ import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
+import com.example.vibefinance.R
+import com.example.vibefinance.data.currency.ExchangeRateLoader
+import com.example.vibefinance.data.currency.ExchangeRateQuote
+import com.example.vibefinance.data.currency.ExchangeRateResult
+import kotlinx.coroutines.CompletableDeferred
+import com.example.vibefinance.data.repository.DailyBudgetInfo
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -40,13 +46,14 @@ class EntrySelectorOverlayTest {
     }
     private var submitted: FinanceIntent.AddTransaction? = null
 
-    private fun host(mode: TransactionMode) {
+    private fun host(mode: TransactionMode, rateLoader: ExchangeRateLoader? = null, budget: DailyBudgetInfo? = null) {
         compose.setContent {
             MaterialTheme {
-                AddExpenseSheetContent(FinanceUiState(isLoading = false, accounts = accounts),
+                AddExpenseSheetContent(FinanceUiState(isLoading = false, accounts = accounts, budgetInfo = budget),
                     onIntent = { if (it is FinanceIntent.AddTransaction) submitted = it },
                     onDismissAddDialog = {}, initialMode = mode,
-                    categoryFrequency = emptyMap(), accountFrequency = emptyMap(), modifier = Modifier.fillMaxSize())
+                    categoryFrequency = emptyMap(), accountFrequency = emptyMap(), modifier = Modifier.fillMaxSize(),
+                    exchangeRateLoader = rateLoader)
             }
         }
     }
@@ -76,6 +83,197 @@ class EntrySelectorOverlayTest {
     private fun screenBounds(tag: String): Rect {
         val coordinates = compose.onNodeWithTag(tag).fetchSemanticsNode().layoutInfo.coordinates
         return Rect(coordinates.localToScreen(Offset.Zero), coordinates.size.toSize())
+    }
+
+    /** Exercise Android window dispatch, not only Compose's semantic onClick action. */
+    private fun physicalPress(tag: String, holdMillis: Long) {
+        val center = screenBounds(tag).center
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val downTime = SystemClock.uptimeMillis()
+        fun send(action: Int) {
+            val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, center.x, center.y, 0)
+            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
+        }
+        send(MotionEvent.ACTION_DOWN)
+        try { SystemClock.sleep(holdMillis) } finally { send(MotionEvent.ACTION_UP) }
+        compose.waitForIdle()
+    }
+
+    private fun verifyPhysicalCollapse(prefixes: List<String>) {
+        for (prefix in prefixes) {
+            for (holdMillis in listOf(0L, 800L)) {
+                open(prefix)
+                physicalPress("${prefix}_toggle", holdMillis)
+                compose.waitUntil(5_000) {
+                    compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isEmpty()
+                }
+                compose.onNodeWithTag("${prefix}_expanded").assertDoesNotExist()
+            }
+            open(prefix)
+            physicalPress("${prefix}_collapse", 800L)
+            compose.onNodeWithTag("${prefix}_expanded").assertDoesNotExist()
+        }
+    }
+
+    @Test fun releasingOutsideToggleOrHeaderCollapseDoesNotReopenExpensePanels() {
+        host(TransactionMode.EXPENSE)
+        verifyPhysicalCollapse(listOf("EntryCategory", "EntryAccount"))
+    }
+
+    @Test fun releasingOutsideToggleOrHeaderCollapseDoesNotReopenTransferDestination() {
+        host(TransactionMode.TRANSFER)
+        verifyPhysicalCollapse(listOf("EntryDestination"))
+    }
+
+    private fun selectCurrency(code: String) {
+        click("EntryCurrency")
+        click("EntryCurrency_$code")
+    }
+
+    private fun waitForRate() {
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithTag("EntryConvertedAmount").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun submitControl() = compose.onNode(
+        hasClickAction() and hasAnyAncestor(hasTestTag("EntrySubmit")), useUnmergedTree = true)
+
+    @Test fun currencyFetchesAutomaticallyConvertsAndPreservesTheRateUsed() {
+        val requested = mutableListOf<String>()
+        host(TransactionMode.EXPENSE, ExchangeRateLoader { code, _ ->
+            requested.add(code)
+            ExchangeRateResult(ExchangeRateQuote(code, if (code == "USD") 7.1234 else 0.0523, "2026-10-08", 0))
+        })
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        selectCurrency("USD")
+        waitForRate()
+        compose.onNodeWithText(context.getString(R.string.currency_rate_value, "USD", "7.1234")).assertExists()
+        selectCurrency("JPY")
+        waitForRate()
+        compose.onNodeWithText(context.getString(R.string.currency_rate_value, "JPY", "0.0523")).assertExists()
+        compose.onNodeWithText("¥").assertExists()
+        selectCurrency("HKD")
+        compose.onNodeWithTag("EntryExchangeRate").assertDoesNotExist()
+        selectCurrency("USD")
+        waitForRate()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(listOf("USD", "JPY", "USD"), requested)
+            assertEquals(49.86, submitted!!.amount, 0.001)
+            assertTrue(submitted!!.description.contains("1 USD = 7.1234 HKD"))
+            assertTrue(submitted!!.description.contains("Frankfurter 2026-10-08"))
+        }
+    }
+
+    @Test fun loadingAndNetworkFailureBlockSavingUntilRetryObtainsARate() {
+        val pending = CompletableDeferred<ExchangeRateResult>()
+        var attempts = 0
+        host(TransactionMode.EXPENSE, ExchangeRateLoader { code, _ ->
+            attempts++
+            if (attempts == 1) pending.await()
+            else ExchangeRateResult(ExchangeRateQuote(code, 8.001, "2026-10-08", 0))
+        })
+        selectCurrency("USD")
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        submitControl().assertIsNotEnabled()
+        click("EntrySubmit")
+        compose.runOnIdle { assertNull(submitted) }
+        pending.complete(ExchangeRateResult(null, offline = true))
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("EntryExchangeRate_error").fetchSemanticsNodes().isNotEmpty() }
+        submitControl().assertIsNotEnabled()
+        compose.onNodeWithTag("EntryExchangeRate_refresh").performScrollTo()
+        click("EntryExchangeRate_refresh")
+        waitForRate()
+        compose.onNodeWithTag("EntrySubmit").performScrollTo()
+        submitControl().assertIsEnabled()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(2, attempts)
+            assertEquals(56.01, submitted!!.amount, 0.001)
+        }
+    }
+
+    @Test fun switchingCurrencyDiscardsAnOlderPendingRequest() {
+        val pendingUsd = CompletableDeferred<ExchangeRateResult>()
+        host(TransactionMode.EXPENSE, ExchangeRateLoader { code, _ ->
+            if (code == "USD") pendingUsd.await()
+            else ExchangeRateResult(ExchangeRateQuote(code, 0.0523, "2026-10-08", 0))
+        })
+        selectCurrency("USD")
+        selectCurrency("JPY")
+        waitForRate()
+        pendingUsd.complete(ExchangeRateResult(ExchangeRateQuote("USD", 8.1, "2026-10-08", 0)))
+        compose.waitForIdle()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(0.37, submitted!!.amount, 0.001)
+            assertTrue(submitted!!.description.contains("1 JPY = 0.0523 HKD"))
+            assertFalse(submitted!!.description.contains("USD"))
+        }
+    }
+
+    @Test fun offlineSavedRateIsClearlyMarkedAndUsedForConversion() {
+        host(TransactionMode.EXPENSE, ExchangeRateLoader { code, _ ->
+            ExchangeRateResult(ExchangeRateQuote(code, 8.2, "2026-10-07", 0), offline = true)
+        })
+        selectCurrency("USD")
+        waitForRate()
+        compose.onNodeWithTag("EntryExchangeRate_cached").assertIsDisplayed()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(57.4, submitted!!.amount, 0.001)
+            assertTrue(submitted!!.description.contains("Frankfurter 2026-10-07"))
+        }
+    }
+
+    @Test fun budgetPreviewUsesTheConvertedHkdAmount() {
+        host(TransactionMode.EXPENSE, ExchangeRateLoader { code, _ ->
+            ExchangeRateResult(ExchangeRateQuote(code, 8.2, "2026-10-08", 0))
+        }, DailyBudgetInfo(1000.0, 200.0, 800.0, 50.0, 50.0, 20, 0, 0))
+        selectCurrency("USD")
+        waitForRate()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onNodeWithText(context.getString(R.string.ui_main_budget_preview_over, "7", "39"))
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun foreignIncomeKeepsTheConvertedCreditAndRateMetadata() {
+        host(TransactionMode.INCOME, ExchangeRateLoader { code, _ ->
+            ExchangeRateResult(ExchangeRateQuote(code, 8.2, "2026-10-08", 0))
+        })
+        selectCurrency("USD")
+        waitForRate()
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(-57.4, submitted!!.amount, 0.001)
+            assertTrue(submitted!!.description.contains("1 USD = 8.2 HKD"))
+        }
+    }
+
+    @Test fun foreignTransferPreservesTheConvertedAmountAndRateMetadata() {
+        host(TransactionMode.TRANSFER, ExchangeRateLoader { code, _ ->
+            ExchangeRateResult(ExchangeRateQuote(code, 8.2, "2026-10-08", 0))
+        })
+        selectCurrency("USD")
+        waitForRate()
+        open("EntryDestination")
+        compose.onNodeWithTag("EntryDestination_grid_2").performScrollTo()
+        click("EntryDestination_grid_2")
+        click("EntryDestination_collapse")
+        compose.onNodeWithText("7").performScrollTo().performClick()
+        click("EntrySubmit")
+        compose.runOnIdle {
+            assertEquals(57.4, submitted!!.amount, 0.001)
+            assertEquals(2L, submitted!!.toAccountId)
+            assertTrue(submitted!!.description.contains("1 USD = 8.2 HKD"))
+            assertTrue(submitted!!.description.contains("Frankfurter 2026-10-08"))
+        }
     }
 
     private fun assertRowReveals(prefix: String, key: String) {

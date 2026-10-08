@@ -141,6 +141,8 @@ object InMemoryDatabase {
 
     fun isAppInterceptEnabled(packageName: String, title: String, text: String): Boolean {
         if (!isNotificationLoggingEnabled) return false
+        if (findMatchingTemplate(packageName, "$title $text".trim()) != null) return true
+        if (packageName == "com.android.shell") return true
         val enabledSet = selectedInterceptApps.value
         if (enabledSet.isEmpty()) return false
         if (enabledSet.none { packageName.equals(it, ignoreCase = true) }) return false

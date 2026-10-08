@@ -70,6 +70,7 @@ internal fun <T> ExpandableEntrySelector(
     title: String, tagPrefix: String, keyProvider: (T) -> String,
     labelProvider: @Composable (T) -> String, modifier: Modifier = Modifier,
     overlayIncludesAssets: Boolean = false,
+    compactChoices: Boolean = false,
     subtitleProvider: (@Composable (T) -> String)? = null,
     iconProvider: (@Composable (T, Color) -> Unit)? = null,
     onAdd: (() -> Unit)? = null
@@ -129,7 +130,9 @@ internal fun <T> ExpandableEntrySelector(
                     IntOffset(bounds.left.roundToInt() - shadowPaddingPx, bounds.top.roundToInt() - shadowPaddingPx)
             } },
             onDismissRequest = { host.activeTag = null },
-            properties = PopupProperties(focusable = false)
+            // A modal popup owns the whole outside-touch gesture. Otherwise dismissal on
+            // DOWN lets UP click the underlying toggle and immediately reopen the menu.
+            properties = PopupProperties(focusable = true)
         ) {
             // Keep room for the shadow throughout the transition without changing the covered area.
             Box(Modifier.size(with(density) { bounds.width.toDp() } + shadowPadding * 2,
@@ -175,9 +178,11 @@ internal fun <T> ExpandableEntrySelector(
                                                         val item = items[index]
                                                         EntryChoiceTile(labelProvider(item), subtitleProvider?.invoke(item), index == selectedIndex,
                                                             { onItemSelected(index); selectionRevealRequest++ }, Modifier.weight(1f).fillMaxHeight().testTag("${tagPrefix}_grid_${keyProvider(item)}"),
+                                                            compact = compactChoices,
                                                             icon = iconProvider?.let { provider -> { tint -> provider(item, tint) } })
                                                     } else EntryChoiceTile(stringResource(R.string.btn_add), selected = false, onClick = ::add,
                                                         modifier = Modifier.weight(1f).fillMaxHeight().testTag("${tagPrefix}_grid_add"), role = Role.Button,
+                                                        compact = compactChoices,
                                                         icon = { Icon(Icons.Default.Add, null, Modifier.size(18.dp), tint = it) })
                                                 }
                                                 repeat(columns - indices.size) { Spacer(Modifier.weight(1f)) }
@@ -202,6 +207,7 @@ private fun EntryChoiceTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     role: Role = Role.RadioButton,
+    compact: Boolean = false,
     icon: (@Composable (Color) -> Unit)? = null
 ) {
     val source = remember { MutableInteractionSource() }
@@ -213,10 +219,10 @@ private fun EntryChoiceTile(
         inactiveContentColor = MaterialTheme.colorScheme.onSurface)
     Surface(shape = shape, color = colors.containerColor, contentColor = colors.contentColor,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-        modifier = modifier.heightIn(min = 72.dp).clip(shape)
+        modifier = modifier.heightIn(min = if (compact) 56.dp else 72.dp).clip(shape)
             .selectable(selected, role = role, interactionSource = source, indication = ripple(color = colors.rippleColor), onClick = onClick)
     ) {
-        Column(Modifier.then(colors.contentModifier).padding(horizontal = 10.dp, vertical = 10.dp),
+        Column(Modifier.then(colors.contentModifier).padding(horizontal = 10.dp, vertical = if (compact) 6.dp else 10.dp),
             verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 icon?.invoke(colors.contentColor)
