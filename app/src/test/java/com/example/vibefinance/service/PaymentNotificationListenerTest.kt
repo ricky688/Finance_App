@@ -942,6 +942,46 @@ class PaymentNotificationListenerTest {
         assertNotNull("Should auto-match via learned cardLast4 alias", matched3)
         assertEquals(777L, matched3!!.id)
     }
+
+    @Test
+    fun testOctopusTopUpCreditCardAndSamsungWalletClassification() {
+        val bankPkg = "com.hangseng.rbmobile"
+        val title = "恒生信用卡"
+        val text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289 簽賬HK$300.00"
+
+        assertTrue("Octopus top-up via credit card must be recognized as payment", PaymentNotificationListener.isPaymentNotification(title, text, bankPkg))
+        val parsedBank = PaymentNotificationListener.parseNotification(title, text, bankPkg)
+        assertNotNull("Credit card top-up alert must be parsed", parsedBank)
+        assertEquals(300.00, parsedBank!!.amount, 0.001)
+        assertEquals("1691", parsedBank.cardLast4)
+        assertTrue("isTopUp must be true for credit card Octopus top-up", parsedBank.isTopUp)
+        assertEquals("TRANSFER", parsedBank.transactionType)
+        assertEquals("Top-up", PaymentNotificationListener.determineCategory(parsedBank.merchant))
+
+        val spayPkg = "com.samsung.android.spay"
+        val spayText = "OCL* OCTOPUS AD1315289 HK$300.00"
+        assertTrue("Samsung Wallet Octopus top-up must be recognized", PaymentNotificationListener.isPaymentNotification("Samsung Wallet", spayText, spayPkg))
+        val parsedSpay = PaymentNotificationListener.parseNotification("Samsung Wallet", spayText, spayPkg)
+        assertNotNull("Samsung Wallet alert must be parsed", parsedSpay)
+        assertEquals(300.00, parsedSpay!!.amount, 0.001)
+        assertTrue("Samsung Wallet isTopUp must be true", parsedSpay.isTopUp)
+        assertEquals("TRANSFER", parsedSpay.transactionType)
+        assertEquals("Top-up", PaymentNotificationListener.determineCategory(parsedSpay.merchant))
+    }
+
+    @Test
+    fun testTransactionGrammarEngineTransferDetection() {
+        val grammarResult = TransactionGrammarEngine.parse(
+            title = "恒生信用卡",
+            text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289 消費HK$300.00",
+            packageName = "com.hangseng.rbmobile"
+        )
+        assertNotNull(grammarResult)
+        assertEquals(300.0, grammarResult!!.amount, 0.001)
+        assertEquals("1691", grammarResult.cardLast4)
+        assertEquals(com.example.vibefinance.data.entity.ParsedTransactionType.TRANSFER, grammarResult.intent)
+        assertEquals("OCL* OCTOPUS AD1315289", grammarResult.merchant)
+    }
 }
 
 

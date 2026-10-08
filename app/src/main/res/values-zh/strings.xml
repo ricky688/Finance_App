@@ -427,4 +427,5 @@
     <string name="vst_save_and_apply">保存模板并应用</string>
     <string name="vst_open_button">✨ 自定义标记模板</string>
     <string name="vst_templates_title">自定义通知模板</string>
+    <string name="edit_transfer_accounts_required">请选择两个不同账户以保存转账。</string>
 </resources>

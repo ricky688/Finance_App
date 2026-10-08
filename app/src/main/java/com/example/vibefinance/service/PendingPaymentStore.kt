@@ -129,6 +129,30 @@ object PendingPaymentStore {
         if (seen[fingerprint]?.let { System.currentTimeMillis() - it <= SAME_ALERT_WINDOW_MS } == true) {
             return null
         }
+
+        val isOctopusTopUpTx = isTopUp || transactionType == "TRANSFER" ||
+            merchant.contains("OCL*", ignoreCase = true) || merchant.contains("OCTOPUS", ignoreCase = true)
+
+        if (isOctopusTopUpTx) {
+            // Deduplicate concurrent top-up notifications (e.g. Bank app + Samsung Wallet) within 90s
+            val duplicateInPending = _pending.value.any {
+                (it.isTopUp || it.transactionType == "TRANSFER" || it.merchant.contains("OCL*", ignoreCase = true) || it.merchant.contains("OCTOPUS", ignoreCase = true)) &&
+                    kotlin.math.abs(it.amount - amount) < 0.01 &&
+                    kotlin.math.abs(it.detectedAt - detectedAt) <= 90_000L
+            }
+            if (duplicateInPending) {
+                return null
+            }
+
+            val duplicateInTransactions = InMemoryDatabase.transactions.value.any {
+                (it.category == "Top-up" || it.toAccountId != null || it.description.contains("OCL*", ignoreCase = true) || it.description.contains("OCTOPUS", ignoreCase = true)) &&
+                    kotlin.math.abs(kotlin.math.abs(it.amount) - amount) < 0.01 &&
+                    kotlin.math.abs(it.timestamp - detectedAt) <= 90_000L
+            }
+            if (duplicateInTransactions) {
+                return null
+            }
+        }
         val id = MessageDigest.getInstance("SHA-256")
             .digest("$fingerprint|$detectedAt".toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
@@ -430,21 +454,62 @@ object PendingPaymentStore {
         val payment = _pending.value.firstOrNull { it.id == paymentId } ?: return false
         val account = InMemoryDatabase.accounts.value.firstOrNull { it.id == accountId } ?: return false
         val transactionKey = "notification:${payment.id}"
-        val isIncome = payment.isTopUp || payment.transactionType == "INCOME"
-        val txAmount = if (isIncome) -payment.amount else payment.amount
-        val txCategory = when {
-            payment.isTopUp -> "Top-up"
-            payment.transactionType == "INCOME" -> "Salary"
-            payment.transactionType == "REPAYMENT" -> "Repayment"
-            else -> PaymentNotificationListener.determineCategory(payment.merchant)
+        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
+        val isIncome = !isTopUp && payment.transactionType == "INCOME"
+        val isRepayment = payment.transactionType == "REPAYMENT"
+
+        val isDestinationOctopus = isOctopusAccount(account)
+        val destinationOctopus = if (isTopUp && !isDestinationOctopus) {
+            InMemoryDatabase.accounts.value.firstOrNull { it.id != account.id && isOctopusAccount(it) }
+        } else null
+
+        val toAccountId: Long?
+        val txAmount: Double
+        val txCategory: String
+        val isExcluded: Boolean
+
+        when {
+            isTopUp -> {
+                txCategory = "Top-up"
+                isExcluded = true
+                if (destinationOctopus != null) {
+                    toAccountId = destinationOctopus.id
+                    txAmount = payment.amount
+                } else if (!isDestinationOctopus) {
+                    toAccountId = null
+                    txAmount = payment.amount
+                } else {
+                    toAccountId = null
+                    txAmount = -payment.amount
+                }
+            }
+            isIncome -> {
+                toAccountId = null
+                txAmount = -payment.amount
+                txCategory = "Salary"
+                isExcluded = true
+            }
+            isRepayment -> {
+                toAccountId = null
+                txAmount = payment.amount
+                txCategory = "Repayment"
+                isExcluded = true
+            }
+            else -> {
+                toAccountId = null
+                txAmount = payment.amount
+                txCategory = PaymentNotificationListener.determineCategory(payment.merchant)
+                isExcluded = false
+            }
         }
-        val isExcluded = isIncome || payment.transactionType == "REPAYMENT"
+
         val inserted = InMemoryDatabase.insertNotificationExpenseIfAbsent(
             TransactionEntity(
                 amount = txAmount,
                 category = txCategory,
                 timestamp = payment.detectedAt.coerceAtMost(System.currentTimeMillis()),
                 accountId = account.id,
+                toAccountId = toAccountId,
                 description = payment.merchant,
                 groupId = transactionKey,
                 isExcludedFromDailyBudget = isExcluded

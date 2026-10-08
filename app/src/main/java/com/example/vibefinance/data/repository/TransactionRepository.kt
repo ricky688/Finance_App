@@ -116,22 +116,7 @@ class TransactionRepository @Inject constructor() {
     }
 
     suspend fun updateTransaction(newTx: TransactionEntity, oldTx: TransactionEntity) {
-        // 1. Reverse the effect of the old transaction on account balances.
-        if (oldTx.timestamp <= System.currentTimeMillis()) {
-            reverseAccountBalancesForTransaction(oldTx)
-        }
-        // 2. Update in database.
-        val updatedTransaction = withAccountTypeSnapshot(
-            newTx.copy(
-                sourceWasCreditCard = if (newTx.accountId == oldTx.accountId) newTx.sourceWasCreditCard else null,
-                destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null
-            )
-        )
-        InMemoryDatabase.updateTransaction(updatedTransaction)
-        // 3. Apply the effect of the new transaction on account balances.
-        if (updatedTransaction.timestamp <= System.currentTimeMillis()) {
-            updateAccountBalancesForTransaction(updatedTransaction)
-        }
+        InMemoryDatabase.updateTransactionWithBalances(newTx, oldTx)
     }
 
     suspend fun deleteInstallmentGroup(groupId: String, accountId: Long) {

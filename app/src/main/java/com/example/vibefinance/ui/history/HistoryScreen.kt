@@ -333,7 +333,9 @@ fun HistoryScreen(
     var editCategoryText by remember { mutableStateOf("") }
     var editDescriptionText by remember { mutableStateOf("") }
     var editCustomIcon by remember { mutableStateOf<String?>(null) }
-    var editIsIncome by remember { mutableStateOf(false) }
+    var editType by remember { mutableStateOf(HistoryTransactionType.Expense) }
+    var editSourceAccountId by remember { mutableStateOf<Long?>(null) }
+    var editDestinationAccountId by remember { mutableStateOf<Long?>(null) }
     var editIsDailyBudget by remember { mutableStateOf(true) }
 
     // Predictive back for editing transaction modal
@@ -615,7 +617,13 @@ fun HistoryScreen(
                                                 editCategoryText = tx.category
                                                 editDescriptionText = tx.description
                                                 editCustomIcon = tx.customIcon
-                                                editIsIncome = tx.amount < 0
+                                                editType = when {
+                                                    tx.toAccountId != null -> HistoryTransactionType.Transfer
+                                                    tx.amount < 0 -> HistoryTransactionType.Income
+                                                    else -> HistoryTransactionType.Expense
+                                                }
+                                                editSourceAccountId = tx.accountId
+                                                editDestinationAccountId = tx.toAccountId
                                                 editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
                                             }
                                         },
@@ -825,7 +833,14 @@ fun HistoryScreen(
 
     // Real Transaction Edit Dialog with Container Transform Morphing
     editingTransaction?.let { tx ->
-        val canChangeType = tx.toAccountId == null && !tx.isBalanceAdjustment
+        val canChangeType = !tx.isBalanceAdjustment
+        val editIsIncome = editType == HistoryTransactionType.Income
+        val editIsTransfer = editType == HistoryTransactionType.Transfer
+        val validTransferAccounts = !editIsTransfer || (
+            state.accounts.any { it.id == editSourceAccountId } &&
+                state.accounts.any { it.id == editDestinationAccountId } &&
+                editSourceAccountId != editDestinationAccountId
+            )
         val editedMagnitude = editAmountText.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
         val dialogScale by animateFloatAsState(
             targetValue = 1.0f,
@@ -855,8 +870,14 @@ fun HistoryScreen(
                             style = MaterialTheme.typography.labelLarge
                         )
                         HistoryTransactionTypeSelector(
-                            isIncome = editIsIncome,
-                            onTypeSelected = { editIsIncome = it }
+                            type = editType,
+                            onTypeSelected = { selectedType ->
+                                if (editType == HistoryTransactionType.Transfer &&
+                                    selectedType != HistoryTransactionType.Transfer && editCategoryText == "Transfer") {
+                                    editCategoryText = if (selectedType == HistoryTransactionType.Income) "Salary" else "Food"
+                                }
+                                editType = selectedType
+                            }
                         )
                     }
                     OutlinedTextField(
@@ -868,7 +889,32 @@ fun HistoryScreen(
                         modifier = Modifier.fillMaxWidth().testTag("EditTransactionAmount")
                     )
 
-                    if (canChangeType) {
+                    if (editIsTransfer) {
+                        HistoryAccountDropdown(
+                            accountId = editSourceAccountId,
+                            accounts = state.accounts,
+                            label = stringResource(R.string.transfer_from),
+                            tag = "EditTransactionSource",
+                            onAccountSelected = {
+                                editSourceAccountId = it
+                                if (editDestinationAccountId == it) editDestinationAccountId = null
+                            }
+                        )
+                        HistoryAccountDropdown(
+                            accountId = editDestinationAccountId,
+                            accounts = state.accounts.filter { it.id != editSourceAccountId },
+                            label = stringResource(R.string.transfer_to),
+                            tag = "EditTransactionDestination",
+                            onAccountSelected = { editDestinationAccountId = it }
+                        )
+                        if (state.accounts.size < 2) {
+                            Text(
+                                stringResource(R.string.edit_transfer_accounts_required),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    } else if (canChangeType) {
                         HistoryCategoryDropdown(
                             category = editCategoryText,
                             isIncome = editIsIncome,
@@ -887,7 +933,7 @@ fun HistoryScreen(
                         )
                     }
 
-                    if (canChangeType && !editIsIncome) {
+                    if (canChangeType && editType == HistoryTransactionType.Expense) {
                         com.example.vibefinance.ui.components.ExpenseIconChoice(
                             value = editCustomIcon, category = editCategoryText, onValueChange = { editCustomIcon = it }
                         )
@@ -901,7 +947,7 @@ fun HistoryScreen(
                     )
 
                     // Daily Budget Toggle for Expenses
-                    if (canChangeType && !editIsIncome) {
+                    if (canChangeType && editType == HistoryTransactionType.Expense) {
                         val editHaptic = LocalHapticFeedback.current
                         Surface(
                             modifier = Modifier
@@ -956,20 +1002,23 @@ fun HistoryScreen(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         val amount = editedMagnitude
-                        if (amount != null) {
+                        if (amount != null && validTransferAccounts) {
                             val newTx = tx.withHistoryEdit(
                                 magnitude = amount,
                                 isIncome = editIsIncome,
                                 category = editCategoryText,
                                 description = editDescriptionText,
                                 countsTowardDailyBudget = editIsDailyBudget,
-                                customIcon = editCustomIcon
+                                customIcon = editCustomIcon,
+                                isTransfer = editIsTransfer,
+                                sourceAccountId = if (editIsTransfer) requireNotNull(editSourceAccountId) else tx.accountId,
+                                destinationAccountId = if (editIsTransfer) editDestinationAccountId else null
                             )
                             onIntent(FinanceIntent.EditTransaction(tx, newTx))
                             editingTransaction = null
                         }
                     },
-                    enabled = editedMagnitude != null,
+                    enabled = editedMagnitude != null && validTransferAccounts,
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     interactionSource = confirmInteraction,
                     modifier = Modifier
@@ -1026,10 +1075,12 @@ fun HistoryScreen(
     }
 }
 
+private enum class HistoryTransactionType { Expense, Income, Transfer }
+
 @Composable
 private fun HistoryTransactionTypeSelector(
-    isIncome: Boolean,
-    onTypeSelected: (Boolean) -> Unit
+    type: HistoryTransactionType,
+    onTypeSelected: (HistoryTransactionType) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
@@ -1040,8 +1091,8 @@ private fun HistoryTransactionTypeSelector(
             .testTag("EditTransactionTypeGroup"),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     ) {
-        listOf(false, true).forEachIndexed { index, incomeOption ->
-            val isSelected = isIncome == incomeOption
+        HistoryTransactionType.entries.forEachIndexed { index, option ->
+            val isSelected = type == option
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
             val colorMotion = rememberConnectedButtonColorMotion(
@@ -1053,13 +1104,13 @@ private fun HistoryTransactionTypeSelector(
                 CompletePressToggleButton(
                     checked = isSelected,
                     onCheckedChange = {
-                        onTypeSelected(incomeOption)
+                        onTypeSelected(option)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     },
-                    shapes = if (index == 0) {
-                        ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    } else {
-                        ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        2 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                     },
                     interactionSource = interactionSource,
                     colors = ToggleButtonDefaults.toggleButtonColors(
@@ -1072,7 +1123,7 @@ private fun HistoryTransactionTypeSelector(
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .testTag(if (incomeOption) "EditTransactionIncome" else "EditTransactionExpense")
+                        .testTag("EditTransaction${option.name}")
                         .semantics {
                             selected = isSelected
                             role = Role.RadioButton
@@ -1090,17 +1141,60 @@ private fun HistoryTransactionTypeSelector(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
                             Text(
-                                text = stringResource(if (incomeOption) R.string.filter_income else R.string.filter_expense),
+                                text = stringResource(when (option) {
+                                    HistoryTransactionType.Expense -> R.string.filter_expense
+                                    HistoryTransactionType.Income -> R.string.filter_income
+                                    HistoryTransactionType.Transfer -> R.string.filter_transfer
+                                }),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryAccountDropdown(
+    accountId: Long?,
+    accounts: List<AccountEntity>,
+    label: String,
+    tag: String,
+    onAccountSelected: (Long) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (accounts.isNotEmpty()) expanded = !expanded },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        OutlinedTextField(
+            value = accounts.firstOrNull { it.id == accountId }?.displayLabel().orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth().testTag(tag)
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 320.dp).testTag("${tag}Menu")
+        ) {
+            accounts.forEach { account ->
+                DropdownMenuItem(
+                    text = { Text(account.displayLabel()) },
+                    onClick = { onAccountSelected(account.id); expanded = false },
+                    modifier = Modifier.testTag("${tag}Option_${account.id}")
+                )
             }
         }
     }
@@ -1210,25 +1304,39 @@ private fun HistoryCategoryDropdown(
     }
 }
 
-/** Expense/income edits retain the magnitude and transfer metadata; adjustments are read only. */
+/** Change a record in place; transfer conversions detach this record from any installment plan. */
 internal fun TransactionEntity.withHistoryEdit(
     magnitude: Double,
     isIncome: Boolean,
     category: String,
     description: String,
     countsTowardDailyBudget: Boolean,
-    customIcon: String? = this.customIcon
+    customIcon: String? = this.customIcon,
+    isTransfer: Boolean = toAccountId != null,
+    sourceAccountId: Long = accountId,
+    destinationAccountId: Long? = toAccountId
 ): TransactionEntity {
     require(magnitude.isFinite() && magnitude > 0.0) { "Amount must be positive and finite" }
     require(!isBalanceAdjustment) { "Balance adjustments are read only" }
-    val canChangeType = toAccountId == null
-    val targetIsIncome = if (canChangeType) isIncome else amount < 0.0
+    require(!isTransfer || (destinationAccountId != null && sourceAccountId != destinationAccountId)) {
+        "A transfer needs two different accounts"
+    }
+    val changesTransferType = (toAccountId != null) != isTransfer
+    // Keep the signed direction of legacy transfers when only editing their fields.
+    val negative = if (isTransfer) toAccountId != null && amount < 0.0 else isIncome
     return copy(
-        amount = if (targetIsIncome) -magnitude else magnitude,
-        category = category,
+        amount = if (negative) -magnitude else magnitude,
+        accountId = sourceAccountId,
+        toAccountId = if (isTransfer) destinationAccountId else null,
+        sourceWasCreditCard = sourceWasCreditCard.takeIf { sourceAccountId == accountId },
+        destinationWasCreditCard = destinationWasCreditCard.takeIf { isTransfer && destinationAccountId == toAccountId },
+        category = if (isTransfer) "Transfer" else category,
         description = description,
         customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(customIcon),
-        isExcludedFromDailyBudget = if (canChangeType) isIncome || !countsTowardDailyBudget else isExcludedFromDailyBudget
+        isExcludedFromDailyBudget = isTransfer || isIncome || !countsTowardDailyBudget,
+        installmentNumber = installmentNumber.takeUnless { changesTransferType },
+        totalInstallments = totalInstallments.takeUnless { changesTransferType },
+        groupId = groupId.takeUnless { changesTransferType }
     )
 }
 

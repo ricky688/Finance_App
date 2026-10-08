@@ -425,4 +425,5 @@
     <string name="vst_save_and_apply">儲存模板並套用</string>
     <string name="vst_open_button">✨ 自訂標記模板</string>
     <string name="vst_templates_title">自訂通知模板</string>
+    <string name="edit_transfer_accounts_required">請選擇兩個不同帳戶以儲存轉帳。</string>
 </resources>

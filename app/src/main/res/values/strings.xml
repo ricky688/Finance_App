@@ -427,4 +427,5 @@
     <string name="vst_save_and_apply">Save Template &amp; Apply</string>
     <string name="vst_open_button">✨ Custom Tagging Template</string>
     <string name="vst_templates_title">CUSTOM NOTIFICATION TEMPLATES</string>
+    <string name="edit_transfer_accounts_required">Choose two different accounts to save a transfer.</string>
 </resources>

@@ -114,7 +114,8 @@ internal fun PendingPaymentChoiceDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        val isIncome = currentPayment.isTopUp || currentPayment.transactionType == "INCOME"
+                        val isIncome = !currentPayment.isTopUp && currentPayment.transactionType == "INCOME"
+                        val isTopUp = currentPayment.isTopUp || currentPayment.transactionType == "TRANSFER"
                         val amountPrefix = if (isIncome) "+HK$" else "HK$"
                         Text(
                             text = "$amountPrefix${String.format(Locale.getDefault(), "%,.2f", currentPayment.amount)}",
@@ -122,6 +123,14 @@ internal fun PendingPaymentChoiceDialog(
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
+                        if (isTopUp) {
+                            Text(
+                                text = stringResource(R.string.nf_logged_topup_title),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
                         Text(
                             text = currentPayment.merchant,
                             style = MaterialTheme.typography.bodyMedium,

@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.example.vibefinance.data.InMemoryDatabase
+import com.example.vibefinance.data.entity.ParsedTransactionType
 import com.example.vibefinance.R
 import com.example.vibefinance.util.appString
 import java.util.Locale
@@ -181,7 +182,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         private val walletCardAmount = Regex("(?i)\\bamount:\\s*(?:HKD|HK\\$|\\$)?\\s*[0-9]+(?:\\.[0-9]{1,2})?")
         private val walletCardLabel = Regex("(?i)\\b(?:card|via):")
         private val localCurrencyAmount = Regex(
-            "(?:HKD|HK\\$|\\$)\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*(?:HKD|HK\\$)",
+            "(?:HKD|HK\\$|\\$)\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|(?<![A-Za-z0-9])([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*HKD",
             RegexOption.IGNORE_CASE
         )
         private val bocGoUnionPayTitle = Regex(
@@ -198,11 +199,16 @@ class PaymentNotificationListener : NotificationListenerService() {
             "(?i)(?:successfully\\s+)?(?:transferred|topped[- ]?up)\\s*(?:HKD|HK\\$|\\$)?\\s*([0-9]+(?:\\.[0-9]{1,2})?)\\s*(?:from\\s+bank\\s+account\\s+)?to\\s+octopus(?:\\s*[*•●xX-]{1,8}(\\d{4}))?"
         )
 
+        val octopusTopUpPattern = Regex(
+            "(?i)(?:OCL\\*|OCTOPUS\\s*(?:AAVS|APP|ONLINE|AUTO|RELOAD|TOP[- ]?UP|CARDS)|\\bAAVS\\b|八達通(?:自動)?(?:增值|充值|儲值)|(?:增值|充值|儲值)八達通|轉[賬帳]至八達通|由銀行戶口轉[賬帳].*至八達通)"
+        )
+
         fun isOctopusTopUp(title: String, text: String): Boolean {
             val combined = "$title $text"
             return octopusTopUpBankTransfer.containsMatchIn(combined) ||
                 octopusTopUpGeneral.containsMatchIn(combined) ||
                 octopusTopUpEnglish.containsMatchIn(combined) ||
+                octopusTopUpPattern.containsMatchIn(combined) ||
                 (combined.contains("八達通") && (combined.contains("由銀行戶口轉賬") || combined.contains("由銀行戶口轉帳")))
         }
 
@@ -254,9 +260,11 @@ class PaymentNotificationListener : NotificationListenerService() {
                 return false
             }
 
-            // High-confidence Transaction Grammar Engine match for active expense payments
+            // High-confidence Transaction Grammar Engine match for active expense/transfer payments
             val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
-            if (grammarResult != null && grammarResult.confidence >= 0.9f && grammarResult.amount > 0.0 && grammarResult.intent == com.example.vibefinance.data.entity.ParsedTransactionType.EXPENSE) {
+            if (grammarResult != null && grammarResult.confidence >= 0.9f && grammarResult.amount > 0.0 &&
+                (grammarResult.intent == com.example.vibefinance.data.entity.ParsedTransactionType.EXPENSE ||
+                 grammarResult.intent == com.example.vibefinance.data.entity.ParsedTransactionType.TRANSFER)) {
                 return true
             }
 
@@ -296,9 +304,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         fun extractCardLast4(text: String, title: String = ""): String? {
             val combined = "$title $text"
 
-            // 1. Explicit indicators: "ending in 1234", "尾號1234", "末4位1234", "後4位1234", "卡號末四位1234"
+            // 1. Explicit indicators: "ending in 1234", "尾號1234", "末4位1234", "後4位1234", "最後數字1234", "卡號末四位1234"
             val explicitPattern = Regex(
-                "(?i)(?:ending\\s+(?:in|with)?|尾號[為是：:]?|末[四4]位[為是：:]?|後[四4]位[為是：:]?|卡號[為是：:]?|卡號末[四4]位[為是：:]?)\\s*([0-9]{4})(?!\\d)"
+                "(?i)(?:ending\\s+(?:in|with)?|尾號[為是：:]?|末[四4]位[為是：:]?|後[四4]位[為是：:]?|最後數字[為是：:]?|最後[四4]位[為是：:]?|卡號[為是：:]?|卡號末[四4]位[為是：:]?)\\s*([0-9]{4})(?!\\d)"
             )
             explicitPattern.find(combined)?.groupValues?.get(1)?.let { return it }
 
@@ -425,19 +433,29 @@ class PaymentNotificationListener : NotificationListenerService() {
                 }
 
                 if (amount != null && amount > 0.0) {
-                    val merchant = if (text.contains("增值") || title.contains("增值")) {
-                        "八達通增值"
-                    } else if (text.contains("轉賬") || text.contains("轉帳")) {
-                        "銀行戶口轉賬至八達通"
+                    val oclMatch = Regex("(?i)OCL\\*\\s*OCTOPUS(?:\\s+[A-Za-z0-9]+)?").find(text)
+                        ?: Regex("(?i)OCL\\*\\s*OCTOPUS(?:\\s+[A-Za-z0-9]+)?").find(title)
+                    val merchant = when {
+                        oclMatch != null -> oclMatch.value.trim()
+                        text.contains("自動增值") || title.contains("自動增值") -> "八達通自動增值"
+                        text.contains("增值") || title.contains("增值") -> "八達通增值"
+                        text.contains("轉賬") || text.contains("轉帳") -> "銀行戶口轉賬至八達通"
+                        else -> "八達通增值"
+                    }
+                    val assetName = if (topUpCardLast4 != null && (title.contains("卡") || text.contains("信用卡") || text.contains("扣賬卡") || text.contains("credit", ignoreCase = true))) {
+                        resolveAssetName(title, text, topUpCardLast4)
                     } else {
-                        "八達通增值"
+                        "八達通"
                     }
                     return ParsedPayment(
                         amount = amount,
                         merchant = merchant,
-                        assetName = "八達通",
+                        assetName = assetName,
                         cardLast4 = topUpCardLast4 ?: detectedCardLast4,
-                        isTopUp = true
+                        isTopUp = true,
+                        rawTitle = title,
+                        rawText = text,
+                        transactionType = "TRANSFER"
                     )
                 }
             }
@@ -647,12 +665,25 @@ class PaymentNotificationListener : NotificationListenerService() {
                             title.contains("八逹通") ||
                             merchant.contains("OCTOPUS", ignoreCase = true) ||
                             merchant.startsWith("OCL*", ignoreCase = true)
+                        val isTopUp = isOctopusTopUp(title, text) ||
+                            merchant.startsWith("OCL*", ignoreCase = true) ||
+                            merchant.contains("AAVS", ignoreCase = true) ||
+                            (merchant.contains("OCTOPUS", ignoreCase = true) && merchant.contains("OCL", ignoreCase = true))
                         val assetName = when {
                             isOctopus -> "Smart Octopus"
                             title.isNotBlank() -> title.trim()
                             else -> "Samsung Wallet"
                         }
-                        return ParsedPayment(amount, if (merchant.isBlank()) "Samsung Wallet Merchant" else merchant, assetName, cardLast4 = detectedCardLast4)
+                        return ParsedPayment(
+                            amount = amount,
+                            merchant = if (merchant.isBlank()) "Samsung Wallet Merchant" else merchant,
+                            assetName = assetName,
+                            cardLast4 = detectedCardLast4,
+                            isTopUp = isTopUp,
+                            rawTitle = title,
+                            rawText = text,
+                            transactionType = if (isTopUp) "TRANSFER" else "EXPENSE"
+                        )
                     }
                 }
             }
@@ -667,14 +698,19 @@ class PaymentNotificationListener : NotificationListenerService() {
                     isBocGoUnionPayTransit = isBocGoUnionPayTransit,
                     fallbackHint = grammarResult.assetHint
                 )
+                val isTopUp = grammarResult.intent == ParsedTransactionType.TRANSFER ||
+                    isOctopusTopUp(title, text) ||
+                    grammarResult.merchant.contains("OCL*", ignoreCase = true) ||
+                    grammarResult.merchant.contains("OCTOPUS", ignoreCase = true)
                 return ParsedPayment(
                     amount = grammarResult.amount,
                     merchant = grammarResult.merchant,
                     assetName = assetName,
                     cardLast4 = grammarResult.cardLast4 ?: detectedCardLast4,
+                    isTopUp = isTopUp,
                     rawTitle = title,
                     rawText = text,
-                    transactionType = grammarResult.intent.name
+                    transactionType = if (isTopUp) "TRANSFER" else grammarResult.intent.name
                 )
             }
 
@@ -725,6 +761,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             return when {
                 combined.contains("增值") || combined.contains("充值") || combined.contains("儲值") ||
                 combined.contains("轉賬至八達通") || combined.contains("轉帳至八達通") || combined.contains("至八達通") ||
+                combined.contains("ocl*") || combined.contains("aavs") ||
                 combined.contains("top-up") || combined.contains("top up") -> "Top-up"
 
                 combined.contains("sushiro") || combined.contains("壽司郎") ||

@@ -325,19 +325,26 @@ class HistoryScreenTest {
     }
 
     @Test
-    fun transferEditorDoesNotOfferExpenseIncomeConversion() {
+    fun transferEditorOffersTypeAndAccountChanges() {
         val transfer = TransactionEntity(
             id = 303L, amount = 200.0, category = "Transfer", timestamp = System.currentTimeMillis(),
             accountId = 1L, toAccountId = 2L, description = "Card repayment"
         )
         composeTestRule.setContent {
-            HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(transfer)), onIntent = {})
+            HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(transfer), accounts = listOf(
+                AccountEntity(id = 1, name = "Bank", type = AccountType.BANK, balance = 100.0, icon = "bank"),
+                AccountEntity(id = 2, name = "Cash", type = AccountType.CASH, balance = 100.0, icon = "wallet")
+            )), onIntent = {})
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_303"))
         composeTestRule.onNodeWithTag("TransactionRow_303").performClick()
         composeTestRule.onNodeWithTag("EditTransactionAmount").assertIsDisplayed()
-        composeTestRule.onNodeWithTag("EditTransactionIncome").assertDoesNotExist()
-        composeTestRule.onNodeWithTag("EditTransactionExpense").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionTransfer").assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionSource").assertTextContains("Bank")
+        composeTestRule.onNodeWithTag("EditTransactionDestination").assertTextContains("Cash")
+        composeTestRule.onNodeWithTag("EditTransactionExpense").performClick().assertIsSelected()
+        composeTestRule.onNodeWithTag("EditTransactionDestination").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionDailyBudget").assertExists()
     }
 
     @Test

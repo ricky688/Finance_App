@@ -43,7 +43,7 @@ object TransactionGrammarEngine {
 
     // Card last 4 digits
     private val cardLast4Regex = Regex(
-        "(?i)(?:card|尾號|末四位|ending in|ending|acct|結尾|•+|\\*+|x+)\\s*(\\d{4})|\\b(?:\\d{4})\\s*(?:卡|信用卡|扣賬卡|戶口)"
+        "(?i)(?:card|尾號|末四位|末4位|後四位|後4位|最後數字|最後四位|最後4位|ending in|ending|acct|結尾|•+|\\*+|x+)\\s*(\\d{4})|\\b(?:\\d{4})\\s*(?:卡|信用卡|扣賬卡|戶口)"
     )
 
     // Negative filters (spam, OTP, promos, statements, logins)
@@ -66,6 +66,11 @@ object TransactionGrammarEngine {
         Regex("還款|償還|繳付信用卡|信用卡還款|信用卡繳費|自動轉帳還款|償還卡數")
     )
 
+    private val transferPatterns = listOf(
+        Regex("(?i)(?:\\b(?:transfer(?:red)?|top[- ]?up|reload|aavs)\\b|ocl\\*|octopus\\s*(?:aavs|top[- ]?up|reload|app))"),
+        Regex("八達通(?:自動)?(?:增值|充值|儲值)|(?:增值|充值|儲值)八達通|自動增值|轉[賬帳]至八達通|由銀行戶口轉[賬帳]|轉[賬帳]至|轉入八達通")
+    )
+
     private val expensePatterns = listOf(
         Regex("(?i)\\b(?:paid|spent|purchase|charged|debited)\\b"),
         Regex("消費|支出|扣款|已扣款|付款|已完成付款|刷卡|成功扣除")
@@ -81,6 +86,9 @@ object TransactionGrammarEngine {
         }
         if (incomePatterns.any { it.containsMatchIn(combined) }) {
             return ParsedTransactionType.INCOME
+        }
+        if (transferPatterns.any { it.containsMatchIn(combined) }) {
+            return ParsedTransactionType.TRANSFER
         }
         if (expensePatterns.any { it.containsMatchIn(combined) }) {
             return ParsedTransactionType.EXPENSE
@@ -100,6 +108,12 @@ object TransactionGrammarEngine {
      * Extracts merchant via preposition anchors with clean formatting.
      */
     fun extractMerchant(title: String, text: String, intent: ParsedTransactionType): String? {
+        val oclMatch = Regex("(?i)OCL\\*\\s*OCTOPUS(?:\\s+[A-Za-z0-9]+)?").find(text)
+            ?: Regex("(?i)OCL\\*\\s*OCTOPUS(?:\\s+[A-Za-z0-9]+)?").find(title)
+        if (oclMatch != null) {
+            return oclMatch.value.trim()
+        }
+
         val candidates = listOf(text, title)
 
         // Try Chinese anchors
@@ -174,6 +188,7 @@ object TransactionGrammarEngine {
         val extractedMerchant = extractMerchant(title, text, intent)
         val merchant = when {
             !extractedMerchant.isNullOrBlank() -> extractedMerchant
+            intent == ParsedTransactionType.TRANSFER -> "八達通增值"
             intent == ParsedTransactionType.INCOME -> "薪金 / 入息轉入"
             intent == ParsedTransactionType.REPAYMENT -> "信用卡繳費還款"
             title.isNotBlank() && !title.contains("銀行", ignoreCase = true) && !title.contains("Bank", ignoreCase = true) -> title.trim()

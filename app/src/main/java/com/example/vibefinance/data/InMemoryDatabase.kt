@@ -470,7 +470,7 @@ object InMemoryDatabase {
         id
     }
 
-    /** Insert a notification expense and its account balance in the same persisted snapshot. */
+    /** Insert a notification expense/transfer and its account balance(s) in the same persisted snapshot. */
     fun insertNotificationExpenseIfAbsent(transaction: TransactionEntity): Boolean = synchronized(diskIoLock) {
         val key = transaction.groupId
         require(key?.startsWith("notification:") == true) { "Missing notification identity" }
@@ -479,13 +479,34 @@ object InMemoryDatabase {
         val account = accounts.value.firstOrNull { it.id == transaction.accountId }
             ?: return@synchronized false
         val id = nextTransactionId
-        val balanceDelta = if (account.type == AccountType.CC) transaction.amount else -transaction.amount
-        val updatedBalance = account.balance + balanceDelta
+
+        val toAccount = if (transaction.toAccountId != null && transaction.toAccountId != account.id) {
+            accounts.value.firstOrNull { it.id == transaction.toAccountId }
+        } else null
+
+        val sourceBalanceDelta = when {
+            transaction.toAccountId != null -> if (account.type == AccountType.CC) transaction.amount else -transaction.amount
+            account.type == AccountType.CC -> transaction.amount
+            else -> -transaction.amount
+        }
+
+        val toBalanceDelta = if (toAccount != null) {
+            if (toAccount.type == AccountType.CC) -transaction.amount else transaction.amount
+        } else null
+
+        val updatedBalance = account.balance + sourceBalanceDelta
         require(updatedBalance.isFinite()) { "Resulting balance must be finite" }
+        if (toAccount != null && toBalanceDelta != null) {
+            require((toAccount.balance + toBalanceDelta).isFinite()) { "Resulting destination balance must be finite" }
+        }
+
         val updatedTransactions = transactions.value + withAccountTypeSnapshot(transaction.copy(id = id))
         val updatedAccounts = accounts.value.map { current ->
-            if (current.id == account.id) current.copy(balance = current.balance + balanceDelta)
-            else current
+            when (current.id) {
+                account.id -> current.copy(balance = current.balance + sourceBalanceDelta)
+                toAccount?.id -> current.copy(balance = current.balance + toBalanceDelta!!)
+                else -> current
+            }
         }
         persistToDisk(
             accountsSnapshot = updatedAccounts,
@@ -656,6 +677,53 @@ object InMemoryDatabase {
             list.filter { it.id != transaction.id }
         }
         persistToDisk()
+    }
+
+    /** Persist an edit and both account effects together; publish only after the write succeeds. */
+    fun updateTransactionWithBalances(newTx: TransactionEntity, oldTx: TransactionEntity) = synchronized(diskIoLock) {
+        val stored = transactions.value.firstOrNull { it.id == oldTx.id }
+            ?: throw IllegalArgumentException("Transaction no longer exists")
+        require(stored == oldTx) { "Transaction changed while editing; reopen it" }
+        require(newTx.id == oldTx.id) { "An edit must keep the transaction ID" }
+        require(newTx.amount.isFinite() && newTx.amount != 0.0) { "Amount must be finite and nonzero" }
+        val currentAccounts = accounts.value.associateBy { it.id }
+        require(newTx.accountId in currentAccounts) { "Source account no longer exists" }
+        if (newTx.toAccountId != null) {
+            require(newTx.accountId != newTx.toAccountId && newTx.toAccountId in currentAccounts) {
+                "A transfer needs two different existing accounts"
+            }
+        }
+        val updated = withAccountTypeSnapshot(newTx.copy(
+            sourceWasCreditCard = if (newTx.accountId == oldTx.accountId) newTx.sourceWasCreditCard else null,
+            destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null
+        ))
+        val now = System.currentTimeMillis()
+        val deltas = mutableMapOf<Long, Double>()
+        fun addDelta(id: Long, delta: Double) { deltas[id] = (deltas[id] ?: 0.0) + delta }
+        fun apply(tx: TransactionEntity, direction: Double) {
+            if (tx.timestamp > now) return
+            if (tx.isBalanceAdjustment) {
+                addDelta(tx.accountId, direction * requireNotNull(tx.balanceAdjustmentDelta))
+                return
+            }
+            val sourceIsCredit = tx.sourceWasCreditCard ?: (currentAccounts[tx.accountId]?.type == AccountType.CC)
+            addDelta(tx.accountId, direction * tx.amount * if (sourceIsCredit) 1.0 else -1.0)
+            tx.toAccountId?.let { destination ->
+                val destinationIsCredit = tx.destinationWasCreditCard ?: (currentAccounts[destination]?.type == AccountType.CC)
+                addDelta(destination, direction * tx.amount * if (destinationIsCredit) -1.0 else 1.0)
+            }
+        }
+        apply(stored, -1.0)
+        apply(updated, 1.0)
+        val updatedAccounts = accounts.value.map { account ->
+            val balance = account.balance + (deltas[account.id] ?: 0.0)
+            require(balance.isFinite()) { "Resulting balance must be finite" }
+            account.copy(balance = balance)
+        }
+        val updatedTransactions = transactions.value.map { if (it.id == updated.id) updated else it }
+        persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions, throwOnFailure = true)
+        accounts.value = updatedAccounts
+        transactions.value = updatedTransactions
     }
 
     fun updateTransaction(transaction: TransactionEntity) = synchronized(diskIoLock) {

@@ -240,4 +240,119 @@ class NotificationTemplateTest {
             InMemoryDatabase.deleteNotificationTemplate(template.id)
         }
     }
+
+    @Test
+    fun testOctopusTopUpAtomicTransferBalances() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        InMemoryDatabase.initialize(context)
+        InMemoryDatabase.transactions.value = emptyList()
+        com.example.vibefinance.service.PendingPaymentStore.initialize(context)
+        val pField = com.example.vibefinance.service.PendingPaymentStore::class.java.getDeclaredField("_pending")
+        pField.isAccessible = true
+        (pField.get(com.example.vibefinance.service.PendingPaymentStore) as kotlinx.coroutines.flow.MutableStateFlow<List<com.example.vibefinance.service.PendingPayment>>).value = emptyList()
+        val sField = com.example.vibefinance.service.PendingPaymentStore::class.java.getDeclaredField("seen")
+        sField.isAccessible = true
+        (sField.get(com.example.vibefinance.service.PendingPaymentStore) as MutableMap<*, *>).clear()
+
+        val ccAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 201L,
+            name = "恒生信用卡",
+            cardLast4 = "1691",
+            type = com.example.vibefinance.data.entity.AccountType.CC,
+            balance = 1000.0,
+            icon = "credit_card"
+        )
+        val octopusAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 202L,
+            name = "八達通",
+            type = com.example.vibefinance.data.entity.AccountType.CASH,
+            balance = 50.0,
+            icon = "octopus"
+        )
+        InMemoryDatabase.accounts.value = listOf(ccAccount, octopusAccount)
+
+        val title = "恒生信用卡"
+        val text = "你已於08/10/2026以信用卡最後數字1691於OCL* OCTOPUS AD1315289 簽賬HK$300.00"
+        val pkg = "com.hangseng.rbmobile"
+
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull(parsed)
+        assertTrue(parsed!!.isTopUp)
+        assertEquals("TRANSFER", parsed.transactionType)
+
+        val queued = com.example.vibefinance.service.PendingPaymentStore.enqueue(
+            context = context,
+            sourcePackage = pkg,
+            assetHint = parsed.assetName,
+            merchant = parsed.merchant,
+            amount = parsed.amount,
+            detectedAt = System.currentTimeMillis(),
+            cardLast4 = parsed.cardLast4,
+            isTopUp = parsed.isTopUp,
+            transactionType = parsed.transactionType
+        )
+        assertNotNull(queued)
+
+        val accepted = com.example.vibefinance.service.PendingPaymentStore.accept(
+            context = context,
+            paymentId = queued!!.id,
+            accountId = ccAccount.id,
+            rememberChoice = false
+        )
+        assertTrue("Top-up transfer must be accepted", accepted)
+
+        val recordedTx = InMemoryDatabase.transactions.value.firstOrNull { it.groupId == "notification:${queued.id}" }
+        assertNotNull("Transfer transaction must be recorded", recordedTx)
+        assertEquals(300.0, recordedTx!!.amount, 0.001)
+        assertEquals("Top-up", recordedTx.category)
+        assertEquals(ccAccount.id, recordedTx.accountId)
+        assertEquals(octopusAccount.id, recordedTx.toAccountId)
+        assertTrue("Must be excluded from daily expense budget", recordedTx.isExcludedFromDailyBudget)
+
+        // Verify atomic balances: CC debt increases by 300 (1000 -> 1300), Octopus balance increases by 300 (50 -> 350)
+        val accountsMap = InMemoryDatabase.accounts.value.associateBy { it.id }
+        assertEquals(1300.0, accountsMap[ccAccount.id]?.balance ?: 0.0, 0.001)
+        assertEquals(350.0, accountsMap[octopusAccount.id]?.balance ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun testOctopusTopUpCrossPackageDeduplication() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        InMemoryDatabase.initialize(context)
+        InMemoryDatabase.transactions.value = emptyList()
+        com.example.vibefinance.service.PendingPaymentStore.initialize(context)
+        val pField = com.example.vibefinance.service.PendingPaymentStore::class.java.getDeclaredField("_pending")
+        pField.isAccessible = true
+        (pField.get(com.example.vibefinance.service.PendingPaymentStore) as kotlinx.coroutines.flow.MutableStateFlow<List<com.example.vibefinance.service.PendingPayment>>).value = emptyList()
+        val sField = com.example.vibefinance.service.PendingPaymentStore::class.java.getDeclaredField("seen")
+        sField.isAccessible = true
+        (sField.get(com.example.vibefinance.service.PendingPaymentStore) as MutableMap<*, *>).clear()
+
+        val now = System.currentTimeMillis()
+        val first = com.example.vibefinance.service.PendingPaymentStore.enqueue(
+            context = context,
+            sourcePackage = "com.hangseng.rbmobile",
+            assetHint = "Card ••1691",
+            merchant = "OCL* OCTOPUS AD1315289",
+            amount = 300.0,
+            detectedAt = now,
+            cardLast4 = "1691",
+            isTopUp = true,
+            transactionType = "TRANSFER"
+        )
+        assertNotNull("First alert must be enqueued", first)
+
+        // Concurrent Samsung Wallet alert for the same top-up within 10s
+        val second = com.example.vibefinance.service.PendingPaymentStore.enqueue(
+            context = context,
+            sourcePackage = "com.samsung.android.spay",
+            assetHint = "Smart Octopus",
+            merchant = "OCL* OCTOPUS AD1315289",
+            amount = 300.0,
+            detectedAt = now + 10_000L,
+            isTopUp = true,
+            transactionType = "TRANSFER"
+        )
+        assertNull("Duplicate top-up notification from another package must be dropped", second)
+    }
 }
