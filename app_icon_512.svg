@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#090D16" />
+    </linearGradient>
+
+    <!-- Emerald Glow Gradient -->
+    <linearGradient id="glowGrad" x1="50%" y1="16.67%" x2="50%" y2="83.33%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#042F24" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- V-Emblem Gradient -->
+    <linearGradient id="vGrad" x1="32" y1="35" x2="76" y2="77" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Sparkline Gradient -->
+    <linearGradient id="sparkGrad" x1="30" y1="59" x2="65" y2="37" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Coin Gradient -->
+    <linearGradient id="coinGrad" x1="61.5" y1="25.5" x2="76.5" y2="40.5" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A7F3D0" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="108" height="108" fill="url(#bgGrad)" />
+
+  <!-- Subtle Central Emerald Glow -->
+  <circle cx="54" cy="54" r="36" fill="url(#glowGrad)" />
+
+  <!-- Ambient Shadow under emblem -->
+  <path d="M 33,37 L 43,37 L 54,67 L 65,37 L 75,37 L 54,79 Z" fill="rgba(0, 0, 0, 0.25)" />
+
+  <!-- Stylized Geometric V Lettermark -->
+  <path d="M 32,35 L 41,35 L 54,65 L 67,35 L 76,35 L 54,77 Z" fill="url(#vGrad)" />
+
+  <!-- Upward Growth Sparkline Overlay -->
+  <path d="M 30,59 L 43,45 L 51,53 L 65,37" fill="none" stroke="url(#sparkGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Glowing Coin / Capital Node -->
+  <circle cx="69" cy="33" r="7.5" fill="url(#coinGrad)" />
+  <circle cx="69" cy="33" r="3.5" fill="#064E3B" />
+</svg>

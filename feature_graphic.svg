@@ -1,0 +1,194 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090D16" />
+      <stop offset="50%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#06121E" />
+    </linearGradient>
+
+    <!-- Emerald Ambient Glow -->
+    <radialGradient id="emeraldGlow" cx="72%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.32" />
+      <stop offset="55%" stop-color="#059669" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Secondary Cyan Accent Glow -->
+    <radialGradient id="cyanGlow" cx="22%" cy="32%" r="45%">
+      <stop offset="0%" stop-color="#06B6D4" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Top Badge Gradient -->
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#06B6D4" stop-opacity="0.12" />
+    </linearGradient>
+
+    <!-- Pill Gradient -->
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95" />
+    </linearGradient>
+
+    <!-- V-Emblem Gradient -->
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Sparkline Gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6EE7B7" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Coin Gradient -->
+    <linearGradient id="coinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A7F3D0" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+
+    <!-- Card Background -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95" />
+    </linearGradient>
+  </defs>
+
+  <!-- Base Canvas Background -->
+  <rect width="1024" height="500" fill="url(#bgGrad)" />
+  <rect width="1024" height="500" fill="url(#emeraldGlow)" />
+  <rect width="1024" height="500" fill="url(#cyanGlow)" />
+
+  <!-- Subtle Ambient Tech Grid -->
+  <g opacity="0.06" stroke="#34D399" stroke-width="1">
+    <line x1="0" y1="100" x2="1024" y2="100" />
+    <line x1="0" y1="200" x2="1024" y2="200" />
+    <line x1="0" y1="300" x2="1024" y2="300" />
+    <line x1="0" y1="400" x2="1024" y2="400" />
+    <line x1="160" y1="0" x2="160" y2="500" />
+    <line x1="320" y1="0" x2="320" y2="500" />
+    <line x1="480" y1="0" x2="480" y2="500" />
+    <line x1="640" y1="0" x2="640" y2="500" />
+    <line x1="800" y1="0" x2="800" y2="500" />
+  </g>
+
+  <!-- ================= LEFT COLUMN: CONTENT ================= -->
+
+  <!-- 1. Top Privacy Badge -->
+  <g transform="translate(75, 70)">
+    <rect width="215" height="34" rx="17" fill="url(#badgeGrad)" stroke="#10B981" stroke-width="1.2" stroke-opacity="0.5" />
+    <circle cx="18" cy="17" r="4.5" fill="#34D399" />
+    <text x="32" y="22" font-family="Noto Sans CJK HK, DejaVu Sans" font-size="13" font-weight="700" fill="#6EE7B7" letter-spacing="1">100% 離線優先・極致隱私</text>
+  </g>
+
+  <!-- 2. Brand Title -->
+  <text x="75" y="170" font-family="DejaVu Sans, Noto Sans CJK HK" font-size="64" font-weight="700" fill="#FFFFFF" letter-spacing="-1">VibeFinance</text>
+
+  <!-- 3. Subtitle -->
+  <text x="75" y="222" font-family="Noto Sans CJK HK, DejaVu Sans" font-size="20" font-weight="500" fill="#CBD5E1">智能記帳・消費節奏熱力圖・八達通即時自動記錄</text>
+
+  <!-- 4. Three Feature Pills with Vector Icons -->
+  <g transform="translate(75, 275)">
+    <!-- Pill 1: 即時通知記帳 -->
+    <g transform="translate(0, 0)">
+      <rect width="160" height="42" rx="12" fill="url(#pillGrad)" stroke="#334155" stroke-width="1.2" />
+      <!-- Lightning Icon -->
+      <path d="M 22,25 L 28,14 L 32,14 L 28,21 L 34,21 L 24,31 L 26,25 Z" fill="#FBBF24" />
+      <text x="42" y="27" font-family="Noto Sans CJK HK, DejaVu Sans" font-size="14" font-weight="700" fill="#F1F5F9">即時通知記帳</text>
+    </g>
+
+    <!-- Pill 2: 16週消費節奏 -->
+    <g transform="translate(175, 0)">
+      <rect width="160" height="42" rx="12" fill="url(#pillGrad)" stroke="#334155" stroke-width="1.2" />
+      <!-- Grid / Heatmap Icon -->
+      <g transform="translate(18, 14)" fill="#34D399">
+        <rect x="0" y="0" width="4" height="4" rx="1" />
+        <rect x="6" y="0" width="4" height="4" rx="1" />
+        <rect x="12" y="0" width="4" height="4" rx="1" />
+        <rect x="0" y="6" width="4" height="4" rx="1" />
+        <rect x="6" y="6" width="4" height="4" rx="1" opacity="0.5" />
+        <rect x="12" y="6" width="4" height="4" rx="1" />
+        <rect x="0" y="12" width="4" height="4" rx="1" opacity="0.3" />
+        <rect x="6" y="12" width="4" height="4" rx="1" />
+        <rect x="12" y="12" width="4" height="4" rx="1" />
+      </g>
+      <text x="42" y="27" font-family="Noto Sans CJK HK, DejaVu Sans" font-size="14" font-weight="700" fill="#F1F5F9">16週消費節奏</text>
+    </g>
+
+    <!-- Pill 3: 每日動態預算 -->
+    <g transform="translate(350, 0)">
+      <rect width="160" height="42" rx="12" fill="url(#pillGrad)" stroke="#334155" stroke-width="1.2" />
+      <!-- Target Icon -->
+      <g transform="translate(25, 22)">
+        <circle cx="0" cy="0" r="7" fill="none" stroke="#60A5FA" stroke-width="2" />
+        <circle cx="0" cy="0" r="3" fill="#60A5FA" />
+      </g>
+      <text x="42" y="27" font-family="Noto Sans CJK HK, DejaVu Sans" font-size="14" font-weight="700" fill="#F1F5F9">每日動態預算</text>
+    </g>
+  </g>
+
+  <!-- 5. English Tagline -->
+  <text x="75" y="375" font-family="DejaVu Sans, Noto Sans CJK HK" font-size="14" font-weight="400" fill="#94A3B8" letter-spacing="0.2">Offline-first personal finance tracker with Material 3 Expressive motion</text>
+
+  <!-- ================= RIGHT COLUMN: CARD & EMBLEM ================= -->
+  <g transform="translate(635, 65)">
+    <!-- Outer Card Frame with subtle glow -->
+    <rect width="315" height="370" rx="28" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5" />
+
+    <!-- Card Header: Heatmap Matrix Preview -->
+    <g transform="translate(28, 26)">
+      <g opacity="0.9">
+        <rect x="0" y="0" width="12" height="12" rx="3" fill="#10B981" />
+        <rect x="17" y="0" width="12" height="12" rx="3" fill="#047857" />
+        <rect x="34" y="0" width="12" height="12" rx="3" fill="#065F46" />
+        <rect x="51" y="0" width="12" height="12" rx="3" fill="#10B981" />
+        <rect x="68" y="0" width="12" height="12" rx="3" fill="#34D399" />
+        <rect x="85" y="0" width="12" height="12" rx="3" fill="#065F46" />
+
+        <rect x="0" y="17" width="12" height="12" rx="3" fill="#047857" />
+        <rect x="17" y="17" width="12" height="12" rx="3" fill="#10B981" />
+        <rect x="34" y="17" width="12" height="12" rx="3" fill="#34D399" />
+        <rect x="51" y="17" width="12" height="12" rx="3" fill="#047857" />
+        <rect x="68" y="17" width="12" height="12" rx="3" fill="#10B981" />
+        <rect x="85" y="17" width="12" height="12" rx="3" fill="#065F46" />
+      </g>
+
+      <text x="115" y="16" font-family="DejaVu Sans" font-size="12" font-weight="700" fill="#94A3B8" letter-spacing="1">FINANCIAL RHYTHM</text>
+      <text x="115" y="31" font-family="DejaVu Sans" font-size="11" font-weight="400" fill="#64748B">Active 16-Week Matrix</text>
+    </g>
+
+    <!-- Center Emblem Container -->
+    <g transform="translate(52, 95)">
+      <!-- Ambient Circle Halo -->
+      <circle cx="105" cy="105" r="95" fill="#090D16" stroke="#10B981" stroke-width="2" stroke-opacity="0.35" />
+      <circle cx="105" cy="105" r="75" fill="#10B981" fill-opacity="0.08" />
+
+      <!-- Centered Scaled V-Emblem -->
+      <g transform="translate(30, 30) scale(1.38)">
+        <!-- Ambient Drop Shadow -->
+        <path d="M 33,37 L 43,37 L 54,67 L 65,37 L 75,37 L 54,79 Z" fill="rgba(0,0,0,0.45)" />
+
+        <!-- Stylized V Lettermark -->
+        <path d="M 32,35 L 41,35 L 54,65 L 67,35 L 76,35 L 54,77 Z" fill="url(#vGrad)" />
+
+        <!-- Upward Sparkline -->
+        <path d="M 30,59 L 43,45 L 51,53 L 65,37" fill="none" stroke="url(#sparkGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+
+        <!-- Coin Node -->
+        <circle cx="69" cy="33" r="7.5" fill="url(#coinGrad)" />
+        <circle cx="69" cy="33" r="3.5" fill="#064E3B" />
+      </g>
+    </g>
+
+    <!-- Bottom Stat Banner inside Card -->
+    <g transform="translate(28, 305)">
+      <rect width="259" height="42" rx="12" fill="#0F172A" stroke="#334155" stroke-width="1.2" />
+      <circle cx="22" cy="21" r="5" fill="#34D399" />
+      <text x="35" y="26" font-family="DejaVu Sans, Noto Sans CJK HK" font-size="13" font-weight="700" fill="#34D399">Smart Octopus</text>
+      <text x="145" y="26" font-family="DejaVu Sans, Noto Sans CJK HK" font-size="13" font-weight="700" fill="#F1F5F9">+ Auto-Logged</text>
+    </g>
+  </g>
+</svg>
