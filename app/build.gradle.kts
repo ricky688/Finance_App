@@ -19,11 +19,11 @@ android {
     namespace = "com.example.vibefinance"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.vibefinance"
+        applicationId = "com.ricky688.vibefinance"
         minSdk = 24
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.0.12"
+        versionCode = 14
+        versionName = "1.0.13"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }

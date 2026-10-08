@@ -1570,3 +1570,9 @@ VibeFinance is a modern personal finance Android application using Jetpack Compo
 - Added Launch animation under Settings → Customization, translated across all five resource sets. Enabled by default; the saved choice is read before the first composition so disabling it skips the branded intro on future launches. Changing the switch preserves the Settings sheet and does not replay the intro when enabled during a session.
 - Included the boolean preference in existing full-app backups and restore type validation. Extended the supplied-workbook round-trip fixture to verify the disabled choice survives restore; older backups without the key retain the enabled default.
 - Debug build and all 12 FullAppBackupEngineTest checks passed, including the 868-transaction/14-account/HK$52,831.49 workbook round trip. Installed versionCode 13/versionName 1.0.12 on the selected Waydroid without clearing data. ARTEMIS and supplemental ADB screenshots verified the new switch, persistence across a cold restart, skipped intro when disabled, no replay when re-enabled in Settings, and the branded intro on the next enabled launch. Returned the switch to its original enabled state. No financial records or device scaling settings were changed. Graphify updated through AST extraction; diff whitespace check passed.
+
+### 2026-10-08 — v1.0.13: Remove READ_MEDIA_IMAGES for Google Play compliance
+- Removed unused android.permission.READ_MEDIA_IMAGES from AndroidManifest.xml to comply with Google Play's Photo and Video Permissions policy. Image selection continues to use Android's system file and document pickers (GetContent contract) without requiring broad storage or media read permissions.
+- Bumped versionCode to 14 and versionName to 1.0.13 with package name com.ricky688.vibefinance.
+- All 246 unit tests passed; built signed release AAB bundle for Google Play Console submission.
+
