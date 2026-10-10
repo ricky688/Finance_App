@@ -1020,6 +1020,55 @@ class PaymentNotificationListenerTest {
         assertEquals(com.example.vibefinance.data.entity.ParsedTransactionType.TRANSFER, grammarResult.intent)
         assertEquals("OCL* OCTOPUS AD1315289", grammarResult.merchant)
     }
+
+    @Test
+    fun testBuildSuggestedAccountWithCardLast4() {
+        val payment = PendingPayment(
+            id = "test-1",
+            fingerprint = "fp-1",
+            sourcePackage = "com.hsbc.hbap.mobilebanking",
+            assetHint = "HSBC",
+            merchant = "WELLCOME",
+            amount = 150.0,
+            detectedAt = 1000L,
+            cardLast4 = "1691",
+            transactionType = "EXPENSE"
+        )
+        val account = PendingPaymentStore.buildSuggestedAccount(payment)
+        assertEquals("HSBC (•••• 1691)", account.name)
+        assertEquals(AccountType.CC, account.type)
+        assertEquals("1691", account.cardLast4)
+        assertEquals("com.hsbc.hbap.mobilebanking", account.linkedAppPackage)
+        assertTrue(account.getNotificationAliasList().contains("1691"))
+        assertTrue(account.getNotificationAliasList().contains("HSBC"))
+
+        // Verify that this account immediately matches subsequent payments with same card
+        val matched = PendingPaymentStore.findMatchingAccount(payment, listOf(account.copy(id = 99L)))
+        assertNotNull(matched)
+        assertEquals(99L, matched!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(payment, account.copy(id = 99L)))
+    }
+
+    @Test
+    fun testBuildSuggestedAccountWithoutCardLast4() {
+        val payment = PendingPayment(
+            id = "test-2",
+            fingerprint = "fp-2",
+            sourcePackage = "com.chase.sig.android",
+            assetHint = "Chase",
+            merchant = "TARGET",
+            amount = 45.0,
+            detectedAt = 1000L,
+            cardLast4 = null,
+            transactionType = "EXPENSE"
+        )
+        val account = PendingPaymentStore.buildSuggestedAccount(payment)
+        assertEquals("Chase", account.name)
+        assertEquals(AccountType.BANK, account.type)
+        assertNull(account.cardLast4)
+        assertEquals("com.chase.sig.android", account.linkedAppPackage)
+        assertTrue(account.getNotificationAliasList().contains("Chase"))
+    }
 }
 
 

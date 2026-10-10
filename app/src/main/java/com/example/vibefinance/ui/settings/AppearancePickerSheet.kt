@@ -19,7 +19,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.vibefinance.ui.common.pressBounce
-import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.AppSwitch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,12 +58,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -89,7 +88,9 @@ import com.example.vibefinance.theme.ThemeMode
 import com.example.vibefinance.theme.paletteColorScheme
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
-import com.example.vibefinance.ui.FinanceViewModel
+import com.example.vibefinance.theme.PaletteStyle
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import kotlin.math.roundToInt
 
 @Composable
@@ -102,6 +103,7 @@ internal fun paletteLabel(palette: AppearancePalette): String = stringResource(
         AppearancePalette.ROSE -> R.string.appearance_palette_rose
         AppearancePalette.AMBER -> R.string.appearance_palette_amber
         AppearancePalette.LIME -> R.string.appearance_palette_lime
+        AppearancePalette.CUSTOM -> R.string.palette_custom
     }
 )
 
@@ -112,11 +114,13 @@ internal fun ScallopColorSwatchItem(
     darkTheme: Boolean,
     contrastLevel: Int,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    style: PaletteStyle = PaletteStyle.TONAL_SPOT,
+    seed: Int = palette.seedArgb
 ) {
     val haptic = LocalHapticFeedback.current
-    val preview = remember(palette, darkTheme, contrastLevel) {
-        paletteColorScheme(palette, darkTheme, contrastLevel)
+    val preview = remember(palette, darkTheme, contrastLevel, style, seed) {
+        paletteColorScheme(palette, darkTheme, contrastLevel, style, seed)
     }
     val label = paletteLabel(palette)
     val scale by animateFloatAsState(
@@ -245,7 +249,7 @@ internal fun ScallopColorSwatchItem(
 @Composable
 internal fun AppearancePickerSheet(
     state: FinanceUiState,
-    viewModel: FinanceViewModel,
+    onIntent: (FinanceIntent) -> Unit,
     onDismiss: () -> Unit
 ) {
     val dark = when (state.themeMode) {
@@ -253,6 +257,9 @@ internal fun AppearancePickerSheet(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
+
+    var showStyles by rememberSaveable { mutableStateOf(false) }
+    var editingPalette by rememberSaveable { mutableStateOf<AppearancePalette?>(null) }
 
     var colorInverted by remember { mutableStateOf(false) }
     var emojiScheme by remember { mutableStateOf(false) }
@@ -266,6 +273,21 @@ internal fun AppearancePickerSheet(
             AppearancePalette.OCEAN,
             AppearancePalette.VIOLET,
             AppearancePalette.ROSE
+        )
+    }
+
+    if (showStyles) PaletteStyleDialog(state.paletteStyle, onSelect = {
+        onIntent(FinanceIntent.SetPaletteStyle(it))
+        showStyles = false
+    }, onDismiss = { showStyles = false })
+    editingPalette?.let { palette ->
+        PaletteVariantDialog(
+            palette = palette,
+            initialSeed = state.paletteSeeds[palette] ?: if (palette == AppearancePalette.CUSTOM)
+                state.paletteSeeds[state.appearancePalette] ?: state.appearancePalette.seedArgb else palette.seedArgb,
+            dark = dark, contrast = state.appearanceContrast, style = state.paletteStyle,
+            onSave = { onIntent(FinanceIntent.SetPaletteSeed(palette, it)); editingPalette = null },
+            onDismiss = { editingPalette = null }
         )
     }
 
@@ -321,6 +343,9 @@ internal fun AppearancePickerSheet(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .testTag("PaletteStyleOpen")
+                            .clickable { showStyles = true }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -346,7 +371,7 @@ internal fun AppearancePickerSheet(
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text = stringResource(R.string.appearance_palette_style_desc),
+                                text = paletteStyleLabel(state.paletteStyle),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -398,7 +423,7 @@ internal fun AppearancePickerSheet(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        ExpressiveSwitch(
+                        AppSwitch(
                             checked = colorInverted,
                             onCheckedChange = { colorInverted = it }
                         )
@@ -443,7 +468,7 @@ internal fun AppearancePickerSheet(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        ExpressiveSwitch(
+                        AppSwitch(
                             checked = emojiScheme,
                             onCheckedChange = { emojiScheme = it }
                         )
@@ -511,9 +536,9 @@ internal fun AppearancePickerSheet(
                                 value = state.appearanceContrast.toFloat(),
                                 onValueChange = {
                                     if (state.dynamicColorEnabled) {
-                                        viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(false))
+                                        onIntent(FinanceIntent.SetDynamicColorEnabled(false))
                                     }
-                                    viewModel.dispatch(FinanceIntent.SetAppearanceContrast(it.roundToInt()))
+                                    onIntent(FinanceIntent.SetAppearanceContrast(it.roundToInt()))
                                 },
                                 valueRange = -1f..1f,
                                 steps = 1,
@@ -564,18 +589,21 @@ internal fun AppearancePickerSheet(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        orderedPalettes.forEach { palette ->
+                        (orderedPalettes + if (AppearancePalette.CUSTOM in state.paletteSeeds) listOf(AppearancePalette.CUSTOM) else emptyList()).forEach { palette ->
                             val isSelected = state.appearancePalette == palette && !state.dynamicColorEnabled
                             ScallopColorSwatchItem(
                                 palette = palette,
                                 selected = isSelected,
                                 darkTheme = dark,
                                 contrastLevel = state.appearanceContrast,
+                                style = state.paletteStyle,
+                                seed = state.paletteSeeds[palette] ?: palette.seedArgb,
+                                modifier = Modifier.testTag("PaletteVariant_${palette.name}"),
                                 onClick = {
                                     if (state.dynamicColorEnabled) {
-                                        viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(false))
+                                        onIntent(FinanceIntent.SetDynamicColorEnabled(false))
                                     }
-                                    viewModel.dispatch(FinanceIntent.SetAppearancePalette(palette))
+                                    onIntent(FinanceIntent.SetAppearancePalette(palette))
                                 }
                             )
                         }
@@ -594,14 +622,13 @@ internal fun AppearancePickerSheet(
                                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                                     ScallopBadgeShape
                                 )
-                                .clickable {
-                                    // Custom color preset trigger
-                                },
+                                .testTag("PaletteAddCustom")
+                                .clickable { editingPalette = AppearancePalette.CUSTOM },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Add,
-                                contentDescription = null,
+                                contentDescription = stringResource(R.string.palette_custom),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(26.dp)
                             )
@@ -619,14 +646,15 @@ internal fun AppearancePickerSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    onClick = { /* custom edit action */ },
+                    onClick = { editingPalette = state.appearancePalette },
+                    modifier = Modifier.testTag("PaletteEdit"),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Edit,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.palette_edit_variant),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .padding(12.dp)

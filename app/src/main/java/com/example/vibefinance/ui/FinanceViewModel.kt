@@ -57,9 +57,15 @@ data class FinanceUiState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
     val appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
+    val paletteStyle: com.example.vibefinance.theme.PaletteStyle = com.example.vibefinance.theme.PaletteStyle.TONAL_SPOT,
+    val paletteSeeds: Map<AppearancePalette, Int> = emptyMap(),
     val appearanceContrast: Int = 0,
     val pureBlackDarkMode: Boolean = false,
     val launchAnimationEnabled: Boolean = true,
+    val hideAmounts: Boolean = false,
+    val appLockEnabled: Boolean = false,
+    val motionLevel: com.example.vibefinance.ui.preferences.MotionLevel = com.example.vibefinance.ui.preferences.MotionLevel.FULL,
+    val blurIntensity: Float = 1f,
     val iconShape: IconShapeMode = IconShapeMode.COOKIE_4,
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val subscriptions: List<SubscriptionEntity> = emptyList(),
@@ -112,8 +118,14 @@ sealed interface FinanceIntent {
     data class SetThemeMode(val themeMode: ThemeMode) : FinanceIntent
     data class SetDynamicColorEnabled(val enabled: Boolean) : FinanceIntent
     data class SetAppearancePalette(val palette: AppearancePalette) : FinanceIntent
+    data class SetPaletteStyle(val style: com.example.vibefinance.theme.PaletteStyle) : FinanceIntent
+    data class SetPaletteSeed(val palette: AppearancePalette, val seed: Int) : FinanceIntent
     data class SetAppearanceContrast(val level: Int) : FinanceIntent
     data class SetPureBlackDarkMode(val enabled: Boolean) : FinanceIntent
+    data class SetHideAmounts(val enabled: Boolean) : FinanceIntent
+    data class SetAppLockEnabled(val enabled: Boolean) : FinanceIntent
+    data class SetMotionLevel(val level: com.example.vibefinance.ui.preferences.MotionLevel) : FinanceIntent
+    data class SetBlurIntensity(val intensity: Float) : FinanceIntent
     data class SetLaunchAnimationEnabled(val enabled: Boolean) : FinanceIntent
     data class SetIconShape(val shape: IconShapeMode) : FinanceIntent
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
@@ -146,10 +158,14 @@ class FinanceViewModel @Inject constructor(
 ) : ViewModel() {
 
     // Read before the first composition so a disabled intro cannot flash during loading.
-    private val _uiState = MutableStateFlow(FinanceUiState(
-        launchAnimationEnabled = com.example.vibefinance.util.CoordinatedPreferences
-            .get(application, "vibe_finance_prefs").getBoolean("launch_animation_enabled", true)
-    ))
+    private val _uiState = MutableStateFlow(com.example.vibefinance.util.CoordinatedPreferences
+        .get(application, "vibe_finance_prefs").let { prefs -> FinanceUiState(
+            launchAnimationEnabled = prefs.getBoolean("launch_animation_enabled", true),
+            hideAmounts = prefs.getBoolean("hide_amounts", false),
+            appLockEnabled = prefs.getBoolean("app_lock_enabled", false),
+            motionLevel = com.example.vibefinance.ui.preferences.MotionLevel.fromStored(prefs.getString("motion_level", null)),
+            blurIntensity = prefs.getFloat("blur_intensity", 1f).coerceIn(0f, 1f)
+        ) })
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
     private val _requestedTab = MutableStateFlow<com.example.vibefinance.ui.main.TabItem?>(null)
@@ -198,9 +214,19 @@ class FinanceViewModel @Inject constructor(
                 themeMode = savedTheme,
                 dynamicColorEnabled = savedDynamicColor,
                 appearancePalette = savedPalette,
+                paletteStyle = runCatching { com.example.vibefinance.theme.PaletteStyle.valueOf(
+                    prefs.getString("appearance_palette_style", "TONAL_SPOT")!!
+                ) }.getOrDefault(com.example.vibefinance.theme.PaletteStyle.TONAL_SPOT),
+                paletteSeeds = runCatching { com.example.vibefinance.theme.decodePaletteSeeds(
+                    prefs.getString("appearance_palette_seeds", "{}")!!
+                ) }.getOrDefault(emptyMap()),
                 appearanceContrast = savedContrast,
                 pureBlackDarkMode = savedPureBlack,
                 launchAnimationEnabled = savedLaunchAnimation,
+                hideAmounts = prefs.getBoolean("hide_amounts", false),
+                appLockEnabled = prefs.getBoolean("app_lock_enabled", false),
+                motionLevel = com.example.vibefinance.ui.preferences.MotionLevel.fromStored(prefs.getString("motion_level", null)),
+                blurIntensity = prefs.getFloat("blur_intensity", 1f).coerceIn(0f, 1f),
                 iconShape = savedIconShape
             )
         }
@@ -434,6 +460,21 @@ class FinanceViewModel @Inject constructor(
                         .edit().putString("appearance_palette", intent.palette.name)
                         .putBoolean("dynamic_color_enabled", false).apply()
                 }
+                is FinanceIntent.SetPaletteStyle -> {
+                    _uiState.update { it.copy(paletteStyle = intent.style, dynamicColorEnabled = false) }
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("appearance_palette_style", intent.style.name)
+                        .putBoolean("dynamic_color_enabled", false).apply()
+                }
+                is FinanceIntent.SetPaletteSeed -> {
+                    val seed = intent.seed or 0xFF000000.toInt()
+                    val seeds = _uiState.value.paletteSeeds + (intent.palette to seed)
+                    _uiState.update { it.copy(paletteSeeds = seeds, appearancePalette = intent.palette, dynamicColorEnabled = false) }
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("appearance_palette_seeds", com.example.vibefinance.theme.encodePaletteSeeds(seeds))
+                        .putString("appearance_palette", intent.palette.name)
+                        .putBoolean("dynamic_color_enabled", false).apply()
+                }
                 is FinanceIntent.SetAppearanceContrast -> {
                     val level = intent.level.coerceIn(-1, 1)
                     _uiState.update { it.copy(appearanceContrast = level, dynamicColorEnabled = false) }
@@ -445,6 +486,28 @@ class FinanceViewModel @Inject constructor(
                     _uiState.update { it.copy(pureBlackDarkMode = intent.enabled) }
                     com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
                         .edit().putBoolean("pure_black_dark_mode", intent.enabled).apply()
+                }
+                is FinanceIntent.SetHideAmounts -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putBoolean("hide_amounts", intent.enabled).apply()
+                    _uiState.update { it.copy(hideAmounts = intent.enabled) }
+                }
+                is FinanceIntent.SetAppLockEnabled -> {
+                    val saved = com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putBoolean("app_lock_enabled", intent.enabled).commit()
+                    if (saved) _uiState.update { it.copy(appLockEnabled = intent.enabled) }
+                    else _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.privacy_save_failed)))
+                }
+                is FinanceIntent.SetMotionLevel -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("motion_level", intent.level.name).apply()
+                    _uiState.update { it.copy(motionLevel = intent.level) }
+                }
+                is FinanceIntent.SetBlurIntensity -> {
+                    val value = intent.intensity.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 1f
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putFloat("blur_intensity", value).apply()
+                    _uiState.update { it.copy(blurIntensity = value) }
                 }
                 is FinanceIntent.SetLaunchAnimationEnabled -> {
                     com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")

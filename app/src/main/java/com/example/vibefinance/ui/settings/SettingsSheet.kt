@@ -29,6 +29,8 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.example.vibefinance.ui.components.completePressShape
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -82,7 +84,7 @@ import com.example.vibefinance.theme.IconShapeMode
 import com.example.vibefinance.theme.rememberIconShape
 import com.example.vibefinance.theme.ScallopBadgeShape
 import com.example.vibefinance.theme.paletteColorScheme
-import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.AppSwitch
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,19 +92,21 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.HorizontalDivider
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.material3.DrawerState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -113,6 +117,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -160,7 +165,8 @@ fun SettingsSheet(
     onOpenNewPeriod: () -> Unit,
     onOpenDatePicker: () -> Unit,
     selectedEndDateMillis: Long?,
-    budgetConfigurationOnly: Boolean = false
+    budgetConfigurationOnly: Boolean = false,
+    drawerState: DrawerState? = null
 ) {
     var showCategoryManager by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -212,7 +218,14 @@ fun SettingsSheet(
     var showAppSelectionDialog by remember { mutableStateOf(false) }
     var showPaletteSheet by remember { mutableStateOf(false) }
     var showShapePickerDialog by rememberSaveable { mutableStateOf(false) }
-    var expandedSection by rememberSaveable { mutableStateOf<String?>(SettingsGroup.APPEARANCE.name) }
+    var expandedSection by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val dismissAfterSave by rememberUpdatedState {
+        saveChanges(budgetAmountText, selectedEndDateMillis, budgetInfo, selectedRolloverMode, viewModel)
+        onDismiss()
+    }
+    val closeSettings = if (drawerState == null) ({ dismissAfterSave() })
+        else rememberSettingsDrawerClose(drawerState) { dismissAfterSave() }
 
     // Intercepted apps flow
     val selectedApps by InMemoryDatabase.selectedInterceptApps.collectAsStateWithLifecycle()
@@ -348,37 +361,34 @@ fun SettingsSheet(
             onDismiss = { showCategoryManager = false })
     }
 
-    ModalBottomSheet(
-        onDismissRequest = {
-            saveChanges(
-                budgetAmountText,
-                selectedEndDateMillis,
-                budgetInfo,
-                selectedRolloverMode,
-                viewModel
-            )
-            onDismiss()
-        },
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.outlineVariant)
-            )
-        },
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-    ) {
+    val settingsContent: @Composable () -> Unit = {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (drawerState != null) Modifier.fillMaxHeight().background(MaterialTheme.colorScheme.surfaceContainerLowest) else Modifier)
                 .navigationBarsPadding()
         ) {
-            // Expressive headline stays visible while the settings groups scroll.
+            if (drawerState != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_sheet_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = closeSettings, modifier = Modifier.testTag("SettingsClose")) {
+                        Icon(Icons.Filled.Close, stringResource(R.string.btn_close),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+            } else {
+            // The focused budget form retains its existing headline.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -421,16 +431,8 @@ fun SettingsSheet(
                 }
 
                 IconButton(
-                    onClick = {
-                        saveChanges(
-                            budgetAmountText,
-                            selectedEndDateMillis,
-                            budgetInfo,
-                            selectedRolloverMode,
-                            viewModel
-                        )
-                        onDismiss()
-                    }
+                    onClick = closeSettings,
+                    modifier = Modifier.testTag("SettingsClose")
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Close,
@@ -438,6 +440,7 @@ fun SettingsSheet(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
             }
 
             // Only overflowing scroll edges fade/blur; the pinned header remains sharp.
@@ -452,9 +455,10 @@ fun SettingsSheet(
                     modifier = sourceModifier
                         .fillMaxWidth()
                         .verticalScroll(settingsScrollState)
-                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .padding(horizontal = if (drawerState != null) 10.dp else 20.dp,
+                            vertical = if (drawerState != null) 4.dp else 12.dp)
                         .testTag("SettingsScrollContent"),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (drawerState != null) 6.dp else 12.dp)
                 ) {
                     if (!budgetConfigurationOnly) {
                     // ==========================================
@@ -476,9 +480,9 @@ fun SettingsSheet(
                             else SettingsGroup.APPEARANCE.name
                         }
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             // Item 1: 色彩方案 (Color scheme) -> Opens AppearancePickerSheet
-                            Surface(
+                            SettingsActionCard(
                                 onClick = { showPaletteSheet = true },
                                 shape = RoundedCornerShape(16.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
@@ -518,8 +522,8 @@ fun SettingsSheet(
                                     }
                                     Spacer(Modifier.width(10.dp))
                                     // Scallop Rosette badge with live preview & edit pencil
-                                    val currentPreview = remember(state.appearancePalette, isDark, state.appearanceContrast) {
-                                        paletteColorScheme(state.appearancePalette, isDark, state.appearanceContrast)
+                                    val currentPreview = remember(state.appearancePalette, isDark, state.appearanceContrast, state.paletteStyle, state.paletteSeeds) {
+                                        paletteColorScheme(state.appearancePalette, isDark, state.appearanceContrast, state.paletteStyle, state.paletteSeeds[state.appearancePalette] ?: state.appearancePalette.seedArgb)
                                     }
                                     Box(
                                         modifier = Modifier
@@ -626,7 +630,7 @@ fun SettingsSheet(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    ExpressiveSwitch(
+                                    AppSwitch(
                                         checked = state.dynamicColorEnabled,
                                         onCheckedChange = { enabled ->
                                             viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(enabled))
@@ -673,7 +677,7 @@ fun SettingsSheet(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    ExpressiveSwitch(
+                                    AppSwitch(
                                         checked = state.pureBlackDarkMode,
                                         onCheckedChange = { viewModel.dispatch(FinanceIntent.SetPureBlackDarkMode(it)) }
                                     )
@@ -703,7 +707,7 @@ fun SettingsSheet(
                                         Text(stringResource(R.string.appearance_launch_animation_desc),
                                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    ExpressiveSwitch(
+                                    AppSwitch(
                                         checked = state.launchAnimationEnabled,
                                         onCheckedChange = { viewModel.dispatch(FinanceIntent.SetLaunchAnimationEnabled(it)) },
                                         modifier = Modifier.testTag("LaunchAnimationSwitch").semantics {
@@ -713,8 +717,10 @@ fun SettingsSheet(
                                 }
                             }
 
+                            com.example.vibefinance.ui.preferences.MotionBlurSettings(state, viewModel::dispatch)
+
                             // Item 4: 圖示形狀 (Icon shape)
-                            Surface(
+                            SettingsActionCard(
                                 onClick = { showShapePickerDialog = true },
                                 shape = RoundedCornerShape(16.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
@@ -955,7 +961,7 @@ fun SettingsSheet(
                                             )
                                         }
                                     }
-                                    ExpressiveSwitch(
+                                    AppSwitch(
                                         checked = autoLogEnabled,
                                         onCheckedChange = { checked ->
                                             val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
@@ -1176,6 +1182,9 @@ fun SettingsSheet(
                     ) {
                         // Budget Limit Text Field
                         OutlinedTextField(
+                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                             value = budgetAmountText,
                             onValueChange = { budgetAmountText = it },
                             textStyle = MaterialTheme.typography.headlineSmall.copy(
@@ -1329,6 +1338,8 @@ fun SettingsSheet(
                             else SettingsGroup.PRIVACY.name
                         }
                     ) {
+                        com.example.vibefinance.ui.preferences.PrivacySettings(state, viewModel::dispatch)
+
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
@@ -1434,10 +1445,21 @@ fun SettingsSheet(
         }
     }
 
+    if (drawerState != null) {
+        settingsContent()
+    } else {
+        ModalBottomSheet(
+            onDismissRequest = closeSettings,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) { settingsContent() }
+    }
+
     if (showPaletteSheet) {
         AppearancePickerSheet(
             state = state,
-            viewModel = viewModel,
+            onIntent = viewModel::dispatch,
             onDismiss = { showPaletteSheet = false }
         )
     }
@@ -1485,15 +1507,12 @@ private fun SettingsSectionContainer(
     showHeader: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val headerInteraction = remember { MutableInteractionSource() }
+    val pressProgress by rememberCompletePressProgress(headerInteraction)
     val corner by animateDpAsState(
         targetValue = if (expanded) 28.dp else 24.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "settingsSectionCorner"
-    )
-    val headerBottomCorner by animateDpAsState(
-        targetValue = if (expanded) 0.dp else 24.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "settingsHeaderBottomCorner"
     )
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f,
@@ -1501,24 +1520,25 @@ private fun SettingsSectionContainer(
         label = "settingsSectionArrow"
     )
     val sectionColor by animateColorAsState(
-        targetValue = if (expanded) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        targetValue = if (expanded) MaterialTheme.colorScheme.surfaceContainer else
+            lerp(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.colorScheme.surfaceContainerLowest, 0.4f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "settingsSectionColor"
     )
     val stateLabel = stringResource(
         if (expanded) R.string.settings_section_expanded else R.string.settings_section_collapsed
     )
-    val headerShape = RoundedCornerShape(
-        topStart = corner,
-        topEnd = corner,
-        bottomStart = headerBottomCorner,
-        bottomEnd = headerBottomCorner
+    // Keep the card outline and its bounded header ripple on the same press shape.
+    val headerShape = completePressShape(
+        resting = RoundedCornerShape(corner),
+        pressed = RoundedCornerShape(16.dp),
+        progress = pressProgress
     )
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(corner),
+        shape = headerShape,
         color = sectionColor,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
         Column {
             if (showHeader) Row(
@@ -1526,29 +1546,34 @@ private fun SettingsSectionContainer(
                     .fillMaxWidth()
                     .clip(headerShape)
                     .semantics { stateDescription = stateLabel }
-                    .clickable(onClick = onToggle)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .clickable(
+                        interactionSource = headerInteraction,
+                        indication = ripple(bounded = true),
+                        onClick = onToggle
+                    )
+                    .heightIn(min = 72.dp)
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
                     shape = rememberIconShape("settings.section.$title"),
                     color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.size(46.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(12.dp))
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
@@ -1556,7 +1581,7 @@ private fun SettingsSectionContainer(
                     imageVector = Icons.Filled.ExpandMore,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(26.dp).rotate(arrowRotation)
+                    modifier = Modifier.size(24.dp).rotate(arrowRotation)
                 )
             }
             AnimatedVisibility(
@@ -1570,7 +1595,7 @@ private fun SettingsSectionContainer(
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                 ) + fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
             ) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = if (showHeader) 0.dp else 16.dp)) {
+                Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = if (showHeader) 0.dp else 16.dp)) {
                     content()
                 }
             }
@@ -1591,7 +1616,7 @@ private fun ThemeOptionCard(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "themeOptionCorner"
     )
-    Surface(
+    SettingsActionCard(
         onClick = onClick,
         shape = RoundedCornerShape(corner),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -1638,7 +1663,7 @@ private fun LanguageOptionCard(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "languageOptionCorner"
     )
-    Surface(
+    SettingsActionCard(
         onClick = onClick,
         shape = RoundedCornerShape(corner),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
@@ -1679,7 +1704,10 @@ private fun RolloverOptionCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Surface(
+    val interaction = remember { MutableInteractionSource() }
+    SettingsActionCard(
+        onClick = onClick,
+        interactionSource = interaction,
         shape = RoundedCornerShape(14.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
         border = BorderStroke(
@@ -1688,8 +1716,6 @@ private fun RolloverOptionCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -1697,7 +1723,8 @@ private fun RolloverOptionCard(
         ) {
             RadioButton(
                 selected = isSelected,
-                onClick = onClick
+                onClick = onClick,
+                interactionSource = interaction
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column {

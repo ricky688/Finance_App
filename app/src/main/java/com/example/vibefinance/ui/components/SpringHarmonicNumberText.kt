@@ -12,7 +12,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
@@ -42,6 +42,11 @@ fun SpringHarmonicNumberText(
     modifier: Modifier = Modifier,
     fontWeight: FontWeight = FontWeight.Bold
 ) {
+    val experience = com.example.vibefinance.ui.preferences.LocalExperience.current
+    if (experience.hideAmounts || experience.motion != com.example.vibefinance.ui.preferences.MotionLevel.FULL) {
+        Text(if (experience.hideAmounts) "••••" else text, modifier = modifier, style = style, color = color, fontWeight = fontWeight)
+        return
+    }
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically

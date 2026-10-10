@@ -44,7 +44,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.AppSwitch
 import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Arrangement
@@ -94,7 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import android.widget.Toast
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -161,6 +161,29 @@ fun HistoryScreen(
     onClearCategoryFilter: () -> Unit = {},
     onAddTransaction: (() -> Unit)? = null
 ) {
+    var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showFilters by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val searchVisibility = remember { MutableTransitionState(showSearch) }
+    searchVisibility.targetState = showSearch
+    val historyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(showSearch) {
+        if (showSearch && historyListState.firstVisibleItemIndex > 0) historyListState.animateScrollToItem(0)
+    }
+    val toggleSearch: () -> Unit = {
+        if (showSearch) { focusManager.clearFocus(); keyboard?.hide() }
+        showSearch = !showSearch
+    }
+    var searchText by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var searchAccount by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
+    var searchCategory by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var searchKind by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(HistoryKind.ALL) }
+    var searchFrom by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var searchThrough by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var searchMinimum by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    var searchMaximum by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    val searchQuery = HistoryQuery(searchText, searchAccount, searchCategory, searchKind, searchFrom, searchThrough, searchMinimum, searchMaximum)
     var selectedCategoryFilter by remember(categoryFilter) { mutableStateOf<String?>(categoryFilter) }
     var periodFilterMode by remember { mutableStateOf(com.example.vibefinance.ui.components.PeriodFilterMode.ALL) }
 
@@ -247,10 +270,11 @@ fun HistoryScreen(
         }
     }
 
-    val accountTransactions = remember(state.transactions, accountFilterId) {
-        if (accountFilterId == null) state.transactions else state.transactions.filter {
+    val accountTransactions = remember(state.transactions, state.accounts, accountFilterId, searchQuery) {
+        val scoped = if (accountFilterId == null) state.transactions else state.transactions.filter {
             it.accountId == accountFilterId || it.toAccountId == accountFilterId
         }
+        searchQuery.apply(scoped, state.accounts)
     }
 
     val analyticsTransactions = remember(accountTransactions, effectiveAnalyticsMode, analyticsStart, analyticsEndExclusive) {
@@ -292,8 +316,9 @@ fun HistoryScreen(
         val catFilter = selectedCategoryFilter
         if (!catFilter.isNullOrBlank()) {
             // A selected chart category must retain its displayed scope, even when empty.
+            val periodIds = periodFilteredTransactions.mapTo(hashSetOf()) { it.id }
             analyticsTransactions.filter {
-                it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 &&
+                it.id in periodIds && it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 &&
                     it.category.equals(catFilter, ignoreCase = true)
             }
         } else {
@@ -349,7 +374,7 @@ fun HistoryScreen(
     }
 
     // Predictive back for active category filter
-    androidx.activity.compose.PredictiveBackHandler(enabled = selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !showSearch && !showFilters && selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
         try {
             progressFlow.collect { }
             selectedCategoryFilter = null
@@ -358,7 +383,7 @@ fun HistoryScreen(
         }
     }
 
-    androidx.activity.compose.PredictiveBackHandler(enabled = accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !showSearch && !showFilters && accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
         try {
             progressFlow.collect { }
             onClearAccountFilter()
@@ -366,6 +391,11 @@ fun HistoryScreen(
         }
     }
 
+
+    androidx.activity.compose.PredictiveBackHandler(enabled = showSearch && !showFilters && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+        try { progressFlow.collect { }; focusManager.clearFocus(); keyboard?.hide(); showSearch = false }
+        catch (_: kotlinx.coroutines.CancellationException) { }
+    }
 
     ContentEntranceViewport(
         modifier = modifier.fillMaxSize(),
@@ -383,9 +413,14 @@ fun HistoryScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().testTag("HistoryList"),
+                    state = historyListState,
                     contentPadding = PaddingValues(top = topContentPadding),
                     verticalArrangement = Arrangement.Top
                 ) {
+            item(key = "history-search-bar") {
+                AnimatedHistorySearchBar(searchVisibility, searchQuery, transactionsList.size,
+                    onChange = { searchText = it.text }, onOpenFilters = { showFilters = true })
+            }
             if (accountFilterId != null) {
                 item {
                     PageContentEntrance("account-filter") {
@@ -423,7 +458,7 @@ fun HistoryScreen(
                         budgetInfo = state.budgetInfo,
                         selectedFilter = periodFilterMode,
                         onSelectFilter = { mode -> periodFilterMode = mode },
-                        modifier = Modifier.padding(bottom = 12.dp)
+                        modifier = Modifier.padding(bottom = 12.dp).testTag("HistoryBudgetPeriod")
                     )
                 }
             }
@@ -434,9 +469,13 @@ fun HistoryScreen(
                 PageContentEntrance("analytics") {
                     com.example.vibefinance.ui.components.CategoryBreakdownCard(
                         transactions = analyticsTransactions,
+                        onSearch = toggleSearch,
+                        searchExpanded = showSearch,
+                        searchActive = searchQuery != HistoryQuery(),
+                        searchSummary = if (searchQuery != HistoryQuery()) stringResource(R.string.history_results_count, transactionsList.size) else null,
                         onExportCsv = {
                             val csvContent = com.example.vibefinance.util.CsvExportEngine.generateCsvContent(
-                                transactions = state.transactions,
+                                transactions = filteredTransactions,
                                 accounts = state.accounts
                             )
                             com.example.vibefinance.util.CsvExportEngine.shareCsvFile(context, csvContent)
@@ -485,7 +524,7 @@ fun HistoryScreen(
 
 
 
-            if (transactionsList.isEmpty() && analyticsHasExpenses) {
+            if (transactionsList.isEmpty() && (analyticsHasExpenses || state.transactions.isNotEmpty())) {
                 item {
                     PageContentEntrance("empty") {
                         Surface(
@@ -831,6 +870,22 @@ fun HistoryScreen(
         }
     }
 
+    if (showFilters) {
+        HistoryFilterSheet(searchQuery, state.accounts, state.transactions.map { it.category }.distinct().sorted(),
+            transactionsList.size, onChange = { query ->
+                searchText = query.text; searchAccount = query.account; searchCategory = query.category
+                searchKind = query.kind; searchFrom = query.from; searchThrough = query.through
+                searchMinimum = query.minimum; searchMaximum = query.maximum
+            }, onClear = {
+                searchText = ""; searchAccount = null; searchCategory = null; searchKind = HistoryKind.ALL
+                searchFrom = ""; searchThrough = ""; searchMinimum = ""; searchMaximum = ""
+                selectedCategoryFilter = null
+                periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
+                analyticsPeriodMode = CategoryAnalyticsPeriodMode.ALL_TIME
+                onClearCategoryFilter(); onClearAccountFilter()
+            }, onDismiss = { showFilters = false })
+    }
+
     // Real Transaction Edit Dialog with Container Transform Morphing
     editingTransaction?.let { tx ->
         val canChangeType = !tx.isBalanceAdjustment
@@ -881,6 +936,9 @@ fun HistoryScreen(
                         )
                     }
                     OutlinedTextField(
+                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                            androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                         value = editAmountText,
                         onValueChange = { editAmountText = it },
                         label = { Text(stringResource(R.string.edit_amount_label) + " (HK$)") },
@@ -985,7 +1043,7 @@ fun HistoryScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                ExpressiveSwitch(
+                                AppSwitch(
                                     checked = editIsDailyBudget,
                                     onCheckedChange = { editIsDailyBudget = it },
                                     modifier = Modifier.testTag("EditTransactionDailyBudget")
@@ -1100,7 +1158,7 @@ private fun HistoryTransactionTypeSelector(
                 isPressed = isPressed,
                 backdropColor = colors.surfaceContainerHigh
             )
-            ConnectedButtonRipple {
+            ConnectedButtonRipple(isSelected = isSelected) {
                 CompletePressToggleButton(
                     checked = isSelected,
                     onCheckedChange = {

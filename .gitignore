@@ -30,5 +30,6 @@ skill/
 .agents/teamwork/
 .kotlin/
 *.apk
+*.aab
 *.xlsx
 *.xls

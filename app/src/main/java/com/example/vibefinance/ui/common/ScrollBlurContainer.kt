@@ -28,6 +28,7 @@ internal fun ScrollBlurContainer(
     content: @Composable (Modifier) -> Unit
 ) {
     if (!enabled) { content(modifier); return }
+    val intensity = com.example.vibefinance.ui.preferences.LocalExperience.current.blur
     val haze = rememberHazeState()
     val density = LocalDensity.current
     val rtl = !vertical && LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -43,7 +44,7 @@ internal fun ScrollBlurContainer(
     Box(modifier.clipToBounds().then(fade)) {
         content(Modifier.hazeSource(haze))
         val surface = MaterialTheme.colorScheme.surfaceContainer
-        val style = HazeStyle(backgroundColor = surface, blurRadius = 4.dp,
+        val style = HazeStyle(backgroundColor = surface, blurRadius = (4 * intensity).dp,
             tint = HazeTint(surface.copy(alpha = 0.12f)), noiseFactor = 0f,
             fallbackTint = HazeTint(surface.copy(alpha = 0.20f)))
         Box(Modifier.matchParentSize()) {
@@ -63,7 +64,7 @@ internal fun ScrollBlurContainer(
                         if (vertical) Modifier.fillMaxWidth().height(extent) else Modifier.fillMaxHeight().width(extent))
                     if (tagPrefix != null) edgeModifier = edgeModifier.testTag("${tagPrefix}_${if (first) "start" else "end"}_fade")
                     Box(edgeModifier.hazeEffect(haze, style) {
-                        blurEnabled = blurActive
+                        blurEnabled = blurActive && intensity > 0f
                         mask = if (vertical) Brush.verticalGradient(colors) else Brush.horizontalGradient(colors)
                         progressive = if (vertical) HazeProgressive.verticalGradient(
                             startIntensity = if (first) 1f else 0f, endIntensity = if (first) 0f else 1f, preferPerformance = true)

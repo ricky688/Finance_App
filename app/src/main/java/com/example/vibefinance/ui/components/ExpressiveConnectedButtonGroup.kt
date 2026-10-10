@@ -27,7 +27,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
@@ -82,7 +82,7 @@ fun <T> ExpressiveConnectedButtonGroup(
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 contentAlignment = Alignment.Center
             ) {
-                ConnectedButtonRipple {
+                ConnectedButtonRipple(isSelected = isSelected) {
                     CompletePressToggleButton(
                         checked = isSelected,
                         onCheckedChange = {

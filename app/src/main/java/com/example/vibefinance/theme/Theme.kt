@@ -107,6 +107,8 @@ fun VibeFinanceTheme(
     dynamicColorEnabled: Boolean = true,
     appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
     appearanceContrast: Int = 0,
+    paletteStyle: PaletteStyle = PaletteStyle.TONAL_SPOT,
+    paletteSeeds: Map<AppearancePalette, Int> = emptyMap(),
     pureBlackDarkMode: Boolean = false,
     iconShape: androidx.compose.ui.graphics.Shape = IconShapeMode.COOKIE_4.shape,
     randomIconShapes: Boolean = false,
@@ -114,14 +116,18 @@ fun VibeFinanceTheme(
 ) {
     val context = LocalContext.current
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S // Android 12+
+    val originalColors = appearancePalette == AppearancePalette.ORIGINAL && appearanceContrast == 0 &&
+        paletteStyle == PaletteStyle.TONAL_SPOT &&
+        (paletteSeeds[appearancePalette] ?: appearancePalette.seedArgb) == appearancePalette.seedArgb
 
     val selectedScheme = when {
         dynamicColorEnabled && dynamicColorAvailable && darkTheme -> dynamicDarkColorScheme(context)
         dynamicColorEnabled && dynamicColorAvailable && !darkTheme -> dynamicLightColorScheme(context)
-        appearancePalette == AppearancePalette.ORIGINAL && appearanceContrast == 0 && darkTheme -> DarkColorScheme
-        appearancePalette == AppearancePalette.ORIGINAL && appearanceContrast == 0 -> LightColorScheme
-        else -> remember(appearancePalette, darkTheme, appearanceContrast) {
-            paletteColorScheme(appearancePalette, darkTheme, appearanceContrast)
+        originalColors && darkTheme -> DarkColorScheme
+        originalColors -> LightColorScheme
+        else -> remember(appearancePalette, darkTheme, appearanceContrast, paletteStyle, paletteSeeds) {
+            paletteColorScheme(appearancePalette, darkTheme, appearanceContrast, paletteStyle,
+                paletteSeeds[appearancePalette] ?: appearancePalette.seedArgb)
         }
     }
     val targetScheme = if (darkTheme && pureBlackDarkMode) {

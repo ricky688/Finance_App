@@ -2,6 +2,7 @@ package com.example.vibefinance.ui.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier

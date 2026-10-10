@@ -20,10 +20,10 @@ object SubtleGlass {
     val topTransition = 24.dp
     val bottomTransition = 32.dp
 
-    fun style(surface: Color) = HazeStyle(
+    fun style(surface: Color, intensity: Float = 1f) = HazeStyle(
         backgroundColor = surface,
         tint = HazeTint(surface.copy(alpha = 0.70f)),
-        blurRadius = blurRadius,
+        blurRadius = blurRadius * intensity,
         noiseFactor = 0.02f,
         fallbackTint = HazeTint(surface.copy(alpha = 0.90f))
     )
@@ -32,10 +32,11 @@ object SubtleGlass {
 /** Samples only page content. Its own content is empty, so labels and controls stay sharp. */
 @Composable
 fun SubtleGlassTransition(state: HazeState, top: Boolean, obscured: Boolean, modifier: Modifier = Modifier) {
+    val intensity = com.example.vibefinance.ui.preferences.LocalExperience.current.blur
     val colors = if (top) listOf(Color.Black, Color.Transparent) else listOf(Color.Transparent, Color.Black)
     Box(modifier.fillMaxWidth().height(if (top) SubtleGlass.topTransition else SubtleGlass.bottomTransition)
-        .hazeEffect(state, SubtleGlass.style(MaterialTheme.colorScheme.surface)) {
-            blurEnabled = !obscured
+        .hazeEffect(state, SubtleGlass.style(MaterialTheme.colorScheme.surface, intensity)) {
+            blurEnabled = !obscured && intensity > 0f
             mask = Brush.verticalGradient(colors)
             progressive = HazeProgressive.verticalGradient(
                 startIntensity = if (top) 1f else 0f,

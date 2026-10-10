@@ -36,11 +36,32 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.createLifecycleAwareWindowRecomposer
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import com.example.vibefinance.ui.AppLanguage
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+    private val motionScale = com.example.vibefinance.ui.preferences.AppMotionScale()
+    private val privacy by lazy { com.example.vibefinance.ui.preferences.AppPrivacyController(this) {
+        viewModel.dispatch(com.example.vibefinance.ui.FinanceIntent.SetAppLockEnabled(it))
+    } }
+    private val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        motionScale.update(this)
+        privacy.syncWindowProtection()
+    }
+    private val animationObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) { motionScale.update(this@MainActivity) }
+    }
+    override fun onStop() { privacy.onBackground(); super.onStop() }
+    override fun onDestroy() {
+        privacy.destroy()
+        com.example.vibefinance.util.CoordinatedPreferences.get(this, "vibe_finance_prefs")
+            .unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        contentResolver.unregisterContentObserver(animationObserver)
+        super.onDestroy()
+    }
+
     
     // Clean manual dependency injection bypassing local annotation processor issues
     private val viewModel: FinanceViewModel by lazy {
@@ -88,13 +109,23 @@ class MainActivity : ComponentActivity() {
             e.printStackTrace()
         }
 
+        motionScale.update(this)
+        privacy.syncWindowProtection()
+        com.example.vibefinance.util.CoordinatedPreferences.get(this, "vibe_finance_prefs")
+            .registerOnSharedPreferenceChangeListener(preferenceListener)
+        contentResolver.registerContentObserver(android.provider.Settings.Global.getUriFor(
+            android.provider.Settings.Global.ANIMATOR_DURATION_SCALE), false, animationObserver)
         handleIntent(intent)
 
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
-        setContent {
+        val composeView = androidx.compose.ui.platform.ComposeView(this)
+        composeView.setParentCompositionContext(composeView.createLifecycleAwareWindowRecomposer(
+            coroutineContext = motionScale, lifecycle = lifecycle))
+        setContentView(composeView)
+        composeView.setContent {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
             val isDark = when (state.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -134,6 +165,9 @@ class MainActivity : ComponentActivity() {
             }
 
             CompositionLocalProvider(
+                com.example.vibefinance.ui.preferences.LocalExperience provides
+                    com.example.vibefinance.ui.preferences.ExperiencePreferences(state.hideAmounts, state.motionLevel, state.blurIntensity),
+                com.example.vibefinance.ui.preferences.LocalAppLockAction provides privacy::changeEnabled,
                 LocalConfiguration provides localizedConfig,
                 LocalContext provides localizedContext,
                 androidx.compose.ui.platform.LocalResources provides localizedContext.resources,
@@ -152,6 +186,8 @@ class MainActivity : ComponentActivity() {
                         dynamicColorEnabled = state.dynamicColorEnabled,
                         appearancePalette = state.appearancePalette,
                         appearanceContrast = state.appearanceContrast,
+                        paletteStyle = state.paletteStyle,
+                        paletteSeeds = state.paletteSeeds,
                         pureBlackDarkMode = state.pureBlackDarkMode,
                         iconShape = state.iconShape.shape,
                         randomIconShapes = state.iconShape == com.example.vibefinance.theme.IconShapeMode.RANDOM
@@ -160,8 +196,9 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = MaterialTheme.colorScheme.background
                         ) {
-                            com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay(
-                                enabled = state.launchAnimationEnabled
+                            if (privacy.locked) com.example.vibefinance.ui.preferences.PrivacyLockScreen(privacy)
+                            else com.example.vibefinance.ui.components.MaterialYouAppLaunchOverlay(
+                                enabled = state.launchAnimationEnabled && state.motionLevel == com.example.vibefinance.ui.preferences.MotionLevel.FULL
                             ) {
                                 MainScreen(viewModel = viewModel)
                             }

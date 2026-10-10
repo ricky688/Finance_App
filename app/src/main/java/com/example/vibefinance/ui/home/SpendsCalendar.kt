@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.components.completePressShape
 
@@ -40,6 +42,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

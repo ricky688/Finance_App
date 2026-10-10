@@ -22,8 +22,8 @@ android {
         applicationId = "com.ricky688.vibefinance"
         minSdk = 24
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.0.13"
+        versionCode = 37
+        versionName = "1.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
@@ -42,6 +42,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

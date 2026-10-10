@@ -27,7 +27,8 @@ internal fun rememberAmbientWavePhase(
 ): State<Float> {
     val phase = remember { mutableFloatStateOf(0f) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    val running = enabled && LocalAmbientMotionEnabled.current
+    val running = enabled && LocalAmbientMotionEnabled.current &&
+        com.example.vibefinance.ui.preferences.LocalExperience.current.motion == com.example.vibefinance.ui.preferences.MotionLevel.FULL
 
     LaunchedEffect(lifecycleOwner, running, periodMillis) {
         if (!running) return@LaunchedEffect

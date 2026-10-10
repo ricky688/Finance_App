@@ -42,14 +42,19 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -95,7 +100,11 @@ fun CategoryBreakdownCard(
     emptyStateMessage: String? = null,
     emptyStateHint: String? = null,
     onAddTransaction: (() -> Unit)? = null,
-    onViewAllRecords: (() -> Unit)? = null
+    onViewAllRecords: (() -> Unit)? = null,
+    onSearch: (() -> Unit)? = null,
+    searchActive: Boolean = false,
+    searchExpanded: Boolean = false,
+    searchSummary: String? = null
 ) {
     var actionsExpanded by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -175,12 +184,27 @@ fun CategoryBreakdownCard(
                     }
                     Text(
                         text = if (localizedCategory != null) stringResource(R.string.category_analytics_filtering, localizedCategory)
-                            else stringResource(R.string.category_tap_to_filter),
+                            else searchSummary ?: stringResource(R.string.category_tap_to_filter),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (localizedCategory != null) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().testTag("CategoryAnalyticsHint")
                     )
+                }
+                if (onSearch != null) {
+                    val searchContainer by animateColorAsState(
+                        if (searchExpanded) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                        label = "historySearchFocus")
+                    IconToggleButton(checked = searchExpanded, onCheckedChange = { onSearch() },
+                        colors = IconButtonDefaults.iconToggleButtonColors(containerColor = searchContainer,
+                            checkedContainerColor = searchContainer, checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer),
+                        modifier = Modifier.size(48.dp).testTag("HistorySearchOpen").semantics { selected = searchExpanded }) {
+                        BadgedBox(badge = { if (searchActive) Badge() }) {
+                            Icon(Icons.Default.Search, stringResource(if (searchExpanded) R.string.history_search_close else R.string.history_search_open),
+                                tint = if (searchExpanded) MaterialTheme.colorScheme.onPrimaryContainer else if (searchActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
                 if (selectedCategory != null) {
                     IconButton(

@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+
 import android.graphics.PointF
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.res.stringResource
@@ -41,7 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.RolloverMode
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.ui.common.bouncyClickable
-import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.AppSwitch
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.abs
@@ -369,7 +372,7 @@ fun RecalcBudgetSheet(
                                 color = secondaryTextColor
                             )
                         }
-                        ExpressiveSwitch(
+                        AppSwitch(
                             checked = rememberChoice,
                             onCheckedChange = { rememberChoice = it }
                         )

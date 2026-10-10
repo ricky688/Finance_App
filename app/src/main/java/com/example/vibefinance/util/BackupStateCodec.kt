@@ -46,8 +46,10 @@ internal object BackupStateCodec {
         // Known consumer types must match, not merely the archive's own declared type.
         val known = mapOf(
             "vibe_finance_prefs" to mapOf("app_language" to "string", "theme_mode" to "string", "icon_shape" to "string",
-                "appearance_palette" to "string", "appearance_contrast" to "int", "dynamic_color_enabled" to "boolean", "pure_black_dark_mode" to "boolean",
-                "launch_animation_enabled" to "boolean"),
+                "appearance_palette" to "string", "appearance_contrast" to "int", "appearance_palette_style" to "string",
+                "appearance_palette_seeds" to "string", "dynamic_color_enabled" to "boolean", "pure_black_dark_mode" to "boolean",
+                "launch_animation_enabled" to "boolean", "hide_amounts" to "boolean", "app_lock_enabled" to "boolean",
+                "motion_level" to "string", "blur_intensity" to "float"),
             "vibefinance_prefs" to mapOf("last_daily_recalc_date" to "string", "auto_apply_recalc_choice" to "boolean"),
             "assets_display" to mapOf("compact_mode" to "boolean"),
             "cashback_rules_prefs" to mapOf("selected_intercept_apps" to "stringSet", "notification_logging_enabled" to "boolean"),
@@ -56,6 +58,17 @@ internal object BackupStateCodec {
         known.forEach { (store, keys) -> keys.forEach { (key, type) ->
             root.getJSONObject(store).optJSONObject(key)?.let { require(it.getString("type") == type) }
         } }
+        val appearance = root.getJSONObject("vibe_finance_prefs")
+        appearance.optJSONObject("appearance_palette_style")?.let {
+            com.example.vibefinance.theme.PaletteStyle.valueOf(it.getString("value"))
+        }
+        appearance.optJSONObject("appearance_palette_seeds")?.let {
+            com.example.vibefinance.theme.decodePaletteSeeds(it.getString("value"))
+        }
+        appearance.optJSONObject("motion_level")?.let { require(it.getString("value") in setOf("FULL", "REDUCED", "MINIMAL")) }
+        appearance.optJSONObject("blur_intensity")?.let {
+            val value = it.getDouble("value"); require(value.isFinite() && value in 0.0..1.0)
+        }
         root.getJSONObject("vibe_merchant_rules").keys().forEach { key ->
             require(root.getJSONObject("vibe_merchant_rules").getJSONObject(key).getString("type") == "string")
         }

@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier

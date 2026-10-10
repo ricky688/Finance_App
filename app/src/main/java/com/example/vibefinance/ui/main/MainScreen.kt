@@ -75,10 +75,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.ripple
-import com.example.vibefinance.ui.components.ExpressiveSwitch
+import com.example.vibefinance.ui.components.AppSwitch
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.components.ConnectedButtonRipple
 import androidx.compose.material3.DropdownMenu
@@ -125,6 +123,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.zIndex
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.InMemoryDatabase
+import com.example.vibefinance.service.PendingPayment
 import com.example.vibefinance.service.PendingPaymentStore
 import com.example.vibefinance.data.entity.AccountType
 import com.example.vibefinance.ui.home.CategoryIcon
@@ -167,6 +166,8 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.History
@@ -199,11 +200,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
 import com.example.vibefinance.ui.AppLanguage
-import androidx.compose.material3.ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.layout
@@ -344,6 +345,7 @@ private fun ExpressiveCollapsingTopBar(
     onNavigateBack: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
+    val topBlurIntensity = com.example.vibefinance.ui.preferences.LocalExperience.current.blur
     val topRowHeight = 64.dp +
         32.dp * (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f)
     val springFloat = spring<Float>(
@@ -364,8 +366,8 @@ private fun ExpressiveCollapsingTopBar(
             .onGloballyPositioned { onHeightMeasured(it.size.height.toFloat()) }
             .hazeEffect(
                 state = hazeState,
-                style = SubtleGlass.style(colors.surface),
-                block = { blurEnabled = !backgroundObscured }
+                style = SubtleGlass.style(colors.surface, topBlurIntensity),
+                block = { blurEnabled = !backgroundObscured && topBlurIntensity > 0f }
             )
             .background(colors.surface.copy(alpha = 0.90f))
             .drawWithContent {
@@ -607,8 +609,10 @@ fun MainScreen(
             viewModel.clearRequestedTab()
         }
     }
-    var showBudgetDialog by remember { mutableStateOf(false) }
-    var budgetConfigurationOnly by remember { mutableStateOf(false) }
+    var budgetSheetDestination by rememberSaveable { mutableStateOf(BudgetSheetDestination.NONE) }
+    val showBudgetDialog = budgetSheetDestination.showsSettings
+    val budgetConfigurationOnly = budgetSheetDestination == BudgetSheetDestination.EDIT_PERIOD
+    val showNewPeriodSheet = budgetSheetDestination == BudgetSheetDestination.NEW_PERIOD
     var showAddDialog by remember { mutableStateOf(false) }
     var showAddRecurringSheet by remember { mutableStateOf(false) }
     var showLoadingIndicator by remember { mutableStateOf(false) }
@@ -618,9 +622,13 @@ fun MainScreen(
     val pendingPayments by PendingPaymentStore.pending.collectAsStateWithLifecycle()
     var deferredPaymentIds by remember { mutableStateOf(emptySet<String>()) }
     var savingPaymentId by remember { mutableStateOf<String?>(null) }
+    var pendingPaymentForDetailCreate by remember { mutableStateOf<PendingPayment?>(null) }
+    var prefillAccountForEditor by remember { mutableStateOf<AccountEntity?>(null) }
+    var tabBeforeDetailCreate by remember { mutableStateOf<TabItem?>(null) }
     val pendingChoiceScope = rememberCoroutineScope()
     LaunchedEffect(context) { PendingPaymentStore.initialize(context) }
-    val paymentToChoose = pendingPayments.firstOrNull { it.id !in deferredPaymentIds }
+    val paymentToChoose = if (pendingPaymentForDetailCreate != null) null
+        else pendingPayments.firstOrNull { it.id !in deferredPaymentIds }
 
     // Scroll state tracking
     val density = LocalDensity.current
@@ -727,7 +735,6 @@ fun MainScreen(
 
     var showRecalcSheet by remember { mutableStateOf(false) }
     var isRecalcSheetMandatory by remember { mutableStateOf(false) }
-    var showNewPeriodSheet by remember { mutableStateOf(false) }
 
     // --- PREDICTIVE BACK NAVIGATION HANDLERS ---
     // 1. If FAB menu is expanded, predictive back collapses it
@@ -836,7 +843,7 @@ fun MainScreen(
             kotlinx.coroutines.delay(800L) // Smooth 800ms delay after app launch UI renders
             if (isPeriodEnded) {
                 hasAutoTriggeredForSession = true
-                showNewPeriodSheet = true
+                budgetSheetDestination = BudgetSheetDestination.NEW_PERIOD
             } else {
                 val currentDateStr = java.time.LocalDate.now().toString()
                 val lastCheckedDate = prefs.getString("last_daily_recalc_date", "")
@@ -911,6 +918,32 @@ fun MainScreen(
         }
     }
 
+    val settingsDrawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
+    var selectedEndDateMillis by rememberSaveable(budgetInfo.endDate, showBudgetDialog) {
+        mutableStateOf<Long?>(budgetInfo.endDate.takeIf { it > 0 })
+    }
+    var showDatePickerModal by rememberSaveable(showBudgetDialog) { mutableStateOf(false) }
+    LaunchedEffect(showBudgetDialog, budgetConfigurationOnly) {
+        // Import/restore and opening the focused budget form can leave Settings directly.
+        if (!showBudgetDialog || budgetConfigurationOnly) settingsDrawerState.close()
+    }
+    com.example.vibefinance.ui.settings.SettingsDrawerHost(
+        drawerState = settingsDrawerState,
+        drawerContent = {
+            if (showBudgetDialog && !budgetConfigurationOnly) {
+                com.example.vibefinance.ui.settings.SettingsSheet(
+                    state = state,
+                    budgetInfo = budgetInfo,
+                    viewModel = viewModel,
+                    onDismiss = { budgetSheetDestination = budgetSheetDestination.dismissSettings() },
+                    onOpenNewPeriod = { budgetSheetDestination = BudgetSheetDestination.NEW_PERIOD },
+                    onOpenDatePicker = { showDatePickerModal = true },
+                    selectedEndDateMillis = selectedEndDateMillis,
+                    drawerState = settingsDrawerState
+                )
+            }
+        }
+    ) {
     ObsidianGradientBackground {
         Scaffold(
             modifier = modifier
@@ -931,6 +964,12 @@ fun MainScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
+                            modifier = Modifier.testTag("ToggleAmountPrivacy")) {
+                            Icon(if (state.hideAmounts) androidx.compose.material.icons.Icons.Default.VisibilityOff
+                                else androidx.compose.material.icons.Icons.Default.Visibility,
+                                contentDescription = stringResource(if (state.hideAmounts) R.string.privacy_show_amounts else R.string.privacy_hide_amounts))
+                        }
                         val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
                         val iconRotation by animateFloatAsState(
                             targetValue = if (isDarkTheme) 360f else 0f,
@@ -984,8 +1023,7 @@ fun MainScreen(
                             }
                         }
                         IconButton(onClick = {
-                            budgetConfigurationOnly = false
-                            showBudgetDialog = true
+                            budgetSheetDestination = BudgetSheetDestination.SETTINGS
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
@@ -1143,8 +1181,8 @@ fun MainScreen(
                     NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .hazeEffect(hazeState, SubtleGlass.style(MaterialTheme.colorScheme.surfaceContainer)) {
-                                blurEnabled = !isBackgroundObscured
+                            .hazeEffect(hazeState, SubtleGlass.style(MaterialTheme.colorScheme.surfaceContainer, state.blurIntensity)) {
+                                blurEnabled = !isBackgroundObscured && state.blurIntensity > 0f
                             }
                             .drawBehind {
                                 drawLine(
@@ -1342,13 +1380,12 @@ fun MainScreen(
                                     showAddDialog = showAddDialog,
                                     onDismissAddDialog = { showAddDialog = false },
                                     onOpenBudgetDialog = {
-                                        budgetConfigurationOnly = true
-                                        showBudgetDialog = true
+                                        budgetSheetDestination = BudgetSheetDestination.fromDaily(budgetInfo.totalMonthlyBudget)
                                     },
                                     onOpenRecalcSheet = {
                                         val isBudgetEnd = budgetInfo.monthlyRemaining <= 0.0 || (budgetInfo.dailyRemaining < 0.0 && budgetInfo.newDailyBudget <= 0.0)
                                         if (isPeriodEnded || isBudgetEnd) {
-                                            showNewPeriodSheet = true
+                                            budgetSheetDestination = BudgetSheetDestination.NEW_PERIOD
                                         } else {
                                             isRecalcSheetMandatory = false
                                             showRecalcSheet = true
@@ -1370,6 +1407,42 @@ fun MainScreen(
                                     historyAccountFilterId = accountId
                                     historyCategoryFilter = null
                                     selectedTab = TabItem.HISTORY
+                                },
+                                initialPrefillAccount = prefillAccountForEditor,
+                                onAccountCreated = { acc ->
+                                    val targetPayment = pendingPaymentForDetailCreate
+                                    if (targetPayment != null) {
+                                        val newAccountId = if (acc.id != 0L) acc.id
+                                            else com.example.vibefinance.data.InMemoryDatabase.accounts.value.findLast {
+                                                it.name == acc.name && it.type == acc.type
+                                            }?.id ?: com.example.vibefinance.data.InMemoryDatabase.accounts.value.lastOrNull()?.id ?: 0L
+
+                                        if (newAccountId > 0L) {
+                                            pendingChoiceScope.launch {
+                                                val recorded = runCatching {
+                                                    PendingPaymentStore.accept(context, targetPayment.id, newAccountId, rememberChoice = true)
+                                                }.getOrDefault(false)
+                                                snackbarHostState.showSnackbar(
+                                                    if (recorded) context.getString(R.string.pending_payment_quick_created, acc.name)
+                                                    else context.getString(R.string.pending_payment_failed)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    pendingPaymentForDetailCreate = null
+                                    prefillAccountForEditor = null
+                                    if (tabBeforeDetailCreate != null) {
+                                        selectedTab = tabBeforeDetailCreate!!
+                                        tabBeforeDetailCreate = null
+                                    }
+                                },
+                                onDismissCreate = {
+                                    pendingPaymentForDetailCreate = null
+                                    prefillAccountForEditor = null
+                                    if (tabBeforeDetailCreate != null) {
+                                        selectedTab = tabBeforeDetailCreate!!
+                                        tabBeforeDetailCreate = null
+                                    }
                                 }
                             )
                             TabItem.RECURRING -> RecurringScreen(
@@ -1500,6 +1573,8 @@ fun MainScreen(
         }
     }
 
+    }
+
     paymentToChoose?.let { payment ->
         PendingPaymentChoiceDialog(
             payment = payment,
@@ -1520,18 +1595,40 @@ fun MainScreen(
                     )
                 }
             },
+            onQuickCreate = { suggestedAccount ->
+                savingPaymentId = payment.id
+                pendingChoiceScope.launch {
+                    val newAccountId = runCatching {
+                        com.example.vibefinance.data.InMemoryDatabase.insertAccount(suggestedAccount)
+                    }.getOrDefault(0L)
+                    if (newAccountId > 0L) {
+                        val recorded = runCatching {
+                            PendingPaymentStore.accept(context, payment.id, newAccountId, rememberChoice = true)
+                        }.getOrDefault(false)
+                        savingPaymentId = null
+                        snackbarHostState.showSnackbar(
+                            if (recorded) context.getString(R.string.pending_payment_quick_created, suggestedAccount.name)
+                            else context.getString(R.string.pending_payment_failed)
+                        )
+                    } else {
+                        savingPaymentId = null
+                        snackbarHostState.showSnackbar(context.getString(R.string.pending_payment_failed))
+                    }
+                }
+            },
+            onDetailCreate = { prefillAccount ->
+                pendingPaymentForDetailCreate = payment
+                prefillAccountForEditor = prefillAccount
+                tabBeforeDetailCreate = selectedTab
+                selectedTab = TabItem.ACCOUNTS
+            },
             onLater = { deferredPaymentIds = deferredPaymentIds + payment.id },
             onIgnore = { PendingPaymentStore.ignore(context, payment.id) }
         )
     }
 
-    // M3 Settings & Budget Configuration BottomSheet
+    // Focused budget configuration and its date picker retain their modal treatment.
     if (showBudgetDialog) {
-        var selectedEndDateMillis by remember(budgetInfo.endDate) {
-            mutableStateOf<Long?>(budgetInfo.endDate.takeIf { it > 0 })
-        }
-        var showDatePickerModal by remember { mutableStateOf(false) }
-
         if (showDatePickerModal) {
             val context = LocalContext.current
             val initialDate = selectedEndDateMillis?.let {
@@ -1668,14 +1765,13 @@ fun MainScreen(
             )
         }
 
-        com.example.vibefinance.ui.settings.SettingsSheet(
+        if (budgetConfigurationOnly) com.example.vibefinance.ui.settings.SettingsSheet(
             state = state,
             budgetInfo = budgetInfo,
             viewModel = viewModel,
-            onDismiss = { showBudgetDialog = false },
+            onDismiss = { budgetSheetDestination = budgetSheetDestination.dismissSettings() },
             onOpenNewPeriod = {
-                showBudgetDialog = false
-                showNewPeriodSheet = true
+                budgetSheetDestination = BudgetSheetDestination.NEW_PERIOD
             },
             onOpenDatePicker = { showDatePickerModal = true },
             selectedEndDateMillis = selectedEndDateMillis,
@@ -1722,10 +1818,10 @@ fun MainScreen(
                 )
                 val currentDateStr = java.time.LocalDate.now().toString()
                 prefs.edit().putString("last_daily_recalc_date", currentDateStr).apply()
-                showNewPeriodSheet = false
+                budgetSheetDestination = BudgetSheetDestination.NONE
             },
             onDismiss = {
-                showNewPeriodSheet = false
+                budgetSheetDestination = budgetSheetDestination.dismissNewPeriod()
             }
         )
     }
@@ -2222,21 +2318,12 @@ fun AddExpenseSheetContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
+                        AppSwitch(
                             checked = isDailyBudget,
                             onCheckedChange = {
                                 isDailyBudget = it
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            },
-                            thumbContent = if (isDailyBudget) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize)
-                                    )
-                                }
-                            } else null
+                            }
                         )
                     }
                 }
@@ -2587,6 +2674,9 @@ fun AddExpenseSheetContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
+                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                             value = initialBalanceText,
                             onValueChange = { initialBalanceText = it },
                             placeholder = { Text(if (selectedType == AccountType.CC) stringResource(R.string.ui_main_credit_limit_hint) else stringResource(R.string.ui_main_initial_balance_hint)) },
@@ -3218,18 +3308,9 @@ fun AllowedInterceptAppsDialog(
                                     }
                                 }
 
-                                Switch(
+                                AppSwitch(
                                     checked = isChecked,
-                                    onCheckedChange = { InMemoryDatabase.toggleInterceptApp(appInfo.packageName) },
-                                    thumbContent = if (isChecked) {
-                                        {
-                                            Icon(
-                                                imageVector = Icons.Filled.Check,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                                            )
-                                        }
-                                    } else null
+                                    onCheckedChange = { InMemoryDatabase.toggleInterceptApp(appInfo.packageName) }
                                 )
                             }
                         }

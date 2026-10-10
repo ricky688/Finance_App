@@ -107,12 +107,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
 import com.example.vibefinance.theme.rememberIconShape
@@ -2771,8 +2771,10 @@ fun AddEditSubscriptionSheet(
                                             color = MaterialTheme.colorScheme.primary,
                                             letterSpacing = 0.8.sp
                                         )
-
                                         OutlinedTextField(
+                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                                             value = amountText,
                                             onValueChange = { amountText = it },
                                             label = { Text(stringResource(R.string.sub_amount_label)) },
@@ -3099,8 +3101,10 @@ fun AddEditSubscriptionSheet(
                                             color = MaterialTheme.colorScheme.tertiary,
                                             letterSpacing = 0.8.sp
                                         )
-
                                         OutlinedTextField(
+                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                                             value = installmentTotalAmountText,
                                             onValueChange = { installmentTotalAmountText = it },
                                             label = { Text(stringResource(R.string.installment_total_amount)) },

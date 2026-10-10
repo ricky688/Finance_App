@@ -4,6 +4,7 @@ import com.example.vibefinance.ui.components.CompletePressButton
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,10 +15,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,9 +31,10 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +63,8 @@ internal fun PendingPaymentChoiceDialog(
     accounts: List<AccountEntity>,
     saving: Boolean,
     onRecord: (accountId: Long, rememberChoice: Boolean) -> Unit,
+    onQuickCreate: (AccountEntity) -> Unit = {},
+    onDetailCreate: (AccountEntity) -> Unit = {},
     onLater: () -> Unit,
     onIgnore: () -> Unit
 ) {
@@ -80,8 +89,15 @@ internal fun PendingPaymentChoiceDialog(
             }
         }, { it.name.lowercase(Locale.getDefault()) }))
     }
+    val matchedAccount = remember(payment.id, currentPayment.cardLast4, accounts, isTopUp) {
+        PendingPaymentStore.findMatchingAccount(currentPayment, accounts)
+    }
+    val hasMatchedAccount = matchedAccount != null
+    val suggestedNewAccount = remember(currentPayment) {
+        PendingPaymentStore.buildSuggestedAccount(currentPayment)
+    }
     val suggestedId = remember(payment.id, currentPayment.cardLast4, accounts, isTopUp) {
-        PendingPaymentStore.findMatchingAccount(currentPayment, accounts)?.id
+        matchedAccount?.id
             ?: sortedAccounts.firstOrNull { !isTopUp || !PendingPaymentStore.isOctopusAccount(it) }?.id
     }
     var selectedId by remember(payment.id, suggestedId) { mutableStateOf(suggestedId) }
@@ -192,6 +208,98 @@ internal fun PendingPaymentChoiceDialog(
                     )
                 }
 
+                if (!hasMatchedAccount) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.12f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (suggestedNewAccount.type == AccountType.CC) Icons.Filled.CreditCard else Icons.Filled.AccountBalance,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.pending_payment_unmatched_card_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        text = suggestedNewAccount.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.pending_payment_unmatched_card_desc),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CompletePressButton(
+                                    onClick = { onQuickCreate(suggestedNewAccount) },
+                                    enabled = !saving,
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    shapes = ButtonDefaults.shapes(
+                                        shape = RoundedCornerShape(14.dp),
+                                        pressedShape = RoundedCornerShape(10.dp)
+                                    )
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = stringResource(R.string.pending_payment_quick_create),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                OutlinedButton(
+                                    onClick = { onDetailCreate(suggestedNewAccount) },
+                                    enabled = !saving,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = stringResource(R.string.pending_payment_detail_create),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Text(
                     text = if (isTopUp) stringResource(R.string.pending_payment_choose_source_account)
                            else stringResource(R.string.pending_payment_choose_account),
@@ -276,6 +384,20 @@ internal fun PendingPaymentChoiceDialog(
                                 }
                             }
                         }
+                    }
+                    OutlinedButton(
+                        onClick = { onDetailCreate(suggestedNewAccount) },
+                        enabled = !saving,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.pending_payment_add_new_asset),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     if (canRemember) {
                         val displayHint = if (!payment.cardLast4.isNullOrBlank()) {

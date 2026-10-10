@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="palette_custom">Custom variant</string>
+    <string name="palette_style_vibrant">Vibrant</string>
+    <string name="palette_style_expressive">Expressive</string>
+    <string name="palette_style_neutral">Neutral</string>
+    <string name="palette_style_monochrome">Monochrome</string>
+    <string name="palette_style_fidelity">Fidelity</string>
+    <string name="palette_edit_variant">Edit variant</string>
+    <string name="palette_hex_label">Color (hex)</string>
+    <string name="palette_hex_help">Enter six hexadecimal digits, such as 006C4C.</string>
+    <string name="palette_red">Red</string>
+    <string name="palette_green">Green</string>
+    <string name="palette_blue">Blue</string>
+    <string name="palette_reset_variant">Reset this variant</string>
+</resources>

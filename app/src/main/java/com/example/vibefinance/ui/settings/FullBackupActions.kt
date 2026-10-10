@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.AppSwitch
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -7,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -73,7 +76,7 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                             Text(stringResource(R.string.backup_includes))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(stringResource(R.string.backup_encrypt), Modifier.weight(1f))
-                                Switch(checked = encrypt, onCheckedChange = { encrypt = it }, modifier = Modifier.testTag("BackupEncrypt"))
+                                AppSwitch(checked = encrypt, onCheckedChange = { encrypt = it }, modifier = Modifier.testTag("BackupEncrypt"))
                             }
                             if (!encrypt) Text(stringResource(R.string.backup_plain_notice), style = MaterialTheme.typography.bodySmall)
                         }

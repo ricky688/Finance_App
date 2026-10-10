@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import com.example.vibefinance.util.LocalAppManager
 import com.example.vibefinance.ui.common.horizontalFadingEdge
+import com.example.vibefinance.ui.common.ScrollBlurContainer
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.theme.BentoSubCardShape
 import com.example.vibefinance.theme.BentoSmallCardShape
@@ -72,6 +74,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
@@ -148,7 +152,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ButtonGroupDefaults
@@ -159,7 +163,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
@@ -183,6 +187,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -739,7 +745,7 @@ private fun AssetGroupSelector(
                         label = "assetGroupIcon_$index"
                     )
 
-                    ConnectedButtonRipple {
+                    ConnectedButtonRipple(isSelected = selected) {
                         CompletePressToggleButton(
                             checked = selected,
                             onCheckedChange = { onSelectFilter(filter) },
@@ -810,7 +816,7 @@ private fun AssetGroupSelector(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AccountsScreen(
     state: FinanceUiState,
@@ -819,7 +825,10 @@ fun AccountsScreen(
     topContentPadding: Dp = 16.dp,
     topVisibilityInset: Dp = 0.dp,
     bottomVisibilityInset: Dp = 0.dp,
-    onViewAccountHistory: (Long) -> Unit = {}
+    onViewAccountHistory: (Long) -> Unit = {},
+    initialPrefillAccount: AccountEntity? = null,
+    onAccountCreated: ((AccountEntity) -> Unit)? = null,
+    onDismissCreate: (() -> Unit)? = null
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val presentationLocale = LocalConfiguration.current.locales[0]
@@ -829,8 +838,16 @@ fun AccountsScreen(
     val totalDebt = breakdown.totalDebt
     val netWorth = breakdown.netWorth
 
-    var showAddEditDialog by remember { mutableStateOf(false) }
-    var editingAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var showAddEditDialog by rememberSaveable { mutableStateOf(false) }
+    var editingAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editingAccount = state.accounts.firstOrNull { it.id == editingAccountId }
+
+    androidx.compose.runtime.LaunchedEffect(initialPrefillAccount) {
+        if (initialPrefillAccount != null) {
+            editingAccountId = null
+            showAddEditDialog = true
+        }
+    }
     var balanceAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var accountForAppPicker by remember { mutableStateOf<AccountEntity?>(null) }
     var selectedAssetFilter by remember { mutableStateOf(AssetFilter.ALL) }
@@ -1032,7 +1049,7 @@ fun AccountsScreen(
                         CompletePressButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editingAccount = null
+                                editingAccountId = null
                                 showAddEditDialog = true
                             },
                             interactionSource = addAssetInteractionSource,
@@ -1113,7 +1130,7 @@ fun AccountsScreen(
                         GlassmorphicCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             cornerRadius = 24.dp,
                             borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
                         ) {
@@ -1164,7 +1181,7 @@ fun AccountsScreen(
                                 CompletePressButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        editingAccount = null
+                                        editingAccountId = null
                                         showAddEditDialog = true
                                     },
                                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
@@ -1275,7 +1292,7 @@ fun AccountsScreen(
                                             isFirstInGroup = index == 0,
                                             isLastInGroup = index == groupAccounts.lastIndex,
                                             onEditClick = {
-                                                editingAccount = account
+                                                editingAccountId = account.id
                                                 showAddEditDialog = true
                                             },
                                             onBalanceClick = { balanceAccount = account },
@@ -1286,7 +1303,7 @@ fun AccountsScreen(
                                         ExpressiveAccountListItem(
                                             account = account,
                                             onEditClick = {
-                                                editingAccount = account
+                                                editingAccountId = account.id
                                                 showAddEditDialog = true
                                             },
                                             onBalanceClick = { balanceAccount = account },
@@ -1347,6 +1364,9 @@ fun AccountsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedTextField(
+                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                            androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                         value = targetBalanceText,
                         onValueChange = { targetBalanceText = it },
                         label = { Text(stringResource(com.example.vibefinance.R.string.assets_new_balance)) },
@@ -1405,41 +1425,73 @@ fun AccountsScreen(
     }
 
     // 6. Interactive full CRUD Add / Edit Bottom Sheet
-    if (showAddEditDialog) {
+    // An existing account may arrive after the saved UI state during activity recreation.
+    if (showAddEditDialog && (editingAccountId == null || editingAccount != null)) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val coroutineScope = rememberCoroutineScope()
-        var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+        val editorScrollState = rememberScrollState()
+        val overviewScrollState = rememberScrollState()
+        var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
 
         val context = LocalContext.current
         remember {
             createTestBgIfNeeded(context)
         }
-        var nameText by remember { mutableStateOf(editingAccount?.name ?: "") }
-        var nicknameText by remember { mutableStateOf(editingAccount?.nickname.orEmpty()) }
-        var typeState by remember { mutableStateOf(editingAccount?.type ?: AccountType.BANK) }
-        var balanceText by remember { mutableStateOf(editingAccount?.balance?.toString() ?: "0.0") }
-        var quickAdjustAmountText by remember { mutableStateOf("") }
+        var nameText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.name ?: initialPrefillAccount?.name ?: "")
+        }
+        var nicknameText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.nickname.orEmpty())
+        }
+        var typeState by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.type ?: initialPrefillAccount?.type ?: AccountType.BANK)
+        }
+        val originalBalance by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.balance)
+        }
+        var balanceText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.balance?.toString() ?: "0.0")
+        }
+        var quickAdjustAmountText by rememberSaveable { mutableStateOf("") }
 
-        var creditLimitText by remember { mutableStateOf(editingAccount?.creditLimit?.toString() ?: "5000") }
-        var billingDateText by remember { mutableStateOf(editingAccount?.billingDate?.toString().orEmpty()) }
-        var paymentDateText by remember { mutableStateOf(editingAccount?.paymentDate?.toString().orEmpty()) }
-        var paymentDeadlineText by remember { mutableStateOf(editingAccount?.paymentDeadline?.toString().orEmpty()) }
+        var creditLimitText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.creditLimit?.toString() ?: "5000")
+        }
+        var billingDateText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.billingDate?.toString().orEmpty())
+        }
+        var paymentDateText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.paymentDate?.toString().orEmpty())
+        }
+        var paymentDeadlineText by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.paymentDeadline?.toString().orEmpty())
+        }
 
-        var selectedCardTheme by remember { mutableStateOf(editingAccount?.cardTheme ?: "default") }
-        var selectedAccentColorKey by remember {
+        var selectedCardTheme by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.cardTheme ?: "default")
+        }
+        var selectedAccentColorKey by rememberSaveable(editingAccountId, initialPrefillAccount) {
             mutableStateOf(editingAccount?.accentColorKey?.takeIf { it in setOf("primary", "secondary", "tertiary") })
         }
-        var selectedLinkedAppPackage by remember { mutableStateOf(editingAccount?.linkedAppPackage) }
-        var showAppPickerDialog by remember { mutableStateOf(false) }
-        var cardLast4Text by remember { mutableStateOf(editingAccount?.cardLast4 ?: "") }
-        var notificationAliasesList by remember(editingAccount?.id) {
-            mutableStateOf(editingAccount?.getNotificationAliasList() ?: emptyList())
+        var selectedLinkedAppPackage by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.linkedAppPackage ?: initialPrefillAccount?.linkedAppPackage)
         }
-        var newAliasInput by remember { mutableStateOf("") }
+        var showAppPickerDialog by rememberSaveable { mutableStateOf(false) }
+        var cardLast4Text by rememberSaveable(editingAccountId, initialPrefillAccount) {
+            mutableStateOf(editingAccount?.cardLast4 ?: initialPrefillAccount?.cardLast4 ?: "")
+        }
+        var notificationAliasesList by rememberSaveable(
+            editingAccountId,
+            initialPrefillAccount,
+            stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it.toList() })
+        ) {
+            mutableStateOf(editingAccount?.getNotificationAliasList() ?: initialPrefillAccount?.getNotificationAliasList() ?: emptyList())
+        }
+        var newAliasInput by rememberSaveable { mutableStateOf("") }
         val defaultAccountName = stringResource(R.string.ah_new_account)
         val invalidLastFour = cardLast4Text.isNotEmpty() &&
             (cardLast4Text.length != 4 || cardLast4Text.any { it !in '0'..'9' })
-        var selectedCardProtocol by remember { mutableStateOf(
+        var selectedCardProtocol by rememberSaveable { mutableStateOf(
             when (editingAccount?.cardProtocol?.lowercase(Locale.US)) {
                 "visa" -> "Visa"
                 "mastercard" -> "Mastercard"
@@ -1448,7 +1500,7 @@ fun AccountsScreen(
                 else -> "None"
             }
         ) }
-        var selectedCardPattern by remember { mutableStateOf(
+        var selectedCardPattern by rememberSaveable { mutableStateOf(
             when (editingAccount?.cardPattern?.lowercase(Locale.US)) {
                 "cyber grid" -> "Cyber Grid"
                 "neon waves" -> "Neon Waves"
@@ -1456,13 +1508,14 @@ fun AccountsScreen(
                 else -> "None"
             }
         ) }
-        var selectedCardImageUri by remember { mutableStateOf(editingAccount?.cardImageUri ?: "") }
-        var selectedAspectRatio by remember { mutableStateOf(editingAccount?.customImageAspectRatio ?: "1.586:1") }
-        var selectedCardBgOffsetX by remember { mutableStateOf(editingAccount?.cardBgOffsetX ?: 0f) }
-        var selectedCardBgOffsetY by remember { mutableStateOf(editingAccount?.cardBgOffsetY ?: 0f) }
-        var selectedCardBgScale by remember { mutableStateOf(editingAccount?.cardBgScale ?: 1f) }
-        var tempBitmapToCrop by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-        var showCropDialog by remember { mutableStateOf(false) }
+        var selectedCardImageUri by rememberSaveable { mutableStateOf(editingAccount?.cardImageUri ?: "") }
+        var selectedAspectRatio by rememberSaveable { mutableStateOf(editingAccount?.customImageAspectRatio ?: "1.586:1") }
+        var selectedCardBgOffsetX by rememberSaveable { mutableStateOf(editingAccount?.cardBgOffsetX ?: 0f) }
+        var selectedCardBgOffsetY by rememberSaveable { mutableStateOf(editingAccount?.cardBgOffsetY ?: 0f) }
+        var selectedCardBgScale by rememberSaveable { mutableStateOf(editingAccount?.cardBgScale ?: 1f) }
+        var cropSourcePath by rememberSaveable { mutableStateOf<String?>(null) }
+        val tempBitmapToCrop = remember(cropSourcePath) { cropSourcePath?.let(::loadCropBitmap) }
+        var showCropDialog by rememberSaveable { mutableStateOf(false) }
 
         val galleryLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.GetContent()
@@ -1480,18 +1533,8 @@ fun AccountsScreen(
                     }
 
                     if (userPickedFile.exists() && userPickedFile.length() > 0) {
-                        var bmap = BitmapFactory.decodeFile(userPickedFile.absolutePath)
-                        if (bmap == null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                            try {
-                                val source = android.graphics.ImageDecoder.createSource(userPickedFile)
-                                bmap = android.graphics.ImageDecoder.decodeBitmap(source)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }
-
-                        if (bmap != null) {
-                            tempBitmapToCrop = bmap
+                        if (loadCropBitmap(userPickedFile.absolutePath) != null) {
+                            cropSourcePath = userPickedFile.absolutePath
                             showCropDialog = true
                         }
                     }
@@ -1538,7 +1581,7 @@ fun AccountsScreen(
                 listOf("Details", "Card Design")
             }
         }
-        var selectedDialogTab by remember { mutableStateOf(0) }
+        var selectedDialogTab by rememberSaveable { mutableStateOf(0) }
         if (selectedDialogTab >= tabs.size) {
             selectedDialogTab = 0
         }
@@ -1600,8 +1643,14 @@ fun AccountsScreen(
         }
 
         ModalBottomSheet(
-            onDismissRequest = { showAddEditDialog = false },
+            onDismissRequest = {
+                showAddEditDialog = false
+                onDismissCreate?.invoke()
+            },
             sheetState = sheetState,
+            // Form edge gestures must not drag/dismiss the sheet or compete with its scroll views.
+            sheetGesturesEnabled = false,
+            modifier = Modifier.testTag("AssetEditorSheet"),
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             dragHandle = {
@@ -1624,12 +1673,18 @@ fun AccountsScreen(
                     .imePadding()
             ) {
                 val isWide = maxWidth >= 600.dp
+                // Follow the keyboard rather than focus: Back/Done can finish typing while
+                // the field retains focus, and switching fields must not flash the preview.
+                val showEditorPreview = !WindowInsets.isImeVisible
+                val editorBlurActive = LocalWindowInfo.current.isWindowFocused &&
+                    !showCropDialog && !showAppPickerDialog && !showDeleteConfirmDialog
 
                 val previewCard: @Composable () -> Unit = {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(138.dp)
+                            .testTag("AssetEditorPreview")
                             .then(
                                 if (selectedCardImageUri.isEmpty()) {
                                     Modifier.rotate3DOnTouch()
@@ -2285,8 +2340,10 @@ fun AccountsScreen(
                                             letterSpacing = 1.2.sp
                                         )
                                     }
-
                                     OutlinedTextField(
+                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                                         value = balanceText,
                                         onValueChange = { balanceText = it },
                                         label = { Text(if (typeState == AccountType.CC) stringResource(R.string.ah_current_debt_amount) else stringResource(R.string.ah_current_balance_amount)) },
@@ -2355,6 +2412,9 @@ fun AccountsScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         OutlinedTextField(
+                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                                             value = quickAdjustAmountText,
                                             onValueChange = { quickAdjustAmountText = it },
                                             label = { Text(stringResource(R.string.ah_custom_adjust)) },
@@ -2447,8 +2507,10 @@ fun AccountsScreen(
                                                 letterSpacing = 1.2.sp
                                             )
                                         }
-
                                         OutlinedTextField(
+                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+
                                             value = creditLimitText,
                                             onValueChange = { creditLimitText = it },
                                             label = { Text(stringResource(R.string.ah_credit_limit_amount)) },
@@ -2932,7 +2994,7 @@ fun AccountsScreen(
                                                         if (file.exists()) {
                                                             val bmap = BitmapFactory.decodeFile(file.absolutePath)
                                                             if (bmap != null) {
-                                                                tempBitmapToCrop = bmap
+                                                                cropSourcePath = file.absolutePath
                                                                 showCropDialog = true
                                                             }
                                                         }
@@ -3312,6 +3374,7 @@ fun AccountsScreen(
                             onClick = {
                                 coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
                                     showAddEditDialog = false
+                                    onDismissCreate?.invoke()
                                 }
                             },
                             modifier = Modifier
@@ -3340,105 +3403,118 @@ fun AccountsScreen(
                             horizontalArrangement = Arrangement.spacedBy(20.dp)
                         ) {
                             // Left Pane: Sticky Overview (weight 0.44f)
-                            Column(
-                                modifier = Modifier
-                                    .weight(0.44f)
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                previewCard()
-
-                                // Live Summary Bento Card
-                                Surface(
-                                    shape = BentoCardShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
-                                    modifier = Modifier.fillMaxWidth()
+                            ScrollBlurContainer(
+                                scrollState = overviewScrollState,
+                                modifier = Modifier.weight(0.44f).fillMaxHeight(),
+                                vertical = true,
+                                tagPrefix = "AssetEditorOverviewScroll",
+                                blurActive = editorBlurActive
+                            ) { sourceModifier ->
+                                Column(
+                                    modifier = sourceModifier.fillMaxWidth().verticalScroll(overviewScrollState, overscrollEffect = null),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    AnimatedVisibility(
+                                        visible = showEditorPreview,
+                                        enter = expandVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                                            fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
+                                        exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                                            fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec())
+                                    ) { previewCard() }
+
+                                    // Live Summary Bento Card
+                                    Surface(
+                                        shape = BentoCardShape,
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            Text(
-                                                text = stringResource(R.string.ah_live_overview),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                letterSpacing = 1.2.sp
-                                            )
-                                            Surface(
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = when (typeState) {
-                                                        AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
-                                                        AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
-                                                        AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
-                                                        AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
-                                                    },
+                                                    text = stringResource(R.string.ah_live_overview),
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                     fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    letterSpacing = 1.2.sp
                                                 )
-                                            }
-                                        }
-
-                                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            Text(
-                                                text = if (typeState == AccountType.CC) stringResource(R.string.ah_debt_title) else stringResource(R.string.ah_available_balance),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val formattedBal = String.format(Locale.US, "$%,.2f", balanceText.toDoubleOrNull() ?: 0.0)
-                                            RollingNumberText(
-                                                text = formattedBal,
-                                                style = MaterialTheme.typography.headlineSmall,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-
-                                        if (typeState == AccountType.CC) {
-                                            val limitVal = creditLimitText.toDoubleOrNull() ?: 1.0
-                                            val debtVal = balanceText.toDoubleOrNull() ?: 0.0
-                                            val util = if (limitVal > 0) (debtVal / limitVal).coerceIn(0.0, 1.0).toFloat() else 0f
-                                            val utilPercent = (util * 100).toInt()
-                                            val animatedUtil by animateFloatAsState(
-                                                targetValue = util,
-                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                                                label = "wideUtilProgress"
-                                            )
-                                            val targetColor = when {
-                                                utilPercent < 30 -> MaterialTheme.colorScheme.primary
-                                                utilPercent < 60 -> Color(0xFFFFA000)
-                                                else -> MaterialTheme.colorScheme.error
-                                            }
-                                            val animatedBarColor by animateColorAsState(targetValue = targetColor, label = "wideUtilColor")
-
-                                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text(stringResource(R.string.ah_utilization), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    Text("$utilPercent%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = animatedBarColor)
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                                ) {
+                                                    Text(
+                                                        text = when (typeState) {
+                                                            AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
+                                                            AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
+                                                            AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
+                                                            AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
+                                                        },
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
                                                 }
-                                                LinearProgressIndicator(
-                                                    progress = { animatedUtil },
-                                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                                                    color = animatedBarColor,
-                                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                            }
+
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(
+                                                    text = if (typeState == AccountType.CC) stringResource(R.string.ah_debt_title) else stringResource(R.string.ah_available_balance),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
+                                                val formattedBal = String.format(Locale.US, "$%,.2f", balanceText.toDoubleOrNull() ?: 0.0)
+                                                RollingNumberText(
+                                                    text = formattedBal,
+                                                    style = MaterialTheme.typography.headlineSmall,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+
+                                            if (typeState == AccountType.CC) {
+                                                val limitVal = creditLimitText.toDoubleOrNull() ?: 1.0
+                                                val debtVal = balanceText.toDoubleOrNull() ?: 0.0
+                                                val util = if (limitVal > 0) (debtVal / limitVal).coerceIn(0.0, 1.0).toFloat() else 0f
+                                                val utilPercent = (util * 100).toInt()
+                                                val animatedUtil by animateFloatAsState(
+                                                    targetValue = util,
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                                    label = "wideUtilProgress"
+                                                )
+                                                val targetColor = when {
+                                                    utilPercent < 30 -> MaterialTheme.colorScheme.primary
+                                                    utilPercent < 60 -> Color(0xFFFFA000)
+                                                    else -> MaterialTheme.colorScheme.error
+                                                }
+                                                val animatedBarColor by animateColorAsState(targetValue = targetColor, label = "wideUtilColor")
+
+                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                        Text(stringResource(R.string.ah_utilization), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                        Text("$utilPercent%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = animatedBarColor)
+                                                    }
+                                                    LinearProgressIndicator(
+                                                        progress = { animatedUtil },
+                                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                                                        color = animatedBarColor,
+                                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                                    )
+                                                }
                                             }
                                         }
                                     }
                                 }
+
                             }
 
                             // Right Pane: Tabs & Scrollable Configuration (weight 0.56f)
@@ -3450,14 +3526,21 @@ fun AccountsScreen(
                             ) {
                                 tabSelector()
 
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalScroll(rememberScrollState()),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    tabContent()
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                ScrollBlurContainer(
+                                    scrollState = editorScrollState,
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    vertical = true,
+                                    tagPrefix = "AssetEditorScroll",
+                                    blurActive = editorBlurActive
+                                ) { sourceModifier ->
+                                    Column(
+                                        modifier = sourceModifier.fillMaxWidth().verticalScroll(editorScrollState, overscrollEffect = null)
+                                            .testTag("AssetEditorScrollContent"),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        tabContent()
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                    }
                                 }
                             }
                         }
@@ -3470,17 +3553,29 @@ fun AccountsScreen(
                                 .padding(horizontal = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            previewCard()
+                            AnimatedVisibility(
+                                visible = showEditorPreview,
+                                enter = expandVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                                    fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
+                                exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
+                                    fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec())
+                            ) { previewCard() }
                             tabSelector()
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                tabContent()
-                                Spacer(modifier = Modifier.height(12.dp))
+                            ScrollBlurContainer(
+                                scrollState = editorScrollState,
+                                modifier = Modifier.weight(1f).fillMaxWidth(),
+                                vertical = true,
+                                tagPrefix = "AssetEditorScroll",
+                                blurActive = editorBlurActive
+                            ) { sourceModifier ->
+                                Column(
+                                    modifier = sourceModifier.fillMaxWidth().verticalScroll(editorScrollState, overscrollEffect = null)
+                                        .testTag("AssetEditorScrollContent"),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) {
+                                    tabContent()
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
                             }
                         }
                     }
@@ -3568,8 +3663,9 @@ fun AccountsScreen(
                                     )
                                     onIntent(FinanceIntent.SaveAccount(
                                         account = acc,
-                                        originalBalance = editingAccount?.balance
+                                        originalBalance = originalBalance
                                     ))
+                                    onAccountCreated?.invoke(acc)
                                     coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
                                         showAddEditDialog = false
                                     }
@@ -3877,6 +3973,15 @@ fun rememberCardImagePainter(filePath: String?): ImageBitmap? {
             null
         }
     }
+}
+
+/** Rebuild crop pixels from a private file after recreation; never save bitmaps in a Bundle. */
+private fun loadCropBitmap(path: String): android.graphics.Bitmap? = try {
+    BitmapFactory.decodeFile(path) ?: if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+        android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(File(path)))
+    } else null
+} catch (_: Exception) {
+    null
 }
 
 fun saveAndResizeImage(inputStream: java.io.InputStream, targetFile: java.io.File): Boolean {
@@ -5334,9 +5439,11 @@ fun InteractiveImageCropDialog(
     onConfirm: (android.graphics.Bitmap, String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    var selectedRatio by remember { mutableStateOf(initialAspectRatio) }
-    var scale by remember { mutableStateOf(1.0f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    var selectedRatio by rememberSaveable { mutableStateOf(initialAspectRatio) }
+    var scale by rememberSaveable { mutableStateOf(1.0f) }
+    var offset by rememberSaveable(stateSaver = Saver<Offset, List<Float>>(
+        save = { listOf(it.x, it.y) }, restore = { Offset(it[0], it[1]) }
+    )) { mutableStateOf(Offset.Zero) }
 
     val ratioOptions = listOf(
         "1.586:1" to R.string.ah_ratio_card,

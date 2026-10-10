@@ -41,7 +41,7 @@
     <string name="loc_remember_choice">Remember my choice</string>
     <string name="loc_change_rollover_later">You can change this later in Settings</string>
     <string name="loc_new_period_title">Start New Budget Period</string>
-    <string name="loc_new_period_desc">Your previous period has ended. Set the budget amount and end date for your new period.</string>
+    <string name="loc_new_period_desc">Set the budget amount and end date for your new period.</string>
     <string name="loc_previous_leftover">Previous Period Leftover</string>
     <string name="loc_previous_overspent">Previous Period Overspending</string>
     <string name="loc_new_budget_amount">New Period Budget Amount</string>

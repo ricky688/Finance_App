@@ -20,4 +20,10 @@
     <string name="pending_payment_choose_source_account">选择付款 / 转出账户（充值至八达通）</string>
     <string name="pending_payment_record_topup">记录充值转账</string>
     <string name="pending_payment_destination_octopus">充值目标（转入）</string>
+    <string name="pending_payment_unmatched_card_title">检测到新卡或资产</string>
+    <string name="pending_payment_unmatched_card_desc">创建此卡片以记账并自动匹配后续通知。</string>
+    <string name="pending_payment_quick_create">快速创建</string>
+    <string name="pending_payment_detail_create">详细设置</string>
+    <string name="pending_payment_add_new_asset">+ 新增资产或卡片</string>
+    <string name="pending_payment_quick_created">已创建 %1$s 并记录支出</string>
 </resources>

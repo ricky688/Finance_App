@@ -9,7 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.Text
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +25,12 @@ fun RollingNumberText(
     color: Color = Color.Unspecified,
     modifier: Modifier = Modifier
 ) {
+    val experience = com.example.vibefinance.ui.preferences.LocalExperience.current
+    val displayText = if (experience.hideAmounts) com.example.vibefinance.ui.preferences.redactAmounts(text) else text
+    if (experience.motion != com.example.vibefinance.ui.preferences.MotionLevel.FULL || displayText != text) {
+        Text(displayText, modifier = modifier, style = style, fontWeight = fontWeight, color = color)
+        return
+    }
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically

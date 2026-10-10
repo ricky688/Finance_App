@@ -418,6 +418,42 @@ object PendingPaymentStore {
         return h in genericHints || h.endsWith(" merchant")
     }
 
+    /**
+     * Constructs a prefilled suggested AccountEntity based on notification fields.
+     */
+    fun buildSuggestedAccount(payment: PendingPayment): AccountEntity {
+        val hint = payment.assetHint.trim()
+        val suggestedName = when {
+            !payment.cardLast4.isNullOrBlank() && hint.isNotBlank() ->
+                "$hint (•••• ${payment.cardLast4})"
+            hint.isNotBlank() ->
+                hint
+            !payment.cardLast4.isNullOrBlank() ->
+                "Card (•••• ${payment.cardLast4})"
+            payment.merchant.isNotBlank() ->
+                payment.merchant
+            else -> "New Asset"
+        }
+        val type = if (!payment.cardLast4.isNullOrBlank()) AccountType.CC else AccountType.BANK
+        val icon = if (type == AccountType.CC) "credit_card" else "bank"
+        val aliases = mutableListOf<String>()
+        if (hint.isNotBlank()) {
+            aliases.add(hint)
+        }
+        if (!payment.cardLast4.isNullOrBlank()) {
+            aliases.add(payment.cardLast4)
+        }
+        return AccountEntity(
+            name = suggestedName,
+            type = type,
+            balance = 0.0,
+            icon = icon,
+            cardLast4 = payment.cardLast4,
+            linkedAppPackage = payment.sourcePackage.takeIf { it.isNotBlank() },
+            notificationAliases = aliases.distinct().joinToString(", ").takeIf { it.isNotBlank() }
+        )
+    }
+
     /** Only a specific card/account hint may be used to route a future payment without asking. */
     fun canRememberChoice(payment: PendingPayment, account: AccountEntity): Boolean {
         // If physical card last 4 digits match between payment and account, it is explicitly the same card

@@ -43,6 +43,9 @@ fun Modifier.pulsingSkeleton(
     shape: Shape = RoundedCornerShape(16.dp),
     durationMillis: Int = 1000
 ): Modifier = composed {
+    if (com.example.vibefinance.ui.preferences.LocalExperience.current.motion != com.example.vibefinance.ui.preferences.MotionLevel.FULL) {
+        return@composed this.clip(shape).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+    }
     val infiniteTransition = rememberInfiniteTransition(label = "skeletonPulse")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.12f,

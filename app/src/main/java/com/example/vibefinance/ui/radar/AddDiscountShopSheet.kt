@@ -2,6 +2,10 @@
 
 package com.example.vibefinance.ui.radar
 
+import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+
+import com.example.vibefinance.ui.components.AppSwitch
+
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.ui.components.CompletePressButton
 
@@ -24,6 +28,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.*
+import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -327,7 +332,7 @@ fun AddDiscountShopSheet(
                     text = stringResource(R.string.ui_radar_use_current_location, radarDistanceLabel(0.0)),
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Switch(
+                AppSwitch(
                     checked = useCurrentGnss,
                     onCheckedChange = { useCurrentGnss = it }
                 )

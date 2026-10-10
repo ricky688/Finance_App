@@ -7,6 +7,12 @@ import androidx.compose.ui.graphics.Color
 import com.google.android.material.color.utilities.Hct
 import com.google.android.material.color.utilities.MaterialDynamicColors
 import com.google.android.material.color.utilities.SchemeTonalSpot
+import com.google.android.material.color.utilities.SchemeVibrant
+import com.google.android.material.color.utilities.SchemeExpressive
+import com.google.android.material.color.utilities.SchemeNeutral
+import com.google.android.material.color.utilities.SchemeMonochrome
+import com.google.android.material.color.utilities.SchemeFidelity
+import org.json.JSONObject
 
 /** Curated seeds, converted to complete Material tonal schemes at the selected contrast level. */
 enum class AppearancePalette(val seedArgb: Int) {
@@ -16,19 +22,44 @@ enum class AppearancePalette(val seedArgb: Int) {
     VIOLET(0xFF7047A3.toInt()),
     ROSE(0xFF9E2A5E.toInt()),
     AMBER(0xFFF57C00.toInt()),
-    LIME(0xFF689F38.toInt())
+    LIME(0xFF689F38.toInt()),
+    CUSTOM(0xFF006C4C.toInt())
+}
+
+enum class PaletteStyle { TONAL_SPOT, VIBRANT, EXPRESSIVE, NEUTRAL, MONOCHROME, FIDELITY }
+
+internal fun encodePaletteSeeds(seeds: Map<AppearancePalette, Int>): String =
+    JSONObject(seeds.mapKeys { it.key.name }).toString()
+
+/** Strict decoding is also used by backup validation; startup can fall back for old preferences. */
+internal fun decodePaletteSeeds(raw: String): Map<AppearancePalette, Int> {
+    val root = JSONObject(raw)
+    return root.keys().asSequence().associate { key ->
+        val value = root.get(key)
+        require(value is Number && value.toDouble() == value.toInt().toDouble())
+        val seed = value.toInt()
+        require(seed ushr 24 == 255)
+        AppearancePalette.valueOf(key) to seed
+    }
 }
 
 fun paletteColorScheme(
     palette: AppearancePalette,
     darkTheme: Boolean,
-    contrastLevel: Int
+    contrastLevel: Int,
+    style: PaletteStyle = PaletteStyle.TONAL_SPOT,
+    seedArgb: Int = palette.seedArgb
 ): ColorScheme {
-    val scheme = SchemeTonalSpot(
-        Hct.fromInt(palette.seedArgb),
-        darkTheme,
-        contrastLevel.coerceIn(-1, 1).toDouble()
-    )
+    val seed = Hct.fromInt(seedArgb)
+    val contrast = contrastLevel.coerceIn(-1, 1).toDouble()
+    val scheme = when (style) {
+        PaletteStyle.TONAL_SPOT -> SchemeTonalSpot(seed, darkTheme, contrast)
+        PaletteStyle.VIBRANT -> SchemeVibrant(seed, darkTheme, contrast)
+        PaletteStyle.EXPRESSIVE -> SchemeExpressive(seed, darkTheme, contrast)
+        PaletteStyle.NEUTRAL -> SchemeNeutral(seed, darkTheme, contrast)
+        PaletteStyle.MONOCHROME -> SchemeMonochrome(seed, darkTheme, contrast)
+        PaletteStyle.FIDELITY -> SchemeFidelity(seed, darkTheme, contrast)
+    }
     val roles = MaterialDynamicColors()
     fun color(role: com.google.android.material.color.utilities.DynamicColor) = Color(role.getArgb(scheme))
 

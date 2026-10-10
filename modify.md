@@ -16,9 +16,12 @@ Read this file before making changes to VibeFinance. Complete the applicable ite
 - Update affected translations and remove resources/imports made unused by the change.
 - Keep the app's data, settings, card images, customization, app routing, and ID/reference integrity intact. Introduce migrations or backup-schema changes only when the persisted format actually changes, and retain compatibility where possible.
 - For UI changes, retain established component sizing, emoji colors, one-line chip labels, theme behavior, and accessibility unless the user requests a change.
+- Use `AppModalBottomSheet` for standard Material modal sheets so their native slide/scrim easing stays consistent and motion settings are respected. Preserve the motion scheme of sheet contents.
 - Do not change the phone/emulator's text scale, display density, resolution, or other scaling settings. Use app-scoped test configuration when a large-font check is needed.
 
 ## Verification and deployment
+
+- Do not create release APKs/AABs, publish releases, or upload to Google Play without the user's explicit permission. Local debug builds/testing are separate.
 
 - Run the build and relevant existing checks for the changed behavior. Add tests only when they provide useful regression coverage.
 - Before authoring interaction tests, explore the actual screens with ARTEMIS, following the user's mobile-testing rules. Use verified interactions and explicit waits.

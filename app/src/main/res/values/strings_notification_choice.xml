@@ -20,4 +20,10 @@
     <string name="pending_payment_choose_source_account">Choose payment source (to top up Octopus)</string>
     <string name="pending_payment_record_topup">Record Top-up</string>
     <string name="pending_payment_destination_octopus">Destination (Top-up)</string>
+    <string name="pending_payment_unmatched_card_title">New card or asset detected</string>
+    <string name="pending_payment_unmatched_card_desc">Create this card to record and auto-match future notifications.</string>
+    <string name="pending_payment_quick_create">Quick create</string>
+    <string name="pending_payment_detail_create">Detailed setup</string>
+    <string name="pending_payment_add_new_asset">+ Add asset or card</string>
+    <string name="pending_payment_quick_created">Created %1$s &amp; recorded expense</string>
 </resources>

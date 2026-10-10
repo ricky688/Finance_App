@@ -54,7 +54,12 @@ class FullAppBackupEngineTest {
         InMemoryDatabase.saveAspect("自訂"); InMemoryDatabase.setCategoryLimit("Food", 80.0)
         InMemoryDatabase.setCashbackRule(first.id, "Food", 2.5)
         context.getSharedPreferences("vibe_finance_prefs", 0).edit().putString("icon_shape", "RANDOM").putString("theme_mode", "DARK")
-            .putBoolean("launch_animation_enabled", false).commit()
+            .putString("appearance_palette", "CUSTOM").putString("appearance_palette_style", "EXPRESSIVE")
+            .putString("appearance_palette_seeds", com.example.vibefinance.theme.encodePaletteSeeds(mapOf(
+                com.example.vibefinance.theme.AppearancePalette.ORIGINAL to 0xFF3355AA.toInt(),
+                com.example.vibefinance.theme.AppearancePalette.CUSTOM to 0xFFA12BCD.toInt())))
+            .putBoolean("launch_animation_enabled", false).putBoolean("hide_amounts", true)
+            .putBoolean("app_lock_enabled", true).putString("motion_level", "REDUCED").putFloat("blur_intensity", 0.25f).commit()
         context.getSharedPreferences("assets_display", 0).edit().putBoolean("compact_mode", true).commit()
         context.getSharedPreferences("vibe_merchant_rules", 0).edit().putString("商店", "Food").commit()
         context.getSharedPreferences("vibefinance_prefs", 0).edit().putLong("typed_long", 9876543210L).putInt("typed_int", 7).putFloat("typed_float", 0.5f).commit()
@@ -171,6 +176,10 @@ class FullAppBackupEngineTest {
     }
 
     @Test fun encryptedBackupRequiresCorrectUnicodePasswordAndKeepsCurrentStateOnFailure() {
+        context.getSharedPreferences("vibe_finance_prefs", 0).edit()
+            .putString("appearance_palette_style", "FIDELITY")
+            .putString("appearance_palette_seeds", "{\"CUSTOM\":-5612698}").commit()
+        val preferencesBefore = BackupStateCodec.preferences(context).toString()
         val accountId = account()
         InMemoryDatabase.insertTransaction(TransactionEntity(accountId = accountId, amount = 9.9, category = "Food", timestamp = 1L,
             description = "咖啡", customIcon = "emoji:☕"))
@@ -186,6 +195,18 @@ class FullAppBackupEngineTest {
         FullAppBackupEngine.restore(context, prepared)
         assertEquals(before, InMemoryDatabase.accounts.value)
         assertEquals(transactionsBefore, InMemoryDatabase.transactions.value)
+        assertEquals(preferencesBefore, BackupStateCodec.preferences(context).toString())
+    }
+
+    @Test fun invalidPalettePreferencesAreRejectedBeforeReplacement() {
+        val before = BackupStateCodec.preferences(context).toString()
+        listOf("appearance_palette_style" to "UNKNOWN", "appearance_palette_seeds" to "{\"CUSTOM\":3}",
+            "appearance_palette_seeds" to "{\"UNKNOWN\":-1}").forEach { (key, value) ->
+            val invalid = BackupStateCodec.preferences(context)
+            invalid.getJSONObject("vibe_finance_prefs").put(key, JSONObject().put("type", "string").put("value", value))
+            assertThrows(Exception::class.java) { BackupStateCodec.applyPreferences(context, invalid) }
+            assertEquals(before, BackupStateCodec.preferences(context).toString())
+        }
     }
 
     @Test fun malformedIconIsRejectedBeforeReplacingCurrentData() {

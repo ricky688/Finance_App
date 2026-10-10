@@ -50,6 +50,9 @@ internal fun ContentEntrance(
     tagPrefix: String = "ContentArrival",
     content: @Composable () -> Unit,
 ) {
+    val reducedMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion !=
+        com.example.vibefinance.ui.preferences.MotionLevel.FULL
+    if (reducedMotion) { Box(modifier.fillMaxWidth().testTag("$tagPrefix:$id")) { content() }; return }
     val wasRevealed = state.revealed[id] == true
     val progress = remember(id, state) { Animatable(if (wasRevealed) 1f else 0f) }
     var bounds by remember(id) { mutableStateOf(Rect.Zero) }

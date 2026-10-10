@@ -33,11 +33,16 @@ private val DarkConnectedButtonRippleColor = Color(0xFFBDBDBD)
 private fun isConnectedButtonDarkTheme(): Boolean =
     LocalIsDarkTheme.current ?: (MaterialTheme.colorScheme.background.luminance() < 0.5f)
 
-/** Keep native buttons' bounded ripple neutral without overriding other app components. */
+/** Keep native buttons' bounded ripple neutral, highlighting with onPrimary when selected. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ConnectedButtonRipple(content: @Composable () -> Unit) {
-    val configuration = if (isConnectedButtonDarkTheme()) {
+internal fun ConnectedButtonRipple(
+    isSelected: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    val configuration = if (isSelected) {
+        RippleConfiguration(color = MaterialTheme.colorScheme.onPrimary)
+    } else if (isConnectedButtonDarkTheme()) {
         RippleConfiguration(color = DarkConnectedButtonRippleColor)
     } else {
         LocalRippleConfiguration.current
@@ -101,6 +106,10 @@ internal fun rememberConnectedButtonColorMotion(
             backdropColor = backdropColor,
             preserveContentColors = preserveContentColors
         ) else Modifier,
-        rippleColor = if (isDarkTheme) DarkConnectedButtonRippleColor else Color.Unspecified
+        rippleColor = when {
+            isSelected -> activeContentColor
+            isDarkTheme -> DarkConnectedButtonRippleColor
+            else -> Color.Unspecified
+        }
     )
 }

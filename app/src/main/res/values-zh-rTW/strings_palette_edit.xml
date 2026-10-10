@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="palette_custom">自訂配色</string>
+    <string name="palette_style_vibrant">鮮豔</string>
+    <string name="palette_style_expressive">表現力</string>
+    <string name="palette_style_neutral">中性</string>
+    <string name="palette_style_monochrome">單色</string>
+    <string name="palette_style_fidelity">忠實原色</string>
+    <string name="palette_edit_variant">編輯配色</string>
+    <string name="palette_hex_label">顏色（十六進位）</string>
+    <string name="palette_hex_help">輸入六位十六進位數字，例如 006C4C。</string>
+    <string name="palette_red">紅</string>
+    <string name="palette_green">綠</string>
+    <string name="palette_blue">藍</string>
+    <string name="palette_reset_variant">重設此配色</string>
+</resources>

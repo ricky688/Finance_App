@@ -20,4 +20,10 @@
     <string name="pending_payment_choose_source_account">選擇付款 / 轉出帳戶（增值至八達通）</string>
     <string name="pending_payment_record_topup">記錄增值轉帳</string>
     <string name="pending_payment_destination_octopus">增值目標（轉入）</string>
+    <string name="pending_payment_unmatched_card_title">偵測到新卡片或資產</string>
+    <string name="pending_payment_unmatched_card_desc">建立此卡片以記錄支出並自動配對未來通知。</string>
+    <string name="pending_payment_quick_create">快速建立</string>
+    <string name="pending_payment_detail_create">詳細設定</string>
+    <string name="pending_payment_add_new_asset">+ 新增資產或卡片</string>
+    <string name="pending_payment_quick_created">已建立 %1$s 並記錄支出</string>
 </resources>
