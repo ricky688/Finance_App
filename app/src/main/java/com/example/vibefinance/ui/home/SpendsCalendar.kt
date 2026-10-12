@@ -3,6 +3,7 @@ package com.example.vibefinance.ui.home
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.completePressShape
 
 import com.example.vibefinance.R
@@ -23,6 +24,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -32,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
@@ -46,9 +49,9 @@ import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -91,6 +94,7 @@ fun ExpressiveDualViewSwitcher(
 ) {
     val modes = remember { listOf(CalendarDisplayMode.HEATMAP, CalendarDisplayMode.CALENDAR) }
     val selectedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
+    var pressedIndex by remember { mutableStateOf<Int?>(null) }
     val haptic = LocalHapticFeedback.current
     val view = LocalView.current
     val colors = MaterialTheme.colorScheme
@@ -115,6 +119,14 @@ fun ExpressiveDualViewSwitcher(
                 val isSelected = index == selectedIndex
                 val interactionSource = remember { MutableInteractionSource() }
                 val isPressed = interactionSource.collectIsPressedAsState()
+                LaunchedEffect(isPressed.value) {
+                    if (isPressed.value) pressedIndex = index
+                    else if (pressedIndex == index) pressedIndex = null
+                }
+                DisposableEffect(interactionSource) {
+                    onDispose { if (pressedIndex == index) pressedIndex = null }
+                }
+                val spatialMotion = connectedSpatialMotion(index, pressedIndex, isPressed.value)
                 val shapeProgress by rememberCompletePressProgress(interactionSource)
 
                 // Material 3 Expressive Connected Button Geometry:
@@ -170,8 +182,6 @@ fun ExpressiveDualViewSwitcher(
                     shapeProgress
                 )
 
-                val scale = 1f - 0.06f * shapeProgress
-
                 val colorMotion = rememberConnectedButtonColorMotion(
                     isSelected = isSelected,
                     isPressed = isPressed.value,
@@ -185,7 +195,7 @@ fun ExpressiveDualViewSwitcher(
                     contentColor = colorMotion.contentColor,
                     shape = buttonShape,
                     modifier = Modifier
-                        .scale(scale)
+                        .then(spatialMotion)
                         .clip(buttonShape)
                         .clickable(
                             interactionSource = interactionSource,
@@ -340,20 +350,22 @@ private fun verticalGridMeasurePolicy(columns: Int) = MeasurePolicy { measurable
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SpendsCalendar(
     state: FinanceUiState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onPayCard: (Long) -> Unit = {}
 ) {
-    val budgetInfo = state.budgetInfo ?: return
-    val startLocal = remember(budgetInfo.startDate) {
-        Instant.ofEpochMilli(budgetInfo.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
-    }
-    val endLocal = remember(budgetInfo.endDate) {
-        Instant.ofEpochMilli(budgetInfo.endDate).atZone(ZoneId.systemDefault()).toLocalDate()
-    }
-
+    val budgetInfo = state.budgetInfo
+    val now = com.example.vibefinance.ui.accounts.rememberFinancialNow()
+    val calculator = remember(now) { com.example.vibefinance.util.CreditCardCycleCalculator() }
+    val today = calculator.today
+    val startLocal = budgetInfo?.startDate?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() } ?: today.withDayOfMonth(1)
+    val endLocal = budgetInfo?.endDate?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() } ?: today.withDayOfMonth(today.lengthOfMonth())
+    val cardAccounts = state.accounts.filter { it.type == com.example.vibefinance.data.entity.AccountType.CC }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val calendarView = LocalView.current
     val months = remember(startLocal, endLocal) {
         val list = mutableListOf<YearMonth>()
         var curr = YearMonth.from(startLocal)
@@ -365,7 +377,7 @@ fun SpendsCalendar(
         list
     }
 
-    val dailyBudget = budgetInfo.dailyAllowance
+    val dailyBudget = budgetInfo?.dailyAllowance ?: 0.0
 
     val daySpending = remember(state.transactions, startLocal, endLocal) {
         val map = mutableMapOf<LocalDate, Double>()
@@ -380,10 +392,9 @@ fun SpendsCalendar(
         map
     }
 
-    var displayMode by remember { mutableStateOf(CalendarDisplayMode.HEATMAP) }
+    var displayMode by remember(budgetInfo != null) { mutableStateOf(if (budgetInfo == null) CalendarDisplayMode.CALENDAR else CalendarDisplayMode.HEATMAP) }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showDetailSheet by remember { mutableStateOf(false) }
-    val today = remember { LocalDate.now() }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val cardBg = blendColors(
@@ -439,7 +450,7 @@ fun SpendsCalendar(
                 Spacer(modifier = Modifier.width(4.dp))
 
                 // Expressive Dual-View Switcher Connected Button Group
-                ExpressiveDualViewSwitcher(
+                if (budgetInfo != null) ExpressiveDualViewSwitcher(
                     currentMode = displayMode,
                     onModeSelected = { displayMode = it }
                 )
@@ -475,8 +486,8 @@ fun SpendsCalendar(
                     }
                     CalendarDisplayMode.CALENDAR -> {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            // Visual Heatmap Legend Key Bar
-                            Row(
+                            // Budget comparisons are omitted when no budget is configured.
+                            if (budgetInfo != null) Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
@@ -561,9 +572,11 @@ fun SpendsCalendar(
                                                 modifier = Modifier
                                                     .height(CELL_SIZE)
                                                     .fillMaxWidth()
+                                                    .testTag("CalendarDay_$cellDay")
                                                     .zIndex(zIndexVal)
                                                     .clip(RoundedCornerShape(10.dp))
                                                     .clickable {
+                                                        com.example.vibefinance.util.VibeHaptics.selection(calendarView)
                                                         selectedDate = cellDay
                                                         showDetailSheet = true
                                                     },
@@ -577,7 +590,8 @@ fun SpendsCalendar(
                                                     percent = percent,
                                                     isSelected = isSelected,
                                                     isToday = isToday,
-                                                    isInPeriod = isInPeriod
+                                                    isInPeriod = isInPeriod,
+                                                    hasPaymentDue = cardAccounts.any { calculator.dueDate(it, month) == cellDay }
                                                 )
                                             }
                                         }
@@ -612,6 +626,8 @@ fun SpendsCalendar(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.8f).dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 16.dp)
             ) {
                 // Sheet Header
@@ -641,8 +657,24 @@ fun SpendsCalendar(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                cardAccounts.filter { calculator.dueDate(it, YearMonth.from(date)) == date }.sortedBy { it.name }.forEach { card ->
+                    val cycle = calculator.statementCycle(card, date)
+                    val amount = calculator.metrics(card, state.transactions, cycle).spent
+                    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("CalendarReminder_${card.id}")) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(stringResource(R.string.calendar_due_badge), style = MaterialTheme.typography.titleMedium)
+                            Text((card.nickname?.takeIf { it.isNotBlank() } ?: card.name) + (card.cardLast4?.takeIf { it.isNotBlank() }?.let { " •••• $it" } ?: ""))
+                            Text(stringResource(R.string.calendar_statement_period, cycle.start.toString(), cycle.closing.toString()))
+                            Text(stringResource(R.string.calendar_statement_estimate, amount))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { showDetailSheet = false; onPayCard(card.id) }, modifier = Modifier.testTag("CalendarPay_${card.id}")) { Text(stringResource(R.string.calendar_pay_now), maxLines = 1) }
+                                TextButton(onClick = { com.example.vibefinance.util.CalendarSyncHelper.addCardDeadlineToSystemCalendar(context, card, date) }) { Text(stringResource(R.string.calendar_add), maxLines = 1) }
+                            }
+                        }
+                    }
+                }
                 // Day Budget Comparison Card
-                Surface(
+                if (budgetInfo != null) Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -811,7 +843,8 @@ private fun DayCell(
     percent: Float,
     isSelected: Boolean,
     isToday: Boolean,
-    isInPeriod: Boolean
+    isInPeriod: Boolean,
+    hasPaymentDue: Boolean = false
 ) {
     val hasSpending = isInPeriod && spent > 0.0
 
@@ -827,7 +860,7 @@ private fun DayCell(
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val palette = if (hasSpending) {
-        val rawColor = if (spent <= dailyBudget) {
+        val rawColor = if (dailyBudget <= 0.0) primaryColor else if (spent <= dailyBudget) {
             combineColorsList(listOf(Color(0xFFFABC20), Color(0xFF40AC02)), 1f - percent.coerceIn(0f, 1f))
         } else {
             Color(0xFFC70909)
@@ -902,6 +935,8 @@ private fun DayCell(
                 )
             }
             
+            if (hasPaymentDue) Icon(Icons.Default.CreditCard, stringResource(R.string.calendar_due_badge),
+                modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(12.dp), tint = MaterialTheme.colorScheme.primary)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center

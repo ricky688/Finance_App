@@ -10,7 +10,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -56,6 +56,8 @@ fun ExpressiveSwipeRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    selectionMode: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -110,6 +112,7 @@ fun ExpressiveSwipeRow(
     )
 
     val draggableState = rememberDraggableState { delta ->
+        if (selectionMode) return@rememberDraggableState
         rawDragX += delta
         val absRaw = abs(rawDragX)
         val effectiveOffset = if (absRaw <= screenWidthPx) {
@@ -179,7 +182,8 @@ fun ExpressiveSwipeRow(
                         dragOffsetX.stop()
                         rawDragX = dragOffsetX.value
                     },
-                    onDragStopped = { velocity ->
+                    onDragStopped = stop@{ velocity ->
+                        if (selectionMode) { rawDragX = 0f; isPastThreshold = false; return@stop }
                         val pastThreshold = isPastThreshold ||
                             (abs(velocity) > 1200f && abs(rawDragX) >= detachmentThresholdPx * 0.45f)
                         val delete = rawDragX < 0f
@@ -197,13 +201,11 @@ fun ExpressiveSwipeRow(
                     }
                 )
                 .clip(shape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onEdit()
-                },
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() }, indication = null,
+                    hapticFeedbackEnabled = false, onLongClick = onLongClick,
+                    onClick = { onEdit() }
+                ),
             shape = shape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),

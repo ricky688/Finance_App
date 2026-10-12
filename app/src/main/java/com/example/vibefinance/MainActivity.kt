@@ -216,6 +216,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: android.content.Intent?) {
+        val paymentId = intent?.getStringExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_EDIT_PAYMENT)
+        if (com.example.vibefinance.service.PaymentLoggingNotification.isValidPaymentId(paymentId.orEmpty())) {
+            viewModel.requestPaymentCategory(requireNotNull(paymentId))
+            com.example.vibefinance.service.PaymentLoggingNotification.cancel(this, paymentId)
+            intent?.removeExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_EDIT_PAYMENT)
+        }
         val targetTabStr = intent?.getStringExtra("navigate_tab")
         if (targetTabStr != null) {
             val targetTab = when (targetTabStr.lowercase(Locale.US)) {

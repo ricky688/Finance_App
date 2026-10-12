@@ -95,6 +95,8 @@ import androidx.compose.ui.platform.testTag
 import android.widget.Toast
 import androidx.compose.ui.Modifier
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.ime
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -159,13 +161,35 @@ fun HistoryScreen(
     onClearAccountFilter: () -> Unit = {},
     categoryFilter: String? = null,
     onClearCategoryFilter: () -> Unit = {},
-    onAddTransaction: (() -> Unit)? = null
+    onAddTransaction: (() -> Unit)? = null,
+    batchResult: com.example.vibefinance.ui.BatchTransactionResult? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
+    var multiSelect by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var selectionArray by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(longArrayOf()) }
+    val selectedIds = selectionArray.toSet()
+    var batchPicker by remember { mutableStateOf<String?>(null) }
+    var batchSnapshot by remember { mutableStateOf<List<TransactionEntity>>(emptyList()) }
+    var batchRequestId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    val batchBusy = batchRequestId != null && (batchResult?.requestId != batchRequestId || batchResult?.processing == true)
+    val batchError = batchResult?.takeIf { it.requestId == batchRequestId }?.error
+    val view = androidx.compose.ui.platform.LocalView.current
+    val toggleSelected: (Long) -> Unit = { id ->
+        if (!batchBusy) {
+            selectionArray = (if (id in selectedIds) selectedIds - id else selectedIds + id).toLongArray()
+            com.example.vibefinance.util.VibeHaptics.selection(view)
+        }
+    }
+    LaunchedEffect(batchResult) {
+        if (batchRequestId != null && batchResult?.requestId == batchRequestId && batchResult?.success == true) {
+            multiSelect = false; selectionArray = longArrayOf(); batchPicker = null; batchRequestId = null
+        }
+    }
     var showSearch by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showFilters by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val searchVisibility = remember { MutableTransitionState(showSearch) }
     searchVisibility.targetState = showSearch
-    val historyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val historyListState = listState
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(showSearch) {
@@ -374,7 +398,7 @@ fun HistoryScreen(
     }
 
     // Predictive back for active category filter
-    androidx.activity.compose.PredictiveBackHandler(enabled = !showSearch && !showFilters && selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
         try {
             progressFlow.collect { }
             selectedCategoryFilter = null
@@ -383,7 +407,7 @@ fun HistoryScreen(
         }
     }
 
-    androidx.activity.compose.PredictiveBackHandler(enabled = !showSearch && !showFilters && accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
         try {
             progressFlow.collect { }
             onClearAccountFilter()
@@ -392,11 +416,31 @@ fun HistoryScreen(
     }
 
 
-    androidx.activity.compose.PredictiveBackHandler(enabled = showSearch && !showFilters && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && showSearch && !showFilters && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
         try { progressFlow.collect { }; focusManager.clearFocus(); keyboard?.hide(); showSearch = false }
         catch (_: kotlinx.coroutines.CancellationException) { }
     }
 
+    val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+    androidx.activity.compose.PredictiveBackHandler(enabled = multiSelect && batchPicker == null && editingTransaction == null && viewingAdjustment == null && !showFilters && !imeOpen) { flow ->
+        try { flow.collect { }; if (!batchBusy) { multiSelect = false; selectionArray = longArrayOf() } }
+        catch (_: kotlinx.coroutines.CancellationException) { }
+    }
+    if (batchPicker != null) HistoryBatchPicker(batchPicker!!, batchSnapshot, state, batchBusy, batchError,
+        onDismiss = { if (!batchBusy) { batchPicker = null; batchRequestId = null } },
+        onConfirm = { operation ->
+            // Read the live request state so two taps in one frame cannot submit twice.
+            if (batchRequestId == null || (batchResult?.requestId == batchRequestId &&
+                    batchResult?.processing == false && batchResult?.success != true)) {
+                val request = java.util.UUID.randomUUID().toString()
+                batchRequestId = request
+                onIntent(FinanceIntent.BatchTransactions(request, batchSnapshot, operation))
+            }
+        })
+    val visibleIds = transactionsList.map { it.id }.toSet()
+    LaunchedEffect(visibleIds, multiSelect) {
+        if (multiSelect && !batchBusy) selectionArray = selectedIds.intersect(visibleIds).toLongArray()
+    }
     ContentEntranceViewport(
         modifier = modifier.fillMaxSize(),
         topVisibilityInset = topVisibilityInset,
@@ -411,10 +455,23 @@ fun HistoryScreen(
             if (isLoading) {
                 com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = Modifier)
             } else {
+                Column(Modifier.fillMaxSize()) {
+                if (multiSelect) {
+                    Spacer(Modifier.height(topContentPadding))
+                    if (batchPicker == null && batchError != null) Text(batchError, color = MaterialTheme.colorScheme.error)
+                    val records = transactionsList.filter { it.id in selectedIds }
+                    val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment }
+                    HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy,
+                        canCategory = ordinary && (records.all { it.amount > 0 } || records.all { it.amount < 0 }), canAccount = ordinary,
+                        onClose = { multiSelect = false; selectionArray = longArrayOf() },
+                        onSelectAll = { selectionArray = if (selectedIds == visibleIds) longArrayOf() else visibleIds.toLongArray() },
+                        onAction = { kind -> batchSnapshot = records.toList(); batchPicker = kind; batchRequestId = null
+                            if (kind == "delete") com.example.vibefinance.util.VibeHaptics.warningAlert(view) })
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().testTag("HistoryList"),
                     state = historyListState,
-                    contentPadding = PaddingValues(top = topContentPadding),
+                    contentPadding = PaddingValues(top = if (multiSelect) 0.dp else topContentPadding),
                     verticalArrangement = Arrangement.Top
                 ) {
             item(key = "history-search-bar") {
@@ -470,6 +527,8 @@ fun HistoryScreen(
                     com.example.vibefinance.ui.components.CategoryBreakdownCard(
                         transactions = analyticsTransactions,
                         onSearch = toggleSearch,
+                        hideHeader = multiSelect,
+                        onSelectTransactions = { multiSelect = true; com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) },
                         searchExpanded = showSearch,
                         searchActive = searchQuery != HistoryQuery(),
                         searchSummary = if (searchQuery != HistoryQuery()) stringResource(R.string.history_results_count, transactionsList.size) else null,
@@ -647,7 +706,11 @@ fun HistoryScreen(
                                             .fillMaxWidth()
                                             .testTag("TransactionRow_${tx.id}"),
                                         shape = itemShape,
-                                        onEdit = {
+                                        selectionMode = multiSelect,
+                                        onLongClick = { if (!batchBusy) { multiSelect = true; selectionArray = (selectedIds + tx.id).toLongArray(); com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) } },
+                                        onEdit = edit@{
+                                            if (multiSelect) { toggleSelected(tx.id); return@edit }
+                                            com.example.vibefinance.util.VibeHaptics.selection(view)
                                             if (tx.isBalanceAdjustment) {
                                                 viewingAdjustment = tx
                                             } else {
@@ -675,6 +738,10 @@ fun HistoryScreen(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
                                             ) {
+                                                AnimatedVisibility(visible = multiSelect, enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
+                                                    Checkbox(checked = tx.id in selectedIds, onCheckedChange = { toggleSelected(tx.id) }, enabled = !batchBusy,
+                                                        modifier = Modifier.testTag("HistorySelected_${tx.id}"))
+                                                }
                                                 // 1. Leading Avatar Visual Container (M3 Expressive)
                                                 Surface(
                                                     modifier = Modifier.size(44.dp),
@@ -866,6 +933,7 @@ fun HistoryScreen(
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
+                }
         }
         }
     }
@@ -891,11 +959,14 @@ fun HistoryScreen(
         val canChangeType = !tx.isBalanceAdjustment
         val editIsIncome = editType == HistoryTransactionType.Income
         val editIsTransfer = editType == HistoryTransactionType.Transfer
-        val validTransferAccounts = !editIsTransfer || (
+        val validAccounts = if (editIsTransfer) {
             state.accounts.any { it.id == editSourceAccountId } &&
                 state.accounts.any { it.id == editDestinationAccountId } &&
                 editSourceAccountId != editDestinationAccountId
-            )
+        } else {
+            state.accounts.isEmpty() || editSourceAccountId == null ||
+                state.accounts.any { it.id == editSourceAccountId }
+        }
         val editedMagnitude = editAmountText.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
         val dialogScale by animateFloatAsState(
             targetValue = 1.0f,
@@ -972,23 +1043,35 @@ fun HistoryScreen(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-                    } else if (canChangeType) {
-                        HistoryCategoryDropdown(
-                            category = editCategoryText,
-                            isIncome = editIsIncome,
-                            transactions = state.transactions,
-                            categoryMergeRules = state.categoryMergeRules,
-                            onCategorySelected = { editCategoryText = it }
-                        )
                     } else {
-                        OutlinedTextField(
-                            value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.edit_category_label)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().testTag("EditTransactionCategory")
+                        HistoryAccountDropdown(
+                            accountId = editSourceAccountId,
+                            accounts = state.accounts,
+                            label = stringResource(
+                                if (editIsIncome) R.string.edit_account_income_label
+                                else R.string.edit_account_expense_label
+                            ),
+                            tag = "EditTransactionAccount",
+                            onAccountSelected = { editSourceAccountId = it }
                         )
+                        if (canChangeType) {
+                            HistoryCategoryDropdown(
+                                category = editCategoryText,
+                                isIncome = editIsIncome,
+                                transactions = state.transactions,
+                                categoryMergeRules = state.categoryMergeRules,
+                                onCategorySelected = { editCategoryText = it }
+                            )
+                        } else {
+                            OutlinedTextField(
+                                value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text(stringResource(R.string.edit_category_label)) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("EditTransactionCategory")
+                            )
+                        }
                     }
 
                     if (canChangeType && editType == HistoryTransactionType.Expense) {
@@ -1060,7 +1143,7 @@ fun HistoryScreen(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         val amount = editedMagnitude
-                        if (amount != null && validTransferAccounts) {
+                        if (amount != null && validAccounts) {
                             val newTx = tx.withHistoryEdit(
                                 magnitude = amount,
                                 isIncome = editIsIncome,
@@ -1069,14 +1152,18 @@ fun HistoryScreen(
                                 countsTowardDailyBudget = editIsDailyBudget,
                                 customIcon = editCustomIcon,
                                 isTransfer = editIsTransfer,
-                                sourceAccountId = if (editIsTransfer) requireNotNull(editSourceAccountId) else tx.accountId,
+                                sourceAccountId = if (editIsTransfer) {
+                                    requireNotNull(editSourceAccountId)
+                                } else {
+                                    editSourceAccountId ?: tx.accountId
+                                },
                                 destinationAccountId = if (editIsTransfer) editDestinationAccountId else null
                             )
                             onIntent(FinanceIntent.EditTransaction(tx, newTx))
                             editingTransaction = null
                         }
                     },
-                    enabled = editedMagnitude != null && validTransferAccounts,
+                    enabled = editedMagnitude != null && validAccounts,
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     interactionSource = confirmInteraction,
                     modifier = Modifier
@@ -1260,7 +1347,7 @@ private fun HistoryAccountDropdown(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HistoryCategoryDropdown(
+internal fun HistoryCategoryDropdown(
     category: String,
     isIncome: Boolean,
     transactions: List<TransactionEntity>,

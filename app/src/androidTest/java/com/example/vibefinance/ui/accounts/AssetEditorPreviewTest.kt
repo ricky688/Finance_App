@@ -18,7 +18,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /** ARTEMIS verified the live Add Asset nickname field, keyboard and Back dismissal first.
- * Uses the real IME with explicit visibility waits; all drafts and callbacks stay in memory.
+ * The full-screen path was verified with ARTEMIS hierarchy and ADB on 2026-10-11.
+ * Preview remains composed through IME entry and may naturally scroll offscreen; all drafts and callbacks stay in memory.
  */
 @RunWith(AndroidJUnit4::class)
 class AssetEditorPreviewTest {
@@ -52,12 +53,12 @@ class AssetEditorPreviewTest {
 
         val name = field(R.string.ah_account_card_name)
         name.performScrollTo().performClick()
-        waitForPreview(visible = false)
+        waitForPreview(visible = true)
         name.performTextReplacement("旅行 銀行")
         val nickname = field(R.string.assets_identity_nickname)
         nickname.performScrollTo().performClick()
         nickname.performTextReplacement("Travel card")
-        waitForPreview(visible = false)
+        waitForPreview(visible = true)
 
         closeSoftKeyboard()
         waitForPreview(visible = true)
@@ -67,12 +68,13 @@ class AssetEditorPreviewTest {
         // A focused field can reopen the IME after Back; numeric fields use the same behavior.
         val digits = field(R.string.assets_identity_last_four)
         digits.performScrollTo().performClick()
-        waitForPreview(visible = false)
+        waitForPreview(visible = true)
         digits.performTextReplacement("7890")
         closeSoftKeyboard()
         waitForPreview(visible = true)
         digits.assertTextContains("7890")
         rule.onNodeWithContentDescription(context.getString(R.string.btn_close)).performClick()
+        rule.onNodeWithTag("AssetEditorDiscard").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("AssetEditorSheet").fetchSemanticsNodes().isEmpty() }
         assertTrue("Typing and cancelling must never save the account", saves.isEmpty())
     }
@@ -84,6 +86,6 @@ class AssetEditorPreviewTest {
             rule.onAllNodesWithTag("AssetEditorPreview").fetchSemanticsNodes().isNotEmpty() == visible
         }
         rule.waitForIdle()
-        if (visible) rule.onNodeWithTag("AssetEditorPreview").assertIsDisplayed()
+        if (visible) rule.onNodeWithTag("AssetEditorPreview").assertExists()
     }
 }

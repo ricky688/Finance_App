@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="asset_editor_discard_title">放弃更改？</string>
+    <string name="asset_editor_discard_message">你的更改尚未保存。</string>
+    <string name="asset_editor_discard">放弃</string>
+    <string name="asset_editor_keep_editing">继续编辑</string>
+    <string name="asset_editor_saving">保存中…</string>
+    <string name="asset_editor_basic">基本信息</string>
+    <string name="asset_editor_appearance">卡片外观</string>
+    <string name="asset_editor_automation">通知与应用绑定</string>
+</resources>

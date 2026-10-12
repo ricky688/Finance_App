@@ -15,6 +15,11 @@ import javax.inject.Singleton
 
 @Singleton
 class TransactionRepository @Inject constructor() {
+    suspend fun batchTransactions(expected: List<TransactionEntity>, operation: com.example.vibefinance.data.BatchTransactionOperation) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { InMemoryDatabase.batchTransactions(expected, operation) }
+    suspend fun restoreBatch(batch: com.example.vibefinance.data.DeletedTransactionBatch) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { InMemoryDatabase.restoreTransactionBatch(batch) }
+
     val allTransactionsFlow: Flow<List<TransactionEntity>> = InMemoryDatabase.transactions
 
     fun getTransactionsForMonthFlow(startTime: Long, endTime: Long): Flow<List<TransactionEntity>> {
@@ -108,11 +113,8 @@ class TransactionRepository @Inject constructor() {
     }
 
     suspend fun deleteTransaction(transaction: TransactionEntity) {
-        // Reverse account balance effect
-        if (transaction.timestamp <= System.currentTimeMillis()) {
-            reverseAccountBalancesForTransaction(transaction)
-        }
-        InMemoryDatabase.deleteTransaction(transaction)
+        // Use the same atomic path as notification Undo so a concurrent History delete cannot refund twice.
+        InMemoryDatabase.deleteTransactionWithBalances(transaction.id)
     }
 
     suspend fun updateTransaction(newTx: TransactionEntity, oldTx: TransactionEntity) {
@@ -155,33 +157,6 @@ class TransactionRepository @Inject constructor() {
             } else {
                 // For Cash/Bank/Debit: expense decreases balance. Income increases balance.
                 adjustAccountBalance(tx.accountId, -tx.amount)
-            }
-        }
-    }
-
-    private suspend fun reverseAccountBalancesForTransaction(tx: TransactionEntity) {
-        // Reversing balance changes is the exact opposite of applying them
-        if (tx.isBalanceAdjustment) {
-            adjustAccountBalance(tx.accountId, -requireNotNull(tx.balanceAdjustmentDelta))
-            return
-        }
-        if (tx.toAccountId != null) {
-            val source = getAccountByIdSync(tx.accountId)
-            adjustAccountBalance(tx.accountId, -transferSourceBalanceDelta(tx.amount, tx.sourceWasCreditCard ?: (source?.type == AccountType.CC)))
-            val toAccount = getAccountByIdSync(tx.toAccountId)
-            if (toAccount != null) {
-                if (tx.destinationWasCreditCard ?: (toAccount.type == AccountType.CC)) {
-                    adjustAccountBalance(tx.toAccountId, tx.amount)
-                } else {
-                    adjustAccountBalance(tx.toAccountId, -tx.amount)
-                }
-            }
-        } else {
-            val account = getAccountByIdSync(tx.accountId) ?: return
-            if (tx.sourceWasCreditCard ?: (account.type == AccountType.CC)) {
-                adjustAccountBalance(tx.accountId, -tx.amount)
-            } else {
-                adjustAccountBalance(tx.accountId, tx.amount)
             }
         }
     }

@@ -94,10 +94,11 @@ class EntrySelectorOverlayTest {
         assertTrue("$tag must retain the gift emoji's red pixels instead of a tinted silhouette", redPixels > 3)
     }
 
-    private fun host(mode: TransactionMode, rateLoader: ExchangeRateLoader? = null, budget: DailyBudgetInfo? = null) {
+    private fun host(mode: TransactionMode, rateLoader: ExchangeRateLoader? = null, budget: DailyBudgetInfo? = null,
+        fixtureAccounts: List<AccountEntity> = accounts) {
         compose.setContent {
             MaterialTheme {
-                AddExpenseSheetContent(FinanceUiState(isLoading = false, accounts = accounts, budgetInfo = budget),
+                AddExpenseSheetContent(FinanceUiState(isLoading = false, accounts = fixtureAccounts, budgetInfo = budget),
                     onIntent = { if (it is FinanceIntent.AddTransaction) submitted = it },
                     onDismissAddDialog = {}, initialMode = mode,
                     categoryFrequency = emptyMap(), accountFrequency = emptyMap(), modifier = Modifier.fillMaxSize(),
@@ -205,7 +206,7 @@ class EntrySelectorOverlayTest {
         compose.onNodeWithTag("EntryExchangeRate").assertDoesNotExist()
         selectCurrency("USD")
         waitForRate()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(listOf("USD", "JPY", "USD"), requested)
@@ -224,7 +225,7 @@ class EntrySelectorOverlayTest {
             else ExchangeRateResult(ExchangeRateQuote(code, 8.001, "2026-10-08", 0))
         })
         selectCurrency("USD")
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         submitControl().assertIsNotEnabled()
         click("EntrySubmit")
         compose.runOnIdle { assertNull(submitted) }
@@ -234,7 +235,7 @@ class EntrySelectorOverlayTest {
         compose.onNodeWithTag("EntryExchangeRate_refresh").performScrollTo()
         click("EntryExchangeRate_refresh")
         waitForRate()
-        compose.onNodeWithTag("EntrySubmit").performScrollTo()
+        compose.onNodeWithTag("EntrySubmit").assertIsDisplayed()
         submitControl().assertIsEnabled()
         click("EntrySubmit")
         compose.runOnIdle {
@@ -254,7 +255,7 @@ class EntrySelectorOverlayTest {
         waitForRate()
         pendingUsd.complete(ExchangeRateResult(ExchangeRateQuote("USD", 8.1, "2026-10-08", 0)))
         compose.waitForIdle()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(0.37, submitted!!.amount, 0.001)
@@ -270,12 +271,31 @@ class EntrySelectorOverlayTest {
         selectCurrency("USD")
         waitForRate()
         compose.onNodeWithTag("EntryExchangeRate_cached").assertIsDisplayed()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(57.4, submitted!!.amount, 0.001)
             assertTrue(submitted!!.description.contains("Frankfurter 2026-10-07"))
         }
+    }
+
+    @Test fun budgetPreviewRetainsCompletedAmountAcrossTrailingOperators() {
+        host(TransactionMode.EXPENSE, budget = DailyBudgetInfo(1000.0, 200.0, 800.0, 50.0, 50.0, 20, 0, 0))
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        fun key(value: String) { compose.onNodeWithTag("EntryKey_$value").assertIsDisplayed().performClick() }
+        fun remaining(value: String) {
+            compose.onNodeWithText(context.getString(R.string.ui_main_budget_preview_remaining, value))
+                .performScrollTo().assertIsDisplayed()
+        }
+        key("6"); remaining("44")
+        key("+"); remaining("44")
+        compose.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
+        key("-"); remaining("44") // Operator replacement also retains the preview.
+        key("+"); key("4"); remaining("40")
+        key("-"); remaining("40")
+        compose.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
+        key("2"); remaining("42")
+        compose.onNodeWithTag("EntrySubmit").assertIsEnabled()
     }
 
     @Test fun budgetPreviewUsesTheConvertedHkdAmount() {
@@ -284,10 +304,19 @@ class EntrySelectorOverlayTest {
         }, DailyBudgetInfo(1000.0, 200.0, 800.0, 50.0, 50.0, 20, 0, 0))
         selectCurrency("USD")
         waitForRate()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        compose.onNodeWithText(context.getString(R.string.ui_main_budget_preview_over, "7", "39"))
-            .performScrollTo().assertIsDisplayed()
+        fun preview() {
+            compose.onNodeWithText(context.getString(R.string.ui_main_budget_preview_over, "7", "39"))
+                .performScrollTo().assertIsDisplayed()
+        }
+        preview()
+        compose.onNodeWithTag("EntryKey_+").assertIsDisplayed().performClick()
+        preview()
+        compose.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
+        compose.onNodeWithTag("EntryKey_-").assertIsDisplayed().performClick()
+        preview()
+        compose.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
     }
 
     @Test fun foreignIncomeKeepsTheConvertedCreditAndRateMetadata() {
@@ -296,7 +325,7 @@ class EntrySelectorOverlayTest {
         })
         selectCurrency("USD")
         waitForRate()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(-57.4, submitted!!.amount, 0.001)
@@ -314,7 +343,7 @@ class EntrySelectorOverlayTest {
         compose.onNodeWithTag("EntryDestination_grid_2").performScrollTo()
         click("EntryDestination_grid_2")
         click("EntryDestination_collapse")
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(57.4, submitted!!.amount, 0.001)
@@ -373,7 +402,7 @@ class EntrySelectorOverlayTest {
         compose.onNodeWithTag("EntryCategory_grid_Food").assertIsSelected()
         click("EntryCategory_collapse")
         compose.onNodeWithTag("EntryCategory_expanded").assertDoesNotExist()
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals("Food", submitted?.category)
@@ -389,7 +418,7 @@ class EntrySelectorOverlayTest {
         compose.onNodeWithTag("EntryAccount_grid_14").assertIsSelected()
         assertRowReveals("EntryAccount", "14")
         click("EntryAccount_collapse")
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(14L, submitted?.accountId)
@@ -399,7 +428,7 @@ class EntrySelectorOverlayTest {
 
     @Test fun transferDestinationExcludesSourceAndSubmitRequiresDestination() {
         host(TransactionMode.TRANSFER)
-        compose.onNodeWithText("7").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle { assertNull(submitted) }
         open("EntryDestination")
@@ -425,7 +454,10 @@ class EntrySelectorOverlayTest {
     }
 
     @Test fun overflowBlurEdgesTrackHorizontalAndVerticalScrollLimits() {
-        host(TransactionMode.INCOME)
+        // Docking gives the popup more height; enough choices must actually overflow it.
+        host(TransactionMode.INCOME, fixtureAccounts = (1L..40L).map {
+            AccountEntity(it, "Account $it", type = AccountType.BANK, balance = 100.0, icon = "bank")
+        })
         compose.onNodeWithTag("EntryAccount_row_start_fade").assertDoesNotExist()
         compose.onNodeWithTag("EntryAccount_row_end_fade").assertExists()
         val rowScroll = compose.onNode(hasScrollAction() and hasAnyAncestor(hasTestTag("EntryAccount_row")))

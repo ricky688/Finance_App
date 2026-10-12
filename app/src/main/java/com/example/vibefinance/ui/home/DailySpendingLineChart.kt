@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 
 import androidx.compose.animation.AnimatedVisibility
@@ -42,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.ripple
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -197,6 +199,7 @@ fun DailySpendingLineChart(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
+                var pressedIndex by remember { mutableStateOf<Int?>(null) }
                 // Material 3 Expressive Mode Switch Pill
                 val colors = MaterialTheme.colorScheme
                 val trackColor = colors.surfaceContainerHigh.copy(alpha = 0.65f)
@@ -211,10 +214,18 @@ fun DailySpendingLineChart(
                         .padding(3.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    DailyChartMode.entries.forEach { mode ->
+                    DailyChartMode.entries.forEachIndexed { index, mode ->
                         val isSel = chartMode == mode
                         val interactionSource = remember { MutableInteractionSource() }
                         val isPressed by interactionSource.collectIsPressedAsState()
+                        LaunchedEffect(isPressed) {
+                            if (isPressed) pressedIndex = index
+                            else if (pressedIndex == index) pressedIndex = null
+                        }
+                        DisposableEffect(interactionSource) {
+                            onDispose { if (pressedIndex == index) pressedIndex = null }
+                        }
+                        val spatialMotion = connectedSpatialMotion(index, pressedIndex, isPressed)
                         val buttonDensity = LocalDensity.current
                         var measuredButtonHeight by remember { mutableStateOf(28.dp) }
                         val shapeProgress by rememberCompletePressProgress(interactionSource)
@@ -232,6 +243,7 @@ fun DailySpendingLineChart(
                                 .onSizeChanged { size ->
                                     measuredButtonHeight = with(buttonDensity) { size.height.toDp() }
                                 }
+                                .then(spatialMotion)
                                 .clip(buttonShape)
                                 .background(colorMotion.containerColor)
                                 .clickable(

@@ -56,18 +56,18 @@ class AppModalBottomSheetMotionTest {
 
     private fun offset(): Float = rule.runOnIdle { state.requireOffset() }
 
-    @Test fun openingAndClosingUseAnEasedBounded320msSlide() {
+    @Test fun openingAndClosingUseAnEasedBounded360msSlide() {
         show()
         val expanded = offset()
         rule.runOnIdle { scope.launch { state.hide() } }
         rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(72)
         val early = offset()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(108)
         val middle = offset()
-        rule.mainClock.advanceTimeBy(128)
+        rule.mainClock.advanceTimeBy(144)
         val late = offset()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(36)
         val hidden = offset()
         assertEquals(SheetValue.Hidden, state.currentValue)
         assertEasedProgress((early - expanded) / (hidden - expanded),
@@ -75,13 +75,13 @@ class AppModalBottomSheetMotionTest {
 
         rule.runOnIdle { scope.launch { state.show() } }
         rule.mainClock.advanceTimeByFrame()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(72)
         val openingEarly = offset()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(108)
         val openingMiddle = offset()
-        rule.mainClock.advanceTimeBy(128)
+        rule.mainClock.advanceTimeBy(144)
         val openingLate = offset()
-        rule.mainClock.advanceTimeBy(64)
+        rule.mainClock.advanceTimeBy(36)
         assertEquals(SheetValue.Expanded, state.currentValue)
         assertEquals(expanded, offset(), 1f)
         assertEasedProgress((hidden - openingEarly) / (hidden - expanded),
@@ -91,6 +91,7 @@ class AppModalBottomSheetMotionTest {
     private fun assertEasedProgress(early: Float, middle: Float, late: Float) {
         assertTrue("The slide must ease into movement: $early", early in 0f..0.3f)
         assertTrue("The middle must move faster: $middle", middle > early + 0.2f)
+        assertTrue("The ease-in-out curve must be balanced around its midpoint: $middle", middle in 0.4f..0.65f)
         assertTrue("The slide must slow near its destination: $late", late in 0.9f..1f)
         assertTrue(early < middle && middle < late)
     }

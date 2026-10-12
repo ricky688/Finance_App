@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="asset_editor_discard_title">Discard changes?</string>
+    <string name="asset_editor_discard_message">Your changes have not been saved.</string>
+    <string name="asset_editor_discard">Discard</string>
+    <string name="asset_editor_keep_editing">Keep editing</string>
+    <string name="asset_editor_saving">Saving…</string>
+    <string name="asset_editor_basic">Basic information</string>
+    <string name="asset_editor_appearance">Card appearance</string>
+    <string name="asset_editor_automation">Notification &amp; linked app</string>
+</resources>

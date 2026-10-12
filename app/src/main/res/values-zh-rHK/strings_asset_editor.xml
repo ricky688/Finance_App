@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="asset_editor_discard_title">捨棄變更？</string>
+    <string name="asset_editor_discard_message">你的變更尚未儲存。</string>
+    <string name="asset_editor_discard">捨棄</string>
+    <string name="asset_editor_keep_editing">繼續編輯</string>
+    <string name="asset_editor_saving">儲存中…</string>
+    <string name="asset_editor_basic">基本資訊</string>
+    <string name="asset_editor_appearance">卡片外觀</string>
+    <string name="asset_editor_automation">通知與應用程式綁定</string>
+</resources>

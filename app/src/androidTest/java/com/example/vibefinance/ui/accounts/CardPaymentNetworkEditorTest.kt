@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -24,6 +25,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
+import com.example.vibefinance.ui.AccountSaveResult
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
 import java.util.concurrent.CopyOnWriteArrayList
@@ -57,14 +59,16 @@ class CardPaymentNetworkEditorTest {
             cardIssuer = "hsbc"
         )
         var state by mutableStateOf(FinanceUiState(isLoading = false, accounts = listOf(bank, initialCard)))
+        var saveResult by mutableStateOf<AccountSaveResult?>(null)
         val savedCards = CopyOnWriteArrayList<AccountEntity>()
         rule.setContent {
             MaterialTheme {
                 AccountsScreen(
-                    state = state,
+                    state = state, saveResult = saveResult,
                     onIntent = { intent ->
                         if (intent is FinanceIntent.SaveAccount) {
                             savedCards += intent.account
+                            saveResult = AccountSaveResult.Saved(intent.editorRequestId!!, intent.account)
                             state = state.copy(accounts = state.accounts.map { account ->
                                 if (account.id == intent.account.id) intent.account else account
                             })
@@ -75,7 +79,6 @@ class CardPaymentNetworkEditorTest {
         }
 
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val designTab = context.getString(R.string.ah_tab_design)
         val protocolLabel = context.getString(R.string.ah_protocol)
         val issuerLabel = context.getString(R.string.ah_issuer)
         val editorTitle = context.getString(R.string.ah_modify_account, CARD_NAME)
@@ -97,8 +100,6 @@ class CardPaymentNetworkEditorTest {
             rule.onNode(hasScrollAction()).performScrollToNode(hasText(CARD_NAME))
             rule.onNodeWithText(CARD_NAME).performScrollTo().performClick()
             waitFor(hasText(editorTitle))
-            waitFor(hasText(designTab) and hasClickAction())
-            rule.onNode(hasText(designTab) and hasClickAction()).assertIsDisplayed().performClick()
             waitFor(protocolField)
             rule.onNode(protocolField).performScrollTo()
                 .assertIsDisplayed().assertTextContains(expectedNetwork)
@@ -117,7 +118,7 @@ class CardPaymentNetworkEditorTest {
             waitFor(hasText(label) and hasClickAction())
             rule.onNode(hasText(label) and hasClickAction()).assertIsDisplayed().performClick()
             rule.onNode(protocolField).assertTextContains(label)
-            rule.onNodeWithText(context.getString(R.string.btn_save_changes)).assertIsDisplayed().performClick()
+            rule.onNodeWithTag("AssetEditorSave").assertIsDisplayed().performClick()
             rule.waitUntil(TIMEOUT_MILLIS) { savedCards.size == index + 1 }
             val saved = savedCards[index]
             assertEquals(initialCard.id, saved.id)

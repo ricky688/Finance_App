@@ -664,6 +664,22 @@ object PendingPaymentStore {
         persist(context)
     }
 
+    /** Keep the seen-alert ledger intact so notification updates cannot re-log an undone payment. */
+    @Synchronized
+    fun undoPayment(context: Context, paymentId: String): Boolean {
+        if (!PaymentLoggingNotification.isValidPaymentId(paymentId)) return false
+        InMemoryDatabase.ensureInitialized(context)
+        initialize(context)
+        return InMemoryDatabase.undoNotificationPayment("notification:$paymentId")
+    }
+
+    @Synchronized
+    fun changeCategory(context: Context, paymentId: String, category: String): Boolean {
+        if (!PaymentLoggingNotification.isValidPaymentId(paymentId)) return false
+        InMemoryDatabase.ensureInitialized(context)
+        return InMemoryDatabase.changeNotificationCategory("notification:$paymentId", category)
+    }
+
     @Synchronized
     fun updatePayment(paymentId: String, updated: PendingPayment) {
         _pending.value = _pending.value.map { if (it.id == paymentId) updated else it }

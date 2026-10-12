@@ -270,7 +270,9 @@ fun HomeScreen(
     showAddDialog: Boolean = false,
     onDismissAddDialog: () -> Unit = {},
     onOpenBudgetDialog: () -> Unit = {},
-    onOpenRecalcSheet: () -> Unit = {}
+    onOpenRecalcSheet: () -> Unit = {},
+    onPayCard: (Long) -> Unit = {},
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val entranceState = remember { DailyCardEntranceState() }
     var viewportBounds by remember { mutableStateOf(Rect.Zero) }
@@ -357,6 +359,7 @@ fun HomeScreen(
                 com.example.vibefinance.ui.components.HomeScreenSkeleton()
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize()
                         .onGloballyPositioned { viewportBounds = it.boundsInWindow() }
                         .testTag("DailyCardsList"),
@@ -494,7 +497,7 @@ fun HomeScreen(
             }
             item(key = "daily-calendar") {
                 DailyCardEntrance("calendar", entranceState, entranceViewport) {
-                    SpendsCalendar(state = state)
+                    SpendsCalendar(state = state, onPayCard = onPayCard)
                 }
             }
 

@@ -78,9 +78,6 @@
     <string name="ah_due_tomorrow" formatted="false">明日到期</string>
     <string name="ah_due_in_days">%1$d 日後到期</string>
     <string name="ah_credit_used_available">已用 %1$d%% • 可用 $%2$,.0f</string>
-    <string name="ah_tab_details" formatted="false">資料</string>
-    <string name="ah_tab_billing" formatted="false">結單與還款</string>
-    <string name="ah_tab_design" formatted="false">卡片設計</string>
     <string name="ah_type_debit" formatted="false">扣帳卡</string>
     <string name="ah_none" formatted="false">無</string>
     <string name="ah_pattern_cyber_grid" formatted="false">數碼網格</string>

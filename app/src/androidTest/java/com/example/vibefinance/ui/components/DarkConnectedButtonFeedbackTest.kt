@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.testTag
@@ -290,6 +291,11 @@ class DarkConnectedButtonFeedbackTest {
         return Frame(
             button = button.captureToImage(),
             board = board.captureToImage(),
+            controlBounds = LABELS.map { label ->
+                val bounds = rule.onNodeWithText(label).fetchSemanticsNode().boundsInRoot
+                Rect(bounds.left - boardBounds.left, bounds.top - boardBounds.top,
+                    bounds.right - boardBounds.left, bounds.bottom - boardBounds.top)
+            },
             buttonBounds = Rect(
                 buttonBounds.left - boardBounds.left,
                 buttonBounds.top - boardBounds.top,
@@ -313,13 +319,16 @@ class DarkConnectedButtonFeedbackTest {
         assertEquals(before.board.height, after.board.height)
         val a = before.board.toPixelMap()
         val b = after.board.toPixelMap()
-        val bounds = after.buttonBounds
+        // Neighbor repulsion intentionally changes pixels in sibling controls. Their old
+        // and new bounds are allowed; ripple must remain bounded outside the controls.
+        val allowedBounds = before.controlBounds + after.controlBounds
         for (y in 0 until a.height) {
             for (x in 0 until a.width) {
                 // A one-pixel confidence margin rejects boundary antialiasing, not visible halos.
-                if (x + 0.5f >= bounds.left - 1f && x + 0.5f <= bounds.right + 1f &&
+                if (allowedBounds.any { bounds ->
+                    x + 0.5f >= bounds.left - 1f && x + 0.5f <= bounds.right + 1f &&
                     y + 0.5f >= bounds.top - 1f && y + 0.5f <= bounds.bottom + 1f
-                ) continue
+                }) continue
                 assertTrue("Press feedback escaped button bounds at ($x,$y)", colorDistance(a[x, y], b[x, y]) < 0.01f)
             }
         }
@@ -327,10 +336,11 @@ class DarkConnectedButtonFeedbackTest {
 
     /** Classify corner coverage independently of gray ripple and central glyphs. */
     private fun changedCornerCoverage(before: ImageBitmap, after: ImageBitmap): Int {
-        assertEquals(before.width, after.width)
-        assertEquals(before.height, after.height)
+        // Compare corner morphs in the same coordinate system, independently of press scale.
+        val normalized = if (before.width == after.width && before.height == after.height) after
+            else Bitmap.createScaledBitmap(after.asAndroidBitmap(), before.width, before.height, true).asImageBitmap()
         val a = before.toPixelMap()
-        val b = after.toPixelMap()
+        val b = normalized.toPixelMap()
         var changed = 0
         for (y in 0 until a.height) {
             if (y >= a.height / 4 && y < a.height * 3 / 4) continue
@@ -378,7 +388,7 @@ class DarkConnectedButtonFeedbackTest {
 
     private fun settle() = advance(2_000)
 
-    private data class Frame(val button: ImageBitmap, val board: ImageBitmap, val buttonBounds: Rect)
+    private data class Frame(val button: ImageBitmap, val board: ImageBitmap, val buttonBounds: Rect, val controlBounds: List<Rect>)
 
     private enum class GroupKind { NATIVE, MAIN, RECURRING }
 

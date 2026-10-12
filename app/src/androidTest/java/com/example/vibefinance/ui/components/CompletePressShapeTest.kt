@@ -82,10 +82,12 @@ class CompletePressShapeTest {
 
         // Establish the full held outline, then hold much longer than an animation duration.
         button.performTouchInput { down(center) }
-        advance(240)
-        val heldCorners = coverage(capture(kind, "held", button))
-        assertTrue("${kind.name}: press must visibly change corners ($restingCorners -> $heldCorners)",
-            heldCorners > restingCorners + 8)
+        advance(if (kind == Kind.KEYBOARD) 1_500 else 240)
+        val heldImage = capture(kind, "held", button)
+        val heldCorners = coverage(heldImage)
+        assertTrue("${kind.name}: press must visibly change its outline ($restingCorners -> $heldCorners)",
+            if (kind == Kind.KEYBOARD) heldCorners < restingCorners - 8
+            else heldCorners > restingCorners + 8)
         advance(1_200)
         if (kind == Kind.KEYBOARD) {
             SystemClock.sleep(600)
@@ -100,7 +102,7 @@ class CompletePressShapeTest {
         button.performTouchInput { up() }
         val expectedAfterHold = if (kind == Kind.KEYBOARD) 0 else 1
         rule.waitUntil(5_000) { clicks.get() == expectedAfterHold }
-        advance(500)
+        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
         assertRestored(kind, button, restingCorners, "released")
 
         // Release after one frame. The inward morph must still reach the same full outline.
@@ -110,10 +112,22 @@ class CompletePressShapeTest {
         rule.waitUntil(5_000) { clicks.get() == expectedAfterHold + 1 }
         // Frame-aligned completion of the 180ms morph, before a return frame can advance.
         advance(176)
-        val tapPeak = coverage(capture(kind, "short-tap-peak", button))
-        assertTrue("A one-frame tap must complete the held outline: $tapPeak versus $heldCorners",
-            abs(tapPeak - heldCorners) <= 5)
-        advance(500)
+        val tapImage = capture(kind, "short-tap-peak", button)
+        val tapPeak = coverage(tapImage)
+        if (kind == Kind.KEYBOARD) {
+            // Spring depression can overshoot before settling; its visual area contracts.
+            assertTrue("A short tap must still depress the key", tapPeak < restingCorners - 8)
+        } else if (kind == Kind.MAIN) {
+            // Press scale rebounds on release while the completed corner morph continues.
+            // Compare corner coverage per pixel, independently of the drawn area.
+            val tapFraction = tapPeak.toFloat() / (tapImage.width * tapImage.height)
+            val heldFraction = heldCorners.toFloat() / (heldImage.width * heldImage.height)
+            assertEquals("Tap must complete the same corner morph despite scale rebound", heldFraction, tapFraction, 0.02f)
+        } else {
+            assertTrue("A one-frame tap must complete the held outline: $tapPeak versus $heldCorners",
+                abs(tapPeak - heldCorners) <= 5)
+        }
+        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
         assertRestored(kind, button, restingCorners, "short-tap-restored")
 
         // Cancel a partial gesture without completing a click or leaving a stuck shape.
@@ -121,7 +135,7 @@ class CompletePressShapeTest {
         button.performTouchInput { down(center) }
         advance(64)
         button.performTouchInput { cancel() }
-        advance(500)
+        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
         assertRestored(kind, button, restingCorners, "cancelled")
         assertEquals("Cancel must not click", beforeCancel, clicks.get())
 
@@ -132,7 +146,7 @@ class CompletePressShapeTest {
             button.performTouchInput { up() }
             advance(64)
         }
-        advance(700)
+        advance(if (kind == Kind.KEYBOARD) 2_000 else 700)
         rule.waitUntil(5_000) { clicks.get() == beforeCancel + 3 }
         assertRestored(kind, button, restingCorners, "rapid-taps-restored")
         assertEquals(measuredSize, button.fetchSemanticsNode().size)

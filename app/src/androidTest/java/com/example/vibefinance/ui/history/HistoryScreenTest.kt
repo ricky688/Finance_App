@@ -37,6 +37,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
@@ -402,6 +404,170 @@ class HistoryScreenTest {
         composeTestRule.waitUntil(5_000) { saved.get() != null }
         org.junit.Assert.assertEquals("Custom category 24", saved.get()!!.newTx.category)
         org.junit.Assert.assertEquals(25.0, saved.get()!!.newTx.amount, 0.0)
+    }
+
+    @Test
+    fun expenseEditorSelectsPaymentCardAndSubmitsUpdatedAccount() {
+        verifyOrdinaryAccountSwitch(isIncome = false)
+    }
+
+    @Test
+    fun incomeEditorSelectsDepositAccountAndSubmitsUpdatedAccount() {
+        verifyOrdinaryAccountSwitch(isIncome = true)
+    }
+
+    private val editAccounts = listOf(
+        AccountEntity(id = 1, name = "Account A", type = AccountType.BANK, balance = 1000.0, icon = "bank"),
+        AccountEntity(id = 2, name = "Card B", nickname = "卡片 💳", type = AccountType.CC, balance = 2000.0, icon = "credit_card")
+    )
+
+    private fun verifyOrdinaryAccountSwitch(isIncome: Boolean) {
+        val original = TransactionEntity(
+            id = 500, amount = if (isIncome) -200.0 else 200.0,
+            category = if (isIncome) "Salary" else "Food", timestamp = System.currentTimeMillis(),
+            accountId = if (isIncome) 2 else 1, description = "轉帳戶 ☕",
+            isExcludedFromDailyBudget = true, customIcon = "emoji:☕",
+            sourceWasCreditCard = isIncome, installmentNumber = 2, totalInstallments = 4, groupId = "plan:500"
+        )
+        val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
+        composeTestRule.setContent {
+            HistoryScreen(FinanceUiState(isLoading = false, accounts = editAccounts, transactions = listOf(original)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
+        }
+        openTransaction(original.id)
+        val label = InstrumentationRegistry.getInstrumentation().targetContext.getString(
+            if (isIncome) R.string.edit_account_income_label else R.string.edit_account_expense_label
+        )
+        composeTestRule.onNodeWithTag("EditTransactionAccount").assertIsDisplayed().assertTextContains(label)
+            .assertTextContains(if (isIncome) "卡片 💳" else "Account A")
+        chooseAccount("EditTransactionAccount", if (isIncome) 1 else 2)
+        composeTestRule.onNodeWithTag("EditTransactionAccount")
+            .assertTextContains(if (isIncome) "Account A" else "卡片 💳")
+        composeTestRule.onNodeWithTag("EditTransactionSave").assertIsEnabled().performClick()
+        composeTestRule.waitUntil(5_000) { submitted.get() != null }
+        org.junit.Assert.assertEquals(original, submitted.get()!!.oldTx)
+        org.junit.Assert.assertEquals(
+            original.copy(accountId = if (isIncome) 1 else 2, sourceWasCreditCard = null), submitted.get()!!.newTx
+        )
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("EditTransactionAccount")).fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    @Test
+    fun removedAccountDisablesSaveUntilAnExistingAccountIsSelected() {
+        val original = TransactionEntity(id = 501, amount = 25.0, category = "Food",
+            timestamp = System.currentTimeMillis(), accountId = 1)
+        val accounts = mutableStateOf(editAccounts)
+        val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
+        composeTestRule.setContent {
+            HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts.value, transactions = listOf(original)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
+        }
+        openTransaction(original.id)
+        composeTestRule.runOnIdle { accounts.value = editAccounts.filter { it.id != 1L } }
+        composeTestRule.onNodeWithTag("EditTransactionSave").assertIsNotEnabled()
+        chooseAccount("EditTransactionAccount", 2)
+        composeTestRule.onNodeWithTag("EditTransactionSave").assertIsEnabled().performClick()
+        composeTestRule.waitUntil(5_000) { submitted.get() != null }
+        org.junit.Assert.assertEquals(2L, submitted.get()!!.newTx.accountId)
+    }
+
+    @Test
+    fun accountChoiceSurvivesTransferTypeSwitchWithoutChangingDestinationRules() {
+        val original = TransactionEntity(id = 502, amount = -300.0, category = "Salary",
+            timestamp = System.currentTimeMillis(), accountId = 1, isExcludedFromDailyBudget = true)
+        val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
+        composeTestRule.setContent {
+            HistoryScreen(FinanceUiState(isLoading = false, accounts = editAccounts, transactions = listOf(original)),
+                onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
+        }
+        openTransaction(original.id)
+        chooseAccount("EditTransactionAccount", 2)
+        composeTestRule.onNodeWithTag("EditTransactionTransfer").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionAccount").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionSource").assertTextContains("卡片 💳")
+        composeTestRule.onNodeWithTag("EditTransactionSave").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("EditTransactionDestination").performClick()
+        waitForTag("EditTransactionDestinationMenu")
+        composeTestRule.onNodeWithTag("EditTransactionDestinationOption_2").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionDestinationOption_1").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionSave").assertIsEnabled()
+        composeTestRule.onNodeWithTag("EditTransactionIncome").performClick()
+        composeTestRule.onNodeWithTag("EditTransactionSource").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionDestination").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("EditTransactionAccount").assertTextContains("卡片 💳")
+        composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
+        composeTestRule.waitUntil(5_000) { submitted.get() != null }
+        org.junit.Assert.assertEquals(2L, submitted.get()!!.newTx.accountId)
+        org.junit.Assert.assertNull(submitted.get()!!.newTx.toAccountId)
+        org.junit.Assert.assertEquals(-300.0, submitted.get()!!.newTx.amount, 0.0)
+    }
+
+    @Test
+    fun workbookIncomeAndExpenseShowTheirAccountsAndCancelWithoutMutation() {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("historyWorkbook") == "true")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val descriptor = instrumentation.uiAutomation.executeShellCommand("cat /data/local/tmp/asset-editor-test.xlsx")
+        val imported = android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use {
+            com.example.vibefinance.util.FinancialDataImportEngine.parseStream(it, "asset-editor-test.xlsx")
+        }
+        org.junit.Assert.assertNull(imported.error)
+        org.junit.Assert.assertEquals(868, imported.rawTransactions.size)
+        val accounts = imported.detectedAccounts.mapIndexed { index, raw ->
+            AccountEntity(id = index + 1L, name = raw.name, type = raw.detectedType, balance = 0.0, icon = "wallet")
+        }
+        org.junit.Assert.assertEquals(14, accounts.size)
+        val ids = accounts.associate { it.name to it.id }
+        val transactions = imported.rawTransactions.mapIndexed { index, raw ->
+            TransactionEntity(id = index + 1L, amount = raw.amount, category = raw.category,
+                timestamp = raw.timestamp, accountId = ids.getValue(raw.sourceAccountName),
+                toAccountId = if (raw.isTransfer) ids[raw.destinationAccountName] else null, description = raw.description)
+        }
+        org.junit.Assert.assertEquals(52831.49, transactions.filter { it.amount > 0 && it.toAccountId == null }.sumOf { it.amount }, .001)
+        val submitted = mutableListOf<FinanceIntent>()
+        composeTestRule.setContent {
+            HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts, transactions = transactions),
+                onIntent = { submitted.add(it) })
+        }
+        for (income in listOf(false, true)) {
+            val tx = transactions.filter { it.toAccountId == null && (it.amount < 0) == income }.maxBy { it.timestamp }
+            openTransaction(tx.id)
+            composeTestRule.onNodeWithTag("EditTransactionAccount").assertIsDisplayed()
+                .assertTextContains(accounts.single { it.id == tx.accountId }.name)
+            composeTestRule.onNodeWithTag("EditTransactionAccount").performClick()
+            waitForTag("EditTransactionAccountMenu")
+            composeTestRule.onNodeWithTag("EditTransactionAccountOption_${tx.accountId}").performScrollTo().performClick()
+            composeTestRule.onNodeWithText(instrumentation.targetContext.getString(R.string.btn_cancel)).performClick()
+            composeTestRule.waitUntil(5_000) {
+                composeTestRule.onAllNodes(hasTestTag("EditTransactionAccount")).fetchSemanticsNodes().isEmpty()
+            }
+        }
+        org.junit.Assert.assertTrue(submitted.isEmpty())
+    }
+
+    private fun openTransaction(id: Long) {
+        composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_$id"))
+        composeTestRule.onNodeWithTag("TransactionRow_$id").performClick()
+        waitForTag("EditTransactionAccount")
+    }
+
+    private fun waitForTag(tag: String) {
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    // ARTEMIS verified the read-only account anchor, separate popup, Unicode nickname,
+    // selection dismissal, Save result and Income/Transfer switching on selected Waydroid.
+    // Compose supplies semantic locators; no coordinate fallback is needed here.
+    private fun chooseAccount(tag: String, id: Long) {
+        composeTestRule.onNodeWithTag(tag).performScrollTo().performClick()
+        waitForTag("${tag}Menu")
+        composeTestRule.onNodeWithTag("${tag}Option_$id").performScrollTo().assertIsDisplayed().performClick()
+        composeTestRule.waitUntil(5_000) {
+            composeTestRule.onAllNodes(hasTestTag("${tag}Menu")).fetchSemanticsNodes().isEmpty()
+        }
     }
 
     // Verified on Waydroid with ARTEMIS observations and ADB before test authoring:

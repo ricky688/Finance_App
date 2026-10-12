@@ -341,7 +341,8 @@ fun RecurringScreen(
     topVisibilityInset: Dp = 0.dp,
     bottomVisibilityInset: Dp = 0.dp,
     showAddSheet: Boolean = false,
-    onDismissAddSheet: () -> Unit = {}
+    onDismissAddSheet: () -> Unit = {},
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val haptic = LocalHapticFeedback.current
     var showAddEditSheet by remember { mutableStateOf(false) }
@@ -409,6 +410,7 @@ fun RecurringScreen(
             if (!isWideScreen) {
                 // Compact Single Column Layout (< 600dp)
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
@@ -419,6 +421,7 @@ fun RecurringScreen(
                     // 1. Bento Hero Summary Card
                     item {
                         PageContentEntrance("summary") {
+                            CalendarExportMenu(state)
                             RecurringHeroSummaryCard(
                                 totalMonthly = totalMonthlyRecurring,
                                 totalAnnual = totalAnnualRecurring,
@@ -527,6 +530,7 @@ fun RecurringScreen(
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
                                 PageContentEntrance("summary") {
+                                    CalendarExportMenu(state)
                                     RecurringHeroSummaryCard(
                                         totalMonthly = totalMonthlyRecurring,
                                         totalAnnual = totalAnnualRecurring,

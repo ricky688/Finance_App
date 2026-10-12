@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="ui_main_close_menu">關閉選單</string>
     <string name="ui_main_add_transaction">新增交易</string>
-    <string name="ui_main_note_hint">備註／商戶（例如 Starbucks）</string>
     <string name="ui_main_income_category">收入類別</string>
     <string name="ui_main_add_category">新增自訂類別</string>
     <string name="ui_main_category_hint">類別名稱（例如健康）</string>

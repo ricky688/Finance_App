@@ -3,7 +3,7 @@
 
 package com.example.vibefinance.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.ColumnScope
@@ -21,14 +21,15 @@ import androidx.compose.ui.unit.Dp
  * Tween still respects the coroutine's Android/app MotionDurationScale.
  */
 private class SheetMotionScheme(private val parent: MotionScheme) : MotionScheme by parent {
+    private val easeInOut = CubicBezierEasing(0.4f, 0f, 0.6f, 1f)
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+        tween(durationMillis = 360, easing = easeInOut)
 
     override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+        tween(durationMillis = 360, easing = easeInOut)
 
     override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 320, easing = FastOutSlowInEasing)
+        tween(durationMillis = 360, easing = easeInOut)
 }
 
 /** Keep native gestures, insets, accessibility and predictive Back; scope easing to the sheet. */

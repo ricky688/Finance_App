@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
@@ -31,9 +32,11 @@ internal const val ReleaseShapeDurationMillis = 220
 internal fun rememberCompletePressProgress(
     interactionSource: InteractionSource,
     enabled: Boolean = true,
+    pressSpec: AnimationSpec<Float> = tween(PressShapeDurationMillis, easing = FastOutSlowInEasing),
+    releaseSpec: AnimationSpec<Float> = tween(ReleaseShapeDurationMillis, easing = FastOutSlowInEasing),
 ): State<Float> {
     val progress = remember(interactionSource) { Animatable(0f) }
-    LaunchedEffect(interactionSource, enabled) {
+    LaunchedEffect(interactionSource, enabled, pressSpec, releaseSpec) {
         if (!enabled) progress.snapTo(0f)
         coroutineScope {
             val held = mutableSetOf<PressInteraction.Press>()
@@ -47,7 +50,7 @@ internal fun rememberCompletePressProgress(
                         restoration?.cancel()
                         pressAnimation?.cancel()
                         pressAnimation = launch {
-                            progress.animateTo(1f, tween(PressShapeDurationMillis, easing = FastOutSlowInEasing))
+                            progress.animateTo(1f, pressSpec)
                         }
                     }
                     is PressInteraction.Release -> {
@@ -56,7 +59,7 @@ internal fun rememberCompletePressProgress(
                             restoration = launch {
                                 pressAnimation?.join()
                                 if (held.isEmpty()) {
-                                    progress.animateTo(0f, tween(ReleaseShapeDurationMillis, easing = FastOutSlowInEasing))
+                                    progress.animateTo(0f, releaseSpec)
                                 }
                             }
                         }
@@ -66,7 +69,7 @@ internal fun rememberCompletePressProgress(
                             pressAnimation?.cancel()
                             restoration?.cancel()
                             restoration = launch {
-                                progress.animateTo(0f, tween(ReleaseShapeDurationMillis, easing = FastOutSlowInEasing))
+                                progress.animateTo(0f, releaseSpec)
                             }
                         }
                     }

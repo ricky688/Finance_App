@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="ui_main_close_menu">Close menu</string>
     <string name="ui_main_add_transaction">Add transaction</string>
-    <string name="ui_main_note_hint">Note / Merchant (e.g. Starbucks)</string>
     <string name="ui_main_income_category">Category (Income)</string>
     <string name="ui_main_add_category">Add Custom Category</string>
     <string name="ui_main_category_hint">Category Name (e.g. Health)</string>

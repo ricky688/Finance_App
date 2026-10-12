@@ -93,13 +93,13 @@ internal fun <T> ExpandableEntrySelector(
             modifier = Modifier.weight(1f).onSizeChanged { rowHeight = it.height }.testTag("${tagPrefix}_row"),
             isScrollable = true, iconProvider = iconProvider, fadeTagPrefix = "${tagPrefix}_row",
             selectionRevealRequest = selectionRevealRequest,
-            preserveContentColors = true,
+            preserveContentColors = true, corners = ConnectedButtonCorners.Entry,
             itemModifierProvider = { index -> Modifier.testTag("${tagPrefix}_row_${keyProvider(items[index])}") },
-            trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add) } } else null,
+            trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add, restingCorner = 28.dp, pressedCorner = 12.dp) } } else null,
             labelProvider = labelProvider)
         Surface(
             onClick = { host.activeTag = if (expanded) null else tagPrefix },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             color = if (expanded) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = if (expanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
             border = BorderStroke(1.dp, if (expanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
@@ -141,7 +141,9 @@ internal fun <T> ExpandableEntrySelector(
             onDismissRequest = { host.activeTag = null },
             // A modal popup owns the whole outside-touch gesture. Otherwise dismissal on
             // DOWN lets UP click the underlying toggle and immediately reopen the menu.
-            properties = PopupProperties(focusable = true)
+            // Only the shadow extends past the anchored rectangle. Let that padding reach
+            // the system inset instead of WindowManager shifting the entire panel upward.
+            properties = PopupProperties(focusable = true, clippingEnabled = false)
         ) {
             // Keep room for the shadow throughout the transition without changing the covered area.
             Box(Modifier.size(with(density) { bounds.width.toDp() } + shadowPadding * 2,

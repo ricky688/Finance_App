@@ -60,20 +60,15 @@ class AssetEditorRestorationTest {
     private fun checkField(label: Int, value: String) {
         field(label).performScrollTo().assertTextContains(value)
     }
-    private fun tab(label: Int) {
-        rule.onNode(hasText(text(label)) and hasClickAction()).performClick()
-        rule.waitForIdle()
-    }
     private fun networkField() = rule.onNode(hasText(text(R.string.ah_protocol)) and
         SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText))
     private fun selectNetwork() {
-        tab(R.string.ah_tab_design)
         networkField().performScrollTo().performClick()
         rule.onNode(hasText("UnionPay") and hasClickAction()).performClick()
         rule.waitForIdle()
     }
 
-    @Test fun newDraft_survivesSavedStateRestore_includingSelectedTab_andSavesOnce() {
+    @Test fun newDraft_survivesSavedStateRestore_includingAllSections_andSavesOnce() {
         val restoration = show(edit = false)
         replace(R.string.ah_account_card_name, "Rotation 銀行")
         replace(R.string.assets_identity_nickname, "旅行 💳")
@@ -82,14 +77,13 @@ class AssetEditorRestorationTest {
         selectNetwork()
         restoration.emulateSavedInstanceStateRestore()
         waitForSheet()
-        networkField().performScrollTo().assertTextContains("UnionPay") // Design tab is restored too.
-        tab(R.string.ah_tab_details)
+        networkField().performScrollTo().assertTextContains("UnionPay") // The single-page draft survives restoration.
         checkField(R.string.ah_account_card_name, "Rotation 銀行")
         checkField(R.string.assets_identity_nickname, "旅行 💳")
         checkField(R.string.assets_identity_last_four, "7890")
         checkField(R.string.ah_current_balance_amount, "1234.56")
         assertTrue(saves.isEmpty())
-        rule.onNodeWithText(text(R.string.ah_create_asset)).performClick()
+        rule.onNodeWithTag("AssetEditorSave").performClick()
         rule.waitUntil(5_000) { saves.size == 1 }
         val save = saves.single()
         assertEquals(0L, save.account.id)
@@ -111,12 +105,11 @@ class AssetEditorRestorationTest {
         restoration.emulateSavedInstanceStateRestore()
         waitForSheet()
         networkField().performScrollTo().assertTextContains("UnionPay")
-        tab(R.string.ah_tab_details)
         checkField(R.string.ah_account_card_name, "Edited 卡")
         checkField(R.string.assets_identity_nickname, "New nickname")
         checkField(R.string.assets_identity_last_four, "9876")
         assertTrue(saves.isEmpty())
-        rule.onNodeWithText(text(R.string.btn_save_changes)).performClick()
+        rule.onNodeWithTag("AssetEditorSave").performClick()
         rule.waitUntil(5_000) { saves.size == 1 }
         val save = saves.single()
         assertEquals(CARD.copy(name = "Edited 卡", nickname = "New nickname", cardLast4 = "9876",
@@ -148,7 +141,14 @@ class AssetEditorRestorationTest {
             assertEquals(bounds, sheet.fetchSemanticsNode().boundsInRoot)
         }
         rule.onNodeWithContentDescription(text(R.string.btn_close)).performClick()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("AssetEditorSheet").fetchSemanticsNodes().isEmpty() }
+        // A top-edge drag may pan a custom photo. Such a real draft change requires confirmation.
+        rule.waitUntil(8_000) {
+            rule.onAllNodesWithTag("AssetEditorSheet").fetchSemanticsNodes().isEmpty() ||
+                rule.onAllNodesWithTag("AssetEditorDiscard").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (rule.onAllNodesWithTag("AssetEditorDiscard").fetchSemanticsNodes().isNotEmpty())
+            rule.onNodeWithTag("AssetEditorDiscard").performClick()
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("AssetEditorSheet").fetchSemanticsNodes().isEmpty() }
         assertTrue(saves.isEmpty())
     }
 
@@ -158,6 +158,7 @@ class AssetEditorRestorationTest {
             billingDate = 5, paymentDate = 20, paymentDeadline = 23,
             cardTheme = "default", accentColorKey = "secondary", cardLast4 = "1234",
             cardProtocol = "visa", cardIssuer = "hsbc", cardPattern = "neon waves",
+            cardImageUri = "/unavailable/rotation-card.png",
             customImageAspectRatio = "1.586:1", cardBgOffsetX = 0.25f, cardBgOffsetY = -0.2f,
             cardBgScale = 1.2f, minSpendThreshold = 600.0, linkedAppPackage = "none",
             notificationAliases = "銀聯, RotationAlias")

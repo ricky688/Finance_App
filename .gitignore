@@ -19,6 +19,8 @@ secrets.properties
 .gemini/
 graphify-out/
 buckwheat/
+ImageToolbox/
+imagetoolbox/
 skill/
 .agents/auditor_*
 .agents/worker_*

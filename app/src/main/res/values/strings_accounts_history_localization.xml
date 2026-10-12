@@ -78,9 +78,6 @@
     <string name="ah_due_tomorrow" formatted="false">Due Tomorrow</string>
     <string name="ah_due_in_days">Due in %1$d days</string>
     <string name="ah_credit_used_available">%1$d%% Used • Avail $%2$,.0f</string>
-    <string name="ah_tab_details" formatted="false">Details</string>
-    <string name="ah_tab_billing" formatted="false">Billing &amp; Due</string>
-    <string name="ah_tab_design" formatted="false">Card Design</string>
     <string name="ah_type_debit" formatted="false">Debit Card</string>
     <string name="ah_none" formatted="false">None</string>
     <string name="ah_pattern_cyber_grid" formatted="false">Cyber Grid</string>

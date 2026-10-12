@@ -23,6 +23,10 @@ class AccountRepository @Inject constructor() {
         return InMemoryDatabase.insertAccount(account)
     }
 
+    suspend fun insertAccountDurably(account: AccountEntity): Long {
+        return InMemoryDatabase.insertAccount(account, requireDurable = true)
+    }
+
     suspend fun insertAccounts(accounts: List<AccountEntity>): Map<String, Long> {
         return InMemoryDatabase.insertAccounts(accounts)
     }

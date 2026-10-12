@@ -49,6 +49,11 @@ object InMemoryDatabase {
     internal val diskIoLock = Any()
     private const val DATA_FILE_NAME = "vibefinance_data.json"
 
+    /** A notification action can be the first component started in a new process. */
+    fun ensureInitialized(context: android.content.Context) = synchronized(diskIoLock) {
+        if (appContext == null) initialize(context)
+    }
+
     fun saveAspect(aspect: String) = synchronized(diskIoLock) {
         val trimmed = aspect.trim()
         if (trimmed.isNotBlank()) {
@@ -284,11 +289,15 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
-    fun insertAccount(account: AccountEntity): Long = synchronized(diskIoLock) {
-        val id = nextAccountId++
-        val newAccount = account.copy(id = id)
-        accounts.update { it + newAccount }
-        persistToDisk()
+    fun insertAccount(account: AccountEntity, requireDurable: Boolean = false): Long = synchronized(diskIoLock) {
+        val id = nextAccountId
+        val updatedAccounts = accounts.value + account.copy(id = id)
+        // The editor acknowledges success only after AtomicFile has finished. Existing callers
+        // retain their original persistence policy; the snapshot format and ID allocation are unchanged.
+        persistToDisk(accountsSnapshot = updatedAccounts, nextAccountIdSnapshot = id + 1,
+            throwOnFailure = requireDurable)
+        nextAccountId = id + 1
+        accounts.value = updatedAccounts
         id
     }
 
@@ -679,6 +688,59 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
+    /** Undo exactly one intercepted event, using its recorded account types, in one disk write. */
+    fun undoNotificationPayment(groupId: String): Boolean = synchronized(diskIoLock) {
+        require(groupId.startsWith("notification:") && groupId.length > "notification:".length)
+        deleteMatchingTransactionsWithBalances { it.groupId == groupId }
+    }
+
+    fun deleteTransactionWithBalances(id: Long): Boolean = synchronized(diskIoLock) {
+        deleteMatchingTransactionsWithBalances { it.id == id }
+    }
+
+    private fun deleteMatchingTransactionsWithBalances(matches: (TransactionEntity) -> Boolean): Boolean {
+        val removed = transactions.value.filter(matches)
+        if (removed.isEmpty()) return false
+        val currentAccounts = accounts.value.associateBy { it.id }
+        val deltas = mutableMapOf<Long, Double>()
+        fun refund(id: Long, delta: Double) { deltas[id] = (deltas[id] ?: 0.0) + delta }
+        removed.forEach { tx ->
+            if (tx.timestamp <= System.currentTimeMillis()) {
+                if (tx.isBalanceAdjustment) {
+                    refund(tx.accountId, -requireNotNull(tx.balanceAdjustmentDelta))
+                } else {
+                    val sourceIsCredit = tx.sourceWasCreditCard ?: (currentAccounts[tx.accountId]?.type == AccountType.CC)
+                    refund(tx.accountId, tx.amount * if (sourceIsCredit) -1.0 else 1.0)
+                    tx.toAccountId?.let { destination ->
+                        val destinationIsCredit = tx.destinationWasCreditCard ?: (currentAccounts[destination]?.type == AccountType.CC)
+                        refund(destination, tx.amount * if (destinationIsCredit) 1.0 else -1.0)
+                    }
+                }
+            }
+        }
+        val updatedAccounts = accounts.value.map { account ->
+            val balance = account.balance + (deltas[account.id] ?: 0.0)
+            require(balance.isFinite()) { "Resulting balance must be finite" }
+            account.copy(balance = balance)
+        }
+        val updatedTransactions = transactions.value.filterNot(matches)
+        persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions, throwOnFailure = true)
+        accounts.value = updatedAccounts
+        transactions.value = updatedTransactions
+        return true
+    }
+
+    /** A category-only action cannot overwrite concurrent edits to amount or account. */
+    fun changeNotificationCategory(groupId: String, category: String): Boolean = synchronized(diskIoLock) {
+        require(category.isNotBlank() && category.length <= 200)
+        val stored = transactions.value.singleOrNull { it.groupId == groupId } ?: return@synchronized false
+        val updated = categoryMergeRules.value.normalize(stored.copy(category = category.trim()))
+        val updatedTransactions = transactions.value.map { if (it.id == stored.id) updated else it }
+        persistToDisk(transactionsSnapshot = updatedTransactions, throwOnFailure = true)
+        transactions.value = updatedTransactions
+        true
+    }
+
     /** Persist an edit and both account effects together; publish only after the write succeeds. */
     fun updateTransactionWithBalances(newTx: TransactionEntity, oldTx: TransactionEntity) = synchronized(diskIoLock) {
         val stored = transactions.value.firstOrNull { it.id == oldTx.id }
@@ -722,6 +784,85 @@ object InMemoryDatabase {
         }
         val updatedTransactions = transactions.value.map { if (it.id == updated.id) updated else it }
         persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions, throwOnFailure = true)
+        accounts.value = updatedAccounts
+        transactions.value = updatedTransactions
+    }
+
+    /** Compare frozen records, stage every change, then persist and publish once. */
+    fun batchTransactions(expected: List<TransactionEntity>, operation: BatchTransactionOperation): DeletedTransactionBatch? = synchronized(diskIoLock) {
+        require(expected.isNotEmpty() && expected.map { it.id }.distinct().size == expected.size)
+        val stored = transactions.value.associateBy { it.id }
+        require(expected.all { stored[it.id] == it }) { "Selection changed; select the records again" }
+        val currentAccounts = accounts.value.associateBy { it.id }
+        require(expected.all { it.accountId in currentAccounts && (it.toAccountId == null || it.toAccountId in currentAccounts) })
+        if (operation !is BatchTransactionOperation.Delete) {
+            require(expected.all { it.toAccountId == null && !it.isBalanceAdjustment && it.amount != 0.0 })
+        }
+        val replacements = when (operation) {
+            BatchTransactionOperation.Delete -> emptyList()
+            is BatchTransactionOperation.Category -> {
+                require(operation.category.isNotBlank() && operation.category.length <= 200)
+                require(expected.all { it.amount > 0 } || expected.all { it.amount < 0 })
+                expected.map { categoryMergeRules.value.normalize(it.copy(category = operation.category.trim())) }
+            }
+            is BatchTransactionOperation.Account -> {
+                require(operation.accountId in currentAccounts) { "Account no longer exists" }
+                expected.map { it.copy(accountId = operation.accountId,
+                    sourceWasCreditCard = if (it.accountId == operation.accountId) it.sourceWasCreditCard
+                        else currentAccounts.getValue(operation.accountId).type == AccountType.CC) }
+            }
+        }
+        val now = System.currentTimeMillis()
+        val ids = expected.map { it.id }.toSet()
+        val updatedTransactions = transactions.value.filterNot { it.id in ids } + replacements
+        publishTransactionBatch(expected, replacements, updatedTransactions, now)
+        if (operation is BatchTransactionOperation.Delete) DeletedTransactionBatch(expected.toList(), now) else null
+    }
+
+    fun restoreTransactionBatch(batch: DeletedTransactionBatch) = synchronized(diskIoLock) {
+        val records = batch.records
+        require(records.isNotEmpty() && records.map { it.id }.distinct().size == records.size)
+        val ids = transactions.value.map { it.id }.toSet()
+        val accountIds = accounts.value.map { it.id }.toSet()
+        require(records.all { it.id > 0 && it.id !in ids && it.accountId in accountIds &&
+            (it.toAccountId == null || it.toAccountId in accountIds) }) { "Cannot restore changed accounts or duplicate records" }
+        publishTransactionBatch(emptyList(), records, transactions.value + records, batch.appliedThrough,
+            maxOf(nextTransactionId, records.maxOf { it.id } + 1))
+    }
+
+    private fun publishTransactionBatch(
+        removed: List<TransactionEntity>, added: List<TransactionEntity>, updatedTransactions: List<TransactionEntity>,
+        appliedThrough: Long, nextId: Long = nextTransactionId
+    ) {
+        val byId = accounts.value.associateBy { it.id }
+        val deltas = mutableMapOf<Long, Double>()
+        fun delta(id: Long, value: Double) { deltas[id] = (deltas[id] ?: 0.0) + value }
+        fun apply(tx: TransactionEntity, direction: Double) {
+            require(tx.amount.isFinite())
+            if (tx.timestamp > appliedThrough) return
+            if (tx.isBalanceAdjustment) {
+                val adjustment = requireNotNull(tx.balanceAdjustmentDelta)
+                require(adjustment.isFinite())
+                delta(tx.accountId, direction * adjustment)
+            } else {
+                val credit = tx.sourceWasCreditCard ?: (byId.getValue(tx.accountId).type == AccountType.CC)
+                delta(tx.accountId, direction * tx.amount * if (credit) 1.0 else -1.0)
+                tx.toAccountId?.let { id ->
+                    val destinationCredit = tx.destinationWasCreditCard ?: (byId.getValue(id).type == AccountType.CC)
+                    delta(id, direction * tx.amount * if (destinationCredit) -1.0 else 1.0)
+                }
+            }
+        }
+        removed.forEach { apply(it, -1.0) }
+        added.forEach { apply(it, 1.0) }
+        val updatedAccounts = accounts.value.map {
+            val balance = it.balance + (deltas[it.id] ?: 0.0)
+            require(balance.isFinite())
+            it.copy(balance = balance)
+        }
+        persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions,
+            nextTransactionIdSnapshot = nextId, throwOnFailure = true)
+        nextTransactionId = nextId
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
     }

@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -104,7 +105,9 @@ fun CategoryBreakdownCard(
     onSearch: (() -> Unit)? = null,
     searchActive: Boolean = false,
     searchExpanded: Boolean = false,
-    searchSummary: String? = null
+    searchSummary: String? = null,
+    onSelectTransactions: (() -> Unit)? = null,
+    hideHeader: Boolean = false
 ) {
     var actionsExpanded by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -163,7 +166,7 @@ fun CategoryBreakdownCard(
                 .padding(16.dp)
         ) {
             // Secondary file actions occupy one touch target; title and hint wrap normally.
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (!hideHeader) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                     modifier = Modifier.size(34.dp)) {
                     Box(contentAlignment = Alignment.Center) {
@@ -190,6 +193,11 @@ fun CategoryBreakdownCard(
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().testTag("CategoryAnalyticsHint")
                     )
+                }
+                if (onSelectTransactions != null) {
+                    IconButton(onClick = onSelectTransactions, modifier = Modifier.testTag("HistorySelectOpen")) {
+                        Icon(androidx.compose.material.icons.Icons.Default.Check, stringResource(R.string.batch_select))
+                    }
                 }
                 if (onSearch != null) {
                     val searchContainer by animateColorAsState(

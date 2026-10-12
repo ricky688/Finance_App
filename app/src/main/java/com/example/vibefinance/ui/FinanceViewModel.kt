@@ -110,9 +110,14 @@ sealed interface FinanceIntent {
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
     data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity) : FinanceIntent
     data class RestoreTransaction(val tx: TransactionEntity) : FinanceIntent
+    data class BatchTransactions(val requestId: String, val expected: List<TransactionEntity>,
+        val operation: com.example.vibefinance.data.BatchTransactionOperation) : FinanceIntent
+    data class UndoBatch(val batch: com.example.vibefinance.data.DeletedTransactionBatch,
+        val requestId: String = java.util.UUID.randomUUID().toString()) : FinanceIntent
     data class SaveAccount(
         val account: AccountEntity,
-        val originalBalance: Double? = null
+        val originalBalance: Double? = null,
+        val editorRequestId: String? = null
     ) : FinanceIntent
     data class DeleteAccount(val account: AccountEntity) : FinanceIntent
     data class SetThemeMode(val themeMode: ThemeMode) : FinanceIntent
@@ -140,10 +145,20 @@ sealed interface FinanceIntent {
     data object DismissImportPreview : FinanceIntent
 }
 
+data class BatchTransactionResult(val requestId: String, val processing: Boolean, val success: Boolean = false, val error: String? = null)
+
+sealed interface AccountSaveResult {
+    val requestId: String
+    data class Saving(override val requestId: String) : AccountSaveResult
+    data class Saved(override val requestId: String, val account: AccountEntity) : AccountSaveResult
+    data class Failed(override val requestId: String, val message: String) : AccountSaveResult
+}
+
 // MVI Single-use Events (for toasts/actions)
 sealed interface FinanceUiEvent {
     data class ShowToast(val message: String) : FinanceUiEvent
     data class ShowSnackbar(val message: String, val actionLabel: String? = null, val actionIntent: FinanceIntent? = null) : FinanceUiEvent
+    data object HapticSuccess : FinanceUiEvent
     data object SeedCompleted : FinanceUiEvent
 }
 
@@ -179,8 +194,26 @@ class FinanceViewModel @Inject constructor(
         _requestedTab.value = null
     }
 
+    private val _requestedPaymentCategory = MutableStateFlow<String?>(null)
+    val requestedPaymentCategory = _requestedPaymentCategory.asStateFlow()
+
+    fun requestPaymentCategory(paymentId: String) {
+        if (com.example.vibefinance.service.PaymentLoggingNotification.isValidPaymentId(paymentId)) {
+            _requestedPaymentCategory.value = paymentId
+            requestTab(com.example.vibefinance.ui.main.TabItem.HISTORY)
+        }
+    }
+
+    fun clearRequestedPaymentCategory() { _requestedPaymentCategory.value = null }
+
     private val _uiEvents = MutableSharedFlow<FinanceUiEvent>()
     val uiEvents: SharedFlow<FinanceUiEvent> = _uiEvents.asSharedFlow()
+
+    private val batchRequests = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val _batchResult = MutableStateFlow<BatchTransactionResult?>(null)
+    val batchResult: StateFlow<BatchTransactionResult?> = _batchResult.asStateFlow()
+    private val _accountSaveResult = MutableStateFlow<AccountSaveResult?>(null)
+    val accountSaveResult: StateFlow<AccountSaveResult?> = _accountSaveResult.asStateFlow()
 
     init {
         loadData()
@@ -347,6 +380,7 @@ class FinanceViewModel @Inject constructor(
                             com.example.vibefinance.ai.MerchantRuleEngine.learnRule(application, intent.description, intent.category)
                         }
                         
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_transaction_recorded)))
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
@@ -376,6 +410,34 @@ class FinanceViewModel @Inject constructor(
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
+                is FinanceIntent.BatchTransactions -> {
+                    if (!batchRequests.add(intent.requestId)) return@launch
+                    _batchResult.value = BatchTransactionResult(intent.requestId, processing = true)
+                    try {
+                        val deleted = transactionRepository.batchTransactions(intent.expected, intent.operation)
+                        _batchResult.value = BatchTransactionResult(intent.requestId, processing = false, success = true)
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
+                        if (deleted != null) _uiEvents.emit(FinanceUiEvent.ShowSnackbar(
+                            application.appString(R.string.batch_deleted, deleted.records.size),
+                            application.appString(R.string.batch_undo), FinanceIntent.UndoBatch(deleted)))
+                    } catch (e: Exception) {
+                        _batchResult.value = BatchTransactionResult(intent.requestId, processing = false,
+                            error = application.appString(R.string.batch_failed))
+                    }
+                }
+                is FinanceIntent.UndoBatch -> {
+                    if (!batchRequests.add(intent.requestId)) return@launch
+                    _batchResult.value = BatchTransactionResult(intent.requestId, processing = true)
+                    try {
+                        transactionRepository.restoreBatch(intent.batch)
+                        _batchResult.value = BatchTransactionResult(intent.requestId, processing = false, success = true)
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
+                    } catch (e: Exception) {
+                        val message = application.appString(R.string.batch_failed)
+                        _batchResult.value = BatchTransactionResult(intent.requestId, processing = false, error = message)
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(message))
+                    }
+                }
                 is FinanceIntent.DeleteTransaction -> {
                     try {
                         transactionRepository.deleteTransaction(intent.tx)
@@ -402,29 +464,43 @@ class FinanceViewModel @Inject constructor(
                     }
                 }
                 is FinanceIntent.SaveAccount -> {
+                    val requestId = intent.editorRequestId
+                    if (requestId != null && _accountSaveResult.value?.requestId == requestId &&
+                        _accountSaveResult.value !is AccountSaveResult.Failed) return@launch
+                    if (requestId != null) _accountSaveResult.value = AccountSaveResult.Saving(requestId)
                     try {
                         require(intent.account.balance.isFinite()) { "Balance must be a finite amount" }
-                        if (intent.account.id == 0L) {
-                            accountRepository.insertAccount(intent.account)
-                        } else {
-                            val current = accountRepository.getAccountByIdSync(intent.account.id)
-                                ?: throw IllegalArgumentException("Account ${intent.account.id} no longer exists")
-                            val accountToSave = if (intent.originalBalance != null &&
-                                intent.account.balance == intent.originalBalance
-                            ) {
-                                intent.account.copy(balance = current.balance)
+                        val savedAccount = withContext(Dispatchers.IO) {
+                            if (intent.account.id == 0L) {
+                                val id = if (requestId != null) accountRepository.insertAccountDurably(intent.account)
+                                    else accountRepository.insertAccount(intent.account)
+                                intent.account.copy(id = id)
                             } else {
-                                intent.account
+                                val current = accountRepository.getAccountByIdSync(intent.account.id)
+                                    ?: throw IllegalArgumentException("Account ${intent.account.id} no longer exists")
+                                val accountToSave = if (intent.originalBalance != null &&
+                                    intent.account.balance == intent.originalBalance
+                                ) {
+                                    intent.account.copy(balance = current.balance)
+                                } else {
+                                    intent.account
+                                }
+                                accountRepository.updateAccountWithBalanceAdjustment(accountToSave)
+                                accountToSave
                             }
-                            accountRepository.updateAccountWithBalanceAdjustment(accountToSave)
                         }
 
+                        if (requestId != null) _accountSaveResult.value = AccountSaveResult.Saved(requestId, savedAccount)
                         if (intent.account.id == 0L) {
                             _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_account_created)))
                         } else {
                             _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_account_updated)))
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
+                        if (requestId != null) _accountSaveResult.value = AccountSaveResult.Failed(requestId,
+                            application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName))
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }

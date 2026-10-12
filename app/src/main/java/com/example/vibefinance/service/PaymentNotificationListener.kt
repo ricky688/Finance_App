@@ -1,11 +1,7 @@
 package com.example.vibefinance.service
 
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -852,7 +848,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             val rememberedId = PendingPaymentStore.rememberedAccountId(context, queued)
             val rememberedAccount = InMemoryDatabase.accounts.value.firstOrNull { it.id == rememberedId }
             if (rememberedAccount != null && PendingPaymentStore.accept(context, queued.id, rememberedAccount.id, true)) {
-                showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining, queued.isTopUp)
+                showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining, queued.isTopUp, queued.id)
             }
             return true
         }
@@ -880,31 +876,9 @@ class PaymentNotificationListener : NotificationListenerService() {
             merchant: String,
             assetName: String,
             balanceRemaining: Double? = null,
-            isTopUp: Boolean = false
+            isTopUp: Boolean = false,
+            paymentId: String
         ) {
-            val channelId = "payment_logging"
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    channelId,
-                    context.appString(R.string.nf_auto_log_channel),
-                    NotificationManager.IMPORTANCE_DEFAULT
-                )
-                manager.createNotificationChannel(channel)
-            }
-
-            val intent = Intent(context, com.example.vibefinance.MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("navigate_tab", "history")
-            }
-            val pendingIntent = android.app.PendingIntent.getActivity(
-                context,
-                (merchant + amount).hashCode(),
-                intent,
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-
             val balanceSuffix = if (balanceRemaining != null) {
                 context.appString(R.string.nf_logged_balance_suffix, balanceRemaining)
             } else ""
@@ -918,15 +892,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             } else {
                 context.appString(R.string.nf_logged_expense_message, amount, merchant, assetName, balanceSuffix)
             }
-            val notification = Notification.Builder(context, channelId)
-                .setContentTitle(titleStr)
-                .setContentText(contentStr)
-                .setSmallIcon(android.R.drawable.ic_menu_save)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .build()
-
-            manager.notify(System.currentTimeMillis().toInt(), notification)
+            PaymentLoggingNotification.show(context, paymentId, titleStr, contentStr, amount)
         }
     }
 }

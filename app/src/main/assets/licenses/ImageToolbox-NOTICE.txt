@@ -1,0 +1,7 @@
+Asset editor motion references ImageToolbox's Animations.kt and Easing.kt.
+ImageToolbox: https://github.com/T8RIN/ImageToolbox
+Copyright (c) 2026 T8RIN (Malik Mukhametzyanov)
+Licensed under the Apache License, Version 2.0 (ImageToolbox-Apache-2.0.txt).
+
+VibeFinance adapts the normal navigation slide/fade/scale timings and easing
+to a shared Jetpack Compose transition for its editor and underlying page.

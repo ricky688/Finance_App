@@ -53,12 +53,6 @@ object LocalAppManager {
             installedAppCatalog(context) { coroutineContext.ensureActive() }
         }
 
-    /** Compatibility for the allowed-app dialog, which still expects eager icons. */
-    fun getInstalledApps(context: Context): List<InstalledAppInfo> =
-        installedAppCatalog(context).map { app ->
-            app.copy(iconBitmap = getAppIcon(context, app.packageName))
-        }
-
     private fun cacheConfiguration(context: Context): String =
         "${context.packageName}:${context.resources.configuration}:${Locale.getDefault().toLanguageTag()}"
 

@@ -7,7 +7,6 @@ import com.example.vibefinance.ui.common.PageContentEntrance
 
 import com.example.vibefinance.ui.components.CompletePressButton
 import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
-import com.example.vibefinance.ui.components.CompletePressOutlinedButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
 import com.example.vibefinance.ui.components.CompletePressToggleButton
 
@@ -24,10 +23,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.material3.Slider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectableGroup
@@ -40,20 +37,11 @@ import com.example.vibefinance.ui.common.pressBounce
 import android.widget.Toast
 import android.content.Context
 import android.graphics.Bitmap
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import com.example.vibefinance.util.LocalAppManager
-import com.example.vibefinance.ui.common.horizontalFadingEdge
-import com.example.vibefinance.ui.common.ScrollBlurContainer
-import androidx.compose.ui.platform.LocalWindowInfo
-import com.example.vibefinance.theme.BentoCardShape
-import com.example.vibefinance.theme.BentoSubCardShape
-import com.example.vibefinance.theme.BentoSmallCardShape
 import com.example.vibefinance.theme.LocalIsDarkTheme
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -72,15 +60,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
@@ -90,9 +70,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.shape.CircleShape
@@ -101,96 +78,60 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.Surface
 
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewStream
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ZoomIn
-import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.CalendarMonth
-import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.ui.semantics.role
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -207,7 +148,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -221,7 +161,6 @@ import com.example.vibefinance.theme.JetBrainsMonoFontFamily
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -244,8 +183,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.IntSize
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
@@ -255,7 +192,6 @@ import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.MoneySeparationChart
 import com.example.vibefinance.ui.components.InteractiveDonutChart
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
@@ -305,7 +241,7 @@ fun AccountEntity.watermarkText(): String {
 
 
 @Composable
-private fun accountTypeDisplayLabel(type: AccountType): String = stringResource(
+internal fun accountTypeDisplayLabel(type: AccountType): String = stringResource(
     when (type) {
         AccountType.CASH -> R.string.acc_type_cash
         AccountType.BANK -> R.string.acc_type_bank
@@ -315,16 +251,7 @@ private fun accountTypeDisplayLabel(type: AccountType): String = stringResource(
 )
 
 @Composable
-private fun accountEditorTabLabel(key: String): String = stringResource(
-    when (key) {
-        "Billing & Due" -> R.string.ah_tab_billing
-        "Card Design" -> R.string.ah_tab_design
-        else -> R.string.ah_tab_details
-    }
-)
-
-@Composable
-private fun cardDesignOptionLabel(key: String): String = when (key) {
+internal fun cardDesignOptionLabel(key: String): String = when (key) {
     "None" -> stringResource(R.string.ah_none)
     "Cyber Grid" -> stringResource(R.string.ah_pattern_cyber_grid)
     "Neon Waves" -> stringResource(R.string.ah_pattern_neon_waves)
@@ -333,7 +260,7 @@ private fun cardDesignOptionLabel(key: String): String = when (key) {
 }
 
 @Composable
-private fun accountCardThemeLabel(key: String): String = stringResource(
+internal fun accountCardThemeLabel(key: String): String = stringResource(
     when (key) {
         "ocean" -> R.string.ah_theme_ocean
         "emerald" -> R.string.ah_theme_emerald
@@ -425,10 +352,10 @@ private fun AccountCardThumbnail(
     }
 }
 
-private data class AccountAccent(val background: Color, val foreground: Color)
+internal data class AccountAccent(val background: Color, val foreground: Color)
 
 @Composable
-private fun accountAccent(type: AccountType, key: String?): AccountAccent {
+internal fun accountAccent(type: AccountType, key: String?): AccountAccent {
     val colors = MaterialTheme.colorScheme
     return when (key) {
         "primary" -> AccountAccent(colors.primaryContainer, colors.onPrimaryContainer)
@@ -828,25 +755,23 @@ fun AccountsScreen(
     onViewAccountHistory: (Long) -> Unit = {},
     initialPrefillAccount: AccountEntity? = null,
     onAccountCreated: ((AccountEntity) -> Unit)? = null,
-    onDismissCreate: (() -> Unit)? = null
+    onDismissCreate: (() -> Unit)? = null,
+    editorState: AssetEditorState = rememberAssetEditorState(),
+    renderEditor: Boolean = true,
+    saveResult: com.example.vibefinance.ui.AccountSaveResult? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val presentationLocale = LocalConfiguration.current.locales[0]
     val haptic = LocalHapticFeedback.current
+    val hapticView = androidx.compose.ui.platform.LocalView.current
     val breakdown = remember(state.accounts) { calculateNetWorth(state.accounts) }
     val totalAssets = breakdown.totalAssets
     val totalDebt = breakdown.totalDebt
     val netWorth = breakdown.netWorth
 
-    var showAddEditDialog by rememberSaveable { mutableStateOf(false) }
-    var editingAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val editingAccount = state.accounts.firstOrNull { it.id == editingAccountId }
-
     androidx.compose.runtime.LaunchedEffect(initialPrefillAccount) {
-        if (initialPrefillAccount != null) {
-            editingAccountId = null
-            showAddEditDialog = true
-        }
+        if (initialPrefillAccount != null && !editorState.isOpen) editorState.open(prefill = initialPrefillAccount)
     }
     var balanceAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var accountForAppPicker by remember { mutableStateOf<AccountEntity?>(null) }
@@ -881,6 +806,7 @@ fun AccountsScreen(
                 com.example.vibefinance.ui.components.AccountsScreenSkeleton()
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize().testTag("AssetsList"),
                     contentPadding = PaddingValues(top = topContentPadding),
                     verticalArrangement = Arrangement.Top
@@ -1048,9 +974,8 @@ fun AccountsScreen(
                         val addAssetInteractionSource = remember { MutableInteractionSource() }
                         CompletePressButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editingAccountId = null
-                                showAddEditDialog = true
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                editorState.open()
                             },
                             interactionSource = addAssetInteractionSource,
                             modifier = Modifier
@@ -1095,7 +1020,7 @@ fun AccountsScreen(
                         val modeInteraction = remember { MutableInteractionSource() }
                         CompletePressFilledTonalButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 isCompactMode = !isCompactMode
                                 displayPreferences.edit().putBoolean("compact_mode", isCompactMode).apply()
                             },
@@ -1180,9 +1105,8 @@ fun AccountsScreen(
                                 val emptyAddInteraction = remember { MutableInteractionSource() }
                                 CompletePressButton(
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        editingAccountId = null
-                                        showAddEditDialog = true
+                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                        editorState.open()
                                     },
                                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                                     interactionSource = emptyAddInteraction,
@@ -1289,11 +1213,11 @@ fun AccountsScreen(
                                     if (compact) {
                                         CompactAccountRow(
                                             account = account,
+                                            transactions = state.transactions,
                                             isFirstInGroup = index == 0,
                                             isLastInGroup = index == groupAccounts.lastIndex,
                                             onEditClick = {
-                                                editingAccountId = account.id
-                                                showAddEditDialog = true
+                                                editorState.open(accountId = account.id)
                                             },
                                             onBalanceClick = { balanceAccount = account },
                                             onHistoryClick = { onViewAccountHistory(account.id) },
@@ -1302,9 +1226,9 @@ fun AccountsScreen(
                                     } else {
                                         ExpressiveAccountListItem(
                                             account = account,
+                                            transactions = state.transactions,
                                             onEditClick = {
-                                                editingAccountId = account.id
-                                                showAddEditDialog = true
+                                                editorState.open(accountId = account.id)
                                             },
                                             onBalanceClick = { balanceAccount = account },
                                             onHistoryClick = { onViewAccountHistory(account.id) },
@@ -1424,2273 +1348,11 @@ fun AccountsScreen(
         )
     }
 
-    // 6. Interactive full CRUD Add / Edit Bottom Sheet
-    // An existing account may arrive after the saved UI state during activity recreation.
-    if (showAddEditDialog && (editingAccountId == null || editingAccount != null)) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val coroutineScope = rememberCoroutineScope()
-        val editorScrollState = rememberScrollState()
-        val overviewScrollState = rememberScrollState()
-        var showDeleteConfirmDialog by rememberSaveable { mutableStateOf(false) }
-
-        val context = LocalContext.current
-        remember {
-            createTestBgIfNeeded(context)
-        }
-        var nameText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.name ?: initialPrefillAccount?.name ?: "")
-        }
-        var nicknameText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.nickname.orEmpty())
-        }
-        var typeState by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.type ?: initialPrefillAccount?.type ?: AccountType.BANK)
-        }
-        val originalBalance by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.balance)
-        }
-        var balanceText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.balance?.toString() ?: "0.0")
-        }
-        var quickAdjustAmountText by rememberSaveable { mutableStateOf("") }
-
-        var creditLimitText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.creditLimit?.toString() ?: "5000")
-        }
-        var billingDateText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.billingDate?.toString().orEmpty())
-        }
-        var paymentDateText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.paymentDate?.toString().orEmpty())
-        }
-        var paymentDeadlineText by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.paymentDeadline?.toString().orEmpty())
-        }
-
-        var selectedCardTheme by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.cardTheme ?: "default")
-        }
-        var selectedAccentColorKey by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.accentColorKey?.takeIf { it in setOf("primary", "secondary", "tertiary") })
-        }
-        var selectedLinkedAppPackage by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.linkedAppPackage ?: initialPrefillAccount?.linkedAppPackage)
-        }
-        var showAppPickerDialog by rememberSaveable { mutableStateOf(false) }
-        var cardLast4Text by rememberSaveable(editingAccountId, initialPrefillAccount) {
-            mutableStateOf(editingAccount?.cardLast4 ?: initialPrefillAccount?.cardLast4 ?: "")
-        }
-        var notificationAliasesList by rememberSaveable(
-            editingAccountId,
-            initialPrefillAccount,
-            stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it.toList() })
-        ) {
-            mutableStateOf(editingAccount?.getNotificationAliasList() ?: initialPrefillAccount?.getNotificationAliasList() ?: emptyList())
-        }
-        var newAliasInput by rememberSaveable { mutableStateOf("") }
-        val defaultAccountName = stringResource(R.string.ah_new_account)
-        val invalidLastFour = cardLast4Text.isNotEmpty() &&
-            (cardLast4Text.length != 4 || cardLast4Text.any { it !in '0'..'9' })
-        var selectedCardProtocol by rememberSaveable { mutableStateOf(
-            when (editingAccount?.cardProtocol?.lowercase(Locale.US)) {
-                "visa" -> "Visa"
-                "mastercard" -> "Mastercard"
-                "unionpay" -> "UnionPay"
-                "jcb" -> "JCB"
-                else -> "None"
-            }
-        ) }
-        var selectedCardPattern by rememberSaveable { mutableStateOf(
-            when (editingAccount?.cardPattern?.lowercase(Locale.US)) {
-                "cyber grid" -> "Cyber Grid"
-                "neon waves" -> "Neon Waves"
-                "geometric mesh" -> "Geometric Mesh"
-                else -> "None"
-            }
-        ) }
-        var selectedCardImageUri by rememberSaveable { mutableStateOf(editingAccount?.cardImageUri ?: "") }
-        var selectedAspectRatio by rememberSaveable { mutableStateOf(editingAccount?.customImageAspectRatio ?: "1.586:1") }
-        var selectedCardBgOffsetX by rememberSaveable { mutableStateOf(editingAccount?.cardBgOffsetX ?: 0f) }
-        var selectedCardBgOffsetY by rememberSaveable { mutableStateOf(editingAccount?.cardBgOffsetY ?: 0f) }
-        var selectedCardBgScale by rememberSaveable { mutableStateOf(editingAccount?.cardBgScale ?: 1f) }
-        var cropSourcePath by rememberSaveable { mutableStateOf<String?>(null) }
-        val tempBitmapToCrop = remember(cropSourcePath) { cropSourcePath?.let(::loadCropBitmap) }
-        var showCropDialog by rememberSaveable { mutableStateOf(false) }
-
-        val galleryLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.GetContent()
-        ) { uri: Uri? ->
-            if (uri != null) {
-                try {
-                    val imagesDir = File(context.filesDir, "account_images")
-                    if (!imagesDir.exists()) imagesDir.mkdirs()
-                    val userPickedFile = File(imagesDir, "raw_user_${System.currentTimeMillis()}.png")
-
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(userPickedFile).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-
-                    if (userPickedFile.exists() && userPickedFile.length() > 0) {
-                        if (loadCropBitmap(userPickedFile.absolutePath) != null) {
-                            cropSourcePath = userPickedFile.absolutePath
-                            showCropDialog = true
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        if (showCropDialog && tempBitmapToCrop != null) {
-            InteractiveImageCropDialog(
-                bitmap = tempBitmapToCrop!!,
-                initialAspectRatio = selectedAspectRatio,
-                onDismiss = { showCropDialog = false },
-                onConfirm = { croppedBitmap, ratio ->
-                    try {
-                        val imagesDir = File(context.filesDir, "account_images")
-                        if (!imagesDir.exists()) imagesDir.mkdirs()
-                        val targetFile = File(imagesDir, "cropped_${System.currentTimeMillis()}.png")
-                        FileOutputStream(targetFile).use { out ->
-                            croppedBitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
-                        }
-                        if (targetFile.exists() && targetFile.length() > 0) {
-                            selectedCardImageUri = targetFile.absolutePath
-                            selectedAspectRatio = ratio
-                            selectedCardBgOffsetX = 0f
-                            selectedCardBgOffsetY = 0f
-                            selectedCardBgScale = 1f
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                    showCropDialog = false
-                }
-            )
-        }
-        val previewCardImage = rememberCardImagePainter(selectedCardImageUri)
-
-        // Credit cards expose their billing schedule; other accounts skip that tab.
-        val tabs = remember(typeState) {
-            if (typeState == AccountType.CC) {
-                listOf("Details", "Billing & Due", "Card Design")
-            } else {
-                listOf("Details", "Card Design")
-            }
-        }
-        var selectedDialogTab by rememberSaveable { mutableStateOf(0) }
-        if (selectedDialogTab >= tabs.size) {
-            selectedDialogTab = 0
-        }
-
-        var billingDayDropdownExpanded by remember { mutableStateOf(false) }
-        var paymentDayDropdownExpanded by remember { mutableStateOf(false) }
-        var paymentDeadlineDayDropdownExpanded by remember { mutableStateOf(false) }
-        var protocolDropdownExpanded by remember { mutableStateOf(false) }
-        var patternDropdownExpanded by remember { mutableStateOf(false) }
-
-        if (showDeleteConfirmDialog && editingAccount != null) {
-            val deleteConfirmInteractionSource = remember { MutableInteractionSource() }
-            val deleteCancelInteractionSource = remember { MutableInteractionSource() }
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirmDialog = false },
-                title = { Text(stringResource(R.string.ah_delete_account_title), fontWeight = FontWeight.Bold) },
-                text = { Text(stringResource(R.string.ah_delete_account_message, editingAccount?.name.orEmpty())) },
-                confirmButton = {
-                    CompletePressButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showDeleteConfirmDialog = false
-                            onIntent(FinanceIntent.DeleteAccount(editingAccount!!))
-                            showAddEditDialog = false
-                        },
-                        interactionSource = deleteConfirmInteractionSource,
-                        modifier = Modifier.pressBounce(interactionSource = deleteConfirmInteractionSource),
-                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        )
-                    ) {
-                        Text(stringResource(R.string.btn_delete), fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    CompletePressTextButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showDeleteConfirmDialog = false
-                        },
-                        interactionSource = deleteCancelInteractionSource,
-                        modifier = Modifier.pressBounce(interactionSource = deleteCancelInteractionSource),
-                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
-                    ) {
-                        Text(stringResource(R.string.btn_cancel))
-                    }
-                }
-            )
-        }
-
-        if (showAppPickerDialog) {
-            AppPickerDialog(
-                currentPackage = selectedLinkedAppPackage,
-                onAppSelected = { selectedLinkedAppPackage = it },
-                onDismissRequest = { showAppPickerDialog = false }
-            )
-        }
-
-        ModalBottomSheet(
-            onDismissRequest = {
-                showAddEditDialog = false
-                onDismissCreate?.invoke()
-            },
-            sheetState = sheetState,
-            // Form edge gestures must not drag/dismiss the sheet or compete with its scroll views.
-            sheetGesturesEnabled = false,
-            modifier = Modifier.testTag("AssetEditorSheet"),
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            dragHandle = {
-                Box(
-                    modifier = Modifier
-                        .padding(vertical = 12.dp)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                )
-            }
-        ) {
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = 880.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .fillMaxHeight(0.92f)
-                    .imePadding()
-            ) {
-                val isWide = maxWidth >= 600.dp
-                // Follow the keyboard rather than focus: Back/Done can finish typing while
-                // the field retains focus, and switching fields must not flash the preview.
-                val showEditorPreview = !WindowInsets.isImeVisible
-                val editorBlurActive = LocalWindowInfo.current.isWindowFocused &&
-                    !showCropDialog && !showAppPickerDialog && !showDeleteConfirmDialog
-
-                val previewCard: @Composable () -> Unit = {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(138.dp)
-                            .testTag("AssetEditorPreview")
-                            .then(
-                                if (selectedCardImageUri.isEmpty()) {
-                                    Modifier.rotate3DOnTouch()
-                                } else {
-                                    Modifier.pointerInput(selectedCardImageUri) {
-                                        detectTransformGestures { _, pan, zoom, _ ->
-                                            val spanX = size.width * 0.4f
-                                            val spanY = size.height * 0.4f
-                                            if (spanX > 0f && spanY > 0f) {
-                                                selectedCardBgOffsetX = ((selectedCardBgOffsetX + pan.x / spanX).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                                selectedCardBgOffsetY = ((selectedCardBgOffsetY + pan.y / spanY).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                            }
-                                            if (zoom != 1f) {
-                                                selectedCardBgScale = ((selectedCardBgScale * zoom).coerceIn(0.5f, 2.5f) * 20).roundToInt() / 20f
-                                            }
-                                        }
-                                    }
-                                }
-                            ),
-                        shape = RoundedCornerShape(22.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(22.dp))
-                                .drawCardBackground(
-                                    bitmap = previewCardImage,
-                                    themeName = selectedCardTheme,
-                                    patternName = selectedCardPattern,
-                                    isDark = isDark,
-                                    offsetX = selectedCardBgOffsetX,
-                                    offsetY = selectedCardBgOffsetY,
-                                    scale = selectedCardBgScale
-                                )
-                        ) {
-                            if (selectedCardImageUri.isEmpty()) {
-                                val previewFallback = accountTypeDisplayLabel(typeState)
-                                val previewWatermark = remember(nameText, nicknameText, previewFallback, presentationLocale) {
-                                    val cleanName = nicknameText.trim().ifEmpty { nameText.trim().ifEmpty { previewFallback } }
-                                    val tokens = cleanName.split(Regex("[\\s_\\-/]+")).filter { it.isNotBlank() }
-                                    val firstToken = tokens.firstOrNull().orEmpty()
-                                    if (firstToken.length in 2..10 && firstToken.any { it.isLetter() }) {
-                                        firstToken.uppercase(Locale.US)
-                                    } else if (cleanName.length in 2..6) {
-                                        cleanName.uppercase(presentationLocale)
-                                    } else {
-                                        previewFallback
-                                    }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clip(RoundedCornerShape(22.dp)),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text(
-                                        text = previewWatermark,
-                                        style = MaterialTheme.typography.displayLarge.copy(
-                                            fontSize = 58.sp,
-                                            fontWeight = FontWeight.Black,
-                                            letterSpacing = (-2).sp,
-                                            fontFamily = JetBrainsMonoFontFamily
-                                        ),
-                                        color = Color.White.copy(alpha = 0.12f),
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Clip,
-                                        modifier = Modifier.graphicsLayer {
-                                            translationX = 14.dp.toPx()
-                                            translationY = 6.dp.toPx()
-                                        }
-                                    )
-                                }
-                            }
-                            Column(
-                                verticalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    ) {
-                                        val previewAccent = accountAccent(typeState, selectedAccentColorKey)
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(end = 8.dp)
-                                                .size(14.dp)
-                                                .clip(CircleShape)
-                                                .background(previewAccent.background)
-                                                .border(1.dp, Color.White.copy(alpha = 0.8f), CircleShape)
-                                        )
-                                        Text(
-                                            text = nicknameText.trim().ifEmpty { nameText.ifEmpty { stringResource(R.string.ah_card_preview) } },
-                                            color = Color.White,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    if (selectedCardProtocol != "None") {
-                                        CardProtocolLogo(protocol = selectedCardProtocol)
-                                    }
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Bottom
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = when (typeState) {
-                                                AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
-                                                AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
-                                                AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
-                                                AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
-                                            },
-                                            color = Color.White.copy(alpha = 0.7f),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            letterSpacing = 1.sp
-                                        )
-                                        if (cardLast4Text.length == 4 && typeState != AccountType.CASH) {
-                                            Text(
-                                                text = "•••• $cardLast4Text",
-                                                color = Color.White.copy(alpha = 0.85f),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        } else if (nicknameText.isNotBlank() && nicknameText.trim() != nameText.trim()) {
-                                            Text(
-                                                text = nameText,
-                                                color = Color.White.copy(alpha = 0.85f),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    val formattedBalance = String.format(Locale.US, "$%,.2f", balanceText.toDoubleOrNull() ?: 0.0)
-                                    RollingNumberText(
-                                        text = formattedBalance,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                val tabSelector: @Composable () -> Unit = {
-                    ExpressiveSegmentedButtonGroup(
-                        items = tabs,
-                        selectedIndex = selectedDialogTab,
-                        onItemSelected = { selectedDialogTab = it },
-                        iconProvider = { title, tintColor ->
-                            val icon = when (title) {
-                                "Details" -> Icons.Default.Tune
-                                "Billing & Due" -> Icons.Default.CalendarMonth
-                                "Card Design" -> Icons.Default.Palette
-                                else -> Icons.Default.Info
-                            }
-                            Icon(imageVector = icon, contentDescription = null, tint = tintColor, modifier = Modifier.size(16.dp))
-                        },
-                        labelProvider = { accountEditorTabLabel(it) }
-                    )
-                }
-
-                val tabContent: @Composable () -> Unit = {
-                    when (tabs.getOrNull(selectedDialogTab)) {
-                        "Details" -> {
-                            // Bento 1: Account Identity
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Tune,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = stringResource(R.string.ah_account_identity),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-
-                                    OutlinedTextField(
-                                        value = nameText,
-                                        onValueChange = { nameText = it },
-                                        label = { Text(stringResource(R.string.ah_account_card_name)) },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = when (typeState) {
-                                                    AccountType.BANK -> Icons.Default.AccountBalance
-                                                    AccountType.CASH -> Icons.Default.Savings
-                                                    AccountType.DEBIT -> Icons.Default.CreditCard
-                                                    AccountType.CC -> Icons.Default.CreditCard
-                                                },
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        },
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    OutlinedTextField(
-                                        value = nicknameText,
-                                        onValueChange = { nicknameText = it },
-                                        label = { Text(stringResource(com.example.vibefinance.R.string.assets_identity_nickname)) },
-                                        supportingText = {
-                                            Text(stringResource(com.example.vibefinance.R.string.assets_identity_nickname_hint))
-                                        },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(
-                                            text = stringResource(R.string.ah_account_type),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        FlowRow(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
-                                            FilterChip(
-                                                selected = typeState == AccountType.BANK,
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    typeState = AccountType.BANK
-                                                },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.BANK), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                },
-                                                modifier = Modifier.widthIn(min = 100.dp)
-                                            )
-                                            FilterChip(
-                                                selected = typeState == AccountType.CASH,
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    typeState = AccountType.CASH
-                                                },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.CASH), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                },
-                                                modifier = Modifier.widthIn(min = 100.dp)
-                                            )
-                                            FilterChip(
-                                                selected = typeState == AccountType.DEBIT,
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    typeState = AccountType.DEBIT
-                                                },
-                                                label = { Text(stringResource(com.example.vibefinance.R.string.assets_type_debit), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                },
-                                                modifier = Modifier.widthIn(min = 100.dp)
-                                            )
-                                            FilterChip(
-                                                selected = typeState == AccountType.CC,
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    typeState = AccountType.CC
-                                                },
-                                                label = { Text(accountTypeDisplayLabel(AccountType.CC), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.CreditCard, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                },
-                                                modifier = Modifier.widthIn(min = 100.dp)
-                                            )
-                                        }
-                                    }
-
-                                    OutlinedTextField(
-                                        value = cardLast4Text,
-                                        onValueChange = { if (it.length <= 4 && it.all { char -> char in '0'..'9' }) cardLast4Text = it },
-                                        label = { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four)) },
-                                        placeholder = { Text(stringResource(R.string.ah_last_four_example)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        isError = invalidLastFour,
-                                        supportingText = if (invalidLastFour) {
-                                            { Text(stringResource(com.example.vibefinance.R.string.assets_identity_last_four_error)) }
-                                        } else null,
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    Text(
-                                        text = stringResource(com.example.vibefinance.R.string.assets_identity_accent),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        listOf(
-                                            null to com.example.vibefinance.R.string.assets_identity_accent_default,
-                                            "primary" to com.example.vibefinance.R.string.assets_identity_accent_primary,
-                                            "secondary" to com.example.vibefinance.R.string.assets_identity_accent_secondary,
-                                            "tertiary" to com.example.vibefinance.R.string.assets_identity_accent_tertiary
-                                        ).forEach { (key, labelRes) ->
-                                            val accent = accountAccent(typeState, key)
-                                            FilterChip(
-                                                selected = selectedAccentColorKey == key,
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    selectedAccentColorKey = key
-                                                },
-                                                label = { Text(stringResource(labelRes), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                leadingIcon = {
-                                                    Box(
-                                                        Modifier
-                                                            .size(16.dp)
-                                                            .clip(CircleShape)
-                                                            .background(accent.background)
-                                                            .border(1.dp, accent.foreground.copy(alpha = 0.45f), CircleShape)
-                                                    )
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bento: Linked App for Quick Redirect
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.OpenInNew,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Column {
-                                            Text(
-                                                text = stringResource(com.example.vibefinance.R.string.assets_linked_app_title),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                letterSpacing = 1.2.sp
-                                            )
-                                            Text(
-                                                text = stringResource(com.example.vibefinance.R.string.assets_linked_app_desc),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    val linkedAppShape = RoundedCornerShape(14.dp)
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .bouncyClickable(shape = linkedAppShape, onClick = { showAppPickerDialog = true }),
-                                        shape = linkedAppShape,
-                                        color = MaterialTheme.colorScheme.surface,
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            val resolvedAppPkg = LocalAppManager.resolveTargetAppPackage(
-                                                context = context,
-                                                linkedAppPackage = selectedLinkedAppPackage
-                                            )
-                                            val resolvedAppIcon = remember(resolvedAppPkg) {
-                                                resolvedAppPkg?.let { LocalAppManager.getAppIcon(context, it) }
-                                            }
-                                            val resolvedAppLabel = remember(resolvedAppPkg) {
-                                                resolvedAppPkg?.let { LocalAppManager.getAppLabel(context, it) }
-                                            }
-
-                                            if (resolvedAppIcon != null) {
-                                                Image(
-                                                    bitmap = resolvedAppIcon.asImageBitmap(),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
-                                                    contentScale = ContentScale.Fit
-                                                )
-                                            } else {
-                                                Icon(
-                                                    imageVector = Icons.Default.Block,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(22.dp)
-                                                )
-                                            }
-
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                val statusText = if (resolvedAppPkg != null && resolvedAppLabel != null) {
-                                                    resolvedAppLabel
-                                                } else {
-                                                    stringResource(com.example.vibefinance.R.string.assets_linked_app_none)
-                                                }
-                                                Text(
-                                                    text = statusText,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-
-                                            Icon(
-                                                imageVector = Icons.Default.ChevronRight,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bento: Notification Auto-Log Identifiers / Aliases
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.NotificationsActive,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Column {
-                                            Text(
-                                                text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_title),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_desc),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-
-                                    // Active alias chips
-                                    if (notificationAliasesList.isNotEmpty()) {
-                                        FlowRow(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            notificationAliasesList.forEach { alias ->
-                                                InputChip(
-                                                    selected = true,
-                                                    onClick = {
-                                                        notificationAliasesList = notificationAliasesList.filterNot { it.equals(alias, ignoreCase = true) }
-                                                    },
-                                                    label = { Text(alias, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                    trailingIcon = {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Close,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        Text(
-                                            text = stringResource(com.example.vibefinance.R.string.assets_notification_aliases_empty),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                    }
-
-                                    // Quick suggestion if cardLast4Text is filled and not in list
-                                    if (cardLast4Text.length == 4 && notificationAliasesList.none { it.equals(cardLast4Text, ignoreCase = true) }) {
-                                        AssistChip(
-                                            onClick = {
-                                                notificationAliasesList = notificationAliasesList + cardLast4Text
-                                            },
-                                            label = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_suggest_last4, cardLast4Text), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                            leadingIcon = {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            }
-                                        )
-                                    }
-
-                                    // Input to add a new alias
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        OutlinedTextField(
-                                            value = newAliasInput,
-                                            onValueChange = { newAliasInput = it },
-                                            placeholder = { Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_add_placeholder)) },
-                                            singleLine = true,
-                                            modifier = Modifier.weight(1f),
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                focusedBorderColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            keyboardActions = KeyboardActions(onDone = {
-                                                val trimmed = newAliasInput.trim()
-                                                if (trimmed.isNotEmpty() && notificationAliasesList.none { it.equals(trimmed, ignoreCase = true) }) {
-                                                    notificationAliasesList = notificationAliasesList + trimmed
-                                                    newAliasInput = ""
-                                                }
-                                            })
-                                        )
-                                        FilledTonalButton(
-                                            onClick = {
-                                                val trimmed = newAliasInput.trim()
-                                                if (trimmed.isNotEmpty() && notificationAliasesList.none { it.equals(trimmed, ignoreCase = true) }) {
-                                                    notificationAliasesList = notificationAliasesList + trimmed
-                                                    newAliasInput = ""
-                                                }
-                                            },
-                                            enabled = newAliasInput.trim().isNotEmpty(),
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            Text(stringResource(com.example.vibefinance.R.string.assets_notification_aliases_add_btn))
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bento 2: Balance & Quick Adjust
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Savings,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = if (typeState == AccountType.CC) stringResource(R.string.ah_current_balance_debt) else stringResource(R.string.ah_current_balance),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-                                    OutlinedTextField(
-                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                            androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-
-                                        value = balanceText,
-                                        onValueChange = { balanceText = it },
-                                        label = { Text(if (typeState == AccountType.CC) stringResource(R.string.ah_current_debt_amount) else stringResource(R.string.ah_current_balance_amount)) },
-                                        prefix = { Text("$ ", fontWeight = FontWeight.Bold) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                            focusedBorderColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(
-                                            text = stringResource(R.string.ah_quick_adjust),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .horizontalFadingEdge(16.dp, 16.dp)
-                                                .horizontalScroll(rememberScrollState()),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            listOf(50.0, 100.0, 500.0, 1000.0).forEach { delta ->
-                                                SuggestionChip(
-                                                    onClick = {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        val curr = balanceText.toDoubleOrNull() ?: 0.0
-                                                        balanceText = String.format(Locale.US, "%.2f", curr + delta)
-                                                    },
-                                                    label = { Text("+$${delta.toInt()}", fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
-                                                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                    ),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                )
-                                            }
-                                            listOf(50.0, 100.0).forEach { delta ->
-                                                SuggestionChip(
-                                                    onClick = {
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                        val curr = balanceText.toDoubleOrNull() ?: 0.0
-                                                        balanceText = String.format(Locale.US, "%.2f", (curr - delta).coerceAtLeast(0.0))
-                                                    },
-                                                    label = { Text("-$${delta.toInt()}", fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                                                        labelColor = MaterialTheme.colorScheme.onErrorContainer
-                                                    ),
-                                                    shape = RoundedCornerShape(12.dp)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        OutlinedTextField(
-                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-
-                                            value = quickAdjustAmountText,
-                                            onValueChange = { quickAdjustAmountText = it },
-                                            label = { Text(stringResource(R.string.ah_custom_adjust)) },
-                                            placeholder = { Text(stringResource(R.string.ah_adjust_example)) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                focusedBorderColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        val plusInteraction = remember { MutableInteractionSource() }
-                                        CompletePressFilledTonalButton(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                val currentVal = balanceText.toDoubleOrNull() ?: 0.0
-                                                val delta = quickAdjustAmountText.toDoubleOrNull() ?: 0.0
-                                                balanceText = String.format(Locale.US, "%.2f", currentVal + delta)
-                                            },
-                                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                                            interactionSource = plusInteraction,
-                                            modifier = Modifier
-                                                .height(56.dp)
-                                                .pressBounce(interactionSource = plusInteraction)
-                                        ) {
-                                            Text("+", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        }
-                                        val minusInteraction = remember { MutableInteractionSource() }
-                                        CompletePressFilledTonalButton(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                val currentVal = balanceText.toDoubleOrNull() ?: 0.0
-                                                val delta = quickAdjustAmountText.toDoubleOrNull() ?: 0.0
-                                                balanceText = String.format(Locale.US, "%.2f", (currentVal - delta).coerceAtLeast(0.0))
-                                            },
-                                            colors = ButtonDefaults.filledTonalButtonColors(
-                                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                            ),
-                                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                                            interactionSource = minusInteraction,
-                                            modifier = Modifier
-                                                .height(56.dp)
-                                                .pressBounce(interactionSource = minusInteraction)
-                                        ) {
-                                            Text("-", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bento 3: CC Limits (if CC)
-                            if (typeState == AccountType.CC) {
-                                Surface(
-                                    shape = BentoCardShape,
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(28.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CreditCard,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                            Text(
-                                                text = stringResource(R.string.ah_limit_utilization),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                letterSpacing = 1.2.sp
-                                            )
-                                        }
-                                        OutlinedTextField(
-                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-
-                                            value = creditLimitText,
-                                            onValueChange = { creditLimitText = it },
-                                            label = { Text(stringResource(R.string.ah_credit_limit_amount)) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                                focusedBorderColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        val limitVal = creditLimitText.toDoubleOrNull() ?: 1.0
-                                        val debtVal = balanceText.toDoubleOrNull() ?: 0.0
-                                        val util = if (limitVal > 0) (debtVal / limitVal).coerceIn(0.0, 1.0).toFloat() else 0f
-                                        val utilPercent = (util * 100).toInt()
-
-                                        val animatedUtil by animateFloatAsState(
-                                            targetValue = util,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessLow
-                                            ),
-                                            label = "utilProgressSpring"
-                                        )
-                                        val targetColor = when {
-                                            utilPercent < 30 -> MaterialTheme.colorScheme.primary
-                                            utilPercent < 60 -> Color(0xFFFFA000)
-                                            else -> MaterialTheme.colorScheme.error
-                                        }
-                                        val animatedBarColor by animateColorAsState(
-                                            targetValue = targetColor,
-                                            animationSpec = spring(stiffness = Spring.StiffnessLow),
-                                            label = "utilColorSpring"
-                                        )
-
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = stringResource(R.string.ah_credit_utilization),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                Text(
-                                                    text = "$utilPercent%",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = animatedBarColor
-                                                )
-                                            }
-                                            LinearProgressIndicator(
-                                                progress = { animatedUtil },
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(8.dp)
-                                                    .clip(CircleShape),
-                                                color = animatedBarColor,
-                                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        "Billing & Due" -> {
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CalendarMonth,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = stringResource(R.string.ah_billing_schedule),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        ExposedDropdownMenuBox(
-                                            expanded = billingDayDropdownExpanded,
-                                            onExpandedChange = { billingDayDropdownExpanded = !billingDayDropdownExpanded },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            OutlinedTextField(
-                                                value = billingDateText,
-                                                onValueChange = {},
-                                                readOnly = true,
-                                                label = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_date)) },
-                                                placeholder = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_select)) },
-                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = billingDayDropdownExpanded) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                                            )
-                                            ExposedDropdownMenu(
-                                                expanded = billingDayDropdownExpanded,
-                                                onDismissRequest = { billingDayDropdownExpanded = false }
-                                            ) {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_clear)) },
-                                                    onClick = { billingDateText = ""; billingDayDropdownExpanded = false }
-                                                )
-                                                (1..31).forEach { day ->
-                                                    DropdownMenuItem(text = { Text(day.toString()) }, onClick = { billingDateText = day.toString(); billingDayDropdownExpanded = false })
-                                                }
-                                            }
-                                        }
-
-                                        ExposedDropdownMenuBox(
-                                            expanded = paymentDayDropdownExpanded,
-                                            onExpandedChange = { paymentDayDropdownExpanded = !paymentDayDropdownExpanded },
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            OutlinedTextField(
-                                                value = paymentDateText,
-                                                onValueChange = {},
-                                                readOnly = true,
-                                                label = { Text(stringResource(R.string.ah_payment_due)) },
-                                                placeholder = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_select)) },
-                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentDayDropdownExpanded) },
-                                                shape = RoundedCornerShape(14.dp),
-                                                modifier = Modifier.menuAnchor().fillMaxWidth()
-                                            )
-                                            ExposedDropdownMenu(
-                                                expanded = paymentDayDropdownExpanded,
-                                                onDismissRequest = { paymentDayDropdownExpanded = false }
-                                            ) {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_clear)) },
-                                                    onClick = { paymentDateText = ""; paymentDayDropdownExpanded = false }
-                                                )
-                                                (1..31).forEach { day ->
-                                                    DropdownMenuItem(text = { Text(day.toString()) }, onClick = { paymentDateText = day.toString(); paymentDayDropdownExpanded = false })
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    ExposedDropdownMenuBox(
-                                        expanded = paymentDeadlineDayDropdownExpanded,
-                                        onExpandedChange = { paymentDeadlineDayDropdownExpanded = !paymentDeadlineDayDropdownExpanded },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        OutlinedTextField(
-                                            value = paymentDeadlineText,
-                                            onValueChange = {},
-                                            readOnly = true,
-                                            label = { Text(stringResource(R.string.ah_payment_deadline_day)) },
-                                            placeholder = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_select)) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentDeadlineDayDropdownExpanded) },
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                                        )
-                                        ExposedDropdownMenu(
-                                            expanded = paymentDeadlineDayDropdownExpanded,
-                                            onDismissRequest = { paymentDeadlineDayDropdownExpanded = false }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(com.example.vibefinance.R.string.acc_statement_day_clear)) },
-                                                onClick = { paymentDeadlineText = ""; paymentDeadlineDayDropdownExpanded = false }
-                                            )
-                                            (1..31).forEach { day ->
-                                                DropdownMenuItem(text = { Text(day.toString()) }, onClick = { paymentDeadlineText = day.toString(); paymentDeadlineDayDropdownExpanded = false })
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        "Card Design" -> {
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Palette,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = stringResource(R.string.ah_gradient_palette),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-
-                                    val themes = listOf(
-                                        "default" to Pair(Color(0xFF161B22), Color(0xFF242C37)),
-                                        "ocean" to Pair(Color(0xFF0D47A1), Color(0xFF1976D2)),
-                                        "emerald" to Pair(Color(0xFF1B5E20), Color(0xFF388E3C)),
-                                        "sunset" to Pair(Color(0xFFE65100), Color(0xFFF57C00)),
-                                        "purple" to Pair(Color(0xFF4A148C), Color(0xFF7B1FA2)),
-                                        "rose" to Pair(Color(0xFF880E4F), Color(0xFFC2185B)),
-                                        "crimson" to Pair(Color(0xFFB71C1C), Color(0xFFD32F2F))
-                                    )
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .horizontalFadingEdge(16.dp, 16.dp)
-                                            .horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        themes.forEach { (themeKey, colors) ->
-                                            val isSelected = selectedCardTheme == themeKey
-                                            val themeLabel = accountCardThemeLabel(themeKey)
-                                            val animatedScale by animateFloatAsState(
-                                                targetValue = if (isSelected) 1.15f else 1.0f,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                ),
-                                                label = "swatchScale_$themeKey"
-                                            )
-                                            val animatedBorderWidth by animateDpAsState(
-                                                targetValue = if (isSelected) 3.dp else 1.dp,
-                                                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                                label = "swatchBorder_$themeKey"
-                                            )
-                                            Box(
-                                                modifier = Modifier
-                                                    .padding(vertical = 4.dp)
-                                                    .size(42.dp)
-                                                    .graphicsLayer {
-                                                        scaleX = animatedScale
-                                                        scaleY = animatedScale
-                                                    }
-                                                    .clip(CircleShape)
-                                                    .background(Brush.linearGradient(listOf(colors.first, colors.second)))
-                                                    .border(
-                                                        width = animatedBorderWidth,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.35f),
-                                                        shape = CircleShape
-                                                    )
-                                                    .clickable { selectedCardTheme = themeKey }
-                                                    .semantics {
-                                                        contentDescription = themeLabel
-                                                        selected = isSelected
-                                                    },
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (isSelected) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = stringResource(R.string.ah_selected),
-                                                        tint = Color.White,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                    }
-                                }
-                            }
-
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.CreditCard,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = stringResource(R.string.ah_protocol),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-
-                                    ExposedDropdownMenuBox(
-                                        expanded = protocolDropdownExpanded,
-                                        onExpandedChange = { protocolDropdownExpanded = !protocolDropdownExpanded },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        OutlinedTextField(
-                                            value = cardDesignOptionLabel(selectedCardProtocol),
-                                            onValueChange = {},
-                                            readOnly = true,
-                                            label = { Text(stringResource(R.string.ah_protocol)) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = protocolDropdownExpanded) },
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                                        )
-                                        ExposedDropdownMenu(
-                                            expanded = protocolDropdownExpanded,
-                                            onDismissRequest = { protocolDropdownExpanded = false }
-                                        ) {
-                                            listOf("None", "Visa", "Mastercard", "UnionPay", "JCB").forEach { p ->
-                                                DropdownMenuItem(
-                                                    text = { Text(cardDesignOptionLabel(p)) },
-                                                    onClick = {
-                                                        selectedCardProtocol = p
-                                                        protocolDropdownExpanded = false
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Surface(
-                                shape = BentoCardShape,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Image,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = stringResource(R.string.ah_texture_art),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 1.2.sp
-                                        )
-                                    }
-
-                                    ExposedDropdownMenuBox(
-                                        expanded = patternDropdownExpanded,
-                                        onExpandedChange = { patternDropdownExpanded = !patternDropdownExpanded },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        OutlinedTextField(
-                                            value = cardDesignOptionLabel(selectedCardPattern),
-                                            onValueChange = {},
-                                            readOnly = true,
-                                            label = { Text(stringResource(R.string.ah_pattern_overlay)) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = patternDropdownExpanded) },
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                                        )
-                                        ExposedDropdownMenu(
-                                            expanded = patternDropdownExpanded,
-                                            onDismissRequest = { patternDropdownExpanded = false }
-                                        ) {
-                                            listOf("None", "Cyber Grid", "Neon Waves", "Geometric Mesh").forEach { pat ->
-                                                DropdownMenuItem(
-                                                    text = { Text(cardDesignOptionLabel(pat)) },
-                                                    onClick = {
-                                                        selectedCardPattern = pat
-                                                        patternDropdownExpanded = false
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val uploadInteraction = remember { MutableInteractionSource() }
-                                        CompletePressOutlinedButton(
-                                            onClick = {
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                galleryLauncher.launch("image/*")
-                                            },
-                                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                                            interactionSource = uploadInteraction,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .pressBounce(interactionSource = uploadInteraction)
-                                        ) {
-                                            Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(if (selectedCardImageUri.isEmpty()) stringResource(R.string.ah_upload_image) else stringResource(R.string.ah_change_image))
-                                        }
-                                        if (selectedCardImageUri.isNotEmpty()) {
-                                            val cropInteraction = remember { MutableInteractionSource() }
-                                            CompletePressOutlinedButton(
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    try {
-                                                        val file = File(selectedCardImageUri)
-                                                        if (file.exists()) {
-                                                            val bmap = BitmapFactory.decodeFile(file.absolutePath)
-                                                            if (bmap != null) {
-                                                                cropSourcePath = file.absolutePath
-                                                                showCropDialog = true
-                                                            }
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        e.printStackTrace()
-                                                    }
-                                                },
-                                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                                                interactionSource = cropInteraction,
-                                                modifier = Modifier.pressBounce(interactionSource = cropInteraction)
-                                            ) {
-                                                Icon(Icons.Default.Crop, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(stringResource(R.string.ah_crop))
-                                            }
-
-                                            val removeInteraction = remember { MutableInteractionSource() }
-                                            CompletePressTextButton(
-                                                onClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                    selectedCardImageUri = ""
-                                                    selectedCardBgOffsetX = 0f
-                                                    selectedCardBgOffsetY = 0f
-                                                    selectedCardBgScale = 1f
-                                                },
-                                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                                interactionSource = removeInteraction,
-                                                modifier = Modifier.pressBounce(interactionSource = removeInteraction)
-                                            ) {
-                                                Text(stringResource(R.string.ah_remove))
-                                            }
-                                        }
-                                    }
-
-                                    if (selectedCardImageUri.isNotEmpty()) {
-                                        Surface(
-                                            shape = RoundedCornerShape(16.dp),
-                                            color = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.40f else 0.65f),
-                                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                                        ) {
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(14.dp),
-                                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                // Header Row
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Row(
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                    ) {
-                                                        Box(
-                                                            modifier = Modifier
-                                                                .size(26.dp)
-                                                                .clip(RoundedCornerShape(6.dp))
-                                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
-                                                            contentAlignment = Alignment.Center
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Tune,
-                                                                contentDescription = null,
-                                                                tint = MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.size(15.dp)
-                                                            )
-                                                        }
-                                                        Text(
-                                                            text = stringResource(R.string.ah_position_axes),
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.primary,
-                                                            letterSpacing = 1.1.sp
-                                                        )
-                                                    }
-                                                    if (selectedCardBgOffsetX != 0f || selectedCardBgOffsetY != 0f || selectedCardBgScale != 1f) {
-                                                        TextButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                                selectedCardBgOffsetX = 0f
-                                                                selectedCardBgOffsetY = 0f
-                                                                selectedCardBgScale = 1f
-                                                            },
-                                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
-                                                            Spacer(modifier = Modifier.width(3.dp))
-                                                            Text(stringResource(R.string.ah_reset), style = MaterialTheme.typography.labelSmall)
-                                                        }
-                                                    }
-                                                }
-
-                                                Surface(
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.Tune,
-                                                            contentDescription = null,
-                                                            tint = MaterialTheme.colorScheme.primary,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                        Text(
-                                                            text = stringResource(R.string.ah_gesture_tip),
-                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                                            color = MaterialTheme.colorScheme.onSurface
-                                                        )
-                                                    }
-                                                }
-
-                                                // X Axis Controller
-                                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            text = stringResource(R.string.ah_horizontal_axis),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontWeight = FontWeight.SemiBold
-                                                        )
-                                                        val xPercent = (selectedCardBgOffsetX * 100).roundToInt()
-                                                        val xDesc = when {
-                                                            xPercent < 0 -> stringResource(R.string.ah_offset_left, -xPercent)
-                                                            xPercent > 0 -> stringResource(R.string.ah_offset_right, xPercent)
-                                                            else -> stringResource(R.string.ah_center_zero)
-                                                        }
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                                        ) {
-                                                            Text(
-                                                                text = xDesc,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgOffsetX = ((selectedCardBgOffsetX - 0.05f).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ChevronLeft, contentDescription = stringResource(R.string.ah_shift_left), modifier = Modifier.size(18.dp))
-                                                        }
-                                                        Slider(
-                                                            value = selectedCardBgOffsetX,
-                                                            onValueChange = {
-                                                                selectedCardBgOffsetX = (it * 100).roundToInt() / 100f
-                                                            },
-                                                            valueRange = -1.0f..1.0f,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgOffsetX = ((selectedCardBgOffsetX + 0.05f).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ChevronRight, contentDescription = stringResource(R.string.ah_shift_right), modifier = Modifier.size(18.dp))
-                                                        }
-                                                    }
-                                                }
-
-                                                // Y Axis Controller
-                                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            text = stringResource(R.string.ah_vertical_axis),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontWeight = FontWeight.SemiBold
-                                                        )
-                                                        val yPercent = (selectedCardBgOffsetY * 100).roundToInt()
-                                                        val yDesc = when {
-                                                            yPercent < 0 -> stringResource(R.string.ah_offset_up, -yPercent)
-                                                            yPercent > 0 -> stringResource(R.string.ah_offset_down, yPercent)
-                                                            else -> stringResource(R.string.ah_center_zero)
-                                                        }
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                                                        ) {
-                                                            Text(
-                                                                text = yDesc,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgOffsetY = ((selectedCardBgOffsetY - 0.05f).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.ah_shift_up), modifier = Modifier.size(18.dp))
-                                                        }
-                                                        Slider(
-                                                            value = selectedCardBgOffsetY,
-                                                            onValueChange = {
-                                                                selectedCardBgOffsetY = (it * 100).roundToInt() / 100f
-                                                            },
-                                                            valueRange = -1.0f..1.0f,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgOffsetY = ((selectedCardBgOffsetY + 0.05f).coerceIn(-1.0f, 1.0f) * 100).roundToInt() / 100f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.ah_shift_down), modifier = Modifier.size(18.dp))
-                                                        }
-                                                    }
-                                                }
-
-                                                // Scale / Zoom Controller
-                                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            text = stringResource(R.string.ah_zoom_scale),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontWeight = FontWeight.SemiBold
-                                                        )
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
-                                                        ) {
-                                                            Text(
-                                                                text = String.format(Locale.US, "%.2fx", selectedCardBgScale),
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgScale = ((selectedCardBgScale - 0.1f).coerceIn(0.5f, 2.5f) * 20).roundToInt() / 20f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ZoomOut, contentDescription = stringResource(R.string.ah_zoom_out), modifier = Modifier.size(18.dp))
-                                                        }
-                                                        Slider(
-                                                            value = selectedCardBgScale,
-                                                            onValueChange = {
-                                                                selectedCardBgScale = (it * 20).roundToInt() / 20f
-                                                            },
-                                                            valueRange = 0.5f..2.5f,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                        IconButton(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgScale = ((selectedCardBgScale + 0.1f).coerceIn(0.5f, 2.5f) * 20).roundToInt() / 20f
-                                                            },
-                                                            modifier = Modifier.size(28.dp)
-                                                        ) {
-                                                            Icon(Icons.Default.ZoomIn, contentDescription = stringResource(R.string.ah_zoom_in), modifier = Modifier.size(18.dp))
-                                                        }
-                                                    }
-                                                }
-
-                                                // Quick Preset Alignment Chips
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    val presets = listOf(
-                                                        R.string.ah_align_center to Pair(0f, 0f),
-                                                        R.string.ah_align_top to Pair(0f, -0.30f),
-                                                        R.string.ah_align_bottom to Pair(0f, 0.30f),
-                                                        R.string.ah_align_left to Pair(-0.30f, 0f),
-                                                        R.string.ah_align_right to Pair(0.30f, 0f)
-                                                    )
-                                                    presets.forEach { (name, pos) ->
-                                                        val isCurrent = kotlin.math.abs(selectedCardBgOffsetX - pos.first) < 0.05f &&
-                                                                        kotlin.math.abs(selectedCardBgOffsetY - pos.second) < 0.05f
-                                                        FilterChip(
-                                                            selected = isCurrent,
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                selectedCardBgOffsetX = pos.first
-                                                                selectedCardBgOffsetY = pos.second
-                                                            },
-                                                            label = { Text(stringResource(name), style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Header Row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = if (editingAccount == null) stringResource(R.string.ah_add_asset_card) else stringResource(R.string.ah_modify_account, editingAccount?.name.orEmpty()),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = when (typeState) {
-                                    AccountType.BANK -> stringResource(R.string.ah_bank_settings)
-                                    AccountType.CASH -> stringResource(R.string.ah_cash_settings)
-                                    AccountType.DEBIT -> stringResource(R.string.ah_debit_settings)
-                                    AccountType.CC -> stringResource(R.string.ah_credit_settings)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
-                                    showAddEditDialog = false
-                                    onDismissCreate?.invoke()
-                                }
-                            },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.btn_close),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (isWide) {
-                        // Responsive Wide Screen: 2-Pane Side-by-Side Bento Layout
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp),
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            // Left Pane: Sticky Overview (weight 0.44f)
-                            ScrollBlurContainer(
-                                scrollState = overviewScrollState,
-                                modifier = Modifier.weight(0.44f).fillMaxHeight(),
-                                vertical = true,
-                                tagPrefix = "AssetEditorOverviewScroll",
-                                blurActive = editorBlurActive
-                            ) { sourceModifier ->
-                                Column(
-                                    modifier = sourceModifier.fillMaxWidth().verticalScroll(overviewScrollState, overscrollEffect = null),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    AnimatedVisibility(
-                                        visible = showEditorPreview,
-                                        enter = expandVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
-                                            fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
-                                        exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
-                                            fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec())
-                                    ) { previewCard() }
-
-                                    // Live Summary Bento Card
-                                    Surface(
-                                        shape = BentoCardShape,
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = stringResource(R.string.ah_live_overview),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    letterSpacing = 1.2.sp
-                                                )
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                                                ) {
-                                                    Text(
-                                                        text = when (typeState) {
-                                                            AccountType.BANK -> accountTypeDisplayLabel(AccountType.BANK)
-                                                            AccountType.CASH -> accountTypeDisplayLabel(AccountType.CASH)
-                                                            AccountType.DEBIT -> accountTypeDisplayLabel(AccountType.DEBIT)
-                                                            AccountType.CC -> accountTypeDisplayLabel(AccountType.CC)
-                                                        },
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                                    )
-                                                }
-                                            }
-
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(
-                                                    text = if (typeState == AccountType.CC) stringResource(R.string.ah_debt_title) else stringResource(R.string.ah_available_balance),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                val formattedBal = String.format(Locale.US, "$%,.2f", balanceText.toDoubleOrNull() ?: 0.0)
-                                                RollingNumberText(
-                                                    text = formattedBal,
-                                                    style = MaterialTheme.typography.headlineSmall,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-
-                                            if (typeState == AccountType.CC) {
-                                                val limitVal = creditLimitText.toDoubleOrNull() ?: 1.0
-                                                val debtVal = balanceText.toDoubleOrNull() ?: 0.0
-                                                val util = if (limitVal > 0) (debtVal / limitVal).coerceIn(0.0, 1.0).toFloat() else 0f
-                                                val utilPercent = (util * 100).toInt()
-                                                val animatedUtil by animateFloatAsState(
-                                                    targetValue = util,
-                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                                                    label = "wideUtilProgress"
-                                                )
-                                                val targetColor = when {
-                                                    utilPercent < 30 -> MaterialTheme.colorScheme.primary
-                                                    utilPercent < 60 -> Color(0xFFFFA000)
-                                                    else -> MaterialTheme.colorScheme.error
-                                                }
-                                                val animatedBarColor by animateColorAsState(targetValue = targetColor, label = "wideUtilColor")
-
-                                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                        Text(stringResource(R.string.ah_utilization), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                        Text("$utilPercent%", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = animatedBarColor)
-                                                    }
-                                                    LinearProgressIndicator(
-                                                        progress = { animatedUtil },
-                                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                                                        color = animatedBarColor,
-                                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                            }
-
-                            // Right Pane: Tabs & Scrollable Configuration (weight 0.56f)
-                            Column(
-                                modifier = Modifier
-                                    .weight(0.56f)
-                                    .fillMaxHeight(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                tabSelector()
-
-                                ScrollBlurContainer(
-                                    scrollState = editorScrollState,
-                                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                                    vertical = true,
-                                    tagPrefix = "AssetEditorScroll",
-                                    blurActive = editorBlurActive
-                                ) { sourceModifier ->
-                                    Column(
-                                        modifier = sourceModifier.fillMaxWidth().verticalScroll(editorScrollState, overscrollEffect = null)
-                                            .testTag("AssetEditorScrollContent"),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                                    ) {
-                                        tabContent()
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Compact Portrait Flow with Pinned Sticky Preview Card & Tab Selector
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            AnimatedVisibility(
-                                visible = showEditorPreview,
-                                enter = expandVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
-                                    fadeIn(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec()),
-                                exit = shrinkVertically(animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()) +
-                                    fadeOut(animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec())
-                            ) { previewCard() }
-                            tabSelector()
-                            ScrollBlurContainer(
-                                scrollState = editorScrollState,
-                                modifier = Modifier.weight(1f).fillMaxWidth(),
-                                vertical = true,
-                                tagPrefix = "AssetEditorScroll",
-                                blurActive = editorBlurActive
-                            ) { sourceModifier ->
-                                Column(
-                                    modifier = sourceModifier.fillMaxWidth().verticalScroll(editorScrollState, overscrollEffect = null)
-                                        .testTag("AssetEditorScrollContent"),
-                                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                                ) {
-                                    tabContent()
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                }
-                            }
-                        }
-                    }
-
-                    // Anchored Bottom Sticky Action Bar
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 8.dp,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (editingAccount != null) {
-                                val deleteInteraction = remember { MutableInteractionSource() }
-                                CompletePressOutlinedButton(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        showDeleteConfirmDialog = true
-                                    },
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.error
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                                    shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(26.dp), pressedShape = RoundedCornerShape(16.dp)),
-                                    interactionSource = deleteInteraction,
-                                    modifier = Modifier
-                                        .height(52.dp)
-                                        .pressBounce(interactionSource = deleteInteraction)
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(stringResource(R.string.btn_delete))
-                                }
-                            }
-
-                            val saveInteraction = remember { MutableInteractionSource() }
-                            CompletePressButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (invalidLastFour) return@CompletePressButton
-                                    val name = nameText.trim().ifEmpty { defaultAccountName }
-                                    val balance = balanceText.toDoubleOrNull() ?: 0.0
-                                    val limit = creditLimitText.toDoubleOrNull() ?: 0.0
-                                    val billing = billingDateText.toIntOrNull()?.takeIf { it in 1..31 }
-                                    val payment = paymentDateText.toIntOrNull()?.takeIf { it in 1..31 }
-                                    val deadline = paymentDeadlineText.toIntOrNull()?.takeIf { it in 1..31 }
-
-                                    val acc = AccountEntity(
-                                        id = editingAccount?.id ?: 0L,
-                                        name = name,
-                                        type = typeState,
-                                        balance = balance,
-                                        icon = when (typeState) {
-                                            AccountType.CASH -> "wallet"
-                                            AccountType.BANK -> "bank"
-                                            AccountType.DEBIT -> "debit_card"
-                                            AccountType.CC -> "credit_card"
-                                        },
-                                        creditLimit = if (typeState == AccountType.CC) limit else null,
-                                        billingDate = if (typeState == AccountType.CC) billing else null,
-                                        paymentDate = if (typeState == AccountType.CC) payment else null,
-                                        paymentDeadline = if (typeState == AccountType.CC) deadline else null,
-                                        cardTheme = selectedCardTheme,
-                                        cardLast4 = cardLast4Text.takeIf { it.length == 4 },
-                                        nickname = nicknameText.trim().takeIf { it.isNotEmpty() },
-                                        accentColorKey = selectedAccentColorKey,
-                                        cardProtocol = if (selectedCardProtocol == "None") null else selectedCardProtocol.lowercase(Locale.US),
-                                        // Preserve legacy issuer data after retiring its editor.
-                                        cardIssuer = editingAccount?.cardIssuer,
-                                        cardPattern = if (selectedCardPattern == "None") null else selectedCardPattern.lowercase(Locale.US),
-                                        cardImageUri = if (selectedCardImageUri.isEmpty()) null else selectedCardImageUri,
-                                        customImageAspectRatio = selectedAspectRatio,
-                                        cardBgOffsetX = selectedCardBgOffsetX,
-                                        cardBgOffsetY = selectedCardBgOffsetY,
-                                        cardBgScale = selectedCardBgScale,
-                                        minSpendThreshold = editingAccount?.minSpendThreshold,
-                                        linkedAppPackage = selectedLinkedAppPackage,
-                                        notificationAliases = notificationAliasesList.joinToString(", ").takeIf { it.isNotBlank() }
-                                    )
-                                    onIntent(FinanceIntent.SaveAccount(
-                                        account = acc,
-                                        originalBalance = originalBalance
-                                    ))
-                                    onAccountCreated?.invoke(acc)
-                                    coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
-                                        showAddEditDialog = false
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                enabled = !invalidLastFour,
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
-                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(26.dp), pressedShape = RoundedCornerShape(16.dp)),
-                                interactionSource = saveInteraction,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp)
-                                    .pressBounce(interactionSource = saveInteraction)
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (editingAccount != null) stringResource(R.string.btn_save_changes) else stringResource(R.string.ah_create_asset), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        }
+    if (renderEditor) {
+        AssetEditorHost(state, editorState, onIntent, saveResult, onAccountCreated, onDismissCreate)
     }
+}
+
 }
 
 @Composable
@@ -3976,7 +1638,7 @@ fun rememberCardImagePainter(filePath: String?): ImageBitmap? {
 }
 
 /** Rebuild crop pixels from a private file after recreation; never save bitmaps in a Bundle. */
-private fun loadCropBitmap(path: String): android.graphics.Bitmap? = try {
+internal fun loadCropBitmap(path: String): android.graphics.Bitmap? = try {
     BitmapFactory.decodeFile(path) ?: if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
         android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(File(path)))
     } else null
@@ -4430,6 +2092,7 @@ fun AccountAppRedirectButton(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val hapticView = androidx.compose.ui.platform.LocalView.current
     val appIcon = remember(packageName, context) { LocalAppManager.getAppIcon(context, packageName) }
     val shape = RoundedCornerShape(shapeRadius)
     val notInstalledMsg = stringResource(com.example.vibefinance.R.string.assets_linked_app_not_installed)
@@ -4442,7 +2105,7 @@ fun AccountAppRedirectButton(
             .bouncyClickable(
                 shape = shape,
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                     val launched = LocalAppManager.launchApp(context, packageName)
                     if (!launched) {
                         Toast.makeText(context, notInstalledMsg, Toast.LENGTH_SHORT).show()
@@ -4450,7 +2113,7 @@ fun AccountAppRedirectButton(
                 },
                 onLongClick = onLongClick?.let { action ->
                     {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        com.example.vibefinance.util.VibeHaptics.heavyLongPress(hapticView)
                         action()
                     }
                 }
@@ -4743,6 +2406,7 @@ private suspend fun loadPickerIcon(context: Context, packageName: String): Bitma
 @Composable
 private fun CompactAccountRow(
     account: AccountEntity,
+    transactions: List<com.example.vibefinance.data.entity.TransactionEntity> = emptyList(),
     isFirstInGroup: Boolean,
     isLastInGroup: Boolean,
     onEditClick: () -> Unit,
@@ -4909,6 +2573,7 @@ private fun CompactAccountRow(
                         )
                     }
                 }
+                if (account.type == AccountType.CC) CreditCardCycleBadges(account, transactions)
             }
 
             // Trailing balance with increased font weight and distinct color
@@ -4964,6 +2629,7 @@ private fun CompactAccountAction(
 @Composable
 fun ExpressiveAccountListItem(
     account: AccountEntity,
+    transactions: List<com.example.vibefinance.data.entity.TransactionEntity> = emptyList(),
     onEditClick: () -> Unit,
     onBalanceClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -4973,38 +2639,7 @@ fun ExpressiveAccountListItem(
     val isCC = account.type == AccountType.CC
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val haptic = LocalHapticFeedback.current
-
-    // Imported cards can have an unknown deadline; do not invent a due date for them.
-    val paymentDeadlineDay = account.paymentDeadline?.takeIf { isCC && it in 1..31 }
-    val today = remember { LocalDate.now() }
-    val dueLocalDate = remember(today, paymentDeadlineDay) {
-        paymentDeadlineDay?.let { day ->
-            val thisMonth = today.withDayOfMonth(day.coerceAtMost(today.lengthOfMonth()))
-            if (!thisMonth.isBefore(today)) {
-                thisMonth
-            } else {
-                val nextMonth = today.withDayOfMonth(1).plusMonths(1)
-                nextMonth.withDayOfMonth(day.coerceAtMost(nextMonth.lengthOfMonth()))
-            }
-        }
-    }
-    val daysRemaining = remember(today, dueLocalDate) {
-        dueLocalDate?.let { ChronoUnit.DAYS.between(today, it).toInt() }
-    }
-
-    val dueText = daysRemaining?.let { days ->
-        when {
-            days == 0 -> stringResource(R.string.ah_due_today)
-            days == 1 -> stringResource(R.string.ah_due_tomorrow)
-            else -> stringResource(R.string.ah_due_in_days, days)
-        }
-    }
-
-    val dueBadgeColor = if (daysRemaining != null && daysRemaining <= 3) {
-        if (isDark) Color(0xFFFFB3AD) else Color(0xFFD93025)
-    } else {
-        if (isDark) Color(0xFFA8C7FA) else Color(0xFF174EA6)
-    }
+    val hapticView = androidx.compose.ui.platform.LocalView.current
 
     val accent = accountAccent(account.type, account.accentColorKey)
     val displayName = account.displayName()
@@ -5026,18 +2661,6 @@ fun ExpressiveAccountListItem(
     val context = LocalContext.current
     val targetPackage = remember(account.linkedAppPackage, account.name) {
         LocalAppManager.resolveTargetAppPackage(context, account.linkedAppPackage, account.name)
-    }
-
-    val creditLimit = account.creditLimit ?: 0.0
-    val hasCreditLimit = isCC && creditLimit > 0.0
-    val availableCredit = if (hasCreditLimit) (creditLimit - account.balance).coerceAtLeast(0.0) else 0.0
-    val utilizationRatio = if (hasCreditLimit) (account.balance / creditLimit).coerceIn(0.0, 1.0).toFloat() else 0f
-    val utilizationPercent = (utilizationRatio * 100).toInt()
-
-    val utilizationColor = when {
-        utilizationRatio > 0.70f -> if (isDark) Color(0xFFFFB3AD) else MaterialTheme.colorScheme.error
-        utilizationRatio > 0.30f -> Color(0xFFF57C00)
-        else -> Color(0xFF2E7D32)
     }
 
     // Dedicated Bento Card Container (Subtle, refined M3 surface)
@@ -5297,101 +2920,8 @@ fun ExpressiveAccountListItem(
                 }
             }
 
-            // Credit-card details remain visible without repeating the group type.
-            if (isCC) FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Statement closing day is shown for every credit card, including imported cards without one.
-                if (isCC) {
-                    val statementDay = account.billingDate?.takeIf { it in 1..31 }
-                    val statementText = if (statementDay == null) {
-                        stringResource(com.example.vibefinance.R.string.acc_statement_day_unset)
-                    } else {
-                        stringResource(com.example.vibefinance.R.string.acc_statement_day_value, statementDay)
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (isDark) 0.35f else 0.65f),
-                        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.30f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarMonth,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = statementText,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
+            if (isCC) CreditCardCycleBadges(account, transactions)
 
-                // Credit Limit & Utilization Pill (if CC with Limit)
-                if (hasCreditLimit) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = utilizationColor.copy(alpha = if (isDark) 0.18f else 0.10f),
-                        border = BorderStroke(0.5.dp, utilizationColor.copy(alpha = 0.35f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                progress = { utilizationRatio },
-                                modifier = Modifier.size(13.dp),
-                                color = utilizationColor,
-                                trackColor = utilizationColor.copy(alpha = 0.20f),
-                                strokeWidth = 2.2.dp,
-                                strokeCap = StrokeCap.Round
-                            )
-                            Text(
-                                text = stringResource(R.string.ah_credit_used_available, utilizationPercent, availableCredit),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontFamily = JetBrainsMonoFontFamily,
-                                    letterSpacing = (-0.15).sp
-                                ),
-                                fontWeight = FontWeight.Bold,
-                                color = utilizationColor
-                            )
-                        }
-                    }
-                }
-
-                // Due Date Pill (if CC)
-                if (dueText != null) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = dueBadgeColor.copy(alpha = if (isDark) 0.20f else 0.12f),
-                        border = BorderStroke(0.5.dp, dueBadgeColor.copy(alpha = 0.40f))
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = "⏰ $dueText",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = dueBadgeColor
-                            )
-                        }
-                    }
-                }
-            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -5439,6 +2969,7 @@ fun InteractiveImageCropDialog(
     onConfirm: (android.graphics.Bitmap, String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val hapticView = androidx.compose.ui.platform.LocalView.current
     var selectedRatio by rememberSaveable { mutableStateOf(initialAspectRatio) }
     var scale by rememberSaveable { mutableStateOf(1.0f) }
     var offset by rememberSaveable(stateSaver = Saver<Offset, List<Float>>(
@@ -5533,7 +3064,7 @@ fun InteractiveImageCropDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 offset = Offset(offset.x - 20f, offset.y)
                             },
                             modifier = Modifier.size(30.dp)
@@ -5542,7 +3073,7 @@ fun InteractiveImageCropDialog(
                         }
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 offset = Offset(offset.x + 20f, offset.y)
                             },
                             modifier = Modifier.size(30.dp)
@@ -5551,7 +3082,7 @@ fun InteractiveImageCropDialog(
                         }
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 offset = Offset(offset.x, offset.y - 20f)
                             },
                             modifier = Modifier.size(30.dp)
@@ -5560,7 +3091,7 @@ fun InteractiveImageCropDialog(
                         }
                         IconButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 offset = Offset(offset.x, offset.y + 20f)
                             },
                             modifier = Modifier.size(30.dp)
@@ -5571,7 +3102,7 @@ fun InteractiveImageCropDialog(
                     if (offset != Offset.Zero || scale != 1.0f) {
                         TextButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                com.example.vibefinance.util.VibeHaptics.heavyLongPress(hapticView)
                                 offset = Offset.Zero
                                 scale = 1.0f
                             },
@@ -5599,7 +3130,7 @@ fun InteractiveImageCropDialog(
                         FilterChip(
                             selected = isSelected,
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 selectedRatio = key
                             },
                             label = {
@@ -5625,7 +3156,7 @@ fun InteractiveImageCropDialog(
             val confirmInteraction = remember { MutableInteractionSource() }
             CompletePressButton(
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                     val cropped = createCroppedBitmap(bitmap, scale, offset, aspectRatioFloat)
                     onConfirm(cropped, selectedRatio)
                 },
@@ -5640,7 +3171,7 @@ fun InteractiveImageCropDialog(
             val dismissInteraction = remember { MutableInteractionSource() }
             CompletePressTextButton(
                 onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                     onDismiss()
                 },
                 shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
