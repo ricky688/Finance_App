@@ -688,6 +688,7 @@ object FinancialDataImportEngine {
         return when (type) {
             AccountType.CASH -> "wallet"
             AccountType.CC -> "credit_card"
+            AccountType.INVESTMENT -> "investment"
             AccountType.BANK -> "bank"
             AccountType.DEBIT -> "debit_card"
         }

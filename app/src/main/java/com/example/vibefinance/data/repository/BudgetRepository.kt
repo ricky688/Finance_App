@@ -23,6 +23,10 @@ class BudgetRepository @Inject constructor() {
         InMemoryDatabase.insertBudget(budget)
     }
 
+    suspend fun setPeriodIncomeEstimate(startDate: Long, endDate: Long, amount: Double?) {
+        InMemoryDatabase.setPeriodIncomeEstimate(startDate, endDate, amount)
+    }
+
     fun getDailyAllowanceFlow(): Flow<DailyBudgetInfo> {
         val budgetFlow = getActiveBudgetFlow()
         val transactionsFlow = InMemoryDatabase.transactions
@@ -110,7 +114,8 @@ class BudgetRepository @Inject constructor() {
                 endDate = budget.endDate,
                 rolloverMode = budget.rolloverMode,
                 newDailyBudget = newDailyBudget,
-                tomorrowAllowance = tomorrowAllowance
+                tomorrowAllowance = tomorrowAllowance,
+                estimatedIncome = budget.estimatedIncome
             )
         }
     }
@@ -127,5 +132,6 @@ data class DailyBudgetInfo(
     val endDate: Long,
     val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY,
     val newDailyBudget: Double = 0.0,
-    val tomorrowAllowance: Double = 0.0
+    val tomorrowAllowance: Double = 0.0,
+    val estimatedIncome: Double? = null
 )

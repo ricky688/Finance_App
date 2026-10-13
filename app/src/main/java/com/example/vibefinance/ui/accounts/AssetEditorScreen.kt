@@ -2,6 +2,7 @@
 
 package com.example.vibefinance.ui.accounts
 
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -596,6 +597,7 @@ fun AssetEditorScreen(
                             AccountType.BANK -> "bank"
                             AccountType.DEBIT -> "debit_card"
                             AccountType.CC -> "credit_card"
+                            AccountType.INVESTMENT -> "investment"
                         },
                     creditLimit = if (typeState == AccountType.CC) limit else null,
                     billingDate = if (typeState == AccountType.CC) billing else null,
@@ -863,17 +865,7 @@ fun AssetEditorScreen(
                             ) {
                                 Column {
                                     Text(
-                                        text =
-                                            when (typeState) {
-                                                AccountType.BANK ->
-                                                    accountTypeDisplayLabel(AccountType.BANK)
-                                                AccountType.CASH ->
-                                                    accountTypeDisplayLabel(AccountType.CASH)
-                                                AccountType.DEBIT ->
-                                                    accountTypeDisplayLabel(AccountType.DEBIT)
-                                                AccountType.CC ->
-                                                    accountTypeDisplayLabel(AccountType.CC)
-                                            },
+                                        text = accountTypeDisplayLabel(typeState),
                                         color = Color.White.copy(alpha = 0.7f),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
@@ -972,6 +964,7 @@ fun AssetEditorScreen(
                                             AccountType.CASH -> Icons.Default.Savings
                                             AccountType.DEBIT -> Icons.Default.CreditCard
                                             AccountType.CC -> Icons.Default.CreditCard
+                                            AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                         },
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
@@ -1122,6 +1115,29 @@ fun AssetEditorScreen(
                                         )
                                     },
                                     modifier = Modifier.widthIn(min = 100.dp),
+                                )
+                                FilterChip(
+                                    selected = typeState == AccountType.INVESTMENT,
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        typeState = AccountType.INVESTMENT
+                                    },
+                                    label = {
+                                        Text(accountTypeDisplayLabel(AccountType.INVESTMENT),
+                                            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null,
+                                            modifier = Modifier.size(16.dp))
+                                    },
+                                    modifier = Modifier.widthIn(min = 100.dp),
+                                )
+                            }
+                            if (typeState == AccountType.INVESTMENT) {
+                                Text(
+                                    stringResource(R.string.assets_investment_notice),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }

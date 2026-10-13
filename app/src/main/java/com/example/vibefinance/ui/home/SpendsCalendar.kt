@@ -132,7 +132,7 @@ fun ExpressiveDualViewSwitcher(
                 // Material 3 Expressive Connected Button Geometry:
                 // Outer corners retain 18.dp rounding; inner adjacent corners are 4.dp when unselected.
                 // When selected, inner corners smoothly expand to 18.dp for a distinct expressive pill!
-                // When pressed / pulsing, all 4 corners morph to 6.dp with snappy non-bouncy spring physics.
+                // Press only morphs the joining corners; the group's outer ends stay rounded.
                 val restingTopStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
                 val restingBottomStart = if (isSelected) 18.dp else (if (index == 0) 18.dp else 4.dp)
                 val restingTopEnd = if (isSelected) 18.dp else (if (index == modes.size - 1) 18.dp else 4.dp)
@@ -178,7 +178,12 @@ fun ExpressiveDualViewSwitcher(
                         topStart = topStart, bottomStart = bottomStart,
                         topEnd = topEnd, bottomEnd = bottomEnd
                     ),
-                    RoundedCornerShape(pressedCorner),
+                    RoundedCornerShape(
+                        topStart = if (index == 0) topStart else pressedCorner,
+                        bottomStart = if (index == 0) bottomStart else pressedCorner,
+                        topEnd = if (index == modes.lastIndex) topEnd else pressedCorner,
+                        bottomEnd = if (index == modes.lastIndex) bottomEnd else pressedCorner
+                    ),
                     shapeProgress
                 )
 

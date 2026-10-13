@@ -53,8 +53,21 @@ class BudgetMotionTest {
         remainingWave(650.0)
     }
 
-    @Test fun remainingWave_isVisibleEvenAtFullBudget() {
-        remainingWave(1000.0)
+    @Test fun remainingWave_restsInFullStyleAtFullBudget() {
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            MaterialTheme {
+                RestAndSpentBudgetCard(
+                    remainingBudget = 1000.0, totalBudget = 1000.0,
+                    modifier = Modifier.width(300.dp).height(180.dp)
+                )
+            }
+        }
+        rule.mainClock.advanceTimeBy(6_000)
+        val first = rule.onNodeWithTag("RemainingBudgetCard").captureToImage()
+        rule.mainClock.advanceTimeBy(1_072)
+        val second = rule.onNodeWithTag("RemainingBudgetCard").captureToImage()
+        assertEquals("At full budget, card rests in full solid fill style", 0, changedPixels(first, second))
     }
 
     private fun remainingWave(remaining: Double) {

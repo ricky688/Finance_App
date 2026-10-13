@@ -21,26 +21,30 @@ class WavyShape(
         size: Size,
         layoutDirection: LayoutDirection,
         density: Density,
-    ) = Outline.Generic(Path().apply {
-        val halfPeriod = with(density) { period.toPx() } / 2
+    ): Outline {
         val amplitudePx = with(density) { amplitude.toPx() }
-
-        val wavyPath = Path().apply {
-            moveTo(x = 0f, y = 0f)
-            lineTo(size.width - amplitudePx, -halfPeriod * 2.5f + halfPeriod * 2 * shift)
-            repeat(ceil(size.height / halfPeriod + 3).toInt()) { i ->
-                relativeQuadraticBezierTo(
-                    dx1 = 2 * amplitudePx * (if (i % 2 == 0) 1 else -1),
-                    dy1 = halfPeriod / 2,
-                    dx2 = 0f,
-                    dy2 = halfPeriod,
-                )
+        if (amplitudePx <= 0.001f) {
+            return Outline.Rectangle(Rect(offset = Offset.Zero, size = size))
+        }
+        return Outline.Generic(Path().apply {
+            val halfPeriod = with(density) { period.toPx() } / 2
+            val wavyPath = Path().apply {
+                moveTo(x = 0f, y = 0f)
+                lineTo(size.width - amplitudePx, -halfPeriod * 2.5f + halfPeriod * 2 * shift)
+                repeat(ceil(size.height / halfPeriod + 3).toInt()) { i ->
+                    relativeQuadraticTo(
+                        dx1 = 2 * amplitudePx * (if (i % 2 == 0) 1 else -1),
+                        dy1 = halfPeriod / 2,
+                        dx2 = 0f,
+                        dy2 = halfPeriod,
+                    )
+                }
+                lineTo(0f, size.height)
             }
-            lineTo(0f, size.height)
-        }
-        val boundsPath = Path().apply {
-            addRect(Rect(offset = Offset.Zero, size = size))
-        }
-        op(wavyPath, boundsPath, PathOperation.Intersect)
-    })
+            val boundsPath = Path().apply {
+                addRect(Rect(offset = Offset.Zero, size = size))
+            }
+            op(wavyPath, boundsPath, PathOperation.Intersect)
+        })
+    }
 }

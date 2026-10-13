@@ -7,6 +7,7 @@ import android.os.SystemClock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -66,6 +67,7 @@ class CompletePressShapeTest {
     @Test fun textButton_completesTap_andHoldsUntilRelease() = exercise(Kind.TEXT)
     @Test fun nativeConnectedButton_completesTap_andHoldsUntilRelease() = exercise(Kind.NATIVE)
     @Test fun expenseConnectedButton_completesTap_andHoldsUntilRelease() = exercise(Kind.MAIN)
+    @Test fun entrySelector_completesShapeChange_atItsNaturalHeight() = exercise(Kind.ENTRY_SELECTOR)
     @Test fun recurringConnectedButton_completesTap_andHoldsUntilRelease() = exercise(Kind.RECURRING)
     @Test fun keyboard_completesTap_andLongClickDoesNotResetHeldShape() = exercise(Kind.KEYBOARD)
     @Test fun appendedAddButton_completesTap_andHoldsUntilRelease() = exercise(Kind.ADD)
@@ -73,7 +75,9 @@ class CompletePressShapeTest {
 
     private fun exercise(kind: Kind) {
         show(kind)
-        val button = if (kind in listOf(Kind.NATIVE, Kind.MAIN, Kind.RECURRING)) {
+        val button = if (kind == Kind.ENTRY_SELECTOR) {
+            rule.onNodeWithText("Salary")
+        } else if (kind in listOf(Kind.NATIVE, Kind.MAIN, Kind.RECURRING)) {
             rule.onNodeWithText(LABELS.first())
         } else rule.onNodeWithTag(TARGET)
         val measuredSize = button.fetchSemanticsNode().size
@@ -82,12 +86,12 @@ class CompletePressShapeTest {
 
         // Establish the full held outline, then hold much longer than an animation duration.
         button.performTouchInput { down(center) }
-        advance(if (kind == Kind.KEYBOARD) 1_500 else 240)
+        // Scrollable selectors defer press feedback while distinguishing a tap from a drag.
+        advance(if (kind == Kind.ENTRY_SELECTOR) 1_500 else 240)
         val heldImage = capture(kind, "held", button)
         val heldCorners = coverage(heldImage)
         assertTrue("${kind.name}: press must visibly change its outline ($restingCorners -> $heldCorners)",
-            if (kind == Kind.KEYBOARD) heldCorners < restingCorners - 8
-            else heldCorners > restingCorners + 8)
+            heldCorners > restingCorners + 8)
         advance(1_200)
         if (kind == Kind.KEYBOARD) {
             SystemClock.sleep(600)
@@ -102,7 +106,7 @@ class CompletePressShapeTest {
         button.performTouchInput { up() }
         val expectedAfterHold = if (kind == Kind.KEYBOARD) 0 else 1
         rule.waitUntil(5_000) { clicks.get() == expectedAfterHold }
-        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
+        advance(if (kind == Kind.KEYBOARD) 240 else 500)
         assertRestored(kind, button, restingCorners, "released")
 
         // Release after one frame. The inward morph must still reach the same full outline.
@@ -114,20 +118,16 @@ class CompletePressShapeTest {
         advance(176)
         val tapImage = capture(kind, "short-tap-peak", button)
         val tapPeak = coverage(tapImage)
-        if (kind == Kind.KEYBOARD) {
-            // Spring depression can overshoot before settling; its visual area contracts.
-            assertTrue("A short tap must still depress the key", tapPeak < restingCorners - 8)
-        } else if (kind == Kind.MAIN) {
-            // Press scale rebounds on release while the completed corner morph continues.
-            // Compare corner coverage per pixel, independently of the drawn area.
+        if (kind == Kind.MAIN || kind == Kind.ENTRY_SELECTOR) {
+            // Ripple AA can change a few outline pixels; compare the same full-size slot.
             val tapFraction = tapPeak.toFloat() / (tapImage.width * tapImage.height)
             val heldFraction = heldCorners.toFloat() / (heldImage.width * heldImage.height)
-            assertEquals("Tap must complete the same corner morph despite scale rebound", heldFraction, tapFraction, 0.02f)
+            assertEquals("A short tap completes the held corner morph", heldFraction, tapFraction, 0.003f)
         } else {
             assertTrue("A one-frame tap must complete the held outline: $tapPeak versus $heldCorners",
                 abs(tapPeak - heldCorners) <= 5)
         }
-        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
+        advance(if (kind == Kind.KEYBOARD) 240 else 500)
         assertRestored(kind, button, restingCorners, "short-tap-restored")
 
         // Cancel a partial gesture without completing a click or leaving a stuck shape.
@@ -135,7 +135,7 @@ class CompletePressShapeTest {
         button.performTouchInput { down(center) }
         advance(64)
         button.performTouchInput { cancel() }
-        advance(if (kind == Kind.KEYBOARD) 2_000 else 500)
+        advance(if (kind == Kind.KEYBOARD) 240 else 500)
         assertRestored(kind, button, restingCorners, "cancelled")
         assertEquals("Cancel must not click", beforeCancel, clicks.get())
 
@@ -146,8 +146,9 @@ class CompletePressShapeTest {
             button.performTouchInput { up() }
             advance(64)
         }
-        advance(if (kind == Kind.KEYBOARD) 2_000 else 700)
         rule.waitUntil(5_000) { clicks.get() == beforeCancel + 3 }
+        // Await all callbacks before settling deferred press feedback in a scrolling selector.
+        advance(if (kind == Kind.ENTRY_SELECTOR) 1_500 else 700)
         assertRestored(kind, button, restingCorners, "rapid-taps-restored")
         assertEquals(measuredSize, button.fetchSemanticsNode().size)
     }
@@ -176,7 +177,16 @@ class CompletePressShapeTest {
                                 LABELS, 2, { click() }, Modifier.width(320.dp), labelProvider = { it }
                             )
                             Kind.MAIN -> ExpressiveSegmentedButtonGroup(
-                                LABELS, 2, { click() }, Modifier.width(320.dp), labelProvider = { it }
+                                LABELS, 2, { click() }, Modifier.width(320.dp),
+                                itemModifierProvider = { Modifier.heightIn(min = 48.dp) },
+                                corners = com.example.vibefinance.ui.main.ConnectedButtonCorners.Entry,
+                                spatialMotionEnabled = false, labelProvider = { it }
+                            )
+                            Kind.ENTRY_SELECTOR -> ExpressiveSegmentedButtonGroup(
+                                listOf("Salary", "Bonus", "Investment"), 2, { click() },
+                                Modifier.width(320.dp), isScrollable = true,
+                                corners = com.example.vibefinance.ui.main.ConnectedButtonCorners.Entry,
+                                spatialMotionEnabled = false, labelProvider = { it }
                             )
                             Kind.RECURRING -> ConnectedButtonGroup(
                                 LABELS, 2, { click() }, Modifier.width(320.dp), labelProvider = { it }
@@ -199,9 +209,13 @@ class CompletePressShapeTest {
     }
 
     private fun assertRestored(kind: Kind, node: SemanticsNodeInteraction, expected: Int, stage: String) {
-        val actual = coverage(capture(kind, stage, node))
+        val image = capture(kind, stage, node)
+        val actual = coverage(image)
+        // The selector's fading gray ripple shifts edge AA by two RGB levels (24 -> 26),
+        // crossing the paint threshold without changing its outline. Keep a <0.4% slot allowance.
+        val tolerance = if (kind == Kind.ENTRY_SELECTOR) maxOf(5, image.width * image.height / 250) else 5
         assertTrue("${kind.name}: restoration must match original corners ($actual versus $expected)",
-            abs(actual - expected) <= 5)
+            abs(actual - expected) <= tolerance)
     }
 
     /** Count the painted outline, including a neutral border, but exclude near-black AA edges.
@@ -237,7 +251,7 @@ class CompletePressShapeTest {
         rule.waitForIdle()
     }
 
-    private enum class Kind { FILLED, TONAL, OUTLINED, TEXT, NATIVE, MAIN, RECURRING, KEYBOARD, ADD, SETTINGS_CARD }
+    private enum class Kind { FILLED, TONAL, OUTLINED, TEXT, NATIVE, MAIN, ENTRY_SELECTOR, RECURRING, KEYBOARD, ADD, SETTINGS_CARD }
     private companion object {
         val LABELS = listOf("I", "II", "III")
         val GREEN = Color(0.04f, 0.72f, 0.30f)

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auto_logging_recovery_title">Troubleshooting automatic logging</string>
+    <string name="auto_logging_recovery_body">Missing payment notifications? Close and reopen VibeFinance first. If logging still does not work, open Notification access, switch VibeFinance off and back on, then return here. Check that automatic logging is enabled and your payment apps are selected.</string>
+    <string name="auto_logging_open_access">Open notification access</string>
+    <string name="auto_logging_access_unavailable">Notification access settings are unavailable on this device.</string>
+</resources>

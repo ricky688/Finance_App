@@ -32,9 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.example.vibefinance.util.VibeHaptics
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -52,10 +52,10 @@ fun IconShapePickerDialog(
     onSelectShape: (IconShapeMode) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
     val isZh = LocalConfiguration.current.locales[0].language.startsWith("zh")
     val select: (IconShapeMode) -> Unit = { mode ->
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        VibeHaptics.selection(view)
         onSelectShape(mode)
     }
 
@@ -163,7 +163,7 @@ fun IconShapePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }) {
                 Text(stringResource(R.string.btn_confirm), fontWeight = FontWeight.Bold)
             }
         },

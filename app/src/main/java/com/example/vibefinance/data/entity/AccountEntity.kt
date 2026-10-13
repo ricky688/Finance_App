@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 // Keep existing names stable: account snapshots persist the enum name as text.
-enum class AccountType { CASH, BANK, DEBIT, CC }
+enum class AccountType { CASH, BANK, DEBIT, CC, INVESTMENT }
 
 @Entity(tableName = "accounts")
 data class AccountEntity(
@@ -12,7 +12,7 @@ data class AccountEntity(
     val name: String,
     val nickname: String? = null, // Optional user label shown instead of the account name
     val type: AccountType,
-    val balance: Double, // Assets for Cash/Bank/Debit; outstanding debt for CC
+    val balance: Double, // Recorded balance for assets (Investment is app-only); outstanding debt for CC
     val icon: String, // Identifies the graphic icon for the account
     val creditLimit: Double? = null, // Maximum allowed CC outstanding balance
     val billingDate: Int? = null, // Credit card statement closing day (結算日), 1–31; null when unknown

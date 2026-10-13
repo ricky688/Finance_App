@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assets_type_investment">Investment</string>
+    <string name="assets_investment_notice">Investment entries only help you organize money in this app. They do not represent real-world investments, ownership, or returns, and are excluded from net value.</string>
+</resources>

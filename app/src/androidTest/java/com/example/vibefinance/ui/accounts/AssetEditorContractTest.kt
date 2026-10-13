@@ -276,6 +276,52 @@ class AssetEditorContractTest {
         }
     }
 
+    @Test
+    fun investmentSelectionAndNotice_surviveRestoration_andSaveAcknowledgesActualId() {
+        val restoration = show()
+        val chip = rule.onNode(hasText(text(R.string.assets_type_investment)) and isSelectable())
+        chip.performScrollTo().performClick()
+        rule.onNodeWithText(text(R.string.assets_investment_notice)).performScrollTo().assertIsDisplayed()
+        restoration.emulateSavedInstanceStateRestore()
+        waitOpen()
+        chip.performScrollTo().assertIsSelected()
+        field(R.string.ah_current_balance_amount).performScrollTo().performTextReplacement("1200.25")
+        rule.onNodeWithTag("AssetEditorSave").performClick()
+        rule.waitUntil(5_000) { requests.size == 1 }
+        val request = requests.single() as FinanceIntent.SaveAccount
+        assertEquals(AccountType.INVESTMENT, request.account.type)
+        assertEquals("investment", request.account.icon)
+        assertEquals(1200.25, request.account.balance, 0.0)
+        assertEquals(PREFILL.cardLast4, request.account.cardLast4)
+        assertEquals(PREFILL.linkedAppPackage, request.account.linkedAppPackage)
+        assertEquals(PREFILL.notificationAliases, request.account.notificationAliases)
+        assertEquals(PREFILL.cardBgScale, request.account.cardBgScale)
+        val saved = request.account.copy(id = 801)
+        rule.runOnIdle { result = AccountSaveResult.Saved(request.editorRequestId!!, saved) }
+        waitOpen(false)
+        assertEquals(listOf(saved), created)
+    }
+
+    @Test
+    fun editingInvestment_preservesIdOriginalBalanceAndCustomization() {
+        val investment = PREFILL.copy(id = 72, type = AccountType.INVESTMENT, icon = "investment", balance = 320.25)
+        show(investment)
+        rule.onNode(hasText(text(R.string.assets_type_investment)) and isSelectable())
+            .performScrollTo().assertIsSelected()
+        field(R.string.assets_identity_nickname).performScrollTo().performTextReplacement("Organized funds")
+        rule.onNodeWithTag("AssetEditorSave").performClick()
+        rule.waitUntil(5_000) { requests.size == 1 }
+        val request = requests.single() as FinanceIntent.SaveAccount
+        assertEquals(320.25, request.originalBalance!!, 0.0)
+        assertEquals(investment.id, request.account.id)
+        assertEquals(AccountType.INVESTMENT, request.account.type)
+        assertEquals(investment.balance, request.account.balance, 0.0)
+        assertEquals("Organized funds", request.account.nickname)
+        assertEquals(investment.linkedAppPackage, request.account.linkedAppPackage)
+        assertEquals(investment.notificationAliases, request.account.notificationAliases)
+        assertEquals(investment.cardBgScale, request.account.cardBgScale)
+    }
+
     private companion object {
         val PREFILL =
             AccountEntity(

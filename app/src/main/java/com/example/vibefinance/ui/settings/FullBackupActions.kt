@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.components.AppSwitch
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +31,7 @@ import java.util.Date
 /** Keep launchers/dialogs at the settings root even when its Data & privacy group is collapsed. */
 @Composable
 fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
+    val view = LocalView.current
     val application = LocalContext.current.applicationContext as android.app.Application
     val restoredMessage = stringResource(R.string.backup_restored)
     val viewModel: FullBackupViewModel = viewModel(factory = remember(application) {
@@ -96,6 +99,7 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                 },
                 confirmButton = {
                     TextButton(modifier = Modifier.testTag("BackupContinue"), enabled = if (export && !encrypt) true else secret.isNotEmpty() && (!export || secret == confirmation), onClick = {
+                        VibeHaptics.lightTick(view)
                         val password = if (!export || encrypt) secret.toCharArray() else null
                         secret = ""; confirmation = ""
                         if (export) {
@@ -104,7 +108,7 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                         } else viewModel.prepare(password)
                     }) { Text(stringResource(if (export) R.string.backup_save else R.string.backup_continue)) }
                 },
-                dismissButton = { TextButton(modifier = Modifier.testTag("BackupCancel"), onClick = viewModel::reset) { Text(stringResource(R.string.backup_cancel)) } }
+                dismissButton = { TextButton(modifier = Modifier.testTag("BackupCancel"), onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_cancel)) } }
             )
         }
         BackupPhase.BUSY -> AlertDialog(
@@ -125,24 +129,24 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                         Text(stringResource(R.string.backup_replace_notice), color = MaterialTheme.colorScheme.error)
                     }
                 },
-                confirmButton = { TextButton(onClick = viewModel::restore) { Text(stringResource(R.string.backup_replace)) } },
-                dismissButton = { TextButton(onClick = viewModel::reset) { Text(stringResource(R.string.backup_cancel)) } }
+                confirmButton = { TextButton(onClick = { VibeHaptics.warningAlert(view); viewModel.restore() }) { Text(stringResource(R.string.backup_replace)) } },
+                dismissButton = { TextButton(onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_cancel)) } }
             )
         }
         BackupPhase.ERROR, BackupPhase.EXPORTED -> AlertDialog(
             onDismissRequest = viewModel::reset,
             title = { Text(stringResource(if (state.phase == BackupPhase.EXPORTED) R.string.backup_saved else R.string.backup_failed)) },
             text = { Text(errorText ?: stringResource(R.string.backup_saved_notice)) },
-            confirmButton = { TextButton(onClick = viewModel::reset) { Text(stringResource(R.string.backup_done)) } }
+            confirmButton = { TextButton(onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_done)) } }
         )
         else -> Unit
     }
     return {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton(viewModel::exportOptions, enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupOpen")) {
+            FilledTonalButton({ VibeHaptics.lightTick(view); viewModel.exportOptions() }, enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupOpen")) {
                 Text(stringResource(R.string.backup_title))
             }
-            OutlinedButton(onClick = { viewModel.awaitRestore(); open.launch(arrayOf("*/*")) },
+            OutlinedButton(onClick = { VibeHaptics.lightTick(view); viewModel.awaitRestore(); open.launch(arrayOf("*/*")) },
                 enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupRestore")) { Text(stringResource(R.string.backup_restore_title)) }
         }
     }

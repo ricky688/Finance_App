@@ -6,15 +6,40 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 ## 🚀 Features
 
+### Spending Trend mode transitions (1.2.27)
+- Switching between **Cumulative** and **Daily** smoothly morphs the curve and fill while the scrub marker follows the same motion. Daily bars and the average guide fade in and out.
+- Recorded amounts and chart bounds stay unchanged. Reduced motion uses a shorter transition; Minimal switches immediately. Existing connected-button corners and press behavior are retained.
+
+
+### Automatic logging transitions and recovery (1.2.23)
+- The allowed-app preview expands/collapses with Material height and fade motion when Automatic Transaction Logging changes. Reduced motion uses a fade; Minimal motion changes immediately.
+- The Smart logging panel includes a recovery guide and an **Open notification access** button, available even when logging is off. It explains restarting VibeFinance and turning its Android notification access off and back on if capture stops.
+
+### Settings haptic feedback (1.2.22)
+- Settings section headers, option cards, action/dialog buttons, palette choices, category controls and completed slider gestures provide feedback through the existing haptic helper. Destructive actions use warning feedback.
+- Switches retain their own feedback so a child switch tap does not also pulse its parent card. Cancelled presses and recomposition do not trigger feedback; Android's system haptic preference is respected.
+
+### Investment organizers and theme-aware heatmaps (1.2.20)
+- Add or edit an asset with the **Investment** type. Its recorded balance has a separate gold bar in Money Allocation, and is excluded from total assets and net value.
+- Investment entries are only an app organization tool. They do not represent real-world investments, ownership, or returns. The reminder appears in the editor and distribution chart; entries and customization are included in full backups.
+- The Habit & Contribution Grid uses the shared theme-aware progressive edge blur. Fades appear only on overflowing edges and respect the blur preference.
+
+### Estimated income by budget period (1.2.19)
+- Assets and Recurring show the same editable income estimate for the dates configured on Daily. Use the pencil to enter an amount in HKD; zero is valid and leaving the field blank clears it.
+- This is a manual reference amount. It creates no transaction and changes neither balances nor spending allowances. Editing the budget amount keeps the estimate; changing its dates starts a new unset estimate. Estimates persist across relaunch and are included in full app backups; older saved data/backups remain compatible.
+
+### Daily calendar and chart controls (1.2.18)
+- Chinese habit heatmaps use compact weekday labels 一、二、三、四、五、六、日. Habit/Month and Spending Trend toggles keep their outer ends rounded while the inner-facing corners change shape on press.
+
 ### Adaptive page headers (1.2.15)
 - The secondary title collapses without leaving its expanded space behind. It returns near the top of Daily, Assets, Recurring and History, using each page's actual scroll position. Header spacing follows the animated bar height, including system insets and larger text.
 
-### One-tap transaction entry (updated in 1.2.14)
+### One-tap transaction entry (updated in 1.2.17)
 - Daily's extended Add FAB uses a rounded-square outline with 16dp corners and opens Expense directly. Switch Expense, Income or Transfer inside the full-screen form with the expressive connected control.
 - Transaction entry uses the same right-side slide, fade and scale as Add/Edit Asset, covering the main toolbar, navigation and FAB. Back closes nested selectors and the keyboard before leaving the page.
-- A dedicated top bar and large amount display sit above the scrolling form. The 4×4 calculator stays docked at the bottom in every mode, with 54dp keys and 16dp corners. Note hints match Expense, Income and Transfer. On short viewports or larger text, the amount can scroll with the form to keep fields reachable above the keypad.
+- A dedicated top bar and large amount display sit above the scrolling form. The 4×4 calculator stays docked at the bottom in every mode, with 54dp keys and 24dp resting corners. Note hints match Expense, Income and Transfer. On short viewports or larger text, the amount can scroll with the form to keep fields reachable above the keypad.
 - Scrolling down collapses the Daily FAB to its plus icon; scrolling back up expands the Add label again.
-- Connected controls gently push their immediate neighbors outward on press; category and account chips expand with spring motion. Calculator keys compress in place with 16dp → 8dp corner morphing and touch-down haptics, keeping key centers and hit areas fixed.
+- Transaction buttons change shape on press without shrinking their contents or shifting neighboring buttons. Calculator corners morph from 24dp to 16dp with touch-down haptics, using the same 180ms press / 220ms return easing as the Assets connected buttons. Connected entry controls use 32dp outer/selected, 20dp inner and 14dp pressed corners. Category and account chips retain their animated selection widths and scroll fades.
 - Entry connected groups have rounder corners without changing their height. Standard bottom sheets ease into and out of their 360ms opening/closing slide, respecting motion settings.
 - Amount/calculations, note, source account and currency stay in one saveable draft through mode changes and rotation. Each mode shows its applicable budget/category/destination controls; Transfer requires a different destination account.
 - Calendar Pay actions still open Transfer with the destination card prefilled and require confirmation.

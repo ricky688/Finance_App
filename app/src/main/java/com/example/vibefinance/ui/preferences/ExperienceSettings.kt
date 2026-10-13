@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.preferences
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.components.AppSwitch
 
 import androidx.compose.foundation.layout.*
@@ -19,13 +21,14 @@ import com.example.vibefinance.ui.FinanceIntent
 
 @Composable
 fun MotionBlurSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
+    val view = LocalView.current
     Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.experience_motion_title), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.experience_motion_desc), style = MaterialTheme.typography.bodySmall)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 MotionLevel.entries.forEach { level ->
-                    FilterChip(state.motionLevel == level, { dispatch(FinanceIntent.SetMotionLevel(level)) },
+                    FilterChip(state.motionLevel == level, { VibeHaptics.selection(view); dispatch(FinanceIntent.SetMotionLevel(level)) },
                         label = { Text(stringResource(when (level) { MotionLevel.FULL -> R.string.experience_full
                             MotionLevel.REDUCED -> R.string.experience_reduced; MotionLevel.MINIMAL -> R.string.experience_minimal }),
                             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
@@ -34,7 +37,7 @@ fun MotionBlurSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit)
             }
             Text(stringResource(R.string.experience_blur_title, (state.blurIntensity * 100).toInt()), style = MaterialTheme.typography.titleSmall)
             var slider by remember(state.blurIntensity) { mutableFloatStateOf(state.blurIntensity) }
-            Slider(slider, { slider = it }, onValueChangeFinished = { dispatch(FinanceIntent.SetBlurIntensity(slider)) },
+            Slider(slider, { slider = it }, onValueChangeFinished = { VibeHaptics.selection(view); dispatch(FinanceIntent.SetBlurIntensity(slider)) },
                 valueRange = 0f..1f, steps = 3, modifier = Modifier.testTag("BlurIntensity"))
             Text(stringResource(R.string.experience_blur_desc), style = MaterialTheme.typography.bodySmall)
         }

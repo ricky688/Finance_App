@@ -2,10 +2,26 @@ package com.example.vibefinance.ui.accounts
 
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AccountsScreenBentoTest {
+
+    @Test
+    fun investmentEntriesAreExcludedFromNetValueAndSpendableAssets() {
+        val bank = AccountEntity(id = 1, name = "Bank", type = AccountType.BANK, balance = 500.0, icon = "bank")
+        val debt = bank.copy(id = 2, type = AccountType.CC, balance = 100.0)
+        val investment = bank.copy(id = 3, type = AccountType.INVESTMENT, balance = 30000.0)
+        val negativeInvestment = investment.copy(id = 4, balance = -800.0)
+        val accounts = listOf(bank, debt, investment, negativeInvestment)
+        assertEquals(NetWorthBreakdown(500.0, 100.0, 400.0), calculateNetWorth(accounts))
+        assertEquals(NetWorthBreakdown(0.0, 0.0, 0.0), calculateNetWorth(listOf(investment, negativeInvestment)))
+        assertEquals(accounts, filterAccounts(accounts, AssetFilter.ALL))
+        assertEquals(listOf(bank), filterAccounts(accounts, AssetFilter.CASH_BANK))
+        assertEquals(listOf(debt), filterAccounts(accounts, AssetFilter.CREDIT_CARDS))
+        assertTrue(filterAccounts(accounts, AssetFilter.DEBIT_CARDS).isEmpty())
+    }
 
     @Test
     fun calculateNetWorth_withMixedAccounts_computesAssetsMinusDebtCorrectly() {

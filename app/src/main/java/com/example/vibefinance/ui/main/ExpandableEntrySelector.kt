@@ -56,6 +56,7 @@ internal fun accountTypeLabel(type: AccountType): String = stringResource(when (
     AccountType.BANK -> R.string.ui_main_bank_short
     AccountType.DEBIT -> R.string.ui_main_debit_short
     AccountType.CC -> R.string.ui_main_credit_short
+    AccountType.INVESTMENT -> R.string.assets_type_investment
 })
 
 /** All entry modes share a panel anchored below its connected row, over the remaining form. */
@@ -94,8 +95,9 @@ internal fun <T> ExpandableEntrySelector(
             isScrollable = true, iconProvider = iconProvider, fadeTagPrefix = "${tagPrefix}_row",
             selectionRevealRequest = selectionRevealRequest,
             preserveContentColors = true, corners = ConnectedButtonCorners.Entry,
+            spatialMotionEnabled = false,
             itemModifierProvider = { index -> Modifier.testTag("${tagPrefix}_row_${keyProvider(items[index])}") },
-            trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add, restingCorner = 28.dp, pressedCorner = 12.dp) } } else null,
+            trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add, restingCorner = 32.dp, pressedCorner = 14.dp) } } else null,
             labelProvider = labelProvider)
         Surface(
             onClick = { host.activeTag = if (expanded) null else tagPrefix },
@@ -224,7 +226,7 @@ private fun EntryChoiceTile(
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val progress by rememberCompletePressProgress(source)
-    val shape = completePressShape(RoundedCornerShape(16.dp), RoundedCornerShape(16.dp), progress)
+    val shape = completePressShape(RoundedCornerShape(20.dp), RoundedCornerShape(16.dp), progress)
     val colors = rememberConnectedButtonColorMotion(selected, pressed,
         inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         inactiveContentColor = MaterialTheme.colorScheme.onSurface,

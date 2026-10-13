@@ -13,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,11 +28,9 @@ import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
@@ -430,7 +427,10 @@ private fun HeatmapGridSection(
 ) {
     val scrollState = rememberScrollState()
 
-    val weekdayLabels = java.time.DayOfWeek.values().map { it.getDisplayName(java.time.format.TextStyle.NARROW, androidx.compose.ui.platform.LocalConfiguration.current.locales[0]) }
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val weekdayLabels = java.time.DayOfWeek.values().map {
+        com.example.vibefinance.ui.components.datepicker.prettyWeekDay(it, locale)
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -484,26 +484,13 @@ private fun HeatmapGridSection(
                 }
             }
 
-            // Horizontally Scrollable 16-Week Columns with edge-fade
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .drawWithContent {
-                        drawContent()
-                        if (scrollState.value > 0) {
-                            // Left edge fade hint only when scrolled past start
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    0.0f to Color.Transparent,
-                                    0.04f to Color.Black
-                                ),
-                                blendMode = BlendMode.DstIn
-                            )
-                        }
-                    }
-            ) {
+            com.example.vibefinance.ui.common.ScrollBlurContainer(
+                scrollState = scrollState,
+                modifier = Modifier.weight(1f).testTag("HabitHeatmapViewport"),
+                tagPrefix = "HabitHeatmap",
+            ) { sourceModifier ->
                 Row(
-                    modifier = Modifier
+                    modifier = sourceModifier.testTag("HabitHeatmapScroll")
                         .horizontalScroll(scrollState)
                         .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)

@@ -283,6 +283,10 @@ fun getWeek(locale: Locale): Array<DayOfWeek> {
 }
 
 fun prettyWeekDay(dayOfWeek: DayOfWeek, locale: Locale): String {
+    // Android's Chinese narrow names can collapse every weekday to the 星期 prefix.
+    if (locale.language == "zh") {
+        return dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, locale).takeLast(1)
+    }
     val dayOfWeekFormatter = if (locale.language == "ru") {
         DateTimeFormatter.ofPattern("ccc", locale)
     } else {

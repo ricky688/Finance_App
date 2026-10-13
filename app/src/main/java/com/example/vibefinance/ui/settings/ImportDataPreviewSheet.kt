@@ -303,12 +303,14 @@ fun ImportDataPreviewSheet(
                                 AccountType.BANK -> Icons.Default.AccountBalance
                                 AccountType.DEBIT -> Icons.Default.CreditCard
                                 AccountType.CC -> Icons.Default.CreditCard
+                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                             }
                             val typeColor = when (account.detectedType) {
                                 AccountType.CASH -> MaterialTheme.colorScheme.tertiary
                                 AccountType.BANK -> MaterialTheme.colorScheme.primary
                                 AccountType.DEBIT -> MaterialTheme.colorScheme.secondary
                                 AccountType.CC -> MaterialTheme.colorScheme.error
+                                AccountType.INVESTMENT -> MaterialTheme.colorScheme.tertiary
                             }
 
                             Surface(
@@ -338,7 +340,7 @@ fun ImportDataPreviewSheet(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = stringResource(R.string.loc_import_account_summary, stringResource(when (account.detectedType) { com.example.vibefinance.data.entity.AccountType.CASH -> R.string.loc_cash_wallet; com.example.vibefinance.data.entity.AccountType.BANK -> R.string.loc_bank_accounts; com.example.vibefinance.data.entity.AccountType.DEBIT -> R.string.loc_debit_cards; com.example.vibefinance.data.entity.AccountType.CC -> R.string.loc_credit_debt }), account.transactionCount),
+                                    text = stringResource(R.string.loc_import_account_summary, stringResource(when (account.detectedType) { com.example.vibefinance.data.entity.AccountType.CASH -> R.string.loc_cash_wallet; com.example.vibefinance.data.entity.AccountType.BANK -> R.string.loc_bank_accounts; com.example.vibefinance.data.entity.AccountType.DEBIT -> R.string.loc_debit_cards; com.example.vibefinance.data.entity.AccountType.CC -> R.string.loc_credit_debt; com.example.vibefinance.data.entity.AccountType.INVESTMENT -> R.string.assets_type_investment }), account.transactionCount),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

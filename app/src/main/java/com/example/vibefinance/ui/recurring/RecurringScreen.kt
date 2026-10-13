@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui.recurring
 
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import com.example.vibefinance.ui.common.ContentEntranceViewport
 import com.example.vibefinance.ui.common.PageContentEntrance
 
@@ -440,6 +441,13 @@ fun RecurringScreen(
                         }
                     }
 
+                    item(key = "income-estimate") {
+                        PageContentEntrance("income-estimate") {
+                            com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent,
+                                Modifier.padding(bottom = 14.dp))
+                        }
+                    }
+
                     // 1.5 Recurring Category Donut Chart
                     item {
                         PageContentEntrance("category-chart") {
@@ -545,6 +553,10 @@ fun RecurringScreen(
                                             showAddEditSheet = true
                                         }
                                     )
+                                }
+
+                                PageContentEntrance("income-estimate") {
+                                    com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent)
                                 }
 
                                 PageContentEntrance("category-chart") {
@@ -2913,6 +2925,7 @@ fun AddEditSubscriptionSheet(
                                                         ) {
                                                             val accIcon = when (acc.type) {
                                                                 AccountType.CC -> Icons.Default.CreditCard
+                                                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                                                 AccountType.DEBIT -> Icons.Default.CreditCard
                                                                 AccountType.BANK -> Icons.Default.AccountBalance
                                                                 else -> Icons.Default.Payments
@@ -3311,6 +3324,7 @@ fun AddEditSubscriptionSheet(
                                                         ) {
                                                             val accIcon = when (acc.type) {
                                                                 AccountType.CC -> Icons.Default.CreditCard
+                                                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                                                 AccountType.DEBIT -> Icons.Default.CreditCard
                                                                 AccountType.BANK -> Icons.Default.AccountBalance
                                                                 else -> Icons.Default.Payments

@@ -180,11 +180,7 @@ class HeatmapRefinementVerificationTest {
             content.contains("val scrollState = rememberScrollState()")
         )
 
-        // Verify left-edge gradient fade is conditional on scrollState.value > 0
-        assertTrue(
-            "drawWithContent must check scrollState.value > 0 before drawing left fade",
-            content.contains("if (scrollState.value > 0)")
-        )
+        // Scroll-limit and light/dark edge behavior are exercised on device in HeatmapEdgeThemeTest.
     }
 
     @Test

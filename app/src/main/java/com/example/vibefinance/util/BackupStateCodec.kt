@@ -146,6 +146,7 @@ internal object BackupStateCodec {
         val budgets = records("budgets")
         require(budgets.map { it.getString("id") }.distinct().size == budgets.size)
         budgets.forEach { b -> finite(b, "totalBudgetAmount"); require(b.getString("id").isNotBlank()); RolloverMode.valueOf(b.getString("rolloverMode"))
+            optional(b, "estimatedIncome") { finite(b, "estimatedIncome"); require(b.getDouble("estimatedIncome") >= 0.0) }
             require(b.get("startDate") is Number && b.get("endDate") is Number && b.getLong("endDate") >= b.getLong("startDate")) }
         val subscriptions = records("subscriptions"); unique(subscriptions)
         subscriptions.forEach { s ->

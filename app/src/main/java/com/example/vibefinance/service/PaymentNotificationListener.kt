@@ -276,7 +276,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             // Positive Payment Indicators:
             val positiveIndicators = listOf(
                 "已付款", "成功付款", "已扣款", "消費", "支出",
-                "支付成功", "扣款成功", "付款：", "已完成付款", "付款卡：", "支付"
+                "支付成功", "扣款成功", "付款：", "已完成付款", "付款卡：", "支付", "自動付款", "授權自動付款"
             )
             // Reject non-payment / promotional alerts from Octopus App where title is just "八達通", "八達通銀包", "Octopus", etc.
             val isIrrelevantOctopusTitle = (title.contains("八達通") || title.contains("octopus", ignoreCase = true)) &&
@@ -777,6 +777,7 @@ class PaymentNotificationListener : NotificationListenerService() {
                 combined.contains("sushiro") || combined.contains("壽司郎") ||
                 combined.contains("mcdonald") || combined.contains("麥當勞") ||
                 combined.contains("starbucks") || combined.contains("星巴克") ||
+                combined.contains("kangaroo") || combined.contains("deliveroo") || combined.contains("foodpanda") ||
                 combined.contains("cafe") || combined.contains("food") || combined.contains("restaurant") ||
                 combined.contains("eatery") || combined.contains("bbmsl") || combined.contains("coffee") ||
                 combined.contains("bakery") || combined.contains("tea") || combined.contains("drink") ||
@@ -811,6 +812,7 @@ class PaymentNotificationListener : NotificationListenerService() {
                 combined.contains("netflix") || combined.contains("spotify") || combined.contains("hulu") ||
                 combined.contains("disney") || combined.contains("cinema") || combined.contains("movie") ||
                 combined.contains("steam") || combined.contains("nintendo") || combined.contains("playstation") ||
+                combined.contains("google") || combined.contains("youtube") ||
                 combined.contains("戲院") || combined.contains("電影") || combined.contains("娛樂") -> "Entertainment"
 
                 combined.contains("apple") || combined.contains("sony") || combined.contains("best buy") ||

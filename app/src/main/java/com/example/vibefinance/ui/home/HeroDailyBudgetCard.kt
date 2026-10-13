@@ -128,17 +128,6 @@ fun HeroDailyBudgetCard(
 
     val ratio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
 
-    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0.005f)
-
-    // Ambient Financial Health Mood Glow Color (active in dark mode only)
-    val ambientGlowColor = when {
-        !isDark -> Color.Transparent
-        isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) // Emerald Flow
-        isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)                  // Sunset Amber
-        isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        else -> MaterialTheme.colorScheme.error.copy(alpha = 0.22f)                   // Crimson Alert
-    }
-
     // Spring Physics animation specs
     val colorSpringSpec = spring<Color>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)
     val ratioSpringSpec = spring<Float>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
@@ -150,6 +139,29 @@ fun HeroDailyBudgetCard(
         animationSpec = ratioSpringSpec,
         label = "heroFillRatio"
     )
+
+    // When remaining budget is 100% (full), amplitude is 0.dp to show a clean full style.
+    // Otherwise (< 100%), maintain the exact original wave effect (4.dp amplitude).
+    val isFullBudget = animatedRatio >= 1.0f
+    val animatedAmplitude by animateDpAsState(
+        targetValue = if (isFullBudget) 0.dp else 4.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "heroWaveAmplitude"
+    )
+
+    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0.005f && !isFullBudget)
+
+    // Ambient Financial Health Mood Glow Color (active in dark mode only)
+    val ambientGlowColor = when {
+        !isDark -> Color.Transparent
+        isNormal && ratio >= 0.5f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) // Emerald Flow
+        isNormal -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)                  // Sunset Amber
+        isNoBudget -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        else -> MaterialTheme.colorScheme.error.copy(alpha = 0.22f)                   // Crimson Alert
+    }
 
     // Target amount to display in giant rolling numbers
     val targetAmount = when {
@@ -246,8 +258,8 @@ fun HeroDailyBudgetCard(
                                 .graphicsLayer {
                                     shape = WavyShape(
                                         period = 36.dp,
-                                        amplitude = 4.dp,
-                                        shift = shiftState.value
+                                        amplitude = animatedAmplitude,
+                                        shift = if (animatedAmplitude > 0.01.dp) shiftState.value else 0f
                                     )
                                     clip = true
                                 }

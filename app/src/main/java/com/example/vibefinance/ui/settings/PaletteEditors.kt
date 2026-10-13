@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +34,7 @@ internal fun paletteStyleLabel(style: PaletteStyle): String = stringResource(whe
 
 @Composable
 internal fun PaletteStyleDialog(selected: PaletteStyle, onSelect: (PaletteStyle) -> Unit, onDismiss: () -> Unit) {
+    val view = LocalView.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.appearance_palette_style_title)) },
@@ -54,7 +57,7 @@ internal fun PaletteStyleDialog(selected: PaletteStyle, onSelect: (PaletteStyle)
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } }
+        confirmButton = { TextButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }) { Text(stringResource(android.R.string.cancel)) } }
     )
 }
 
@@ -67,6 +70,7 @@ internal fun PaletteVariantDialog(
     palette: AppearancePalette, initialSeed: Int, dark: Boolean, contrast: Int, style: PaletteStyle,
     onSave: (Int) -> Unit, onDismiss: () -> Unit
 ) {
+    val view = LocalView.current
     fun format(seed: Int) = String.format(Locale.ROOT, "%06X", seed and 0xFFFFFF)
     var hex by rememberSaveable(palette) { mutableStateOf(format(initialSeed)) }
     val seed = parsePaletteHex(hex)
@@ -101,21 +105,22 @@ internal fun PaletteVariantDialog(
                         onValueChange = { value ->
                             val mask = 255 shl shift
                             hex = format((previewSeed and mask.inv()) or (value.roundToInt() shl shift))
-                        }, modifier = Modifier.testTag("PaletteChannel_$shift")
+                        }, onValueChangeFinished = { VibeHaptics.selection(view) },
+                        modifier = Modifier.testTag("PaletteChannel_$shift")
                     )
                 }
                 if (palette != AppearancePalette.CUSTOM) {
-                    TextButton(onClick = { hex = format(palette.seedArgb) }) { Text(stringResource(R.string.palette_reset_variant)) }
+                    TextButton(onClick = { VibeHaptics.lightTick(view); hex = format(palette.seedArgb) }) { Text(stringResource(R.string.palette_reset_variant)) }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { seed?.let(onSave) }, enabled = seed != null, modifier = Modifier.testTag("PaletteVariantSave")) {
+            TextButton(onClick = { VibeHaptics.lightTick(view); seed?.let(onSave) }, enabled = seed != null, modifier = Modifier.testTag("PaletteVariantSave")) {
                 Text(stringResource(R.string.btn_save_changes))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("PaletteVariantCancel")) { Text(stringResource(android.R.string.cancel)) }
+            TextButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }, modifier = Modifier.testTag("PaletteVariantCancel")) { Text(stringResource(android.R.string.cancel)) }
         }
     )
 }

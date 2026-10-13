@@ -29,6 +29,31 @@ class TransactionGrammarEngineTest {
     }
 
     @Test
+    fun parseAlipayHkAuthorizedAutoPayments() {
+        val testCases = listOf(
+            Triple(
+                "AlipayHK",
+                "於9月19日 05:24成功通過Google授權自動付款支付HKD8.00。點擊查閱付款詳情>",
+                "Google" to 8.00
+            ),
+            Triple(
+                "AlipayHK",
+                "於9月28日 17:14成功通過Kangaroo Limited授權自動付款支付HKD141.60。點擊查閱付款詳情>",
+                "Kangaroo Limited" to 141.60
+            )
+        )
+
+        for ((title, text, expected) in testCases) {
+            val result = TransactionGrammarEngine.parse(title, text, "hk.alipay.payment")
+            assertNotNull("Expected parse result for: $text", result)
+            assertEquals("Merchant mismatch for: $text", expected.first, result!!.merchant)
+            assertEquals("Amount mismatch for: $text", expected.second, result.amount, 0.001)
+            assertEquals(ParsedTransactionType.EXPENSE, result.intent)
+            assertTrue(result.confidence >= 0.9f)
+        }
+    }
+
+    @Test
     fun parseEnglishPrepositionAnchors() {
         val testCases = listOf(
             Triple("Card Alert", "Transaction of HKD 128.50 at Starbucks on card ending in 5678", "Starbucks" to 128.50),

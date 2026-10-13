@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="assets_type_investment">投資</string>
+    <string name="assets_investment_notice">投資項目僅用於在本應用程式內整理資金，不代表現實世界的投資、擁有權或回報，亦不計入淨值。</string>
+</resources>

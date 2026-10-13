@@ -14,6 +14,7 @@ data class ConnectedButtonCorners(
 ) {
     companion object {
         val Standard = ConnectedButtonCorners(20.dp, 24.dp, 8.dp, 6.dp)
-        val Entry = ConnectedButtonCorners(28.dp, 28.dp, 16.dp, 12.dp)
+        // Keep the pressed radius below half a natural-height chip, so its outline still morphs.
+        val Entry = ConnectedButtonCorners(32.dp, 32.dp, 20.dp, 14.dp)
     }
 }

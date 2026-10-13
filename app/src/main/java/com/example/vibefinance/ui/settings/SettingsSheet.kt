@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.common.ScrollBlurContainer
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
@@ -26,8 +28,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.vibefinance.ui.components.completePressShape
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
@@ -104,6 +104,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material3.DrawerState
@@ -175,7 +176,7 @@ fun SettingsSheet(
     val appVersion = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
     }
-    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -229,6 +230,21 @@ fun SettingsSheet(
 
     // Intercepted apps flow
     val selectedApps by InMemoryDatabase.selectedInterceptApps.collectAsStateWithLifecycle()
+    val installedPackages by produceState<Set<String>>(emptySet(), context, selectedApps, budgetConfigurationOnly) {
+        value = if (budgetConfigurationOnly) emptySet() else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            LocalAppManager.getInstalledPackageNames(context)
+        }
+    }
+    val openNotificationAccess: () -> Unit = {
+        try {
+            context.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (_: Exception) {
+            android.widget.Toast.makeText(context, R.string.auto_logging_access_unavailable,
+                android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Notification Permission State Sync
     var autoLogEnabled by remember {
@@ -273,10 +289,9 @@ fun SettingsSheet(
             },
             confirmButton = {
                 val confirmInteraction = remember { MutableInteractionSource() }
-                val haptic = LocalHapticFeedback.current
                 CompletePressButton(
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        VibeHaptics.warningAlert(view)
                         viewModel.dispatch(FinanceIntent.SeedMockData)
                         showResetConfirmDialog = false
                         onDismiss()
@@ -291,10 +306,9 @@ fun SettingsSheet(
             },
             dismissButton = {
                 val dismissInteraction = remember { MutableInteractionSource() }
-                val haptic = LocalHapticFeedback.current
                 CompletePressTextButton(
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        VibeHaptics.lightTick(view)
                         showResetConfirmDialog = false
                     },
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
@@ -381,7 +395,7 @@ fun SettingsSheet(
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = closeSettings, modifier = Modifier.testTag("SettingsClose")) {
+                    IconButton(onClick = { VibeHaptics.lightTick(view); closeSettings() }, modifier = Modifier.testTag("SettingsClose")) {
                         Icon(Icons.Filled.Close, stringResource(R.string.btn_close),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -431,7 +445,7 @@ fun SettingsSheet(
                 }
 
                 IconButton(
-                    onClick = closeSettings,
+                    onClick = { VibeHaptics.lightTick(view); closeSettings() },
                     modifier = Modifier.testTag("SettingsClose")
                 ) {
                     Icon(
@@ -596,6 +610,7 @@ fun SettingsSheet(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(16.dp))
                                     .clickable {
+                                        VibeHaptics.toggle(view)
                                         viewModel.dispatch(FinanceIntent.SetDynamicColorEnabled(!state.dynamicColorEnabled))
                                     }
                             ) {
@@ -909,16 +924,11 @@ fun SettingsSheet(
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable {
+                                            VibeHaptics.toggle(view)
                                             val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
                                                 .contains(context.packageName)
                                             if (!isGranted) {
-                                                try {
-                                                    context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    })
-                                                } catch (e: Exception) {
-                                                    // Fallback
-                                                }
+                                                openNotificationAccess()
                                             } else {
                                                 val target = !autoLogEnabled
                                                 InMemoryDatabase.updateNotificationLoggingEnabled(target)
@@ -963,17 +973,14 @@ fun SettingsSheet(
                                     }
                                     AppSwitch(
                                         checked = autoLogEnabled,
+                                        modifier = Modifier.testTag("AutoLoggingSwitch").semantics {
+                                            contentDescription = context.getString(R.string.settings_auto_logging_title)
+                                        },
                                         onCheckedChange = { checked ->
                                             val isGranted = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(context)
                                                 .contains(context.packageName)
                                             if (!isGranted) {
-                                                try {
-                                                    context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").apply {
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                    })
-                                                } catch (e: Exception) {
-                                                    // Fallback
-                                                }
+                                                openNotificationAccess()
                                             } else {
                                                 InMemoryDatabase.updateNotificationLoggingEnabled(checked)
                                                 autoLogEnabled = checked
@@ -982,11 +989,7 @@ fun SettingsSheet(
                                     )
                                 }
 
-                                // App Selection Chips Preview
-                                if (autoLogEnabled) {
-                                    val installedPackages = remember(context, selectedApps) {
-                                        LocalAppManager.getInstalledPackageNames(context)
-                                    }
+                                AutoLoggingPanel(autoLogEnabled, openNotificationAccess) {
                                     val selectedInstalledPackages = remember(installedPackages, selectedApps) {
                                         selectedApps.filter { it in installedPackages }.sorted()
                                     }
@@ -1003,7 +1006,7 @@ fun SettingsSheet(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(10.dp))
-                                            .clickable { showAppSelectionDialog = true }
+                                            .clickable { VibeHaptics.lightTick(view); showAppSelectionDialog = true }
                                             .padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
@@ -1125,7 +1128,7 @@ fun SettingsSheet(
                                                         )
                                                     }
                                                     androidx.compose.material3.IconButton(
-                                                        onClick = { InMemoryDatabase.deleteNotificationTemplate(tmpl.id) },
+                                                        onClick = { VibeHaptics.warningAlert(view); InMemoryDatabase.deleteNotificationTemplate(tmpl.id) },
                                                         modifier = Modifier.size(32.dp)
                                                     ) {
                                                         Icon(
@@ -1156,7 +1159,7 @@ fun SettingsSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         CompletePressFilledTonalButton(
-                            onClick = { showCategoryManager = true },
+                            onClick = { VibeHaptics.lightTick(view); showCategoryManager = true },
                             shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                         ) {
@@ -1235,7 +1238,7 @@ fun SettingsSheet(
                         } else endTextFormatted
 
                         Button(
-                            onClick = onOpenDatePicker,
+                            onClick = { VibeHaptics.lightTick(view); onOpenDatePicker() },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 contentColor = MaterialTheme.colorScheme.onSurface
@@ -1301,6 +1304,7 @@ fun SettingsSheet(
                         // Start New Period Action Button
                         OutlinedButton(
                             onClick = {
+                                VibeHaptics.lightTick(view)
                                 onDismiss()
                                 onOpenNewPeriod()
                             },
@@ -1374,7 +1378,7 @@ fun SettingsSheet(
                         val importInteraction = remember { MutableInteractionSource() }
                         CompletePressFilledTonalButton(
                             onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                VibeHaptics.lightTick(view)
                                 filePickerLauncher.launch("*/*")
                             },
                             shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
@@ -1403,7 +1407,7 @@ fun SettingsSheet(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         OutlinedButton(
-                            onClick = { showResetConfirmDialog = true },
+                            onClick = { VibeHaptics.warningAlert(view); showResetConfirmDialog = true },
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error
                             ),
@@ -1507,6 +1511,7 @@ private fun SettingsSectionContainer(
     showHeader: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val view = LocalView.current
     val headerInteraction = remember { MutableInteractionSource() }
     val pressProgress by rememberCompletePressProgress(headerInteraction)
     val corner by animateDpAsState(
@@ -1549,7 +1554,7 @@ private fun SettingsSectionContainer(
                     .clickable(
                         interactionSource = headerInteraction,
                         indication = ripple(bounded = true),
-                        onClick = onToggle
+                        onClick = { VibeHaptics.toggle(view); onToggle() }
                     )
                     .heightIn(min = 72.dp)
                     .padding(horizontal = 18.dp, vertical = 16.dp),
@@ -1704,6 +1709,7 @@ private fun RolloverOptionCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     SettingsActionCard(
         onClick = onClick,
@@ -1723,7 +1729,7 @@ private fun RolloverOptionCard(
         ) {
             RadioButton(
                 selected = isSelected,
-                onClick = onClick,
+                onClick = { VibeHaptics.selection(view); onClick() },
                 interactionSource = interaction
             )
             Spacer(modifier = Modifier.width(8.dp))

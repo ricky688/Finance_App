@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +43,7 @@ fun CategoryMergeDialog(
     onMerge: (CategoryKind, Set<String>, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val view = LocalView.current
     var kind by rememberSaveable { mutableStateOf(CategoryKind.EXPENSE) }
     var selectedList by rememberSaveable { mutableStateOf(listOf<String>()) }
     val selected = selectedList.toSet()
@@ -80,7 +83,7 @@ fun CategoryMergeDialog(
                 topBar = {
                     TopAppBar(title = { Text(stringResource(R.string.category_merge_title)) },
                         navigationIcon = {
-                            IconButton(onClick = onDismiss, enabled = !state.isMergingCategories) {
+                            IconButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }, enabled = !state.isMergingCategories) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.nav_back))
                             }
                         })
@@ -90,7 +93,7 @@ fun CategoryMergeDialog(
                         Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                             Text(stringResource(R.string.category_merge_future_hint), style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.height(8.dp))
-                            CompletePressButton(shapes = ButtonDefaults.shapes(), onClick = { confirming = true }, enabled = canMerge && !state.isMergingCategories,
+                            CompletePressButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); confirming = true }, enabled = canMerge && !state.isMergingCategories,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ReviewCategoryMerge")) {
                                 Text(stringResource(if (state.isMergingCategories) R.string.category_merge_busy else R.string.category_merge_review))
                             }
@@ -111,7 +114,7 @@ fun CategoryMergeDialog(
                     }
                     item { Text(stringResource(R.string.category_merge_source_hint), style = MaterialTheme.typography.bodyMedium) }
                     item {
-                        OutlinedButton(onClick = { choosingTarget = true }, enabled = !state.isMergingCategories,
+                        OutlinedButton(onClick = { VibeHaptics.lightTick(view); choosingTarget = true }, enabled = !state.isMergingCategories,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ChooseMergeTarget")) {
                             Text(target?.let { displayLabel(it) } ?: stringResource(R.string.category_merge_choose_target),
                                 modifier = Modifier.weight(1f))
@@ -131,6 +134,7 @@ fun CategoryMergeDialog(
                                 MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier.fillMaxWidth()) {
                                 Row(Modifier.fillMaxWidth().testTag("MergeSource:$category").toggleable(value = category in selected, role = Role.Checkbox, enabled = category != target && !state.isMergingCategories) {
+                                    VibeHaptics.toggle(view)
                                     selectedList = if (category in selected) selectedList - category else selectedList + category
                                 }.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(category in selected, onCheckedChange = null, enabled = category != target && !state.isMergingCategories)
@@ -155,11 +159,11 @@ fun CategoryMergeDialog(
                             ListItem(headlineContent = { Text(displayLabel(category)) },
                                 supportingContent = null,
                                 leadingContent = { RadioButton(category == target, onClick = null) },
-                                modifier = Modifier.selectable(selected = category == target, role = Role.RadioButton) { target = category; choosingTarget = false }
+                                modifier = Modifier.selectable(selected = category == target, role = Role.RadioButton) { VibeHaptics.selection(view); target = category; choosingTarget = false }
                                     .testTag("MergeTarget:$category"))
                         }
                     }
-                }, confirmButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { choosingTarget = false }) { Text(stringResource(R.string.btn_cancel)) } })
+                }, confirmButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); choosingTarget = false }) { Text(stringResource(R.string.btn_cancel)) } })
         }
         if (confirming && canMerge && target != null) {
             val destination = target!!
@@ -178,11 +182,12 @@ fun CategoryMergeDialog(
                 },
                 confirmButton = {
                     CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = {
+                        VibeHaptics.warningAlert(view)
                         confirming = false
                         onMerge(kind, selected, destination)
                     }, modifier = Modifier.testTag("ConfirmCategoryMerge")) { Text(stringResource(R.string.category_merge_confirm)) }
                 },
-                dismissButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { confirming = false }) { Text(stringResource(R.string.btn_cancel)) } }
+                dismissButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); confirming = false }) { Text(stringResource(R.string.btn_cancel)) } }
             )
         }
     }

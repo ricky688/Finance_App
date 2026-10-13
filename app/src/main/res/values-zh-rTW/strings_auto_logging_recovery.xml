@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auto_logging_recovery_title">自動記帳疑難排解</string>
+    <string name="auto_logging_recovery_body">未能擷取付款通知？請先關閉並重新開啟 VibeFinance。若問題持續，開啟「通知存取權」，將 VibeFinance 的權限關閉後再開啟，然後返回本頁，確認已啟用自動記帳並選取付款應用程式。</string>
+    <string name="auto_logging_open_access">開啟通知存取權設定</string>
+    <string name="auto_logging_access_unavailable">此裝置無法開啟通知存取權設定。</string>
+</resources>

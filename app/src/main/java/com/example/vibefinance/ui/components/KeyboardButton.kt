@@ -6,8 +6,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -53,8 +51,8 @@ fun KeyboardButton(
     var minSize by remember { mutableStateOf(MAX_VALUE.dp) }
     var minSizeFloat by remember { mutableStateOf(MAX_VALUE.toFloat()) }
     val interactionSource = remember { MutableInteractionSource() }
-    val depthSpring = spring<Float>(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)
-    val shapeProgress = rememberCompletePressProgress(interactionSource, enabled, depthSpring, depthSpring)
+    // Match Assets' connected controls: 180ms inward morph, 220ms return, no spring tail.
+    val shapeProgress = rememberCompletePressProgress(interactionSource, enabled)
     val currentFeedback by rememberUpdatedState(feedback)
     LaunchedEffect(interactionSource, enabled) {
         interactionSource.interactions.collect { interaction ->
@@ -79,7 +77,7 @@ fun KeyboardButton(
         KeyboardButtonType.DELETE -> MaterialTheme.colorScheme.onErrorContainer
     }
 
-    // The outer hit box never transforms: fast typing keeps every key's center fixed.
+    // Shape feedback keeps the key, its label and its touch target at their full size.
     Box(
         modifier = modifier
             .semantics { if (!enabled) disabled() }
@@ -107,9 +105,7 @@ fun KeyboardButton(
                 modifier = Modifier.fillMaxSize()
                     .graphicsLayer {
                         val progress = shapeProgress.value.coerceIn(0f, 1f)
-                        scaleX = 1f - 0.08f * shapeProgress.value
-                        scaleY = scaleX
-                        shape = RoundedCornerShape(androidx.compose.ui.unit.lerp(initialRadius, 8.dp, progress))
+                        shape = RoundedCornerShape(androidx.compose.ui.unit.lerp(initialRadius, 16.dp, progress))
                         clip = true
                     }
                     .background(color)

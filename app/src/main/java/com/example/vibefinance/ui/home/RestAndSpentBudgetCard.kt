@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.home
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -40,6 +43,19 @@ fun RestAndSpentBudgetCard(
     var showSpentCard by remember { mutableStateOf(false) }
 
     val ratio = if (totalBudget > 0) (remainingBudget / totalBudget).coerceIn(0.0, 1.0).toFloat() else 0f
+    val isFullBudget = ratio >= 1.0f
+
+    // When remaining budget is 100% (full), amplitude is 0.dp to show a clean full style.
+    // Otherwise (< 100%), maintain the exact original wave effect (2.dp amplitude).
+    val animatedAmplitude by animateDpAsState(
+        targetValue = if (isFullBudget) 0.dp else 2.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "restWaveAmplitude"
+    )
+
     val displayAmount = if (showSpentCard) {
         (totalBudget - remainingBudget).coerceAtLeast(0.0)
     } else {
@@ -52,7 +68,7 @@ fun RestAndSpentBudgetCard(
     
     val percentFormatted = String.format(Locale.US, "%.2f%%", ratio * 100)
 
-    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0f)
+    val shiftState = rememberAmbientWavePhase(enabled = ratio > 0f && !isFullBudget)
 
     val colorScheme = MaterialTheme.colorScheme
 
@@ -109,20 +125,22 @@ fun RestAndSpentBudgetCard(
                 Modifier.fillMaxSize()
             ) {
                 // Wave background
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(ratio)
-                        .graphicsLayer {
-                            shape = WavyShape(
-                                period = 40.dp,
-                                amplitude = 2.dp,
-                                shift = shiftState.value,
-                            )
-                            clip = true
-                        }
-                        .background(colors.main),
-                )
+                if (ratio > 0.005f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(ratio)
+                            .graphicsLayer {
+                                shape = WavyShape(
+                                    period = 40.dp,
+                                    amplitude = animatedAmplitude,
+                                    shift = shiftState.value,
+                                )
+                                clip = true
+                            }
+                            .background(colors.main),
+                    )
+                }
 
                 val verticalPadding = if (heightDp > 0.dp) (heightDp * 0.1f).coerceIn(8.dp, 16.dp) else 14.dp
                 val horizontalPadding = if (widthDp > 0.dp) (widthDp * 0.12f).coerceIn(12.dp, 18.dp) else 14.dp

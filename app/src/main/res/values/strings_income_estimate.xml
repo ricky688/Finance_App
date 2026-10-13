@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="period_income_title">Estimated income for this period</string>
+    <string name="period_income_edit">Edit estimated income</string>
+    <string name="period_income_not_set">Not set</string>
+    <string name="period_income_requires_budget">Set a budget period on Daily to enter an estimate.</string>
+    <string name="period_income_reference">Your estimate for these dates. It does not change account balances or the budget.</string>
+    <string name="period_income_amount_label">Estimated income (HK$)</string>
+    <string name="period_income_invalid">Enter a nonnegative amount with up to two decimal places.</string>
+    <string name="period_income_save_error">Could not save the estimate. Check the budget period and try again.</string>
+    <string name="period_income_clear_hint">Leave blank to clear the estimate.</string>
+</resources>

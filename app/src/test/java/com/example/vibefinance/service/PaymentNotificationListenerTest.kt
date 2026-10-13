@@ -427,6 +427,31 @@ class PaymentNotificationListenerTest {
     }
 
     @Test
+    fun testParseAlipayHkAuthorizedAutoPayments() {
+        val n1 = PaymentNotificationListener.parseNotification(
+            "AlipayHK",
+            "於9月19日 05:24成功通過Google授權自動付款支付HKD8.00。點擊查閱付款詳情>",
+            "hk.alipay.payment"
+        )
+        assertNotNull(n1)
+        assertEquals(8.00, n1!!.amount, 0.001)
+        assertEquals("Google", n1.merchant)
+        assertEquals("Alipay", n1.assetName)
+        assertEquals("Entertainment", PaymentNotificationListener.determineCategory(n1.merchant, n1.rawText))
+
+        val n2 = PaymentNotificationListener.parseNotification(
+            "AlipayHK",
+            "於9月28日 17:14成功通過Kangaroo Limited授權自動付款支付HKD141.60。點擊查閱付款詳情>",
+            "hk.alipay.payment"
+        )
+        assertNotNull(n2)
+        assertEquals(141.60, n2!!.amount, 0.001)
+        assertEquals("Kangaroo Limited", n2.merchant)
+        assertEquals("Alipay", n2.assetName)
+        assertEquals("Food & Drink", PaymentNotificationListener.determineCategory(n2.merchant, n2.rawText))
+    }
+
+    @Test
     fun testParseWeChatPayNotification() {
         val title = "WeChat Pay HK"
         val text = "Paid HK$32.00 at Circle K"

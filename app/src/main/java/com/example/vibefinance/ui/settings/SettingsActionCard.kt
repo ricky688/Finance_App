@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,10 +26,11 @@ internal fun SettingsActionCard(
     interactionSource: MutableInteractionSource? = null,
     content: @Composable () -> Unit
 ) {
+    val view = LocalView.current
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val progress by rememberCompletePressProgress(source)
     Surface(
-        onClick = onClick,
+        onClick = { VibeHaptics.selection(view); onClick() },
         interactionSource = source,
         shape = completePressShape(shape, RoundedCornerShape(10.dp), progress),
         color = color,

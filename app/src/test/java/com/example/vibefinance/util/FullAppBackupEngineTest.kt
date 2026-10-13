@@ -47,7 +47,8 @@ class FullAppBackupEngineTest {
         val image = File(context.filesDir, "card.png").apply { writeBytes(java.util.Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=")) }
         InMemoryDatabase.updateAccount(first.copy(cardImageUri = image.absolutePath, cardPattern = "wave", cardTheme = "mint",
             linkedAppPackage = "com.example.uninstalled.bank", notificationAliases = "銀行,1234", cardBgOffsetX = 0.2f, cardBgScale = 1.4f))
-        InMemoryDatabase.insertBudget(BudgetEntity(id = "test-period", totalBudgetAmount = 4000.0, startDate = 1L, endDate = 2L))
+        InMemoryDatabase.insertBudget(BudgetEntity(totalBudgetAmount = 4000.0, startDate = 1L, endDate = 2L))
+        InMemoryDatabase.setPeriodIncomeEstimate(1L, 2L, 21000.25)
         InMemoryDatabase.insertSubscription(SubscriptionEntity(name = "雲端", amount = 10.0, category = "Other", frequency = "Monthly", nextPaymentDate = 1L, accountId = first.id))
         InMemoryDatabase.insertDiscountShop(DiscountShop(name = "Cafe", aspect = "Dining", latitude = 22.0, longitude = 114.0,
             offers = listOf(ShopDiscountOffer(first.id, 5.0)), isUserCreated = true))
@@ -88,6 +89,7 @@ class FullAppBackupEngineTest {
         assertEquals(868, prepared.preview.transactions); assertEquals(14, prepared.preview.accounts); assertEquals(1, prepared.preview.images)
         assertEquals(listOf("com.example.uninstalled.bank"), prepared.preview.unavailableApps)
         FullAppBackupEngine.restore(context, prepared)
+        assertEquals(21000.25, InMemoryDatabase.budgets.value.single { it.id == "ACTIVE_PERIOD" }.estimatedIncome!!, 0.0)
         assertFalse(context.getSharedPreferences("vibe_finance_prefs", 0).getBoolean("launch_animation_enabled", true))
         assertEquals(transactionsBefore, InMemoryDatabase.transactions.value)
         assertEquals(accountsBefore.map { it.copy(cardImageUri = null) }, InMemoryDatabase.accounts.value.map { it.copy(cardImageUri = null) })
@@ -116,6 +118,31 @@ class FullAppBackupEngineTest {
     }
 
 
+
+    @Test fun investmentTypeAndCustomizationSurviveReloadAndPlainAndEncryptedBackups() {
+        val bankId = InMemoryDatabase.insertAccount(AccountEntity(name = "Bank", type = AccountType.BANK,
+            balance = 500.0, icon = "bank"))
+        val id = InMemoryDatabase.insertAccount(AccountEntity(name = "投資分類 🌱", nickname = "App organizer",
+            type = AccountType.INVESTMENT, balance = 30000.25, icon = "investment", cardTheme = "mint",
+            cardPattern = "wave", cardBgOffsetX = 0.2f, cardBgOffsetY = -0.1f, cardBgScale = 1.4f,
+            linkedAppPackage = "none", notificationAliases = "自訂別名"))
+        val expected = InMemoryDatabase.accounts.value
+        InMemoryDatabase.reloadAfterFullRestore(context)
+        assertEquals(expected, InMemoryDatabase.accounts.value)
+        for (encrypted in listOf(false, true)) {
+            val file = backup("investment-$encrypted.vibebackup", if (encrypted) "投資 🔒 café".toCharArray() else null)
+            InMemoryDatabase.clearAllTables()
+            val prepared = FullAppBackupEngine.prepare(context, Uri.fromFile(file),
+                if (encrypted) "投資 🔒 café".toCharArray() else null)
+            FullAppBackupEngine.restore(context, prepared)
+            InMemoryDatabase.reloadAfterFullRestore(context)
+            assertEquals(expected, InMemoryDatabase.accounts.value)
+            assertEquals(AccountType.INVESTMENT, InMemoryDatabase.accounts.value.single { it.id == id }.type)
+            assertEquals(bankId, InMemoryDatabase.accounts.value.first().id)
+            assertEquals(500.0, com.example.vibefinance.ui.accounts.calculateNetWorth(InMemoryDatabase.accounts.value).netWorth, 0.0)
+        }
+        assertTrue(account() > id)
+    }
 
     @Test fun startupRemovesAbandonedStagingWithoutRemovingOtherCacheFiles() {
         val export = File(context.cacheDir, "full_backup_123abc").apply { mkdirs(); resolve("data.json").writeText("private") }

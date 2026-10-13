@@ -19,10 +19,20 @@ object TransactionGrammarEngine {
         val confidence: Float
     )
 
+    // Timestamp prefix stripper for notifications with leading dates/times (e.g. 於9月19日 05:24成功通過... / 於 14:30 在...)
+    private val zhTimestampPrefix = Regex(
+        "^(?:(?:在|於)\\s*)?(?:(?:[0-9]{1,4}[年/\\-])?[0-9]{1,2}[月/\\-][0-9]{1,2}[日號]?(?:\\s+[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)?|[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)\\s*",
+        RegexOption.IGNORE_CASE
+    )
+
     // Preposition regex anchors for merchant extraction
     private val zhAnchorPatterns = listOf(
+        // AlipayHK / Digital wallet authorization anchors (e.g. 成功通過Google授權自動付款支付 / 授權Kangaroo Limited自動付款)
+        Regex("(?:成功)?(?:通[過过]|透[過过]|經由|经由)\\s*([^，,。\\n]+?)\\s*授權(?:自動)?(?:付款|扣款|支付)", RegexOption.IGNORE_CASE),
+        Regex("授權\\s*([^，,。\\n]+?)\\s*(?:自動)?(?:付款|扣款|支付)", RegexOption.IGNORE_CASE),
         Regex("(?:在|於)\\s*([^，,。\\n]+?)\\s*(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡)", RegexOption.IGNORE_CASE),
         Regex("(?:向|付款予|付款給|支付予|支付給)\\s*([^，,。\\n]+?)\\s*(?:付款|支付|轉帳|轉賬|完成|$)", RegexOption.IGNORE_CASE),
+        Regex("(?:付款|支付|成功付款|成功支付)\\s*(?:予|給|到)\\s*([^，,。\\n]+?)(?:\\s+(?:完成|HKD|HK\\$|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?:商戶|特約商戶|交易商戶)[:：]\\s*([^，,。\\n]+?)(?:\\s+(?:消費金額|交易金額|金額|HK|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?:來自|由|轉帳自|轉賬自|收到來自)\\s*([^，,。\\n]+?)(?:\\s+(?:的轉入|的存入|的轉帳|的轉賬|的款項|轉入|存入|付款|轉帳|轉賬|完成)|的轉[帳賬]|[，,。\\n]|$)", RegexOption.IGNORE_CASE)
     )
@@ -114,7 +124,11 @@ object TransactionGrammarEngine {
             return oclMatch.value.trim()
         }
 
-        val candidates = listOf(text, title)
+        val rawCandidates = listOf(text, title)
+        val candidates = rawCandidates.flatMap { raw ->
+            val stripped = zhTimestampPrefix.replace(raw.trim(), "")
+            if (stripped != raw && stripped.isNotBlank()) listOf(stripped, raw) else listOf(raw)
+        }
 
         // Try Chinese anchors
         for (candidate in candidates) {
@@ -166,10 +180,10 @@ object TransactionGrammarEngine {
     }
 
     private fun cleanMerchantString(raw: String): String {
-        return raw.replace(Regex("(?:[0-9.,]+|[•*xX]{2,}|HKD|HK\\$|\\$|USD|TWD)"), "")
-            .replace(Regex("^(?:由|來自|向|於|在)\\s*"), "")
-            .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|付款|支付)$"), "")
-            .replace(Regex("^[，,。：:\\-\\s]+|[，,。：:\\-\\s]+$"), "")
+        return raw.replace(Regex("(?:[0-9.,]+|[•*xX]{2,}|HKD|HK\\$|HK|\\$|USD|TWD|元|圓)"), "")
+            .replace(Regex("^(?:由|來自|向|於|在|成功|已)?(?:通[過过]|透[過过]|經由|经由)?\\s*"), "")
+            .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|付款|支付|扣款)$"), "")
+            .replace(Regex("^[，,。：:\\-\\s>]+|[，,。：:\\-\\s>]+$"), "")
             .trim()
             .take(40)
     }

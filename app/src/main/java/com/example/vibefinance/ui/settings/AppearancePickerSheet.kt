@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.util.VibeHaptics
+import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.components.CompletePressButton
 
 import androidx.compose.animation.AnimatedVisibility
@@ -15,8 +17,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.vibefinance.ui.common.pressBounce
 import com.example.vibefinance.ui.components.AppSwitch
@@ -118,7 +118,7 @@ internal fun ScallopColorSwatchItem(
     style: PaletteStyle = PaletteStyle.TONAL_SPOT,
     seed: Int = palette.seedArgb
 ) {
-    val haptic = LocalHapticFeedback.current
+    val view = LocalView.current
     val preview = remember(palette, darkTheme, contrastLevel, style, seed) {
         paletteColorScheme(palette, darkTheme, contrastLevel, style, seed)
     }
@@ -166,7 +166,7 @@ internal fun ScallopColorSwatchItem(
             .border(width = borderWidth, color = borderColor, shape = ScallopBadgeShape)
             .clip(ScallopBadgeShape)
             .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                VibeHaptics.selection(view)
                 onClick()
             }
             .semantics {
@@ -252,6 +252,7 @@ internal fun AppearancePickerSheet(
     onIntent: (FinanceIntent) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val view = LocalView.current
     val dark = when (state.themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
@@ -345,7 +346,7 @@ internal fun AppearancePickerSheet(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(20.dp))
                             .testTag("PaletteStyleOpen")
-                            .clickable { showStyles = true }
+                            .clickable { VibeHaptics.lightTick(view); showStyles = true }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -540,6 +541,7 @@ internal fun AppearancePickerSheet(
                                     }
                                     onIntent(FinanceIntent.SetAppearanceContrast(it.roundToInt()))
                                 },
+                                onValueChangeFinished = { VibeHaptics.selection(view) },
                                 valueRange = -1f..1f,
                                 steps = 1,
                                 modifier = Modifier.fillMaxWidth(),
@@ -623,7 +625,7 @@ internal fun AppearancePickerSheet(
                                     ScallopBadgeShape
                                 )
                                 .testTag("PaletteAddCustom")
-                                .clickable { editingPalette = AppearancePalette.CUSTOM },
+                                .clickable { VibeHaptics.lightTick(view); editingPalette = AppearancePalette.CUSTOM },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -646,7 +648,7 @@ internal fun AppearancePickerSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    onClick = { editingPalette = state.appearancePalette },
+                    onClick = { VibeHaptics.lightTick(view); editingPalette = state.appearancePalette },
                     modifier = Modifier.testTag("PaletteEdit"),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -663,10 +665,9 @@ internal fun AppearancePickerSheet(
                 }
 
                 val closeInteraction = remember { MutableInteractionSource() }
-                val haptic = LocalHapticFeedback.current
                 CompletePressButton(
                     onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        VibeHaptics.lightTick(view)
                         onDismiss()
                     },
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),

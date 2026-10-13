@@ -2,6 +2,7 @@
 
 package com.example.vibefinance.ui.main
 
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import com.example.vibefinance.ui.accounts.AssetEditorHost
 import com.example.vibefinance.ui.accounts.assetEditorBackgroundMotion
 import com.example.vibefinance.ui.accounts.rememberAssetEditorState
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
 import com.example.vibefinance.data.currency.ExchangeRateLoader
@@ -39,6 +41,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -81,6 +84,7 @@ import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.AppSwitch
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.components.ConnectedButtonRipple
+import com.example.vibefinance.util.VibeHaptics
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.filled.List
@@ -260,6 +264,8 @@ import com.example.vibefinance.ui.FinanceUiEvent
 import com.example.vibefinance.ui.FinanceViewModel
 import com.example.vibefinance.ui.accounts.AccountsScreen
 import com.example.vibefinance.ui.components.ObsidianGradientBackground
+import com.example.vibefinance.ui.components.FlyingCashOverlay
+import com.example.vibefinance.ui.components.EasterEggTriggerDetector
 import com.example.vibefinance.ui.history.HistoryScreen
 import com.example.vibefinance.ui.home.HomeScreen
 import java.time.Instant
@@ -340,7 +346,8 @@ internal fun ExpressiveCollapsingTopBar(
     actions: @Composable RowScope.() -> Unit,
     modifier: Modifier = Modifier,
     canNavigateBack: Boolean = false,
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onAppIconEasterEggTrigger: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
     val topBlurIntensity = com.example.vibefinance.ui.preferences.LocalExperience.current.blur
@@ -357,6 +364,12 @@ internal fun ExpressiveCollapsingTopBar(
         0.78f to colors.outlineVariant.copy(alpha = 0.18f),
         1f to Color.Transparent
     )
+
+    val easterEggDetector = remember { EasterEggTriggerDetector(requiredTaps = 5, timeoutMillis = 1800L) }
+    val iconScale = remember { Animatable(1f) }
+    val iconRotation = remember { Animatable(0f) }
+    val iconScope = rememberCoroutineScope()
+    val iconFeedbackView = androidx.compose.ui.platform.LocalView.current
 
     Column(
         modifier = modifier
@@ -391,9 +404,53 @@ internal fun ExpressiveCollapsingTopBar(
                     Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.nav_back))
                 }
             } else {
-                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ripple(bounded = false, radius = 24.dp)
+                        ) {
+                            val now = android.os.SystemClock.uptimeMillis()
+                            val triggered = easterEggDetector.registerTap(now)
+                            iconScope.launch {
+                                iconScale.animateTo(0.85f, spring(stiffness = Spring.StiffnessHigh))
+                                iconScale.animateTo(
+                                    1f,
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
+                            if (triggered) {
+                                com.example.vibefinance.util.VibeHaptics.successConfirm(iconFeedbackView)
+                                iconScope.launch {
+                                    iconRotation.snapTo(0f)
+                                    iconRotation.animateTo(
+                                        360f,
+                                        spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    )
+                                }
+                                onAppIconEasterEggTrigger()
+                            } else {
+                                com.example.vibefinance.util.VibeHaptics.lightTick(iconFeedbackView)
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
                     Surface(
-                        modifier = Modifier.size(36.dp),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale.value
+                                scaleY = iconScale.value
+                                rotationZ = iconRotation.value
+                            },
                         shape = CircleShape,
                         color = colors.primaryContainer,
                         border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.3f))
@@ -919,6 +976,7 @@ fun MainScreen(
         // Import/restore and opening the focused budget form can leave Settings directly.
         if (!showBudgetDialog || budgetConfigurationOnly) settingsDrawerState.close()
     }
+    var flyingCashTriggerKey by remember { mutableLongStateOf(0L) }
     val assetEditorTransition = androidx.compose.animation.core.updateTransition(
         assetEditorState.isOpen, label = "Asset editor navigation"
     )
@@ -961,6 +1019,7 @@ fun MainScreen(
                     isExpanded = topBarState.expanded,
                     hazeState = hazeState,
                     backgroundObscured = isBackgroundObscured,
+                    onAppIconEasterEggTrigger = { flyingCashTriggerKey = System.currentTimeMillis() },
                     actions = {
                         IconButton(onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
                             modifier = Modifier.testTag("ToggleAmountPrivacy")) {
@@ -1021,6 +1080,7 @@ fun MainScreen(
                             }
                         }
                         IconButton(onClick = {
+                            VibeHaptics.lightTick(hapticView)
                             budgetSheetDestination = BudgetSheetDestination.SETTINGS
                         }) {
                             Icon(
@@ -1460,7 +1520,10 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.BottomCenter).offset(y = -visibleBottomBarHeight)
                 )
 
-
+                FlyingCashOverlay(
+                    triggerKey = flyingCashTriggerKey,
+                    onCompleted = { flyingCashTriggerKey = 0L }
+                )
             }
         }
     }
@@ -1806,6 +1869,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
     preserveContentColors: Boolean = false,
     hapticsEnabled: Boolean = true,
     corners: ConnectedButtonCorners = ConnectedButtonCorners.Standard,
+    spatialMotionEnabled: Boolean = true,
     labelProvider: @Composable (T) -> String
 ) {
     val groupScroll = rememberScrollState()
@@ -1839,7 +1903,9 @@ fun <T> ExpressiveSegmentedButtonGroup(
             DisposableEffect(interactionSource) {
                 onDispose { if (pressedIndex == index) pressedIndex = null }
             }
-            val spatialMotion = connectedSpatialMotion(index, pressedIndex, isPressed.value)
+            val spatialMotion = if (spatialMotionEnabled) {
+                connectedSpatialMotion(index, pressedIndex, isPressed.value)
+            } else Modifier
             val shapeProgress by rememberCompletePressProgress(interactionSource)
 
             val restingCorner = corners.selected
@@ -2214,6 +2280,7 @@ fun AddExpenseSheetContent(
                             },
                             hapticsEnabled = false,
                             corners = ConnectedButtonCorners.Entry,
+                            spatialMotionEnabled = false,
                             itemModifierProvider = { index -> Modifier.heightIn(min = 48.dp)
                                 .testTag("TransactionMode_${modeChoices[index].name}")
                                 .semantics { selected = transactionMode == modeChoices[index] } },
@@ -2625,9 +2692,10 @@ fun AddExpenseSheetContent(
                                         Text(stringResource(R.string.ui_main_account_type), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.2f))
                                         ExpressiveSegmentedButtonGroup(
                                             corners = ConnectedButtonCorners.Entry,
-                                            items = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC),
-                                            selectedIndex = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC).indexOf(selectedType),
-                                            onItemSelected = { selectedType = listOf(AccountType.CASH, AccountType.BANK, AccountType.DEBIT, AccountType.CC)[it] },
+                                            spatialMotionEnabled = false,
+                                            items = AccountType.entries,
+                                            selectedIndex = AccountType.entries.indexOf(selectedType),
+                                            onItemSelected = { selectedType = AccountType.entries[it] },
                                             modifier = Modifier.weight(1f),
                                             isScrollable = true,
                                             labelProvider = {
@@ -2636,9 +2704,16 @@ fun AddExpenseSheetContent(
                                                     AccountType.BANK -> stringResource(R.string.ui_main_bank_short)
                                                     AccountType.DEBIT -> stringResource(R.string.ui_main_debit_short)
                                                     AccountType.CC -> stringResource(R.string.ui_main_credit_short)
+                                                    AccountType.INVESTMENT -> stringResource(R.string.assets_type_investment)
                                                 }
                                             }
                                         )
+                                    }
+
+                                    if (selectedType == AccountType.INVESTMENT) {
+                                        Text(stringResource(R.string.assets_investment_notice),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
 
                                     Row(
@@ -2672,6 +2747,7 @@ fun AddExpenseSheetContent(
                                                             AccountType.BANK -> "bank"
                                                             AccountType.DEBIT -> "debit_card"
                                                             AccountType.CC -> "credit_card"
+                                                            AccountType.INVESTMENT -> "investment"
                                                         },
                                                         creditLimit = if (selectedType == AccountType.CC) bal else null
                                                     )
@@ -2710,6 +2786,7 @@ fun AddExpenseSheetContent(
                                         AccountType.BANK -> Icons.Default.AccountBalance
                                         AccountType.DEBIT -> Icons.Default.CreditCard
                                         AccountType.CC -> Icons.Default.ShoppingCart
+                                        AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                     }
                                     Icon(
                                         imageVector = accIcon,
@@ -2761,6 +2838,7 @@ fun AddExpenseSheetContent(
                                             AccountType.BANK -> Icons.Default.AccountBalance
                                             AccountType.DEBIT -> Icons.Default.CreditCard
                                             AccountType.CC -> Icons.Default.ShoppingCart
+                                            AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                         }
                                         Icon(
                                             imageVector = accIcon,
@@ -2794,7 +2872,7 @@ fun AddExpenseSheetContent(
                             keys.forEach { key ->
                                 if (key == "apply") KeyboardButton(
                                     modifier = Modifier.weight(1f).alpha(if (isApplyEnabled) 1f else 0.5f).testTag("EntrySubmit"),
-                                    cornerRadius = 16.dp, type = KeyboardButtonType.PRIMARY, icon = rememberVectorPainter(Icons.Default.Check), enabled = isApplyEnabled,
+                                    cornerRadius = 24.dp, type = KeyboardButtonType.PRIMARY, icon = rememberVectorPainter(Icons.Default.Check), enabled = isApplyEnabled,
                                     contentDescription = stringResource(R.string.calculator_apply),
                                     onClick = {
                                         val accId = selectedAccount?.id
@@ -2848,7 +2926,7 @@ fun AddExpenseSheetContent(
                                     }
                                 ) else KeyboardButton(
                                     modifier = Modifier.weight(1f).testTag("EntryKey_$key"),
-                                    cornerRadius = 16.dp, type = if (key in listOf("back", "+", "-", "=")) KeyboardButtonType.SECONDARY else KeyboardButtonType.DEFAULT,
+                                    cornerRadius = 24.dp, type = if (key in listOf("back", "+", "-", "=")) KeyboardButtonType.SECONDARY else KeyboardButtonType.DEFAULT,
                                     text = if (key == "back") null else if (key == "-") "−" else key,
                                     icon = if (key == "back") rememberVectorPainter(Icons.Default.Backspace) else null,
                                     contentDescription = if (key == "back") stringResource(R.string.calculator_backspace) else key,

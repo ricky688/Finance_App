@@ -48,6 +48,8 @@ enum class AppLanguage {
 }
 
 // MVI State
+data class IncomeEstimateResult(val requestId: String, val saved: Boolean)
+
 data class FinanceUiState(
     val isLoading: Boolean = true,
     val accounts: List<AccountEntity> = emptyList(),
@@ -75,11 +77,15 @@ data class FinanceUiState(
     val discountShops: List<DiscountShop> = emptyList(),
     val importPreview: FinancialDataImportEngine.ImportDataPreview? = null,
     val isImporting: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isSavingIncomeEstimate: Boolean = false,
+    val incomeEstimateResult: IncomeEstimateResult? = null
 )
 
 // MVI Intents
 sealed interface FinanceIntent {
+    data class SetPeriodIncomeEstimate(val startDate: Long, val endDate: Long, val amount: Double?,
+        val requestId: String) : FinanceIntent
     data object SeedMockData : FinanceIntent
     data class SetCustomPeriodBudget(
         val amount: Double,
@@ -332,6 +338,21 @@ class FinanceViewModel @Inject constructor(
     fun dispatch(intent: FinanceIntent) {
         viewModelScope.launch {
             when (intent) {
+                is FinanceIntent.SetPeriodIncomeEstimate -> {
+                    if (_uiState.value.isSavingIncomeEstimate) return@launch
+                    _uiState.update { it.copy(isSavingIncomeEstimate = true, incomeEstimateResult = null) }
+                    val saved = try {
+                        withContext(Dispatchers.IO) {
+                            budgetRepository.setPeriodIncomeEstimate(intent.startDate, intent.endDate, intent.amount)
+                        }
+                        true
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        false
+                    }
+                    _uiState.update { it.copy(isSavingIncomeEstimate = false,
+                        incomeEstimateResult = IncomeEstimateResult(intent.requestId, saved)) }
+                }
                 FinanceIntent.SeedMockData -> {
                     _uiState.update { it.copy(isLoading = true) }
                     try {

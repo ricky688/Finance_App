@@ -83,6 +83,7 @@ internal fun PendingPaymentChoiceDialog(
             if (isTopUp && PendingPaymentStore.isOctopusAccount(it)) 99
             else when (it.type) {
                 AccountType.CC -> 0
+                AccountType.INVESTMENT -> 4
                 AccountType.BANK -> 1
                 AccountType.DEBIT -> 2
                 AccountType.CASH -> 3
@@ -371,6 +372,7 @@ internal fun PendingPaymentChoiceDialog(
                                             AccountType.BANK -> stringResource(R.string.pending_payment_account_bank)
                                             AccountType.DEBIT -> stringResource(R.string.pending_payment_account_debit)
                                             AccountType.CC -> stringResource(R.string.pending_payment_account_card)
+                                            AccountType.INVESTMENT -> stringResource(R.string.assets_type_investment)
                                         }
                                         val cardSuffix = account.cardLast4?.let { " •••• $it" } ?: ""
                                         val isMatchedCard = !payment.cardLast4.isNullOrBlank() && account.cardLast4 == payment.cardLast4

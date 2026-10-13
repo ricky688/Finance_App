@@ -18,7 +18,6 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.luminance
 import com.example.vibefinance.theme.ChartColors
 import androidx.compose.foundation.clickable
@@ -54,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -86,16 +86,20 @@ data class MoneySegment(
     val color: Color
 )
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MoneySeparationChart(
     accounts: List<AccountEntity>,
     modifier: Modifier = Modifier
 ) {
-    val totalAssets = accounts.filter { it.type != AccountType.CC }.sumOf { it.balance }
+    val totalAssets = accounts.filter { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }.sumOf { it.balance }
     val cashTotal = accounts.filter { it.type == AccountType.CASH }.sumOf { it.balance }
     val bankTotal = accounts.filter { it.type == AccountType.BANK }.sumOf { it.balance }
     val debitTotal = accounts.filter { it.type == AccountType.DEBIT }.sumOf { it.balance }
     val debtTotal = accounts.filter { it.type == AccountType.CC }.sumOf { it.balance }
+    val hasInvestments = accounts.any { it.type == AccountType.INVESTMENT }
+    val investmentTotal = accounts.filter { it.type == AccountType.INVESTMENT }.sumOf { it.balance }
+    val investmentLabel = stringResource(R.string.assets_type_investment)
     val debitLabel = stringResource(com.example.vibefinance.R.string.assets_type_debit)
 
     val cashLabel = stringResource(R.string.loc_cash_wallet)
@@ -104,10 +108,10 @@ fun MoneySeparationChart(
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel, cashLabel, bankLabel, debtLabel) {
+    val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel, cashLabel, bankLabel, debtLabel, investmentLabel) {
         val list = mutableListOf<MoneySegment>()
         if (cashTotal > 0) {
             list.add(
@@ -152,6 +156,10 @@ fun MoneySeparationChart(
                     color = ChartColors.getAssetSegmentColor("debt", isDark, primaryColor)
                 )
             )
+        }
+        if (hasInvestments) {
+            list.add(MoneySegment("investment", investmentLabel, investmentTotal, 0f,
+                ChartColors.getAssetSegmentColor("investment", isDark, primaryColor)))
         }
         list
     }
@@ -438,6 +446,43 @@ fun MoneySeparationChart(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            if (hasInvestments) {
+                val investmentColor = ChartColors.getAssetSegmentColor("investment", isDark, primaryColor)
+                Column(
+                    modifier = Modifier.fillMaxWidth().testTag("InvestmentDistribution"),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(investmentLabel, style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(String.format(Locale.US, "$%,.2f", investmentTotal),
+                            style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.testTag("InvestmentDistributionAmount"))
+                    }
+                    val fraction by animateFloatAsState(
+                        targetValue = (investmentTotal.coerceAtLeast(0.0) /
+                            maxOf(totalAssets, investmentTotal, 1.0)).toFloat().coerceIn(0f, 1f),
+                        animationSpec = MaterialTheme.motionScheme.defaultEffectsSpec(),
+                        label = "investmentBarFraction",
+                    )
+                    Box(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                        .clickable { selectedSegmentId = if (selectedSegmentId == "investment") null else "investment" }
+                        .testTag("InvestmentDistributionBar")) {
+                        if (fraction > 0f) {
+                            Box(Modifier.fillMaxWidth(fraction).height(10.dp).align(Alignment.CenterStart)
+                                .clip(CircleShape).background(investmentColor))
+                        }
+                    }
+                    Text(stringResource(R.string.assets_investment_notice),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
             // Detailed Interactive Legend Grid with Spring Highlight Physics (EXACT History Page Style)
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 segments.forEach { seg ->
@@ -538,7 +583,7 @@ fun InteractiveDonutChart(
     modifier: Modifier = Modifier,
     size: Float = 110f
 ) {
-    val totalAssets = accounts.filter { it.type != AccountType.CC }.sumOf { it.balance }
+    val totalAssets = accounts.filter { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }.sumOf { it.balance }
     val cashTotal = accounts.filter { it.type == AccountType.CASH }.sumOf { it.balance }
     val bankTotal = accounts.filter { it.type == AccountType.BANK }.sumOf { it.balance }
     val debitTotal = accounts.filter { it.type == AccountType.DEBIT }.sumOf { it.balance }
@@ -550,7 +595,7 @@ fun InteractiveDonutChart(
 
     val validTotal = if (totalAssets > 0) totalAssets else 1.0
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryColor = MaterialTheme.colorScheme.primary
 
     val segments = remember(accounts, totalAssets, isDark, primaryColor, debitLabel, cashLabel, bankLabel, debtLabel) {

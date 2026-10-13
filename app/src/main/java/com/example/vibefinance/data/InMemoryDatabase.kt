@@ -885,13 +885,25 @@ object InMemoryDatabase {
     fun insertBudget(budget: BudgetEntity) = synchronized(diskIoLock) {
         budgets.update { list ->
             val existing = list.find { it.id == budget.id }
+            val replacement = if (budget.estimatedIncome == null && existing != null && existing.startDate == budget.startDate && existing.endDate == budget.endDate) {
+                budget.copy(estimatedIncome = existing.estimatedIncome)
+            } else budget
             if (existing != null) {
-                list.map { if (it.id == budget.id) budget else it }
+                list.map { if (it.id == budget.id) replacement else it }
             } else {
                 list + budget
             }
         }
         persistToDisk()
+    }
+
+    fun setPeriodIncomeEstimate(startDate: Long, endDate: Long, amount: Double?) = synchronized(diskIoLock) {
+        require(amount == null || (amount.isFinite() && amount >= 0.0))
+        val current = budgets.value.single { it.id == "ACTIVE_PERIOD" }
+        require(current.startDate == startDate && current.endDate == endDate) { "Budget period has changed" }
+        val replacement = budgets.value.map { if (it.id == current.id) it.copy(estimatedIncome = amount) else it }
+        persistToDisk(budgetsSnapshot = replacement, throwOnFailure = true)
+        budgets.value = replacement
     }
 
     val categoryLimits = MutableStateFlow<Map<String, Double>>(emptyMap())
@@ -923,6 +935,7 @@ object InMemoryDatabase {
 
     private fun persistToDisk(
         accountsSnapshot: List<AccountEntity>? = null,
+        budgetsSnapshot: List<BudgetEntity>? = null,
         transactionsSnapshot: List<TransactionEntity>? = null,
         subscriptionsSnapshot: List<SubscriptionEntity>? = null,
         categoryLimitsSnapshot: Map<String, Double>? = null,
@@ -1000,13 +1013,14 @@ object InMemoryDatabase {
 
             // budgets
             val budgetsArr = JSONArray()
-            for (b in budgets.value) {
+            for (b in budgetsSnapshot ?: budgets.value) {
                 val obj = JSONObject()
                 obj.put("id", b.id)
                 obj.put("totalBudgetAmount", b.totalBudgetAmount)
                 obj.put("startDate", b.startDate)
                 obj.put("endDate", b.endDate)
                 obj.put("rolloverMode", b.rolloverMode.name)
+                b.estimatedIncome?.let { obj.put("estimatedIncome", it) }
                 budgetsArr.put(obj)
             }
             root.put("budgets", budgetsArr)
@@ -1225,7 +1239,8 @@ object InMemoryDatabase {
                             totalBudgetAmount = obj.getDouble("totalBudgetAmount"),
                             startDate = obj.getLong("startDate"),
                             endDate = obj.getLong("endDate"),
-                            rolloverMode = rollover
+                            rolloverMode = rollover,
+                            estimatedIncome = obj.optDouble("estimatedIncome", Double.NaN).takeIf { it.isFinite() && it >= 0.0 }
                         )
                     )
                 }

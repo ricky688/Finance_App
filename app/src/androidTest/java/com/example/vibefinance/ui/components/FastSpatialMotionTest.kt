@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
+import com.example.vibefinance.ui.main.ConnectedButtonCorners
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -72,6 +73,42 @@ class FastSpatialMotionTest {
     @Test fun neighborsMoveOutwardAndCancellationRestoresThem() = neighborCheck(LayoutDirection.Ltr)
     @Test fun neighborsMoveOutwardInRtlReadingOrder() = neighborCheck(LayoutDirection.Rtl)
 
+    @Test fun entryModeButtonsKeepLabelsAndNeighborsAtFullSize() = entryShapeOnlyCheck(false)
+    @Test fun entrySelectorButtonsKeepLabelsAndNeighborsAtFullSize() = entryShapeOnlyCheck(true)
+
+    private fun entryShapeOnlyCheck(scrollable: Boolean) {
+        rule.mainClock.autoAdvance = false
+        var clicks = 0
+        val labels = listOf("Expense", "Income", "Transfer")
+        rule.setContent {
+            MaterialTheme {
+                ExpressiveSegmentedButtonGroup(labels, 0, { clicks++ },
+                    Modifier.width(360.dp).testTag("EntryGroup"), isScrollable = scrollable,
+                    corners = ConnectedButtonCorners.Entry, spatialMotionEnabled = false,
+                    itemModifierProvider = { Modifier.heightIn(min = 48.dp).testTag("Entry_$it") },
+                    labelProvider = { it })
+            }
+        }
+        advance(1_000)
+        val before = labels.map(::label)
+        val slots = labels.indices.map { rule.onNodeWithTag("Entry_$it").fetchSemanticsNode().boundsInRoot }
+        val group = rule.onNodeWithTag("EntryGroup").fetchSemanticsNode().boundsInRoot
+        rule.onNodeWithTag("Entry_1").performTouchInput { down(center) }
+        advance(1_500)
+        labels.forEachIndexed { index, text ->
+            assertEquals("Press must not shrink or move $text", before[index], label(text))
+            assertEquals(slots[index], rule.onNodeWithTag("Entry_$index").fetchSemanticsNode().boundsInRoot)
+        }
+        assertEquals(group, rule.onNodeWithTag("EntryGroup").fetchSemanticsNode().boundsInRoot)
+        rule.onNodeWithTag("Entry_1").performTouchInput { cancel() }
+        advance(700)
+        labels.forEachIndexed { index, text -> assertEquals(before[index], label(text)) }
+        assertEquals(0, clicks)
+        rule.onNodeWithTag("Entry_1").performTouchInput { click() }
+        advance(700)
+        assertEquals(1, clicks)
+    }
+
     @Test fun keypadCentersStayFixedAndFeedbackOccursOnlyOnTouchDown() {
         rule.mainClock.autoAdvance = false
         var ticks = 0
@@ -82,7 +119,7 @@ class FastSpatialMotionTest {
                 Row(Modifier.width(360.dp).height(54.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     (7..9).forEach { key ->
                         KeyboardButton(Modifier.weight(1f).testTag("Key_$key"), KeyboardButtonType.DEFAULT,
-                            text = key.toString(), enabled = enabled, cornerRadius = 16.dp,
+                            text = key.toString(), enabled = enabled, cornerRadius = 24.dp,
                             feedback = { ticks++ }, onClick = { clicks++ })
                     }
                 }
@@ -100,7 +137,7 @@ class FastSpatialMotionTest {
             assertEquals(before[index].center.y, label(key.toString()).center.y, 0.15f)
             assertEquals(hitBounds[index], rule.onNodeWithTag("Key_$key").fetchSemanticsNode().boundsInRoot)
         }
-        assertEquals(before[1].width * 0.92f, label("8").width, 0.15f)
+        assertEquals("Held keys must not shrink their labels", before[1], label("8"))
         assertEquals(before[0], label("7"))
         assertEquals(before[2], label("9"))
         rule.onNodeWithTag("Key_8").performTouchInput { up() }

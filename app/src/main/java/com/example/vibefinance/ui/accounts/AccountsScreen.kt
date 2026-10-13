@@ -2,6 +2,7 @@
 
 package com.example.vibefinance.ui.accounts
 
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import com.example.vibefinance.ui.common.ContentEntranceViewport
 import com.example.vibefinance.ui.common.PageContentEntrance
 
@@ -232,6 +233,7 @@ fun AccountEntity.watermarkText(): String {
     } else {
         when (type) {
             AccountType.CC -> "CREDIT"
+            AccountType.INVESTMENT -> "INVESTMENT"
             AccountType.CASH -> "CASH"
             AccountType.BANK -> "BANK"
             AccountType.DEBIT -> "DEBIT"
@@ -247,6 +249,7 @@ internal fun accountTypeDisplayLabel(type: AccountType): String = stringResource
         AccountType.BANK -> R.string.acc_type_bank
         AccountType.DEBIT -> R.string.ah_type_debit
         AccountType.CC -> R.string.acc_type_credit
+        AccountType.INVESTMENT -> R.string.assets_type_investment
     }
 )
 
@@ -366,6 +369,7 @@ internal fun accountAccent(type: AccountType, key: String?): AccountAccent {
             AccountType.BANK -> AccountAccent(colors.primaryContainer, colors.onPrimaryContainer)
             AccountType.DEBIT -> AccountAccent(colors.tertiaryContainer, colors.onTertiaryContainer)
             AccountType.CC -> AccountAccent(colors.inverseSurface, colors.inverseOnSurface)
+            AccountType.INVESTMENT -> AccountAccent(colors.tertiaryContainer, colors.onTertiaryContainer)
         }
     }
 }
@@ -402,6 +406,7 @@ fun AssetCardItem(
 
     val cardTypeName = when (account.type) {
         AccountType.CC -> stringResource(com.example.vibefinance.R.string.assets_type_credit)
+        AccountType.INVESTMENT -> stringResource(com.example.vibefinance.R.string.assets_type_investment)
         AccountType.CASH -> stringResource(com.example.vibefinance.R.string.assets_type_cash)
         AccountType.BANK -> stringResource(com.example.vibefinance.R.string.assets_type_bank)
         AccountType.DEBIT -> stringResource(com.example.vibefinance.R.string.assets_type_debit)
@@ -490,6 +495,7 @@ fun AssetCardItem(
                         Icon(
                             imageVector = when (account.type) {
                                 AccountType.CC -> Icons.Default.CreditCard
+                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                                 AccountType.CASH -> Icons.Default.Savings
                                 AccountType.BANK -> Icons.Default.AccountBalance
                                 AccountType.DEBIT -> Icons.Default.CreditCard
@@ -589,7 +595,7 @@ data class NetWorthBreakdown(
 )
 
 fun calculateNetWorth(accounts: List<AccountEntity>): NetWorthBreakdown {
-    val totalAssets = accounts.filter { it.type != AccountType.CC }.sumOf { it.balance }
+    val totalAssets = accounts.filter { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }.sumOf { it.balance }
     val totalDebt = accounts.filter { it.type == AccountType.CC }.sumOf { it.balance }
     return NetWorthBreakdown(
         totalAssets = totalAssets,
@@ -601,7 +607,7 @@ fun calculateNetWorth(accounts: List<AccountEntity>): NetWorthBreakdown {
 fun filterAccounts(accounts: List<AccountEntity>, filter: AssetFilter): List<AccountEntity> {
     return when (filter) {
         AssetFilter.ALL -> accounts
-        AssetFilter.CASH_BANK -> accounts.filter { it.type != AccountType.CC }
+        AssetFilter.CASH_BANK -> accounts.filter { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }
         AssetFilter.DEBIT_CARDS -> accounts.filter { it.type == AccountType.DEBIT }
         AssetFilter.CREDIT_CARDS -> accounts.filter { it.type == AccountType.CC }
     }
@@ -653,7 +659,7 @@ private fun AssetGroupSelector(
                     }
                     val count = when (filter) {
                         AssetFilter.ALL -> accounts.size
-                        AssetFilter.CASH_BANK -> accounts.count { it.type != AccountType.CC }
+                        AssetFilter.CASH_BANK -> accounts.count { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }
                         AssetFilter.DEBIT_CARDS -> accounts.count { it.type == AccountType.DEBIT }
                         AssetFilter.CREDIT_CARDS -> accounts.count { it.type == AccountType.CC }
                     }
@@ -916,6 +922,9 @@ fun AccountsScreen(
                                     }
                                 }
 
+                                Spacer(Modifier.height(16.dp))
+                                com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent)
+
                                 HorizontalDivider(
                                     modifier = Modifier.padding(vertical = 16.dp),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
@@ -1138,6 +1147,7 @@ fun AccountsScreen(
                                 AccountType.BANK -> Icons.Default.AccountBalance
                                 AccountType.DEBIT -> Icons.Default.CreditCard
                                 AccountType.CC -> Icons.Default.CreditCard
+                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
                             }
                             PageContentEntrance("group:${type.name}") {
                                 Surface(
@@ -1165,6 +1175,7 @@ fun AccountsScreen(
                                                     AccountType.BANK -> com.example.vibefinance.R.string.assets_type_bank
                                                     AccountType.DEBIT -> com.example.vibefinance.R.string.assets_type_debit
                                                     AccountType.CC -> com.example.vibefinance.R.string.assets_type_credit
+                                                    AccountType.INVESTMENT -> com.example.vibefinance.R.string.assets_type_investment
                                                 }
                                             ),
                                             style = MaterialTheme.typography.titleSmall,
@@ -2654,6 +2665,7 @@ fun ExpressiveAccountListItem(
     } else null
     val cardTypeName = when (account.type) {
         AccountType.CC -> stringResource(com.example.vibefinance.R.string.assets_type_credit)
+        AccountType.INVESTMENT -> stringResource(com.example.vibefinance.R.string.assets_type_investment)
         AccountType.CASH -> stringResource(com.example.vibefinance.R.string.assets_type_cash)
         AccountType.BANK -> stringResource(com.example.vibefinance.R.string.assets_type_bank)
         AccountType.DEBIT -> stringResource(com.example.vibefinance.R.string.assets_type_debit)

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.connectedSpatialMotion
@@ -9,6 +11,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -69,6 +72,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -137,10 +144,38 @@ fun DailySpendingLineChart(
         if (maxVal < 10.0) 50.0 else maxVal
     }
 
+    val motion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion
+    val chartMotionSpec = when (motion) {
+        com.example.vibefinance.ui.preferences.MotionLevel.FULL -> MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+        com.example.vibefinance.ui.preferences.MotionLevel.REDUCED -> MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+        com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL -> snap<Float>()
+    }
+    val detailMotionSpec = if (motion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL)
+        snap<Float>() else MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    // Read the point states in Canvas so curve morphing invalidates drawing rather than the whole card.
+    val pointRatios = activeDataset.mapIndexed { index, (_, spending) ->
+        animateFloatAsState(
+            targetValue = (spending / maxSpending).toFloat().coerceIn(0f, 1f),
+            animationSpec = chartMotionSpec,
+            label = "spendingTrendPoint_$index",
+        )
+    }
+    val dailyDetailAlpha = animateFloatAsState(
+        targetValue = if (chartMode == DailyChartMode.DAILY) 1f else 0f,
+        animationSpec = detailMotionSpec,
+        label = "spendingTrendDailyDetails",
+    )
+
     val avgDailySpending = remember(dailySpending) {
         val sum = dailySpending.sumOf { it.second }
         if (dailySpending.isNotEmpty()) sum / dailySpending.size else 0.0
     }
+
+    val averageRatio = animateFloatAsState(
+        targetValue = (avgDailySpending / maxSpending).toFloat().coerceIn(0f, 1f),
+        animationSpec = chartMotionSpec,
+        label = "spendingTrendAverage",
+    )
 
     // 2. Interactive Touch/Scrub state
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
@@ -230,7 +265,12 @@ fun DailySpendingLineChart(
                         var measuredButtonHeight by remember { mutableStateOf(28.dp) }
                         val shapeProgress by rememberCompletePressProgress(interactionSource)
                         val cornerRadius = androidx.compose.ui.unit.lerp(measuredButtonHeight / 2, 6.dp, shapeProgress)
-                        val buttonShape = RoundedCornerShape(cornerRadius)
+                        val buttonShape = RoundedCornerShape(
+                            topStart = if (index == 0) measuredButtonHeight / 2 else cornerRadius,
+                            bottomStart = if (index == 0) measuredButtonHeight / 2 else cornerRadius,
+                            topEnd = if (index == DailyChartMode.entries.lastIndex) measuredButtonHeight / 2 else cornerRadius,
+                            bottomEnd = if (index == DailyChartMode.entries.lastIndex) measuredButtonHeight / 2 else cornerRadius
+                        )
                         val colorMotion = rememberConnectedButtonColorMotion(
                             isSelected = isSel,
                             isPressed = isPressed,
@@ -240,6 +280,8 @@ fun DailySpendingLineChart(
                         )
                         Box(
                             modifier = Modifier
+                                .testTag("SpendingTrendMode_${mode.name}")
+                                .semantics { selected = isSel }
                                 .onSizeChanged { size ->
                                     measuredButtonHeight = with(buttonDensity) { size.height.toDp() }
                                 }
@@ -248,6 +290,7 @@ fun DailySpendingLineChart(
                                 .background(colorMotion.containerColor)
                                 .clickable(
                                     interactionSource = interactionSource,
+                                    role = Role.RadioButton,
                                     indication = ripple(bounded = true, color = colorMotion.rippleColor)
                                 ) {
                                     chartMode = mode
@@ -321,6 +364,7 @@ fun DailySpendingLineChart(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             )
                             com.example.vibefinance.ui.components.RollingNumberText(
+                                modifier = Modifier.testTag("SpendingTrendSummaryValue"),
                                 text = String.format(Locale.US, "$%,.2f", if (chartMode == DailyChartMode.CUMULATIVE) activeItem.second else activeDailyItem.second),
                                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = FontWeight.Bold,
@@ -354,10 +398,7 @@ fun DailySpendingLineChart(
 
             val animatedRatioY by animateFloatAsState(
                 targetValue = targetYRatio,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = chartMotionSpec,
                 label = "scrubRatioY"
             )
 
@@ -380,6 +421,7 @@ fun DailySpendingLineChart(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
+                    .testTag("SpendingTrendCanvas")
                     .onGloballyPositioned { coordinates ->
                         chartWidthPx = coordinates.size.width.toFloat()
                     }
@@ -420,9 +462,9 @@ fun DailySpendingLineChart(
                     val height = size.height
 
                     val dayWidth = width / 6f
-                    val points = activeDataset.mapIndexed { idx, pair ->
+                    val points = pointRatios.mapIndexed { idx, ratio ->
                         val x = idx * dayWidth
-                        val y = height - ((pair.second / maxSpending) * height).toFloat()
+                        val y = height * (1f - ratio.value.coerceIn(0f, 1f))
                         Offset(x, y)
                     }
 
@@ -439,11 +481,12 @@ fun DailySpendingLineChart(
                     }
 
                     // 1.5 Draw daily average reference guide line in DAILY mode
-                    if (chartMode == DailyChartMode.DAILY && avgDailySpending > 0) {
-                        val avgY = height - ((avgDailySpending / maxSpending) * height).toFloat()
+                    val detailAlpha = dailyDetailAlpha.value.coerceIn(0f, 1f)
+                    if (detailAlpha > 0f && avgDailySpending > 0) {
+                        val avgY = height * (1f - averageRatio.value.coerceIn(0f, 1f))
                         if (avgY in 0f..height) {
                             drawLine(
-                                color = avgGuideColor,
+                                color = avgGuideColor.copy(alpha = avgGuideColor.alpha * detailAlpha),
                                 start = Offset(0f, avgY),
                                 end = Offset(width, avgY),
                                 strokeWidth = 1.dp.toPx(),
@@ -453,7 +496,7 @@ fun DailySpendingLineChart(
                     }
 
                     // 2. In Daily Mode: Draw subtle vertical bar pillars for each day
-                    if (chartMode == DailyChartMode.DAILY) {
+                    if (detailAlpha > 0f) {
                         points.forEachIndexed { idx, pt ->
                             val isSel = idx == activeIndex
                             val barWidth = 14.dp.toPx()
@@ -461,7 +504,7 @@ fun DailySpendingLineChart(
                             val barHeight = (height - barTop).coerceAtLeast(0f)
                             val barAlpha = if (isSel) 0.35f else 0.12f
                             drawRoundRect(
-                                color = strokeColor.copy(alpha = barAlpha),
+                                color = strokeColor.copy(alpha = barAlpha * detailAlpha),
                                 topLeft = Offset(pt.x - barWidth / 2, barTop),
                                 size = Size(barWidth, barHeight),
                                 cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
@@ -514,7 +557,7 @@ fun DailySpendingLineChart(
 
                     // 4. Draw vertical scrubbing indicator line & smooth animated gliding dot
                     val animPointX = animatedRatioX * width
-                    val animPointY = height - (animatedRatioY * height)
+                    val animPointY = height * (1f - animatedRatioY.coerceIn(0f, 1f))
                     val animPoint = Offset(animPointX, animPointY)
 
                     drawLine(
