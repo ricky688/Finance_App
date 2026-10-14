@@ -2,7 +2,6 @@ package com.example.vibefinance.data
 
 import com.example.vibefinance.data.entity.BudgetEntity
 import com.example.vibefinance.data.repository.BudgetRepository
-import com.example.vibefinance.ui.components.parseIncomeEstimate
 import com.example.vibefinance.util.BackupStateCodec
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -34,16 +33,34 @@ class PeriodIncomeEstimateTest {
     private fun save(amount: Double?) = InMemoryDatabase.setPeriodIncomeEstimate(budget.startDate, budget.endDate, amount)
     private fun rejected(action: () -> Unit) { assertTrue(runCatching(action).isFailure) }
 
-    @Test fun estimatePersistsAndDoesNotAffectBudgetOrFinancialRecords() = runTest {
+    @Test fun legacyEstimatePersistsButNoLongerOverridesTheAutomaticForecast() = runTest {
         val repository = BudgetRepository()
         val before = repository.getDailyAllowanceFlow().first()
         val accounts = InMemoryDatabase.accounts.value; val transactions = InMemoryDatabase.transactions.value
-        repository.setPeriodIncomeEstimate(budget.startDate, budget.endDate, 12000.25)
+        save(12000.25)
         val after = repository.getDailyAllowanceFlow().first()
-        assertEquals(before.copy(estimatedIncome = 12000.25), after)
+        assertEquals(before, after)
+        assertNull(after.estimatedIncome)
         InMemoryDatabase.initialize(context)
         assertEquals(12000.25, InMemoryDatabase.budgets.value.single().estimatedIncome!!, 0.0)
         assertEquals(accounts, InMemoryDatabase.accounts.value); assertEquals(transactions, InMemoryDatabase.transactions.value)
+    }
+    @Test fun recordedIncomeRecomputesTheForecastWithoutWritingAnEstimate() = runTest {
+        val start = java.time.Instant.ofEpochMilli(budget.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        val account = InMemoryDatabase.insertAccount(com.example.vibefinance.data.entity.AccountEntity(
+            name = "Bank", type = com.example.vibefinance.data.entity.AccountType.BANK, balance = 0.0, icon = "bank"))
+        val previous = start.minusDays(5).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        InMemoryDatabase.insertTransaction(com.example.vibefinance.data.entity.TransactionEntity(
+            amount = -1500.25, category = "Salary", timestamp = previous, accountId = account))
+        val before = disk.readText()
+        val info = BudgetRepository().getDailyAllowanceFlow().first()
+        assertEquals(1500.25, info.estimatedIncome!!, 0.0)
+        assertEquals(1, info.incomeEstimatePeriods); assertTrue(info.incomeEstimatePartialHistory)
+        assertNull(InMemoryDatabase.budgets.value.single().estimatedIncome)
+        assertEquals(before, disk.readText())
+        assertEquals(900.0, info.totalMonthlyBudget, 0.0); assertEquals(0.0, info.totalSpentThisMonth, 0.0)
+        InMemoryDatabase.initialize(context)
+        assertEquals(info, BudgetRepository().getDailyAllowanceFlow().first())
     }
     @Test fun zeroIsAnEstimateAndBlankClearsIt() {
         save(0.0); assertEquals(0.0, InMemoryDatabase.budgets.value.single().estimatedIncome!!, 0.0)
@@ -89,13 +106,5 @@ class PeriodIncomeEstimateTest {
         rejected { BackupStateCodec.validateData(data, preferences, emptySet()) }
         entry.remove("estimatedIncome")
         BackupStateCodec.validateData(data, preferences, emptySet())
-    }
-    @Test fun inputAllowsZeroAndCentsButRejectsInvalidOrOverpreciseAmounts() {
-        assertEquals(0.0, parseIncomeEstimate("0")!!, 0.0)
-        assertEquals(12000.25, parseIncomeEstimate(" 12000.25 ")!!, 0.0)
-        assertEquals(12.0, parseIncomeEstimate("12.000")!!, 0.0)
-        listOf("", " ", "-1", "0.001", "NaN", "Infinity", "1e999", "abc").forEach {
-            assertNull(it, parseIncomeEstimate(it))
-        }
     }
 }

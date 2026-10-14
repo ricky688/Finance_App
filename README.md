@@ -6,6 +6,25 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 ## 🚀 Features
 
+### Guided transaction selectors (1.2.31)
+- **Expense / Income:** Category opens automatically, then choosing a category scrolls to and opens Asset Selection. **Transfer:** From Account opens first, then advances to Destination. The final choice closes the panel and leaves the keypad ready; saving still requires Apply.
+- Every expanded panel uses **three columns**, including wide and larger-text layouts. Connected-button heights and keypad bounds are retained. Back/Collapse can stop the sequence, and the active or dismissed stage survives rotation.
+- The first panel waits for the full-screen opening animation to finish. Each handoff closes the previous popup before native scrolling reveals the next selector, including short viewports.
+
+### History selection motion (1.2.30)
+- Selection controls expand/fade into an inset, raised toolbar above the record viewport. They occupy their own space and do not cover records with an overlay.
+- Entering or leaving selection preserves the second bar’s scroll state and the analytics header layout. Checkboxes slide/fade into place, and selected records gently change color.
+- Scrolled records fade at the edge below the toolbar; the leading edge stays clear at the top of the list. Reduced motion uses fades, Minimal switches immediately, and action buttons wrap as needed for larger text.
+
+### Automatic period income estimate (1.2.29)
+- Assets and Recurring learn an income estimate from recorded Income entries in up to three preceding periods matching Daily’s budget schedule. Recent periods have weights **3:2:1**; transfers, balance adjustments and the current unfinished period are excluded.
+- Monthly schedules follow calendar-month boundaries; other schedules use the same number of local days. Zero-income periods count. The card shows how many periods were sampled, explains partial history, and distinguishes missing history from a recorded zero.
+- The estimate updates with recorded history and budget-date changes. It is read-only and changes neither balances nor the budget; legacy manual values remain compatible with saved data and backups.
+
+### Spent / Remaining card transitions (1.2.28)
+- Tapping the budget card moves the exact amount and its label together with a short directional slide and fade. The indicator dots crossfade; the card bounds and budget calculations stay unchanged.
+- Reduced motion uses a fade, and Minimal switches immediately. Rapid taps settle on the last selected view.
+
 ### Spending Trend mode transitions (1.2.27)
 - Switching between **Cumulative** and **Daily** smoothly morphs the curve and fill while the scrub marker follows the same motion. Daily bars and the average guide fade in and out.
 - Recorded amounts and chart bounds stay unchanged. Reduced motion uses a shorter transition; Minimal switches immediately. Existing connected-button corners and press behavior are retained.

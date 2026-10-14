@@ -77,6 +77,7 @@ internal fun TransactionEntryHost(
                     accountFrequency = accountFrequency,
                     prefilledDestinationAccountId = prefilledDestinationAccountId,
                     exchangeRateLoader = exchangeRateLoader,
+                    selectorNavigationReady = transition.currentState && transition.targetState && !transition.isRunning,
                     modifier = Modifier.widthIn(max = 840.dp).fillMaxSize(),
                 )
             }

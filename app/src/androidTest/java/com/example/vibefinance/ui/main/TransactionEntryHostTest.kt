@@ -41,7 +41,7 @@ class TransactionEntryHostTest {
     private lateinit var view: View
     private var fixtureDensity = 1f
 
-    private fun show(animated: Boolean = false, short: Boolean = false, large: Boolean = false) {
+    private fun show(animated: Boolean = false, short: Boolean = false, large: Boolean = false, closeInitialPanel: Boolean = true) {
         rule.mainClock.autoAdvance = !animated
         rule.setContent {
             view = LocalView.current
@@ -64,7 +64,21 @@ class TransactionEntryHostTest {
             }
         }
         rule.runOnIdle { visible = true }
-        if (!animated) rule.waitForIdle()
+        if (!animated) {
+            rule.waitForIdle()
+            rule.waitUntil(8_000) { rule.onAllNodesWithTag("EntryCategory_expanded").fetchSemanticsNodes().isNotEmpty() }
+            if (closeInitialPanel) dismissSelectors()
+        }
+    }
+
+    private fun dismissSelectors() {
+        rule.waitForIdle()
+        listOf("EntryCategory", "EntryAccount", "EntryDestination").forEach { prefix ->
+            if (rule.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isNotEmpty()) {
+                rule.onNodeWithTag("${prefix}_collapse").performClick()
+                rule.waitUntil(5_000) { rule.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isEmpty() }
+            }
+        }
     }
 
     private fun waitClosed() {
@@ -95,8 +109,7 @@ class TransactionEntryHostTest {
     }
 
     @Test fun selectorBackClosesPopupBeforePage() {
-        show()
-        rule.onNodeWithTag("EntryCategory_toggle").performScrollTo().performClick()
+        show(closeInitialPanel = false)
         rule.onNodeWithTag("EntryCategory_expanded").assertIsDisplayed()
         pressBack()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("EntryCategory_expanded").fetchSemanticsNodes().isEmpty() }
@@ -146,6 +159,7 @@ class TransactionEntryHostTest {
         rule.onNodeWithTag("EntryKey_7").assertHeightIsEqualTo(54.dp)
         TransactionMode.entries.forEach { mode ->
             rule.onNodeWithTag("TransactionMode_${mode.name}").performScrollTo().performClick()
+            dismissSelectors()
             rule.waitForIdle()
             rule.onNodeWithTag("EntryScrollContent").performTouchInput { swipeUp() }
             rule.waitForIdle()
@@ -169,6 +183,7 @@ class TransactionEntryHostTest {
             TransactionMode.INCOME to R.string.ui_main_note_hint_income,
             TransactionMode.TRANSFER to R.string.ui_main_note_hint_transfer).forEach { (mode, hint) ->
             rule.onNodeWithTag("TransactionMode_${mode.name}").performScrollTo().performClick()
+            dismissSelectors()
             rule.onNodeWithTag("EntryDescription").performScrollTo().assertTextContains(context.getString(hint))
             rule.onNodeWithTag("EntryAmount").assert(SemanticsMatcher.expectValue(
                 androidx.compose.ui.semantics.SemanticsProperties.StateDescription, "7+"))
@@ -187,6 +202,7 @@ class TransactionEntryHostTest {
     @Test fun largeFontDarkFixtureKeepsFormAndKeypadUsable() {
         show(large = true)
         rule.onNodeWithTag("TransactionMode_INCOME").performScrollTo().assertIsDisplayed().performClick()
+        dismissSelectors()
         rule.onNodeWithTag("EntryDescription").performScrollTo().assertIsDisplayed().performTextReplacement("Large font")
         rule.onNodeWithTag("EntryKey_7").assertHeightIsEqualTo(54.dp).assertIsDisplayed().performClick()
         rule.onNodeWithTag("EntryCurrency").assertIsDisplayed()

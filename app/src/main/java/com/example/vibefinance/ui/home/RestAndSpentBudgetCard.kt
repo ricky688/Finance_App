@@ -1,13 +1,17 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.home
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.vibefinance.ui.common.bouncyClickable
 import androidx.compose.material3.*
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -20,10 +24,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.theme.BentoCardShape
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
 import java.util.Locale
 
 data class HarmonizedColorPalette(
@@ -41,6 +48,14 @@ fun RestAndSpentBudgetCard(
     isDarkTheme: Boolean = false,
 ) {
     var showSpentCard by remember { mutableStateOf(false) }
+    val motion = LocalExperience.current.motion
+    val effectsSpec = if (motion == MotionLevel.MINIMAL) snap<Float>()
+        else MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    val spatialSpec = MaterialTheme.motionScheme.fastSpatialSpec<androidx.compose.ui.unit.IntOffset>()
+    val modeTransition = updateTransition(showSpentCard, label = "budgetMode")
+    val remainingDotAlpha by modeTransition.animateFloat(
+        transitionSpec = { effectsSpec }, label = "remainingDotAlpha"
+    ) { if (it) 0.3f else 1f }
 
     val ratio = if (totalBudget > 0) (remainingBudget / totalBudget).coerceIn(0.0, 1.0).toFloat() else 0f
     val isFullBudget = ratio >= 1.0f
@@ -56,15 +71,8 @@ fun RestAndSpentBudgetCard(
         label = "restWaveAmplitude"
     )
 
-    val displayAmount = if (showSpentCard) {
-        (totalBudget - remainingBudget).coerceAtLeast(0.0)
-    } else {
-        remainingBudget
-    }
-
     val labelSpent = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.total_spent)
     val labelRemaining = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.total_remaining)
-    val displayLabel = if (showSpentCard) labelSpent else labelRemaining
     
     val percentFormatted = String.format(Locale.US, "%.2f%%", ratio * 100)
 
@@ -146,12 +154,6 @@ fun RestAndSpentBudgetCard(
                 val horizontalPadding = if (widthDp > 0.dp) (widthDp * 0.12f).coerceIn(12.dp, 18.dp) else 14.dp
 
                 val baseAmountFontSize = if (heightDp > 0.dp) (heightDp.value * 0.15f).coerceIn(16f, 26f).sp else 24.sp
-                val formattedAmount = String.format(Locale.US, "$%,.2f", displayAmount)
-                val amountFontSize = when {
-                    formattedAmount.length >= 12 -> (baseAmountFontSize.value * 0.75f).sp
-                    formattedAmount.length >= 10 -> (baseAmountFontSize.value * 0.85f).sp
-                    else -> baseAmountFontSize
-                }
                 val labelFontSize = if (heightDp > 0.dp) (heightDp.value * 0.075f).coerceIn(10f, 14f).sp else 12.sp
                 val percentFontSize = if (heightDp > 0.dp) (heightDp.value * 0.07f).coerceIn(9f, 12f).sp else 11.sp
                 val spacerHeight = if (heightDp > 0.dp) (heightDp * 0.04f).coerceIn(2.dp, 8.dp) else 4.dp
@@ -163,18 +165,47 @@ fun RestAndSpentBudgetCard(
                     horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    com.example.vibefinance.ui.components.RollingNumberText(
-                        text = formattedAmount,
-                        style = androidx.compose.ui.text.TextStyle(fontSize = amountFontSize),
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onContainer
-                    )
-                    Text(
-                        text = displayLabel,
-                        fontSize = labelFontSize,
-                        color = colors.onContainer.copy(alpha = 0.7f),
-                        maxLines = 1
-                    )
+                    modeTransition.AnimatedContent(
+                        modifier = Modifier.fillMaxWidth(),
+                        transitionSpec = {
+                            when (motion) {
+                                MotionLevel.MINIMAL -> EnterTransition.None togetherWith ExitTransition.None
+                                MotionLevel.REDUCED -> fadeIn(effectsSpec) togetherWith fadeOut(effectsSpec)
+                                MotionLevel.FULL -> {
+                                    val direction = if (targetState) 1 else -1
+                                    (slideInVertically(spatialSpec) { direction * it / 4 } + fadeIn(effectsSpec))
+                                        .togetherWith(slideOutVertically(spatialSpec) { -direction * it / 4 } + fadeOut(effectsSpec))
+                                }
+                            }.using(null)
+                        },
+                        contentAlignment = Alignment.CenterStart,
+                    ) { spent ->
+                        val amount = if (spent) (totalBudget - remainingBudget).coerceAtLeast(0.0) else remainingBudget
+                        val formattedAmount = String.format(Locale.US, "$%,.2f", amount)
+                        val amountFontSize = when {
+                            formattedAmount.length >= 12 -> (baseAmountFontSize.value * 0.75f).sp
+                            formattedAmount.length >= 10 -> (baseAmountFontSize.value * 0.85f).sp
+                            else -> baseAmountFontSize
+                        }
+                        // Keep each exact amount paired with its label throughout the transition.
+                        Column(Modifier.fillMaxWidth()
+                            .testTag(if (spent) "BudgetMode_SPENT" else "BudgetMode_REMAINING")
+                            .then(if (spent != showSpentCard) Modifier.clearAndSetSemantics {} else Modifier)) {
+                            Text(
+                                text = formattedAmount,
+                                fontSize = amountFontSize,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onContainer,
+                                maxLines = 1,
+                            )
+                            Text(
+                                text = if (spent) labelSpent else labelRemaining,
+                                fontSize = labelFontSize,
+                                color = colors.onContainer.copy(alpha = 0.7f),
+                                maxLines = 1,
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(spacerHeight))
                     Text(
                         text = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.percent_of_budget, percentFormatted),
@@ -196,7 +227,7 @@ fun RestAndSpentBudgetCard(
                 Modifier
                     .size(4.dp)
                     .background(
-                        color = colors.onContainer.copy(alpha = if (showSpentCard) 0.3f else 1f),
+                        color = colors.onContainer.copy(alpha = remainingDotAlpha.coerceIn(0.3f, 1f)),
                         shape = CircleShape,
                     )
             )
@@ -205,7 +236,7 @@ fun RestAndSpentBudgetCard(
                 Modifier
                     .size(4.dp)
                     .background(
-                        color = colors.onContainer.copy(alpha = if (!showSpentCard) 0.3f else 1f),
+                        color = colors.onContainer.copy(alpha = (1.3f - remainingDotAlpha).coerceIn(0.3f, 1f)),
                         shape = CircleShape,
                     )
             )

@@ -105,6 +105,19 @@ class EntrySelectorOverlayTest {
                     exchangeRateLoader = rateLoader)
             }
         }
+        val first = if (mode == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory"
+        waitPanel(first)
+        click("${first}_collapse")
+        waitClosedPanels()
+    }
+
+    private fun waitPanel(prefix: String) = compose.waitUntil(8_000) {
+        compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().size == 1
+    }
+    private fun waitClosedPanels() = compose.waitUntil(8_000) {
+        listOf("EntryCategory", "EntryAccount", "EntryDestination").all {
+            compose.onAllNodesWithTag("${it}_expanded").fetchSemanticsNodes().isEmpty()
+        }
     }
 
     /** Dynamic tags first; device pointer fallback derives coordinates from the located bounds. */
@@ -342,7 +355,7 @@ class EntrySelectorOverlayTest {
         open("EntryDestination")
         compose.onNodeWithTag("EntryDestination_grid_2").performScrollTo()
         click("EntryDestination_grid_2")
-        click("EntryDestination_collapse")
+        waitClosedPanels()
         compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
@@ -363,7 +376,19 @@ class EntrySelectorOverlayTest {
     }
 
     @Test fun expandedCategoryRevealsTheChoiceIncludingRepeatedSelection() {
-        host(TransactionMode.EXPENSE)
+        compose.setContent {
+            val overlay = remember { EntrySelectorOverlayState() }
+            var selected by remember { mutableIntStateOf(0) }
+            CompositionLocalProvider(LocalEntrySelectorOverlay provides overlay) {
+                MaterialTheme {
+                    Column {
+                        val items = listOf("Food", "Groceries", "Transport", "Entertainment", "Shopping", "Utilities")
+                        ExpandableEntrySelector(items, selected, { selected = it }, "Category", "EntryCategory", { it }, { it }, compactChoices = true)
+                        Box(Modifier.fillMaxWidth().height(400.dp).onGloballyPositioned { overlay.keypadBounds = it.boundsInWindow() })
+                    }
+                }
+            }
+        }
         val row = screenBounds("EntryCategory_row")
         open("EntryCategory")
         compose.onNodeWithTag("EntryCategory_grid_Utilities").performScrollTo()
@@ -399,9 +424,10 @@ class EntrySelectorOverlayTest {
         assertEquals(keypadScreen.width, menu.width, 1f)
         assertEquals(keypadScreen.bottom, menu.bottom, 1f)
         click("EntryCategory_grid_Food")
-        compose.onNodeWithTag("EntryCategory_grid_Food").assertIsSelected()
-        click("EntryCategory_collapse")
-        compose.onNodeWithTag("EntryCategory_expanded").assertDoesNotExist()
+        waitPanel("EntryAccount")
+        compose.onNodeWithTag("EntryCategory_row_Food").assertIsSelected()
+        click("EntryAccount_collapse")
+        waitClosedPanels()
         compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
@@ -415,9 +441,9 @@ class EntrySelectorOverlayTest {
         open("EntryAccount")
         compose.onNodeWithTag("EntryAccount_grid_14").performScrollTo()
         click("EntryAccount_grid_14")
-        compose.onNodeWithTag("EntryAccount_grid_14").assertIsSelected()
+        waitClosedPanels()
+        compose.onNodeWithTag("EntryAccount_row_14").assertIsSelected()
         assertRowReveals("EntryAccount", "14")
-        click("EntryAccount_collapse")
         compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
@@ -434,18 +460,17 @@ class EntrySelectorOverlayTest {
         open("EntryDestination")
         compose.onNodeWithTag("EntryDestination_grid_1").assertDoesNotExist()
         click("EntryDestination_grid_2")
-        click("EntryDestination_collapse")
+        waitClosedPanels()
         // Choosing the former destination as source clears the invalid destination.
         open("EntryAccount")
         click("EntryAccount_grid_2")
-        click("EntryAccount_collapse")
-        click("EntrySubmit")
+        waitPanel("EntryDestination")
+        compose.onNodeWithTag("EntryDestination_grid_2").assertDoesNotExist()
         compose.runOnIdle { assertNull(submitted) }
-        open("EntryDestination")
         compose.onNodeWithTag("EntryDestination_grid_14").performScrollTo()
         click("EntryDestination_grid_14")
+        waitClosedPanels()
         assertRowReveals("EntryDestination", "14")
-        click("EntryDestination_collapse")
         click("EntrySubmit")
         compose.runOnIdle {
             assertEquals(2L, submitted?.accountId)

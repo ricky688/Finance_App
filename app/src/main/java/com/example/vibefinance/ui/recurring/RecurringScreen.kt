@@ -443,7 +443,7 @@ fun RecurringScreen(
 
                     item(key = "income-estimate") {
                         PageContentEntrance("income-estimate") {
-                            com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent,
+                            com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state,
                                 Modifier.padding(bottom = 14.dp))
                         }
                     }
@@ -556,7 +556,7 @@ fun RecurringScreen(
                                 }
 
                                 PageContentEntrance("income-estimate") {
-                                    com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent)
+                                    com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state)
                                 }
 
                                 PageContentEntrance("category-chart") {

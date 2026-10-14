@@ -923,7 +923,7 @@ fun AccountsScreen(
                                 }
 
                                 Spacer(Modifier.height(16.dp))
-                                com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state, onIntent)
+                                com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state)
 
                                 HorizontalDivider(
                                     modifier = Modifier.padding(vertical = 16.dp),

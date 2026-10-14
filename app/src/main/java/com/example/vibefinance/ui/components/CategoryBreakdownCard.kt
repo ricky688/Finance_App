@@ -106,8 +106,7 @@ fun CategoryBreakdownCard(
     searchActive: Boolean = false,
     searchExpanded: Boolean = false,
     searchSummary: String? = null,
-    onSelectTransactions: (() -> Unit)? = null,
-    hideHeader: Boolean = false
+    onSelectTransactions: (() -> Unit)? = null
 ) {
     var actionsExpanded by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
@@ -166,7 +165,7 @@ fun CategoryBreakdownCard(
                 .padding(16.dp)
         ) {
             // Secondary file actions occupy one touch target; title and hint wrap normally.
-            if (!hideHeader) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                     modifier = Modifier.size(34.dp)) {
                     Box(contentAlignment = Alignment.Center) {

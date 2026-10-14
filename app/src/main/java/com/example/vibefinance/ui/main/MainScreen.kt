@@ -2117,7 +2117,8 @@ fun AddExpenseSheetContent(
     accountFrequency: Map<Long, Int>,
     modifier: Modifier = Modifier,
     exchangeRateLoader: ExchangeRateLoader? = null,
-    prefilledDestinationAccountId: Long? = null
+    prefilledDestinationAccountId: Long? = null,
+    selectorNavigationReady: Boolean = true
 ) {
     val context = LocalContext.current
     val localFocusManager = LocalFocusManager.current
@@ -2216,8 +2217,10 @@ fun AddExpenseSheetContent(
     var showInlineAddCategory by remember { mutableStateOf(false) }
     var showInlineAddAsset by remember { mutableStateOf(false) }
 
-    val selectorOverlay = remember { EntrySelectorOverlayState() }
-    BackHandler(enabled = selectorOverlay.activeTag != null) { selectorOverlay.activeTag = null }
+    val selectorOverlay = rememberSaveable(saver = EntrySelectorOverlayState.Saver) {
+        EntrySelectorOverlayState(if (isTransfer) "EntryAccount" else "EntryCategory")
+    }
+    BackHandler(enabled = selectorOverlay.activeTag != null || selectorOverlay.pendingTag != null) { selectorOverlay.close() }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     var isScanningReceipt by remember { mutableStateOf(false) }
@@ -2255,7 +2258,8 @@ fun AddExpenseSheetContent(
     val expressionPreview = if (typedAmount.drop(1).any { it == '+' || it == '-' }) {
         calculationPreview?.setScale(2)?.toPlainString() ?: "—"
     } else null
-    CompositionLocalProvider(LocalEntrySelectorOverlay provides selectorOverlay) {
+    CompositionLocalProvider(LocalEntrySelectorOverlay provides selectorOverlay,
+        LocalEntrySelectorNavigationReady provides selectorNavigationReady) {
         BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag("EntryForm")) {
             // Short viewports (landscape/IME/large text) keep fields reachable by allowing the
             // hero to scroll with the form. The navigation row and 54dp keypad stay fixed.
@@ -2273,7 +2277,7 @@ fun AddExpenseSheetContent(
                             selectedIndex = modeChoices.indexOf(transactionMode),
                             onItemSelected = { index ->
                                 if (!entrySubmitting && draft.switchMode(modeChoices[index])) {
-                                    selectorOverlay.activeTag = null
+                                    selectorOverlay.advanceTo(if (modeChoices[index] == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory")
                                     showInlineAddCategory = false
                                     com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 }
@@ -2588,11 +2592,13 @@ fun AddExpenseSheetContent(
                                                         if (name.isNotEmpty() && !incomeCategories.contains(name)) {
                                                             incomeCategories.add(0, name)
                                                             incomeCategoryText = name
+                                                            selectorOverlay.advanceTo("EntryAccount")
                                                         }
                                                     } else {
                                                         if (name.isNotEmpty() && !expenseCategories.contains(name)) {
                                                             expenseCategories.add(0, name)
                                                             expenseCategoryText = name
+                                                            selectorOverlay.advanceTo("EntryAccount")
                                                         }
                                                     }
                                                     newCatName = ""
@@ -2610,7 +2616,8 @@ fun AddExpenseSheetContent(
                                     }
                                 }
 
-                                Crossfade(targetState = transactionMode == TransactionMode.INCOME, label = "entryCategoryMode") { incomeMode ->
+                                androidx.compose.runtime.key(transactionMode) {
+                                    val incomeMode = transactionMode == TransactionMode.INCOME
                                     val currentCategories = if (incomeMode) sortedIncomeCategories else sortedExpenseCategories
                                     val currentCategoryText = if (incomeMode) incomeCategoryText else expenseCategoryText
 
@@ -2628,6 +2635,7 @@ fun AddExpenseSheetContent(
                                             } else {
                                                 expenseCategoryText = currentCategories[index]
                                             }
+                                            selectorOverlay.advanceTo("EntryAccount")
                                         },
                                         onAdd = { showInlineAddCategory = !showInlineAddCategory },
                                         labelProvider = { cat -> com.example.vibefinance.ui.home.getCategoryDisplayName(cat) }
@@ -2779,6 +2787,7 @@ fun AddExpenseSheetContent(
                                 onItemSelected = { index ->
                                     selectedAccountId = sortedAccounts[index].id
                                     if (isTransfer && selectedToAccountId == selectedAccountId) selectedToAccountId = null
+                                    selectorOverlay.advanceTo(if (isTransfer) "EntryDestination" else null)
                                 },
                                 iconProvider = { acc, tintColor ->
                                     val accIcon = when (acc.type) {
@@ -2831,7 +2840,10 @@ fun AddExpenseSheetContent(
                                     keyProvider = { it.id.toString() },
                                     subtitleProvider = { accountTypeLabel(it.type) },
                                     selectedIndex = destAccounts.indexOfFirst { it.id == selectedToAccount?.id },
-                                    onItemSelected = { index -> selectedToAccountId = destAccounts[index].id },
+                                    onItemSelected = { index ->
+                                        selectedToAccountId = destAccounts[index].id
+                                        selectorOverlay.close()
+                                    },
                                     iconProvider = { acc, tintColor ->
                                         val accIcon = when (acc.type) {
                                             AccountType.CASH -> Icons.Default.Savings

@@ -21,6 +21,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import com.example.vibefinance.ui.common.verticalFadingEdge
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -166,6 +178,19 @@ fun HistoryScreen(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     var multiSelect by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val motion = LocalExperience.current.motion
+    val effectsSpec = if (motion == MotionLevel.MINIMAL) snap<Float>() else MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    val spatialSpec = MaterialTheme.motionScheme.fastSpatialSpec<androidx.compose.ui.unit.IntSize>()
+    val selectionEnter = when (motion) {
+        MotionLevel.FULL -> expandVertically(spatialSpec, expandFrom = Alignment.Top, clip = false) + fadeIn(effectsSpec)
+        MotionLevel.REDUCED -> fadeIn(effectsSpec)
+        MotionLevel.MINIMAL -> EnterTransition.None
+    }
+    val selectionExit = when (motion) {
+        MotionLevel.FULL -> shrinkVertically(spatialSpec, shrinkTowards = Alignment.Top, clip = false) + fadeOut(effectsSpec)
+        MotionLevel.REDUCED -> fadeOut(effectsSpec)
+        MotionLevel.MINIMAL -> ExitTransition.None
+    }
     var selectionArray by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(longArrayOf()) }
     val selectedIds = selectionArray.toSet()
     var batchPicker by remember { mutableStateOf<String?>(null) }
@@ -190,6 +215,10 @@ fun HistoryScreen(
     val searchVisibility = remember { MutableTransitionState(showSearch) }
     searchVisibility.targetState = showSearch
     val historyListState = listState
+    val selectionEdge by animateDpAsState(
+        if (multiSelect && historyListState.canScrollBackward) 16.dp else 0.dp,
+        animationSpec = if (motion == MotionLevel.MINIMAL) snap() else MaterialTheme.motionScheme.fastEffectsSpec(),
+        label = "historySelectionEdge")
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(showSearch) {
@@ -455,23 +484,27 @@ fun HistoryScreen(
             if (isLoading) {
                 com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = Modifier)
             } else {
-                Column(Modifier.fillMaxSize()) {
-                if (multiSelect) {
-                    Spacer(Modifier.height(topContentPadding))
+                // Keep the list's leading inset and analytics height stable when selection changes.
+                Column(Modifier.fillMaxSize().padding(top = (topContentPadding - 16.dp).coerceAtLeast(0.dp))) {
+                AnimatedVisibility(multiSelect, enter = selectionEnter, exit = selectionExit) {
+                    Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp).testTag("HistorySelectionDock")) {
                     if (batchPicker == null && batchError != null) Text(batchError, color = MaterialTheme.colorScheme.error)
                     val records = transactionsList.filter { it.id in selectedIds }
                     val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment }
-                    HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy,
+                    HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy || !multiSelect,
                         canCategory = ordinary && (records.all { it.amount > 0 } || records.all { it.amount < 0 }), canAccount = ordinary,
                         onClose = { multiSelect = false; selectionArray = longArrayOf() },
                         onSelectAll = { selectionArray = if (selectedIds == visibleIds) longArrayOf() else visibleIds.toLongArray() },
                         onAction = { kind -> batchSnapshot = records.toList(); batchPicker = kind; batchRequestId = null
                             if (kind == "delete") com.example.vibefinance.util.VibeHaptics.warningAlert(view) })
+                    }
                 }
+                Box(Modifier.weight(1f).fillMaxWidth().testTag("HistoryRecordViewport")
+                    .verticalFadingEdge(topFadeHeight = selectionEdge, bottomFadeHeight = 0.dp)) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().testTag("HistoryList"),
                     state = historyListState,
-                    contentPadding = PaddingValues(top = if (multiSelect) 0.dp else topContentPadding),
+                    contentPadding = PaddingValues(top = topContentPadding.coerceIn(0.dp, 16.dp)),
                     verticalArrangement = Arrangement.Top
                 ) {
             item(key = "history-search-bar") {
@@ -527,7 +560,6 @@ fun HistoryScreen(
                     com.example.vibefinance.ui.components.CategoryBreakdownCard(
                         transactions = analyticsTransactions,
                         onSearch = toggleSearch,
-                        hideHeader = multiSelect,
                         onSelectTransactions = { multiSelect = true; com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) },
                         searchExpanded = showSearch,
                         searchActive = searchQuery != HistoryQuery(),
@@ -656,6 +688,10 @@ fun HistoryScreen(
 
                     // 2. Transaction Item Flat list (M3 grouped list items)
                     itemsIndexed(items = txsForDate, key = { _, tx -> tx.id }) { index, tx ->
+                        val selectedColor by animateColorAsState(
+                            if (multiSelect && tx.id in selectedIds) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                            animationSpec = if (motion == MotionLevel.MINIMAL) snap() else MaterialTheme.motionScheme.fastEffectsSpec(),
+                            label = "historySelectedColor_${tx.id}")
                         val sourceAccount = state.accounts.find { it.id == tx.accountId }
                         val destAccount = tx.toAccountId?.let { toId -> state.accounts.find { it.id == toId } }
                         val isFuture = tx.timestamp > System.currentTimeMillis()
@@ -678,7 +714,7 @@ fun HistoryScreen(
                         val isFirst = index == 0
                         val isLast = index == txsForDate.size - 1
 
-                        AnimatedVisibility(
+                        androidx.compose.animation.AnimatedVisibility(
                             visibleState = transitionState,
                             exit = shrinkVertically(
                                 animationSpec = spring(
@@ -704,7 +740,8 @@ fun HistoryScreen(
                                     ExpressiveSwipeRow(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .testTag("TransactionRow_${tx.id}"),
+                                            .testTag("TransactionRow_${tx.id}")
+                                            .semantics { if (multiSelect) selected = tx.id in selectedIds },
                                         shape = itemShape,
                                         selectionMode = multiSelect,
                                         onLongClick = { if (!batchBusy) { multiSelect = true; selectionArray = (selectedIds + tx.id).toLongArray(); com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) } },
@@ -734,11 +771,21 @@ fun HistoryScreen(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
+                                                    .background(selectedColor)
                                                     .padding(horizontal = 16.dp, vertical = 12.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
                                             ) {
-                                                AnimatedVisibility(visible = multiSelect, enter = fadeIn() + androidx.compose.animation.expandHorizontally(), exit = fadeOut() + androidx.compose.animation.shrinkHorizontally()) {
+                                                AnimatedVisibility(visible = multiSelect,
+                                                    enter = when (motion) {
+                                                        MotionLevel.FULL -> expandHorizontally(spatialSpec) + fadeIn(effectsSpec)
+                                                        MotionLevel.REDUCED -> fadeIn(effectsSpec)
+                                                        MotionLevel.MINIMAL -> EnterTransition.None
+                                                    }, exit = when (motion) {
+                                                        MotionLevel.FULL -> shrinkHorizontally(spatialSpec) + fadeOut(effectsSpec)
+                                                        MotionLevel.REDUCED -> fadeOut(effectsSpec)
+                                                        MotionLevel.MINIMAL -> ExitTransition.None
+                                                    }) {
                                                     Checkbox(checked = tx.id in selectedIds, onCheckedChange = { toggleSelected(tx.id) }, enabled = !batchBusy,
                                                         modifier = Modifier.testTag("HistorySelected_${tx.id}"))
                                                 }
@@ -933,6 +980,7 @@ fun HistoryScreen(
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
+                }
                 }
         }
         }

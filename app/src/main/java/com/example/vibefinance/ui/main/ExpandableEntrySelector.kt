@@ -7,6 +7,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.animateFloat
 import com.example.vibefinance.ui.common.ScrollBlurContainer
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +44,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -60,10 +64,22 @@ internal fun accountTypeLabel(type: AccountType): String = stringResource(when (
 })
 
 /** All entry modes share a panel anchored below its connected row, over the remaining form. */
-internal class EntrySelectorOverlayState {
+internal class EntrySelectorOverlayState(initialTag: String? = null) {
     var activeTag by mutableStateOf<String?>(null)
+    var pendingTag by mutableStateOf(initialTag)
+    var visiblePanels by mutableIntStateOf(0)
     var keypadBounds by mutableStateOf(androidx.compose.ui.geometry.Rect.Zero)
+
+    fun advanceTo(tag: String?) { activeTag = null; pendingTag = tag }
+    fun close() = advanceTo(null)
+
+    companion object {
+        val Saver = listSaver<EntrySelectorOverlayState, String>(
+            save = { listOf((it.pendingTag ?: it.activeTag).orEmpty()) },
+            restore = { values -> EntrySelectorOverlayState(values[0].ifEmpty { null }) })
+    }
 }
+internal val LocalEntrySelectorNavigationReady = staticCompositionLocalOf { true }
 internal val LocalEntrySelectorOverlay = staticCompositionLocalOf<EntrySelectorOverlayState> {
     error("Entry selector requires its keypad overlay host")
 }
@@ -82,11 +98,25 @@ internal fun <T> ExpandableEntrySelector(
     val expanded = host.activeTag == tagPrefix
     val density = LocalDensity.current
     var rowHeight by remember { mutableIntStateOf(0) }
+    var selectorHeight by remember { mutableIntStateOf(0) }
     var selectorBounds by remember { mutableStateOf(Rect.Zero) }
     var selectionRevealRequest by remember { mutableIntStateOf(0) }
+    val revealRequester = remember { BringIntoViewRequester() }
+    val navigationReady = LocalEntrySelectorNavigationReady.current
+    LaunchedEffect(host.pendingTag, host.visiblePanels, selectorHeight, navigationReady) {
+        // Clipped bounds can be empty off-screen; the measured row still permits native relocation.
+        if (navigationReady && host.pendingTag == tagPrefix && host.visiblePanels == 0 && selectorHeight > 0) {
+            revealRequester.bringIntoView()
+            if (host.pendingTag == tagPrefix) {
+                host.activeTag = tagPrefix
+                host.pendingTag = null
+                selectionRevealRequest++
+            }
+        }
+    }
     val expandLabel = stringResource(if (expanded) R.string.entry_selector_collapse else R.string.entry_selector_expand, title)
-    fun add() { host.activeTag = null; onAdd?.invoke() }
-    Row(modifier.fillMaxWidth().onGloballyPositioned { selectorBounds = it.boundsInWindow() }
+    fun add() { host.close(); onAdd?.invoke() }
+    Row(modifier.fillMaxWidth().bringIntoViewRequester(revealRequester).onSizeChanged { selectorHeight = it.height }.onGloballyPositioned { selectorBounds = it.boundsInWindow() }
         .testTag(tagPrefix), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         // Reuse the original connected group, including its natural height and motion.
@@ -96,11 +126,12 @@ internal fun <T> ExpandableEntrySelector(
             selectionRevealRequest = selectionRevealRequest,
             preserveContentColors = true, corners = ConnectedButtonCorners.Entry,
             spatialMotionEnabled = false,
-            itemModifierProvider = { index -> Modifier.testTag("${tagPrefix}_row_${keyProvider(items[index])}") },
+            itemModifierProvider = { index -> Modifier.testTag("${tagPrefix}_row_${keyProvider(items[index])}")
+                .semantics { selected = index == selectedIndex } },
             trailingContent = if (onAdd != null) { { ExpressiveAddButton(text = stringResource(R.string.btn_add), onClick = ::add, restingCorner = 32.dp, pressedCorner = 14.dp) } } else null,
             labelProvider = labelProvider)
         Surface(
-            onClick = { host.activeTag = if (expanded) null else tagPrefix },
+            onClick = { host.pendingTag = null; host.activeTag = if (expanded) null else tagPrefix },
             shape = RoundedCornerShape(24.dp),
             color = if (expanded) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = if (expanded) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -134,13 +165,18 @@ internal fun <T> ExpandableEntrySelector(
     val shadowPadding = 8.dp
     val shadowPaddingPx = with(density) { shadowPadding.roundToPx() }
     if ((visibility.currentState || visibility.targetState) && bounds.width > 0 && bounds.height > 0) {
+        // Finish dismissing the old popup before scrolling/opening the next step.
+        DisposableEffect(host) {
+            host.visiblePanels++
+            onDispose { host.visiblePanels-- }
+        }
         Popup(
             popupPositionProvider = remember(bounds, shadowPaddingPx) { object : PopupPositionProvider {
                 override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize,
                     layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
                     IntOffset(bounds.left.roundToInt() - shadowPaddingPx, bounds.top.roundToInt() - shadowPaddingPx)
             } },
-            onDismissRequest = { host.activeTag = null },
+            onDismissRequest = { if (host.activeTag == tagPrefix || host.activeTag == null) host.close() },
             // A modal popup owns the whole outside-touch gesture. Otherwise dismissal on
             // DOWN lets UP click the underlying toggle and immediately reopen the menu.
             // Only the shadow extends past the anchored rectangle. Let that padding reach
@@ -173,7 +209,7 @@ internal fun <T> ExpandableEntrySelector(
                                     Text(labelProvider(item), style = MaterialTheme.typography.labelSmall,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 120.dp))
                                 }
-                                IconButton(onClick = { host.activeTag = null }, modifier = Modifier.testTag("${tagPrefix}_collapse")) {
+                                IconButton(onClick = { host.close() }, modifier = Modifier.testTag("${tagPrefix}_collapse")) {
                                     Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.entry_selector_collapse, title))
                                 }
                             }
@@ -181,7 +217,7 @@ internal fun <T> ExpandableEntrySelector(
                             ScrollBlurContainer(gridScroll, Modifier.weight(1f).fillMaxWidth(), vertical = true, tagPrefix = "${tagPrefix}_grid") { sourceModifier ->
                                 BoxWithConstraints(sourceModifier.fillMaxSize().verticalScroll(gridScroll)
                                     .selectableGroup().testTag("${tagPrefix}_grid")) {
-                                    val columns = (maxWidth / (120f * density.fontScale.coerceAtLeast(1f)).dp).toInt().coerceIn(1, 5)
+                                    val columns = 3
                                     val count = items.size + if (onAdd != null) 1 else 0
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         (0 until count).toList().chunked(columns).forEach { indices ->

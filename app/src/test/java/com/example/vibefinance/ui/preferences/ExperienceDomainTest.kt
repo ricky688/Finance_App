@@ -57,6 +57,16 @@ class ExperienceDomainTest {
             raw.timestamp, ids.getValue(raw.sourceAccountName), if (raw.isTransfer) ids[raw.destinationAccountName] else null, description = raw.description) }
         assertEquals(868, HistoryQuery().apply(transactions, names, zone).size)
         assertEquals(52831.49, HistoryQuery(kind = HistoryKind.EXPENSE).apply(transactions, names, zone).sumOf { it.amount }, 0.001)
+        val forecastStart = Instant.ofEpochMilli(transactions.maxOf { it.timestamp }).atZone(zone).toLocalDate()
+            .withDayOfMonth(1).plusMonths(1)
+        val forecast = com.example.vibefinance.util.PeriodIncomeForecaster.estimate(at(forecastStart.toString()),
+            at(forecastStart.plusMonths(1).minusDays(1).toString()), transactions, forecastStart, zone)!!
+        val incomeTotals = (1L..3L).map { index -> transactions.filter { it.amount < 0 && it.toAccountId == null &&
+            it.timestamp >= at(forecastStart.minusMonths(index).toString()) &&
+            it.timestamp < at(forecastStart.minusMonths(index - 1).toString()) }.sumOf { -it.amount } }
+        val expectedIncome = java.math.BigDecimal.valueOf((incomeTotals[0] * 3 + incomeTotals[1] * 2 + incomeTotals[2]) / 6)
+            .setScale(2, java.math.RoundingMode.HALF_UP).toDouble()
+        assertEquals(3, forecast.periodsUsed); assertEquals(expectedIncome, forecast.amount, .001)
         val first = transactions.first { it.toAccountId == null && it.amount > 0 }
         val exact = HistoryQuery(account = first.accountId, category = first.category, minimum = "${first.amount}", maximum = "${first.amount}")
         assertTrue(exact.apply(transactions, names, zone).contains(first))

@@ -37,18 +37,34 @@ class AddTransactionModeInteractionTest {
                 emptyMap(), emptyMap(), exchangeRateLoader = loader, prefilledDestinationAccountId = prefill)
         }
     }
-    private fun key(value: String) { compose.onNodeWithTag("EntryKey_$value").assertIsDisplayed().performClick() }
+    private fun dismissSelectors() {
+        compose.waitForIdle()
+        listOf("EntryCategory", "EntryAccount", "EntryDestination").forEach { prefix ->
+            if (compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isNotEmpty()) {
+                compose.onNodeWithTag("${prefix}_collapse").performClick()
+                compose.waitUntil(5_000) { compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isEmpty() }
+            }
+        }
+    }
+    private fun key(value: String) { dismissSelectors(); compose.onNodeWithTag("EntryKey_$value").assertIsDisplayed().performClick() }
     private fun mode(value: TransactionMode) {
+        dismissSelectors()
         val tag = "TransactionMode_${value.name}"
         compose.onNodeWithTag(tag).performScrollTo().performClick()
         compose.waitForIdle()
+        dismissSelectors()
         compose.onNodeWithTag(tag).assertIsSelected()
     }
-    private fun submit() { compose.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick() }
+    private fun submit() { dismissSelectors(); compose.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick() }
     private fun amount(expression: String) { compose.onNodeWithTag("EntryAmount").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, expression)) }
-    private fun source(id: Long) { compose.onNodeWithTag("EntryAccount_row_$id").performScrollTo().performClick() }
-    private fun destination(id: Long) { compose.onNodeWithTag("EntryDestination_row_$id").performScrollTo().performClick() }
+    private fun source(id: Long) {
+        dismissSelectors(); compose.onNodeWithTag("EntryAccount_row_$id").performScrollTo().performClick(); dismissSelectors()
+    }
+    private fun destination(id: Long) {
+        dismissSelectors(); compose.onNodeWithTag("EntryDestination_row_$id").performScrollTo().performClick(); dismissSelectors()
+    }
     private fun note(value: String) {
+        dismissSelectors()
         compose.onNodeWithTag("EntryDescription").performScrollTo().performTextReplacement(value)
         androidx.test.espresso.Espresso.closeSoftKeyboard()
     }

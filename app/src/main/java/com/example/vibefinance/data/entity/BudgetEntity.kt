@@ -15,5 +15,5 @@ data class BudgetEntity(
     val startDate: Long, // Start date of period in epoch milliseconds
     val endDate: Long,   // End date of period in epoch milliseconds
     val rolloverMode: RolloverMode = RolloverMode.DISTRIBUTE_EVENLY,
-    val estimatedIncome: Double? = null
+    val estimatedIncome: Double? = null // Legacy manual value retained for backup compatibility; forecasts are derived.
 )

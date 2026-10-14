@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="period_income_title">本期預估收入</string>
-    <string name="period_income_edit">編輯預估收入</string>
-    <string name="period_income_not_set">尚未設定</string>
-    <string name="period_income_requires_budget">請先在「每日」頁面設定預算週期，再輸入預估收入。</string>
-    <string name="period_income_reference">此金額僅供本期參考，不會更改帳戶結餘或預算。</string>
-    <string name="period_income_amount_label">預估收入（HK$）</string>
-    <string name="period_income_invalid">請輸入零或正數金額，最多保留兩位小數。</string>
-    <string name="period_income_save_error">無法儲存預估收入，請檢查預算週期後再試。</string>
-    <string name="period_income_clear_hint">留空可清除預估收入。</string>
+    <string name="period_income_not_set">暫時沒有足夠歷史資料</string>
+    <string name="period_income_requires_budget">請先在「每日」頁面設定預算週期，以查看自動預估收入。</string>
+    <string name="period_income_reference">根據最多三個對應過往週期收入記錄推算，近期記錄權重較高。僅供參考，不會更改帳戶結餘或預算。</string>
+    <plurals name="period_income_learned">
+        <item quantity="one">根據 %1$d 個有歷史記錄的過往週期推算。</item>
+        <item quantity="other">根據 %1$d 個有歷史記錄的過往週期推算。</item>
+    </plurals>
+    <string name="period_income_partial">部分週期的記錄不完整，預估準確度可能較低。</string>
 </resources>

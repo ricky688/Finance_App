@@ -23,10 +23,6 @@ class BudgetRepository @Inject constructor() {
         InMemoryDatabase.insertBudget(budget)
     }
 
-    suspend fun setPeriodIncomeEstimate(startDate: Long, endDate: Long, amount: Double?) {
-        InMemoryDatabase.setPeriodIncomeEstimate(startDate, endDate, amount)
-    }
-
     fun getDailyAllowanceFlow(): Flow<DailyBudgetInfo> {
         val budgetFlow = getActiveBudgetFlow()
         val transactionsFlow = InMemoryDatabase.transactions
@@ -103,6 +99,8 @@ class BudgetRepository @Inject constructor() {
                 else -> if (daysLeft > 1) (periodRemainingBeforeToday - todayExpensesSum) / daysLeft else dailyAllowanceToday
             }
 
+            val incomeForecast = com.example.vibefinance.util.PeriodIncomeForecaster.estimate(
+                budget.startDate, budget.endDate, transactions, today)
             DailyBudgetInfo(
                 totalMonthlyBudget = budget.totalBudgetAmount,
                 totalSpentThisMonth = totalSpent,
@@ -115,7 +113,9 @@ class BudgetRepository @Inject constructor() {
                 rolloverMode = budget.rolloverMode,
                 newDailyBudget = newDailyBudget,
                 tomorrowAllowance = tomorrowAllowance,
-                estimatedIncome = budget.estimatedIncome
+                estimatedIncome = incomeForecast?.amount,
+                incomeEstimatePeriods = incomeForecast?.periodsUsed ?: 0,
+                incomeEstimatePartialHistory = incomeForecast?.partialHistory ?: false
             )
         }
     }
@@ -133,5 +133,7 @@ data class DailyBudgetInfo(
     val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY,
     val newDailyBudget: Double = 0.0,
     val tomorrowAllowance: Double = 0.0,
-    val estimatedIncome: Double? = null
+    val estimatedIncome: Double? = null,
+    val incomeEstimatePeriods: Int = 0,
+    val incomeEstimatePartialHistory: Boolean = false
 )
