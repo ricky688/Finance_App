@@ -15,7 +15,7 @@ Read this file before making changes to VibeFinance. Complete the applicable ite
 - Preserve existing work in the shared checkout. Do not undo unrelated edits or change scope without a reason.
 - Update affected translations and remove resources/imports made unused by the change.
 - Keep the app's data, settings, card images, customization, app routing, and ID/reference integrity intact. Introduce migrations or backup-schema changes only when the persisted format actually changes, and retain compatibility where possible.
-- For UI changes, retain established component sizing, emoji colors, one-line chip labels, theme behavior, and accessibility unless the user requests a change.
+- For UI changes, consult [DESIGN.md](DESIGN.md) for design system tokens and motion standards. Retain established component sizing, emoji colors, one-line chip labels, theme behavior, and accessibility unless the user requests a change.
 - Use `AppModalBottomSheet` for standard Material modal sheets so their native slide/scrim easing stays consistent and motion settings are respected. Preserve the motion scheme of sheet contents.
 - Do not change the phone/emulator's text scale, display density, resolution, or other scaling settings. Use app-scoped test configuration when a large-font check is needed.
 

@@ -46,7 +46,9 @@ class MainActivity : ComponentActivity() {
     private val privacy by lazy { com.example.vibefinance.ui.preferences.AppPrivacyController(this) {
         viewModel.dispatch(com.example.vibefinance.ui.FinanceIntent.SetAppLockEnabled(it))
     } }
-    private val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+    private val preferenceListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { prefs, _ ->
+        com.example.vibefinance.util.VibeHaptics.enabled = prefs.getBoolean("haptic_feedback_enabled", true)
+        com.example.vibefinance.util.VibeHaptics.strength = com.example.vibefinance.util.HapticStrength.fromStored(prefs.getString("haptic_strength", null))
         motionScale.update(this)
         privacy.syncWindowProtection()
     }
@@ -111,8 +113,10 @@ class MainActivity : ComponentActivity() {
 
         motionScale.update(this)
         privacy.syncWindowProtection()
-        com.example.vibefinance.util.CoordinatedPreferences.get(this, "vibe_finance_prefs")
-            .registerOnSharedPreferenceChangeListener(preferenceListener)
+        val prefs = com.example.vibefinance.util.CoordinatedPreferences.get(this, "vibe_finance_prefs")
+        com.example.vibefinance.util.VibeHaptics.enabled = prefs.getBoolean("haptic_feedback_enabled", true)
+        com.example.vibefinance.util.VibeHaptics.strength = com.example.vibefinance.util.HapticStrength.fromStored(prefs.getString("haptic_strength", null))
+        prefs.registerOnSharedPreferenceChangeListener(preferenceListener)
         contentResolver.registerContentObserver(android.provider.Settings.Global.getUriFor(
             android.provider.Settings.Global.ANIMATOR_DURATION_SCALE), false, animationObserver)
         handleIntent(intent)
@@ -164,7 +168,10 @@ class MainActivity : ComponentActivity() {
                 Locale.setDefault(currentLocale)
             }
 
+            val hapticView = androidx.compose.ui.platform.LocalView.current
+            val appHaptics = remember(hapticView) { com.example.vibefinance.util.VibeHaptics.composeFeedback(hapticView) }
             CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalHapticFeedback provides appHaptics,
                 com.example.vibefinance.ui.preferences.LocalExperience provides
                     com.example.vibefinance.ui.preferences.ExperiencePreferences(state.hideAmounts, state.motionLevel, state.blurIntensity),
                 com.example.vibefinance.ui.preferences.LocalAppLockAction provides privacy::changeEnabled,

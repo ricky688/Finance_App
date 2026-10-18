@@ -34,7 +34,7 @@ internal fun CalendarExportMenu(state: FinanceUiState) {
             }
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
         if (exporting) CircularProgressIndicator(Modifier.size(24.dp))
         Box {
             IconButton(onClick = { expanded = true }, enabled = !exporting, modifier = Modifier.testTag("RecurringCalendarOptions")) {

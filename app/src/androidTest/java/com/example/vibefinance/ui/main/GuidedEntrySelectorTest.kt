@@ -23,14 +23,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Automatic Category -> Asset and From -> Destination explored with ARTEMIS/ADB before authoring. */
+/** ARTEMIS/ADB verified Bento 2-Card layout, Category tag cloud, and Full-Width Asset Card bottom sheet picker. */
 @RunWith(AndroidJUnit4::class)
 class GuidedEntrySelectorTest {
     @get:Rule val rule = createComposeRule()
     private val accounts = (1L..14L).map { AccountEntity(it, "Account $it", type = AccountType.BANK, balance = 1000.0, icon = "bank") }
     private var submitted: FinanceIntent.AddTransaction? = null
     private var submissions = 0
-    private val prefixes = listOf("EntryCategory", "EntryAccount", "EntryDestination")
+
     private fun show(mode: TransactionMode = TransactionMode.EXPENSE, restoration: StateRestorationTester? = null,
         wideLarge: Boolean = false, empty: Boolean = false, prefill: Long? = null, single: Boolean = false) {
         val content: @Composable () -> Unit = {
@@ -45,122 +45,162 @@ class GuidedEntrySelectorTest {
             }
         }
         if (restoration == null) rule.setContent(content) else restoration.setContent(content)
-        panel(if (mode == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory")
+        noSheet()
     }
-    private fun panel(prefix: String) {
-        rule.waitUntil(8_000) { rule.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().size == 1 &&
-            prefixes.filter { it != prefix }.all { rule.onAllNodesWithTag("${it}_expanded").fetchSemanticsNodes().isEmpty() } }
+
+    private fun noSheet() {
         rule.waitForIdle()
-        rule.onNodeWithTag("${prefix}_expanded").assertIsDisplayed()
+        rule.onAllNodesWithTag("EntryAccount_row_1").assertCountEquals(0)
+        rule.onAllNodesWithTag("EntryDestination_row_1").assertCountEquals(0)
     }
-    private fun noPanel() {
-        rule.waitUntil(8_000) { prefixes.all { rule.onAllNodesWithTag("${it}_expanded").fetchSemanticsNodes().isEmpty() } }
+
+    private fun chooseCategory(key: String) {
+        val row = rule.onNodeWithTag("EntryCategory")
+        try { row.performScrollTo() } catch (_: AssertionError) {}
+        while (rule.onAllNodesWithTag("EntryCategory_row_$key").fetchSemanticsNodes().isEmpty()) {
+            row.performTouchInput { swipeLeft() }
+            rule.waitForIdle()
+        }
+        rule.onNodeWithTag("EntryCategory_row_$key").performClick()
     }
-    private fun choose(prefix: String, key: String) {
-        rule.onNodeWithTag("${prefix}_grid_$key").performScrollTo().performClick()
+
+    private fun openAccountSheet() {
+        rule.onNodeWithTag("EntryAccount_card").performScrollTo().performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag("EntryAccount_row_1").fetchSemanticsNodes().isNotEmpty() ||
+            rule.onAllNodesWithTag("AccountPicker_AddAccountToggle").fetchSemanticsNodes().isNotEmpty()
+        }
     }
+
+    private fun openDestinationSheet() {
+        rule.onNodeWithTag("EntryDestination_card").performScrollTo().performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodes(hasTestTag("AccountPicker_AddAccountToggle") or hasTestTag("EntryDestination_row_1") or hasTestTag("EntryDestination_row_2") or hasTestTag("EntryDestination_row_3")).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    private fun chooseAccount(id: Long) {
+        while (rule.onAllNodesWithTag("EntryAccount_row_$id").fetchSemanticsNodes().isEmpty()) {
+            rule.onAllNodes(hasScrollAction()).onLast().performTouchInput { swipeUp() }
+            rule.waitForIdle()
+        }
+        rule.onNodeWithTag("EntryAccount_row_$id").performClick()
+        noSheet()
+    }
+
+    private fun chooseDestination(id: Long) {
+        while (rule.onAllNodesWithTag("EntryDestination_row_$id").fetchSemanticsNodes().isEmpty()) {
+            rule.onAllNodes(hasScrollAction()).onLast().performTouchInput { swipeUp() }
+            rule.waitForIdle()
+        }
+        rule.onNodeWithTag("EntryDestination_row_$id").performClick()
+        noSheet()
+    }
+
     private fun bounds(tag: String): Rect {
         val coordinates = rule.onNodeWithTag(tag).fetchSemanticsNode().layoutInfo.coordinates
         return Rect(coordinates.localToScreen(Offset.Zero), coordinates.size.toSize())
     }
-    private fun scrollValue() = rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and
-        hasAnyAncestor(hasTestTag("EntryScrollContent")))
-        .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].value()
-    private fun threeColumns(prefix: String) {
-        val tiles = rule.onAllNodes(SemanticsMatcher("$prefix grid choices") {
-            it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("${prefix}_grid_") == true &&
-                it.config.getOrNull(SemanticsProperties.Selected) != null
-        }, useUnmergedTree = true).fetchSemanticsNodes().map {
-            val c = it.layoutInfo.coordinates
-            Rect(c.localToScreen(Offset.Zero), c.size.toSize())
-        }.sortedWith(compareBy({ it.top }, { it.left }))
-        assertTrue(tiles.size >= 4)
-        assertEquals(tiles[0].top, tiles[1].top, 1f); assertEquals(tiles[1].top, tiles[2].top, 1f)
-        assertTrue(tiles[0].right < tiles[1].left && tiles[1].right < tiles[2].left)
-        assertEquals(tiles[0].width, tiles[2].width, 1f)
-        assertTrue("Fourth tile begins the next row", tiles[3].top >= tiles[0].bottom)
-    }
-    private fun apply() {
-        noPanel()
+
+    private fun apply(amountVal: String = "7") {
+        noSheet()
         assertNull(submitted)
-        rule.onNodeWithTag("EntryKey_7").performClick()
-        rule.onNodeWithTag("EntrySubmit").performClick()
+        try { rule.onNodeWithTag("EntryAmount").performScrollTo() } catch (_: AssertionError) {}
+        rule.onNodeWithTag("EntryAmount").performTextReplacement(amountVal)
+        rule.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick()
         assertEquals(1, submissions)
     }
 
     @Test fun expenseStartsWithCategory_thenScrollsToAsset_andReturnsToFixedKeypad() {
         show()
         val keypad = bounds("EntryKeypad")
-        val rowHeight = bounds("EntryAccount_row").height
-        val beforeScroll = scrollValue()
-        threeColumns("EntryCategory")
-        choose("EntryCategory", "Utilities"); panel("EntryAccount")
-        threeColumns("EntryAccount")
-        assertTrue(scrollValue() > beforeScroll)
-        val viewport = bounds("EntryScrollContent")
-        val row = bounds("EntryAccount_row")
-        assertTrue(row.top >= viewport.top - 1 && row.bottom <= viewport.bottom + 1)
-        assertEquals(rowHeight, row.height, 1f)
+        rule.onNodeWithTag("EntryAccount_card").assertIsDisplayed()
+        chooseCategory("Utilities")
+        openAccountSheet()
+        chooseAccount(14)
+        apply("7")
+        assertEquals("Utilities", submitted!!.category)
+        assertEquals(14L, submitted!!.accountId)
+        assertEquals(7.0, submitted!!.amount, 0.0)
         assertEquals(keypad, bounds("EntryKeypad"))
-        choose("EntryAccount", "14"); apply()
-        assertEquals("Utilities", submitted!!.category); assertEquals(14L, submitted!!.accountId)
-        assertEquals(7.0, submitted!!.amount, 0.0); assertEquals(keypad, bounds("EntryKeypad"))
     }
+
     @Test fun incomeUsesCategoryThenAsset_andPreservesTheCreditSign() {
         show(TransactionMode.INCOME)
-        choose("EntryCategory", "Salary"); panel("EntryAccount")
-        choose("EntryAccount", "3"); apply()
-        assertEquals("Salary", submitted!!.category); assertEquals(3L, submitted!!.accountId)
+        chooseCategory("Salary")
+        openAccountSheet()
+        chooseAccount(3)
+        apply("7")
+        assertEquals("Salary", submitted!!.category)
+        assertEquals(3L, submitted!!.accountId)
         assertEquals(-7.0, submitted!!.amount, 0.0)
     }
+
     @Test fun transferStartsWithSource_thenDestination_excludesSource_andClearsInvalidPrefill() {
         show(TransactionMode.TRANSFER, prefill = 2)
-        threeColumns("EntryAccount")
-        choose("EntryAccount", "2"); panel("EntryDestination")
-        threeColumns("EntryDestination")
-        rule.onNodeWithTag("EntryDestination_grid_2").assertDoesNotExist()
+        rule.onNodeWithTag("EntryAccount_card").assertIsDisplayed()
+        rule.onNodeWithTag("EntryDestination_card").assertIsDisplayed()
+        openAccountSheet()
+        chooseAccount(2)
+        openDestinationSheet()
+        // Account 2 is excluded from destination options
+        rule.onNodeWithTag("EntryDestination_row_2").assertDoesNotExist()
         rule.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
-        choose("EntryDestination", "14"); apply()
-        assertEquals(2L, submitted!!.accountId); assertEquals(14L, submitted!!.toAccountId)
+        chooseDestination(14)
+        apply("7")
+        assertEquals(2L, submitted!!.accountId)
+        assertEquals(14L, submitted!!.toAccountId)
         assertEquals(7.0, submitted!!.amount, 0.0)
     }
+
     @Test fun currentStageRestores_andBackCancellationStaysClosedAfterRestoration_andModesRestart() {
         val restoration = StateRestorationTester(rule)
         show(restoration = restoration)
-        choose("EntryCategory", "Food"); panel("EntryAccount")
-        restoration.emulateSavedInstanceStateRestore(); panel("EntryAccount")
-        pressBack(); noPanel()
-        restoration.emulateSavedInstanceStateRestore(); rule.waitForIdle(); noPanel()
-        rule.onNodeWithTag("TransactionMode_INCOME").performScrollTo().performClick(); panel("EntryCategory")
-        rule.onNodeWithTag("EntryCategory_grid_Salary").assertExists()
-        pressBack(); noPanel()
-        rule.onNodeWithTag("TransactionMode_TRANSFER").performScrollTo().performClick(); panel("EntryAccount")
+        chooseCategory("Food")
+        openAccountSheet()
+        pressBack()
+        noSheet()
+        restoration.emulateSavedInstanceStateRestore()
+        rule.waitForIdle()
+        noSheet()
+        rule.onNodeWithTag("TransactionMode_INCOME").performScrollTo().performClick()
+        noSheet()
+        chooseCategory("Salary")
+        rule.onNodeWithTag("EntryCategory_row_Salary").assertExists()
+        rule.onNodeWithTag("TransactionMode_TRANSFER").performScrollTo().performClick()
+        noSheet()
+        rule.onNodeWithTag("EntryAccount_card").assertIsDisplayed()
+        rule.onNodeWithTag("EntryDestination_card").assertIsDisplayed()
         assertNull(submitted)
     }
-    @Test fun wideDarkLargeFontPanelsStillHaveExactlyThreeColumns() {
+
+    @Test fun wideDarkLargeFontPanelsStillHaveAccountSheetUsable() {
         show(wideLarge = true)
-        threeColumns("EntryCategory")
-        choose("EntryCategory", "Food"); panel("EntryAccount")
-        threeColumns("EntryAccount")
-        choose("EntryAccount", "1"); noPanel()
+        chooseCategory("Food")
+        openAccountSheet()
+        chooseAccount(1)
+        noSheet()
         assertNull(submitted)
     }
+
     @Test fun emptyAccountsStillOfferAdd_afterTheCategoryStep() {
         show(empty = true)
-        choose("EntryCategory", "Food"); panel("EntryAccount")
-        rule.onNodeWithTag("EntryAccount_grid_add").assertIsDisplayed().performClick()
-        noPanel()
+        chooseCategory("Food")
+        openAccountSheet()
+        rule.onNodeWithTag("AccountPicker_AddAccountToggle").assertIsDisplayed().performClick()
+        pressBack()
         rule.onNodeWithTag("EntryAssetSection").assertExists()
         rule.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
         assertNull(submitted)
     }
+
     @Test fun aSingleTransferAccountCanReachAndDismissTheEmptyDestinationPanel() {
         show(TransactionMode.TRANSFER, single = true)
-        choose("EntryAccount", "1"); panel("EntryDestination")
-        rule.onNodeWithTag("EntryDestination_grid_1").assertDoesNotExist()
+        openDestinationSheet()
+        rule.onNodeWithTag("EntryDestination_row_1").assertDoesNotExist()
         rule.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
-        pressBack(); noPanel()
+        pressBack()
+        noSheet()
         assertNull(submitted)
     }
-
 }

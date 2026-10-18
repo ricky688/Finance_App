@@ -65,7 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.util.CurrencyEngine
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.sqrt
@@ -168,7 +169,7 @@ fun MoneySeparationChart(
     val selectedSegment = segments.find { it.id == selectedSegmentId }
 
     // Haptic Feedback for scrubbing focus (Identical to History chart & Daily chart)
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var prevSelectedId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(selectedSegmentId) {
         if (selectedSegmentId != prevSelectedId && selectedSegmentId != null) {
@@ -295,7 +296,7 @@ fun MoneySeparationChart(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = String.format(Locale.US, "$%,.2f", totalAssets),
+                    text = CurrencyEngine.formatSignedAmount(totalAssets, prefix = "$"),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -384,7 +385,7 @@ fun MoneySeparationChart(
                     color = MaterialTheme.colorScheme.error
                 )
                 Text(
-                    text = String.format(Locale.US, "$%,.2f", debtTotal),
+                    text = CurrencyEngine.formatSignedAmount(debtTotal, prefix = "$"),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
@@ -456,7 +457,7 @@ fun MoneySeparationChart(
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(investmentLabel, style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(String.format(Locale.US, "$%,.2f", investmentTotal),
+                        Text(CurrencyEngine.formatSignedAmount(investmentTotal, prefix = "$"),
                             style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.testTag("InvestmentDistributionAmount"))
@@ -564,7 +565,7 @@ fun MoneySeparationChart(
                                 Spacer(modifier = Modifier.width(12.dp))
                             }
                             RollingNumberText(
-                                text = String.format(Locale.US, "$%,.2f", seg.amount),
+                                text = CurrencyEngine.formatSignedAmount(seg.amount, prefix = "$"),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = if (seg.id == "debt") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
@@ -647,7 +648,7 @@ fun InteractiveDonutChart(
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var prevIndex by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(selectedIndex) {
         if (selectedIndex != prevIndex && selectedIndex != null) {
@@ -798,7 +799,7 @@ fun InteractiveDonutChart(
                 fontWeight = FontWeight.Bold
             )
             RollingNumberText(
-                text = String.format(Locale.US, "$%,.0f", activeSeg?.amount ?: totalAssets),
+                text = CurrencyEngine.formatSignedCompact(activeSeg?.amount ?: totalAssets, prefix = "$"),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Black,
                 color = activeSeg?.color ?: MaterialTheme.colorScheme.onSurface

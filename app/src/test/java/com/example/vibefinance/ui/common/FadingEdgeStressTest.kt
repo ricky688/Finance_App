@@ -208,6 +208,26 @@ class FadingEdgeStressTest {
         assertTrue("Huge offset draw must execute cleanly", hugeOffsetDraw.contentDrawn)
     }
 
+    @Test
+    fun testScrollStateHorizontalFadingEdgeAtRestHasNoFade() {
+        val scrollState = androidx.compose.foundation.ScrollState(initial = 0)
+        val mod = Modifier.horizontalFadingEdge(scrollState, 16.dp)
+        val onDraw = extractOnDrawLambda(mod)
+
+        val rendered = executeRealDraw(onDraw, Size(100f, 50f))
+        assertTrue("ScrollState-backed horizontalFadingEdge must draw content cleanly", rendered.contentDrawn)
+    }
+
+    @Test
+    fun testLazyListStateHorizontalFadingEdgeAtRestHasNoFade() {
+        val lazyListState = androidx.compose.foundation.lazy.LazyListState(firstVisibleItemIndex = 0, firstVisibleItemScrollOffset = 0)
+        val mod = Modifier.horizontalFadingEdge(lazyListState, 16.dp)
+        val onDraw = extractOnDrawLambda(mod)
+
+        val rendered = executeRealDraw(onDraw, Size(100f, 50f))
+        assertTrue("LazyListState-backed horizontalFadingEdge must draw content cleanly", rendered.contentDrawn)
+    }
+
     private class DrawExecutionResult(val contentDrawn: Boolean)
 
     private fun executeRealDraw(

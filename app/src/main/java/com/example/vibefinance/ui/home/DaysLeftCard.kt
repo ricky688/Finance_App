@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 
 enum class IndicatorShape {
     FLAT,
@@ -81,16 +83,23 @@ fun DaysLeftCard(
         cap = StrokeCap.Round
     )
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+
     Card(
         modifier = modifier
             .testTag("DaysLeftCard")
             .fillMaxHeight()
-            .clip(BentoCardShape)
-            .bouncyClickable(shape = BentoCardShape) {
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = activeColor
+            ) {
                 // Toggle between Flat and Wavy M3 Expressive shapes on tap
                 indicatorShape = if (indicatorShape == IndicatorShape.FLAT) IndicatorShape.WAVY else IndicatorShape.FLAT
             },
-        shape = BentoCardShape,
+        shape = pressState.shape,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),

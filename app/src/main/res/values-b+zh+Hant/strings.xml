@@ -107,7 +107,6 @@
     <string name="assets_compact_closing_unset">結算日未設定</string>
     <string name="assets_edit_balance">修改結餘</string>
     <string name="assets_view_history">紀錄</string>
-    <string name="assets_current_balance">目前結餘：%1$s</string>
     <string name="assets_new_balance">新結餘</string>
     <string name="assets_balance_change">變動：%1$s</string>
     <string name="assets_balance_history_hint">結餘調整會顯示在歷史紀錄，並且不計入支出預算。</string>
@@ -152,6 +151,9 @@
     <string name="sub_account_label">付款帳戶 / 信用卡</string>
     <string name="sub_due_date_label">下次扣款日</string>
     <string name="btn_save_subscription">儲存訂閱</string>
+    <string name="btn_save_expense">儲存支出</string>
+    <string name="btn_save_income">儲存收入</string>
+    <string name="btn_confirm_transfer">確認轉帳</string>
     <string name="btn_save_changes">儲存變更</string>
     <string name="msg_sub_deleted">訂閱項目已刪除！</string>
     <string name="msg_sub_added">訂閱項目已新增！</string>
@@ -423,6 +425,8 @@
     <string name="edit_transfer_accounts_required">請選擇兩個不同帳戶以儲存轉帳。</string>
     <string name="appearance_launch_animation_title">啟動動畫</string>
     <string name="appearance_launch_animation_desc">開啟應用程式時顯示 VibeFinance 與 Material You 啟動動畫。</string>
+    <string name="appearance_haptic_feedback_title">觸覺回饋</string>
+    <string name="appearance_haptic_feedback_desc">按鍵與互動操作時提供細緻的觸覺震動回饋。</string>
     <string name="privacy_lock_title">應用程式鎖定</string>
     <string name="privacy_lock_desc">開啟或返回應用程式時使用生物辨識或裝置螢幕鎖定驗證。</string>
     <string name="privacy_need_screen_lock">請先在 Android 設定中設定裝置 PIN、圖案或密碼，再啟用應用程式鎖定。</string>
@@ -511,4 +515,37 @@
     <string name="ui_main_note_hint_expense">備忘 / 商戶（如 星巴克、午餐）</string>
     <string name="ui_main_note_hint_income">來源 / 備忘（如 薪資、獎金、專案）</string>
     <string name="ui_main_note_hint_transfer">轉帳備忘（如 信用卡還款、存入儲蓄）</string>
+    <string name="haptic_strength_title">觸覺回饋強度</string>
+    <string name="haptic_strength_gentle">輕柔</string>
+    <string name="haptic_strength_standard">標準</string>
+    <string name="haptic_strength_strong">強烈</string>
+    <string name="haptic_strength_desc">調整整個應用程式的觸覺回饋。實際效果取決於裝置及系統震動設定。</string>
+    <string name="haptic_strength_preview">試用回饋</string>
+
+    <!-- Bento Custom Layout & Card Ordering -->
+    <string name="loc_custom_bento_layout">自訂版面順序</string>
+    <string name="loc_reorder_assets">自訂卡片與資產順序</string>
+    <string name="loc_reset">重設</string>
+    <string name="loc_done">完成</string>
+    <string name="loc_daily_budget_hero">預算水波儀表板</string>
+    <string name="loc_whole_budget_card">週期預算卡</string>
+    <string name="loc_bento_metrics">收支指標矩陣</string>
+    <string name="loc_total_expenses">總支出摘要</string>
+    <string name="loc_spending_trend">支出走勢圖</string>
+    <string name="loc_category_analytics">分類佔比分析</string>
+
+    <!-- Live Balance Flow & Income Boost Cards -->
+    <string name="live_transfer_title">帳戶餘額變動試算</string>
+    <string name="live_transfer_from">轉出</string>
+    <string name="live_transfer_to">收款</string>
+    <string name="live_transfer_current">轉前：%s</string>
+    <string name="live_transfer_after">轉後：%s</string>
+    <string name="live_transfer_insufficient">轉出帳戶結餘不足</string>
+    <string name="live_transfer_select_dest">請在下方選擇收款帳戶</string>
+    <string name="live_transfer_debt_cleared">欠款全數清還</string>
+    <string name="live_income_title">資產增益預覽</string>
+    <string name="live_income_current">目前：%s</string>
+    <string name="live_income_account_label">入帳後帳戶結餘</string>
+    <string name="live_income_total_label">總流動資產變動</string>
+    <string name="live_income_boost_badge">+%s</string>
 </resources>

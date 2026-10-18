@@ -60,6 +60,7 @@ class FullAppBackupEngineTest {
                 com.example.vibefinance.theme.AppearancePalette.ORIGINAL to 0xFF3355AA.toInt(),
                 com.example.vibefinance.theme.AppearancePalette.CUSTOM to 0xFFA12BCD.toInt())))
             .putBoolean("launch_animation_enabled", false).putBoolean("hide_amounts", true)
+            .putBoolean("haptic_feedback_enabled", false).putString("haptic_strength", "GENTLE")
             .putBoolean("app_lock_enabled", true).putString("motion_level", "REDUCED").putFloat("blur_intensity", 0.25f).commit()
         context.getSharedPreferences("assets_display", 0).edit().putBoolean("compact_mode", true).commit()
         context.getSharedPreferences("vibe_merchant_rules", 0).edit().putString("商店", "Food").commit()

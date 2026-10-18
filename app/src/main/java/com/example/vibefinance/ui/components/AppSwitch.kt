@@ -37,7 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -80,7 +80,7 @@ fun AppSwitch(
     enabled: Boolean = true,
     thumbContent: (@Composable () -> Unit)? = null
 ) {
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 

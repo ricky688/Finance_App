@@ -1,6 +1,8 @@
 package com.example.vibefinance.ui.preferences
 
 import com.example.vibefinance.util.VibeHaptics
+import com.example.vibefinance.util.HapticStrength
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.components.AppSwitch
 
@@ -12,12 +14,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.R
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.FinanceIntent
+
+@Composable
+fun HapticStrengthSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
+    val view = LocalView.current
+    var slider by remember(state.hapticStrength) { mutableFloatStateOf(state.hapticStrength.ordinal.toFloat()) }
+    val level = HapticStrength.entries[slider.roundToInt().coerceIn(0, 2)]
+    val label = stringResource(when (level) {
+        HapticStrength.GENTLE -> R.string.haptic_strength_gentle
+        HapticStrength.STANDARD -> R.string.haptic_strength_standard
+        HapticStrength.STRONG -> R.string.haptic_strength_strong
+    })
+    val title = stringResource(R.string.haptic_strength_title)
+    Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("HapticStrengthLabel"))
+            Slider(slider, { slider = it }, valueRange = 0f..2f, steps = 1,
+                enabled = state.hapticFeedbackEnabled,
+                onValueChangeFinished = { dispatch(FinanceIntent.SetHapticStrength(HapticStrength.entries[slider.roundToInt().coerceIn(0, 2)])) },
+                modifier = Modifier.testTag("HapticStrength").semantics { contentDescription = title; stateDescription = label })
+            Text(stringResource(R.string.haptic_strength_desc), style = MaterialTheme.typography.bodySmall)
+            FilledTonalButton(onClick = { VibeHaptics.selection(view) }, enabled = state.hapticFeedbackEnabled,
+                modifier = Modifier.testTag("HapticStrengthPreview")) {
+                Text(stringResource(R.string.haptic_strength_preview))
+            }
+        }
+    }
+}
 
 @Composable
 fun MotionBlurSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {

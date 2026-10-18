@@ -20,6 +20,8 @@ import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.theme.BentoCardShape
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,7 +39,12 @@ fun WholeBudgetCard(
     startDate: Long,
     endDate: Long,
     colors: CardColors = CardDefaults.cardColors(),
+    onClick: () -> Unit = {},
 ) {
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
     val dateLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val formatter = remember(dateLocale) { DateTimeFormatter.ofPattern("dd MMM", dateLocale) }
     val startLocalDate = remember(startDate) {
@@ -62,7 +69,12 @@ fun WholeBudgetCard(
     StatCard(
         modifier = modifier
             .fillMaxWidth()
-            .clip(BentoCardShape),
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = MaterialTheme.colorScheme.primary,
+                onClick = onClick
+            ),
+        shape = pressState.shape,
         label = androidx.compose.ui.res.stringResource(com.example.vibefinance.R.string.start_budget),
         value = amountText,
         valueFontStyle = MaterialTheme.typography.displayMedium,
@@ -114,7 +126,7 @@ fun WholeBudgetCard(
 fun CountDaysChip(modifier: Modifier = Modifier, daysCount: Int) {
     Surface(
         modifier = modifier.requiredHeight(24.dp),
-        shape = CircleShape,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
         color = LocalContentColor.current,
         contentColor = MaterialTheme.colorScheme.surface,
     ) {

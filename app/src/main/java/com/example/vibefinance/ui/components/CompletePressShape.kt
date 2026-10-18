@@ -3,6 +3,7 @@ package com.example.vibefinance.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -17,6 +18,8 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -35,8 +38,11 @@ internal fun rememberCompletePressProgress(
     pressSpec: AnimationSpec<Float> = tween(PressShapeDurationMillis, easing = FastOutSlowInEasing),
     releaseSpec: AnimationSpec<Float> = tween(ReleaseShapeDurationMillis, easing = FastOutSlowInEasing),
 ): State<Float> {
+    val reducedMotion = LocalExperience.current.motion == MotionLevel.MINIMAL
+    val effectivePressSpec = if (reducedMotion) snap() else pressSpec
+    val effectiveReleaseSpec = if (reducedMotion) snap() else releaseSpec
     val progress = remember(interactionSource) { Animatable(0f) }
-    LaunchedEffect(interactionSource, enabled, pressSpec, releaseSpec) {
+    LaunchedEffect(interactionSource, enabled, effectivePressSpec, effectiveReleaseSpec) {
         if (!enabled) progress.snapTo(0f)
         coroutineScope {
             val held = mutableSetOf<PressInteraction.Press>()
@@ -50,7 +56,7 @@ internal fun rememberCompletePressProgress(
                         restoration?.cancel()
                         pressAnimation?.cancel()
                         pressAnimation = launch {
-                            progress.animateTo(1f, pressSpec)
+                            progress.animateTo(1f, effectivePressSpec)
                         }
                     }
                     is PressInteraction.Release -> {
@@ -59,7 +65,7 @@ internal fun rememberCompletePressProgress(
                             restoration = launch {
                                 pressAnimation?.join()
                                 if (held.isEmpty()) {
-                                    progress.animateTo(0f, releaseSpec)
+                                    progress.animateTo(0f, effectiveReleaseSpec)
                                 }
                             }
                         }
@@ -69,7 +75,7 @@ internal fun rememberCompletePressProgress(
                             pressAnimation?.cancel()
                             restoration?.cancel()
                             restoration = launch {
-                                progress.animateTo(0f, releaseSpec)
+                                progress.animateTo(0f, effectiveReleaseSpec)
                             }
                         }
                     }

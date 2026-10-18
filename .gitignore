@@ -21,6 +21,7 @@ graphify-out/
 buckwheat/
 ImageToolbox/
 imagetoolbox/
+morphe-manager/
 skill/
 .agents/auditor_*
 .agents/worker_*

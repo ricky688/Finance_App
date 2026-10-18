@@ -42,7 +42,7 @@ internal object SettingsDrawerTokens {
         topLeft = 28.dp, bottomLeft = 28.dp, topRight = 0.dp, bottomRight = 0.dp
     )
     const val MotionDurationMillis = 320
-    val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
+    val EmphasizedDecelerate = com.example.vibefinance.theme.MotionTokens.EmphasizedDecelerate
 }
 
 internal fun settingsDrawerWidth(maxWidth: Dp): Dp {

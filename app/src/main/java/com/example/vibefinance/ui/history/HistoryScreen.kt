@@ -49,7 +49,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -175,7 +175,8 @@ fun HistoryScreen(
     onClearCategoryFilter: () -> Unit = {},
     onAddTransaction: (() -> Unit)? = null,
     batchResult: com.example.vibefinance.ui.BatchTransactionResult? = null,
-    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset }
 ) {
     var multiSelect by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val motion = LocalExperience.current.motion
@@ -192,7 +193,7 @@ fun HistoryScreen(
         MotionLevel.MINIMAL -> ExitTransition.None
     }
     var selectionArray by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(longArrayOf()) }
-    val selectedIds = selectionArray.toSet()
+    val selectedIds = remember(selectionArray) { selectionArray.toSet() }
     var batchPicker by remember { mutableStateOf<String?>(null) }
     var batchSnapshot by remember { mutableStateOf<List<TransactionEntity>>(emptyList()) }
     var batchRequestId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
@@ -243,11 +244,26 @@ fun HistoryScreen(
     val strToday = stringResource(R.string.date_today)
     val strYesterday = stringResource(R.string.date_yesterday)
     val dateLocale = LocalConfiguration.current.locales[0]
+    val isZh = dateLocale.language.startsWith("zh")
+    val datePattern = if (isZh) "yyyy年M月d日" else "MMM dd, yyyy"
+    val dateHeaderFormatter = remember(datePattern, dateLocale) { DateTimeFormatter.ofPattern(datePattern, dateLocale) }
+    val weekdayFormatter = remember(dateLocale) { DateTimeFormatter.ofPattern("EEEE", dateLocale) }
+    val timeFormatter = remember(dateLocale) { DateTimeFormatter.ofPattern("HH:mm", dateLocale) }
+    val monthPattern = if (isZh) "yyyy年M月" else "MMMM yyyy"
+    val monthFormatter = remember(monthPattern, dateLocale) { DateTimeFormatter.ofPattern(monthPattern, dateLocale) }
+    val budgetPeriodDatePattern = if (isZh) "yyyy年M月d日" else "d MMM yyyy"
+    val budgetPeriodFormatter = remember(budgetPeriodDatePattern, dateLocale) { DateTimeFormatter.ofPattern(budgetPeriodDatePattern, dateLocale) }
+    val accountsMap = remember(state.accounts) { state.accounts.associateBy { it.id } }
+    val strBalanceAdjustment = stringResource(R.string.balance_adjustment_title)
+    val strNonDailyExpense = stringResource(R.string.non_daily_expense_badge)
+    val strFallbackCash = stringResource(R.string.acc_type_cash)
+    val strFallbackAccount = stringResource(R.string.ah_fallback_account)
+    val strDelete = stringResource(R.string.btn_delete)
 
     val budgetInfo = state.budgetInfo
     val context = LocalContext.current
     val filteredAccount = state.accounts.firstOrNull { it.id == accountFilterId }
-    val zone = ZoneId.systemDefault()
+    val zone = remember { ZoneId.systemDefault() }
     val activePeriodStart = budgetInfo?.startDate ?: 0L
     val activePeriodEnd = budgetInfo?.endDate ?: 0L
     val hasBudgetPeriod = activePeriodStart > 0L && activePeriodEnd >= activePeriodStart
@@ -278,15 +294,12 @@ fun HistoryScreen(
     val analyticsPeriodLabel = when (effectiveAnalyticsMode) {
         CategoryAnalyticsPeriodMode.ALL_TIME -> stringResource(R.string.category_analytics_all_time)
         CategoryAnalyticsPeriodMode.BUDGET_PERIOD -> {
-            val datePattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月d日" else "d MMM yyyy"
-            val formatter = DateTimeFormatter.ofPattern(datePattern, dateLocale)
             val startDate = Instant.ofEpochMilli(activePeriodStart).atZone(zone).toLocalDate()
             val endDate = Instant.ofEpochMilli(activePeriodEnd).atZone(zone).toLocalDate()
-            "${startDate.format(formatter)} – ${endDate.format(formatter)}"
+            "${startDate.format(budgetPeriodFormatter)} – ${endDate.format(budgetPeriodFormatter)}"
         }
         CategoryAnalyticsPeriodMode.MONTH -> {
-            val monthPattern = if (dateLocale.language.startsWith("zh")) "yyyy年M月" else "MMMM yyyy"
-            analyticsMonth.atDay(1).format(DateTimeFormatter.ofPattern(monthPattern, dateLocale))
+            analyticsMonth.atDay(1).format(monthFormatter)
         }
     }
 
@@ -466,7 +479,7 @@ fun HistoryScreen(
                 onIntent(FinanceIntent.BatchTransactions(request, batchSnapshot, operation))
             }
         })
-    val visibleIds = transactionsList.map { it.id }.toSet()
+    val visibleIds = remember(transactionsList) { transactionsList.map { it.id }.toSet() }
     LaunchedEffect(visibleIds, multiSelect) {
         if (multiSelect && !batchBusy) selectionArray = selectedIds.intersect(visibleIds).toLongArray()
     }
@@ -474,6 +487,7 @@ fun HistoryScreen(
         modifier = modifier.fillMaxSize(),
         topVisibilityInset = topVisibilityInset,
         bottomVisibilityInset = bottomVisibilityInset,
+        bottomVisibilityInsetProvider = bottomVisibilityInsetProvider,
         tagPrefix = "HistoryArrival"
     ) {
         AnimatedContent(
@@ -636,15 +650,13 @@ fun HistoryScreen(
                 val groupedList = groupedTransactions.toList()
                 groupedList.forEachIndexed { groupIndex, (localDate, txsForDate) ->
                     // 1. Date Header Group (Muted, Clean Typography)
-                    val today = LocalDate.now()
-                    val isZh = dateLocale.language.startsWith("zh")
-                    val datePattern = if (isZh) "yyyy年M月d日" else "MMM dd, yyyy"
+                    val today = LocalDate.now(zone)
                     val dateLabel = when (localDate) {
                         today -> strToday
                         today.minusDays(1) -> strYesterday
-                        else -> localDate.format(DateTimeFormatter.ofPattern(datePattern, dateLocale))
+                        else -> localDate.format(dateHeaderFormatter)
                     }
-                    val weekday = localDate.format(DateTimeFormatter.ofPattern("EEEE", dateLocale))
+                    val weekday = localDate.format(weekdayFormatter)
                     val headerText = "$dateLabel · $weekday"
 
                     item {
@@ -688,20 +700,25 @@ fun HistoryScreen(
 
                     // 2. Transaction Item Flat list (M3 grouped list items)
                     itemsIndexed(items = txsForDate, key = { _, tx -> tx.id }) { index, tx ->
-                        val selectedColor by animateColorAsState(
-                            if (multiSelect && tx.id in selectedIds) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                            animationSpec = if (motion == MotionLevel.MINIMAL) snap() else MaterialTheme.motionScheme.fastEffectsSpec(),
-                            label = "historySelectedColor_${tx.id}")
-                        val sourceAccount = state.accounts.find { it.id == tx.accountId }
-                        val destAccount = tx.toAccountId?.let { toId -> state.accounts.find { it.id == toId } }
+                        val selectedColor = if (multiSelect) {
+                            animateColorAsState(
+                                if (tx.id in selectedIds) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                                animationSpec = if (motion == MotionLevel.MINIMAL) snap() else MaterialTheme.motionScheme.fastEffectsSpec(),
+                                label = "historySelectedColor_${tx.id}"
+                            ).value
+                        } else {
+                            Color.Transparent
+                        }
+                        val sourceAccount = accountsMap[tx.accountId]
+                        val destAccount = tx.toAccountId?.let { toId -> accountsMap[toId] }
                         val isFuture = tx.timestamp > System.currentTimeMillis()
                         val isTransfer = tx.toAccountId != null
                         val isInstallment = tx.installmentNumber != null
                         val displayDelta = tx.historyAmountFor(accountFilterId)
                         val isIncome = displayDelta > 0
 
-                        val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(tx.timestamp), ZoneId.systemDefault())
-                        val timeText = date.format(DateTimeFormatter.ofPattern("HH:mm", dateLocale))
+                        val date = LocalDateTime.ofInstant(Instant.ofEpochMilli(tx.timestamp), zone)
+                        val timeText = date.format(timeFormatter)
 
                         val transitionState = remember { MutableTransitionState(true) }
 
@@ -824,7 +841,7 @@ fun HistoryScreen(
                                                     verticalArrangement = Arrangement.spacedBy(3.dp)
                                                 ) {
                                                     val titleText = when {
-                                                        tx.isBalanceAdjustment -> stringResource(R.string.balance_adjustment_title)
+                                                        tx.isBalanceAdjustment -> strBalanceAdjustment
                                                         tx.description.isNotBlank() -> tx.description
                                                         else -> com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                                     }
@@ -848,7 +865,7 @@ fun HistoryScreen(
                                                                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f))
                                                             ) {
                                                                 Text(
-                                                                    text = stringResource(R.string.non_daily_expense_badge),
+                                                                    text = strNonDailyExpense,
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
@@ -858,11 +875,11 @@ fun HistoryScreen(
                                                         }
                                                     }
 
-                                                    val cardName = sourceAccount?.displayLabel() ?: stringResource(R.string.acc_type_cash)
+                                                    val cardName = sourceAccount?.displayLabel() ?: strFallbackCash
                                                     val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                                     val cardSubtitle = when {
                                                         tx.isBalanceAdjustment -> cardName
-                                                        isTransfer -> "${sourceAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)} ➔ ${destAccount?.displayLabel() ?: stringResource(R.string.ah_fallback_account)}"
+                                                        isTransfer -> "${sourceAccount?.displayLabel() ?: strFallbackAccount} ➔ ${destAccount?.displayLabel() ?: strFallbackAccount}"
                                                         isInstallment -> "$categoryName • $cardName (${tx.installmentNumber}/${tx.totalInstallments})"
                                                         else -> "$categoryName • $cardName"
                                                     }
@@ -911,7 +928,7 @@ fun HistoryScreen(
                                                         ) {
                                                             Icon(
                                                                 imageVector = Icons.Default.Delete,
-                                                                contentDescription = stringResource(R.string.btn_delete),
+                                                                contentDescription = strDelete,
                                                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
                                                                 modifier = Modifier.size(14.dp)
                                                             )
@@ -1137,7 +1154,7 @@ fun HistoryScreen(
 
                     // Daily Budget Toggle for Expenses
                     if (canChangeType && editType == HistoryTransactionType.Expense) {
-                        val editHaptic = LocalHapticFeedback.current
+                        val editHaptic = rememberVibeHapticFeedback()
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1186,7 +1203,7 @@ fun HistoryScreen(
             },
             confirmButton = {
                 val confirmInteraction = remember { MutableInteractionSource() }
-                val haptic = LocalHapticFeedback.current
+                val haptic = rememberVibeHapticFeedback()
                 CompletePressButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1223,7 +1240,7 @@ fun HistoryScreen(
             },
             dismissButton = {
                 val dismissInteraction = remember { MutableInteractionSource() }
-                val haptic = LocalHapticFeedback.current
+                val haptic = rememberVibeHapticFeedback()
                 CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1276,7 +1293,7 @@ private fun HistoryTransactionTypeSelector(
     onTypeSelected: (HistoryTransactionType) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1424,7 +1441,7 @@ internal fun HistoryCategoryDropdown(
         add(R.string.edit_category_defaults to defaults)
         if (existing.isNotEmpty()) add(R.string.edit_category_existing to existing)
     }
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
 
     ExposedDropdownMenuBox(
         expanded = expanded,

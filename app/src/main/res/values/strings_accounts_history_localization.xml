@@ -102,4 +102,7 @@
     <string name="ah_theme_rose" formatted="false">Rose</string>
     <string name="ah_theme_crimson" formatted="false">Crimson</string>
     <string name="ah_clear_search" formatted="false">Clear search</string>
+    <string name="ah_card_credit">Card credit</string>
+    <string name="assets_labeled_balance">%1$s: %2$s</string>
+    <string name="ah_credit_balance_help">Credit card balances: positive means debt owed; negative means money credited to the card.</string>
 </resources>

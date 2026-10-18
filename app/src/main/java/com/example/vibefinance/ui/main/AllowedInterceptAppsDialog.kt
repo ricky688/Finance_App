@@ -24,7 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -281,7 +281,7 @@ internal fun AllowedInterceptAppsPicker(
         },
         confirmButton = {
             val confirmInteraction = remember { MutableInteractionSource() }
-            val haptic = LocalHapticFeedback.current
+            val haptic = rememberVibeHapticFeedback()
             CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)

@@ -38,7 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.vibefinance.ui.common.pressBounce
@@ -62,7 +62,7 @@ fun AddDiscountShopSheet(
     onSaveShop: (DiscountShop) -> Unit
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var shopName by remember { mutableStateOf("") }
     var aspect by remember { mutableStateOf("Coffee & Cafe") }
     var address by remember { mutableStateOf("") }

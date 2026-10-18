@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 // Match toolboxPredictiveBackAnimation's normal page navigation, not its 600ms
 // internal pane transition. Compose retains the app/system MotionDurationScale.
 internal fun <T> assetEditorSlideSpec() =
-    tween<T>(400, easing = CubicBezierEasing(0.48f, 0.19f, 0.05f, 1.03f))
+    tween<T>(400, easing = com.example.vibefinance.theme.MotionTokens.FancyTransitionEasing)
 
 internal fun <T> assetEditorFadeSpec() =
     tween<T>(300, easing = CubicBezierEasing(0.4f, 0.4f, 0.17f, 0.9f))
@@ -37,30 +37,33 @@ internal fun <T> assetEditorScaleSpec() =
     tween<T>(500, easing = CubicBezierEasing(0.55f, 0.55f, 0f, 1f))
 
 @Composable
-internal fun Modifier.assetEditorBackgroundMotion(transition: Transition<Boolean>): Modifier {
+internal fun Modifier.assetEditorBackgroundMotion(
+    transition: Transition<Boolean>,
+    enableSlide: Boolean = false,
+): Modifier {
     val slide =
         transition.animateFloat(
             transitionSpec = { assetEditorSlideSpec() },
             label = "Editor background slide",
         ) { open ->
-            if (open) -1f else 0f
+            if (open && enableSlide) -1f else 0f
         }
     val opacity =
         transition.animateFloat(
             transitionSpec = { assetEditorFadeSpec() },
             label = "Editor background fade",
         ) { open ->
-            if (open) 0f else 1f
+            if (open) 0.90f else 1f
         }
     val scale =
         transition.animateFloat(
             transitionSpec = { assetEditorScaleSpec() },
             label = "Editor background scale",
         ) { open ->
-            if (open) 0.95f else 1f
+            if (open) 0.96f else 1f
         }
     return graphicsLayer {
-        translationX = size.width * slide.value
+        translationX = if (enableSlide) size.width * slide.value else 0f
         alpha = opacity.value
         scaleX = scale.value
         scaleY = scale.value

@@ -126,10 +126,11 @@ class FinancialSuiteInteractionTest {
                     onIntent, {}, mode, emptyMap(), emptyMap(), prefilledDestinationAccountId = destination)
             }
         }
-        val first = if (mode == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory"
-        waitTag("${first}_expanded")
-        compose.onNodeWithTag("${first}_collapse").performClick()
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("${first}_expanded").fetchSemanticsNodes().isEmpty() }
+        if (mode == TransactionMode.TRANSFER) {
+            waitTag("EntryAccount_expanded")
+            compose.onNodeWithTag("EntryAccount_collapse").performClick()
+            compose.waitUntil(5_000) { compose.onAllNodesWithTag("EntryAccount_expanded").fetchSemanticsNodes().isEmpty() }
+        }
     }
     private fun key(value: String) { compose.onNodeWithTag("EntryKey_$value").assertIsDisplayed().performClick() }
     @Test fun calculatorApplyEvaluatesWithoutEqualsAndCannotSubmitTwice() {

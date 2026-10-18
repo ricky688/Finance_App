@@ -4,6 +4,8 @@ package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -76,7 +78,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -185,7 +187,7 @@ fun DailySpendingLineChart(
     val activeItem = cumulativeSpending.getOrNull(activeIndex)
     val activeDailyItem = dailySpending.getOrNull(activeIndex)
 
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var previousIdx by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(selectedIndex) {
         if (selectedIndex != previousIdx && selectedIndex != null) {
@@ -194,14 +196,23 @@ fun DailySpendingLineChart(
         }
     }
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = pressState.shape,
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) { /* Tactile press */ }
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
     ) {
         Column(
             modifier = Modifier

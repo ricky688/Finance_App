@@ -43,7 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
@@ -66,7 +66,7 @@ fun ExpressiveSwipeRow(
     val dragOffsetX = remember { Animatable(0f) }
     var rawDragX by remember { mutableFloatStateOf(0f) }
     var isPastThreshold by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val coroutineScope = rememberCoroutineScope()
 
     val currentOffset = dragOffsetX.value

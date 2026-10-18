@@ -105,9 +105,10 @@ class EntrySelectorOverlayTest {
                     exchangeRateLoader = rateLoader)
             }
         }
-        val first = if (mode == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory"
-        waitPanel(first)
-        click("${first}_collapse")
+        if (mode == TransactionMode.TRANSFER) {
+            waitPanel("EntryAccount")
+            click("EntryAccount_collapse")
+        }
         waitClosedPanels()
     }
 
@@ -115,7 +116,7 @@ class EntrySelectorOverlayTest {
         compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().size == 1
     }
     private fun waitClosedPanels() = compose.waitUntil(8_000) {
-        listOf("EntryCategory", "EntryAccount", "EntryDestination").all {
+        listOf("EntryAccount", "EntryDestination").all {
             compose.onAllNodesWithTag("${it}_expanded").fetchSemanticsNodes().isEmpty()
         }
     }
@@ -410,24 +411,13 @@ class EntrySelectorOverlayTest {
 
     @Test fun categoryOverlayCoversAssetsAndKeypadWithoutMovingTheForm() {
         host(TransactionMode.EXPENSE)
-        val row = compose.onNodeWithTag("EntryCategory_row").fetchSemanticsNode().boundsInWindow
+        val row = compose.onNodeWithTag("EntryCategory").fetchSemanticsNode().boundsInWindow
         val keypad = compose.onNodeWithTag("EntryKeypad").fetchSemanticsNode().boundsInWindow
-        open("EntryCategory")
-        assertEquals(row, compose.onNodeWithTag("EntryCategory_row").fetchSemanticsNode().boundsInWindow)
-        assertEquals(keypad, compose.onNodeWithTag("EntryKeypad").fetchSemanticsNode().boundsInWindow)
-        val menu = screenBounds("EntryCategory_expanded")
-        val keypadScreen = screenBounds("EntryKeypad")
-        assertEquals(keypadScreen.left, menu.left, 1f)
-        assertTrue("Panel begins below its connected row", menu.top > screenBounds("EntryCategory_row").bottom)
-        assertTrue("Panel covers the expense icon control as well as assets",
-            menu.top < screenBounds("ExpenseIconChoose").top)
-        assertEquals(keypadScreen.width, menu.width, 1f)
-        assertEquals(keypadScreen.bottom, menu.bottom, 1f)
-        click("EntryCategory_grid_Food")
-        waitPanel("EntryAccount")
+        compose.onNodeWithTag("EntryCategory").performScrollToNode(hasTestTag("EntryCategory_row_Food"))
+        click("EntryCategory_row_Food")
         compose.onNodeWithTag("EntryCategory_row_Food").assertIsSelected()
-        click("EntryAccount_collapse")
-        waitClosedPanels()
+        assertEquals(row, compose.onNodeWithTag("EntryCategory").fetchSemanticsNode().boundsInWindow)
+        assertEquals(keypad, compose.onNodeWithTag("EntryKeypad").fetchSemanticsNode().boundsInWindow)
         compose.onNodeWithTag("EntryKey_7").assertIsDisplayed().performClick()
         click("EntrySubmit")
         compose.runOnIdle {
@@ -517,29 +507,29 @@ class EntrySelectorOverlayTest {
 
     @Test fun expansionAndCollapseAnimateWithinFixedOverlayBounds() {
         host(TransactionMode.EXPENSE)
-        val row = screenBounds("EntryCategory_row")
+        val row = screenBounds("EntryAccount_row")
         val availableHeight = screenBounds("EntryKeypad").bottom - row.bottom
         compose.mainClock.autoAdvance = false
-        click("EntryCategory_toggle")
+        click("EntryAccount_toggle")
         compose.mainClock.advanceTimeBy(80)
         compose.waitForIdle()
         // A newly attached popup can still be waiting for its first platform layout frame.
         // Zero visible height is valid here; an immediate, fully expanded menu is not.
-        val openingHeight = compose.onNodeWithTag("EntryCategory_expanded").fetchSemanticsNode().boundsInRoot.height
+        val openingHeight = compose.onNodeWithTag("EntryAccount_expanded").fetchSemanticsNode().boundsInRoot.height
         assertTrue("Opening must not jump immediately to full height", openingHeight < availableHeight)
         compose.mainClock.advanceTimeBy(2_000)
         compose.waitForIdle()
-        val openedMenu = screenBounds("EntryCategory_expanded")
+        val openedMenu = screenBounds("EntryAccount_expanded")
         assertTrue("Panel height grows during opening", openingHeight < openedMenu.height)
         assertEquals(screenBounds("EntryKeypad").bottom, openedMenu.bottom, 1f)
-        assertEquals(row, screenBounds("EntryCategory_row"))
-        click("EntryCategory_collapse")
+        assertEquals(row, screenBounds("EntryAccount_row"))
+        click("EntryAccount_collapse")
         compose.mainClock.advanceTimeBy(80)
         compose.waitForIdle()
-        compose.onNodeWithTag("EntryCategory_expanded").assertExists()
+        compose.onNodeWithTag("EntryAccount_expanded").assertExists()
         compose.mainClock.advanceTimeBy(2_000)
         compose.waitForIdle()
-        compose.onNodeWithTag("EntryCategory_expanded").assertDoesNotExist()
+        compose.onNodeWithTag("EntryAccount_expanded").assertDoesNotExist()
         compose.mainClock.autoAdvance = true
     }
 

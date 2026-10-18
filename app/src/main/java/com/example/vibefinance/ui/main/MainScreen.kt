@@ -1,11 +1,31 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class
+)
 
 package com.example.vibefinance.ui.main
 
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.example.vibefinance.ui.components.AppModalBottomSheet
+import com.example.vibefinance.ui.components.ExpressiveConnectedButtonGroup
+import com.example.vibefinance.ui.components.RollingNumberText
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.graphics.vector.ImageVector
+import android.content.res.Resources
+import com.example.vibefinance.theme.LocalIsDarkTheme
+import com.example.vibefinance.theme.MotionTokens
 import com.example.vibefinance.ui.accounts.AssetEditorHost
 import com.example.vibefinance.ui.accounts.assetEditorBackgroundMotion
 import com.example.vibefinance.ui.accounts.rememberAssetEditorState
+import com.example.vibefinance.ui.recurring.SubscriptionEntryHost
+import com.example.vibefinance.ui.recurring.rememberSubscriptionEditorState
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 
@@ -80,6 +100,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.AppSwitch
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
@@ -97,12 +122,11 @@ import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.pressBounce
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -120,6 +144,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.luminance
@@ -156,6 +181,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -164,6 +190,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoMode
@@ -252,6 +282,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import com.example.vibefinance.util.CurrencyEngine
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -288,9 +319,12 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.draw.drawWithContent
 import com.example.vibefinance.ui.recurring.RecurringScreen
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -642,7 +676,7 @@ fun MainScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
     // Cache history ranking while the page is loaded, not during every sheet's first frame.
     val categoryFrequency = remember(state.transactions) {
@@ -703,6 +737,7 @@ fun MainScreen(
     var savingPaymentId by remember { mutableStateOf<String?>(null) }
     var settlingEditorPaymentId by remember { mutableStateOf<String?>(null) }
     val assetEditorState = rememberAssetEditorState()
+    val subscriptionEditorState = rememberSubscriptionEditorState()
     val accountSaveResult by viewModel.accountSaveResult.collectAsStateWithLifecycle()
     val pendingChoiceScope = rememberCoroutineScope()
     LaunchedEffect(context) { PendingPaymentStore.initialize(context) }
@@ -800,12 +835,12 @@ fun MainScreen(
         label = "tabBackProgress"
     )
 
-    val isAnyModalActive = assetEditorState.isOpen || editingPaymentCategoryId != null || showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || state.importPreview != null
-    val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet || showAddRecurringSheet
+    val isAnyModalActive = assetEditorState.isOpen || subscriptionEditorState.isOpen || editingPaymentCategoryId != null || showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || state.importPreview != null
+    val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet
     // One bounded clock for depth, read in the layer rather than recomposing the page each frame.
     val sheetDepthProgress = animateFloatAsState(
         targetValue = if (isAnySheetOpen) 1f else 0f,
-        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        animationSpec = MotionTokens.emphasizedEnter(220),
         label = "sheetDepthProgress"
     )
     val windowFocused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
@@ -885,7 +920,9 @@ fun MainScreen(
     fun checkAndTriggerAutoSheets() {
         if (hasAutoTriggeredForSession || assetEditorState.isOpen) return
         autoSheetScope.launch {
-            kotlinx.coroutines.delay(800L) // Smooth 800ms delay after app launch UI renders
+            val isStartupAnimationActive = state.launchAnimationEnabled &&
+                state.motionLevel == com.example.vibefinance.ui.preferences.MotionLevel.FULL
+            kotlinx.coroutines.delay(if (isStartupAnimationActive) 800L else 200L) // Responsive delay after app launch UI renders
             if (assetEditorState.isOpen) return@launch
             if (isPeriodEnded) {
                 hasAutoTriggeredForSession = true
@@ -983,10 +1020,14 @@ fun MainScreen(
     val transactionEditorTransition = androidx.compose.animation.core.updateTransition(
         showAddDialog, label = "Transaction editor navigation"
     )
-    val fullScreenEditorTransition = androidx.compose.animation.core.updateTransition(
-        assetEditorState.isOpen || showAddDialog, label = "Full-screen editor background"
+    val subscriptionEditorTransition = androidx.compose.animation.core.updateTransition(
+        subscriptionEditorState.isOpen, label = "Subscription editor navigation"
     )
-    Box(Modifier.fillMaxSize().assetEditorBackgroundMotion(fullScreenEditorTransition)
+    val fullScreenEditorTransition = androidx.compose.animation.core.updateTransition(
+        assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen, label = "Full-screen editor background"
+    )
+    val shouldSlideBackground = (showAddDialog || subscriptionEditorState.isOpen) && !assetEditorState.isOpen
+    Box(Modifier.fillMaxSize().assetEditorBackgroundMotion(fullScreenEditorTransition, enableSlide = shouldSlideBackground)
         .semantics { if (fullScreenEditorTransition.currentState || fullScreenEditorTransition.targetState) hideFromAccessibility() }) {
     com.example.vibefinance.ui.settings.SettingsDrawerHost(
         drawerState = settingsDrawerState,
@@ -1094,14 +1135,14 @@ fun MainScreen(
             floatingActionButton = {
                 val fabTab = when {
                     selectedTab == TabItem.HOME && !showAddDialog -> TabItem.HOME
-                    selectedTab == TabItem.RECURRING && !showAddRecurringSheet -> TabItem.RECURRING
+                    selectedTab == TabItem.RECURRING && !showAddRecurringSheet && !subscriptionEditorState.isOpen -> TabItem.RECURRING
                     else -> null
                 }
                 AnimatedContent(
                     targetState = fabTab,
                     contentAlignment = Alignment.BottomEnd,
                     transitionSpec = {
-                        val enter = fadeIn(animationSpec = tween(180)) +
+                        val enter = fadeIn(animationSpec = MotionTokens.emphasizedEnter(180)) +
                             scaleIn(
                                 initialScale = 0.78f,
                                 transformOrigin = TransformOrigin(1f, 1f),
@@ -1110,7 +1151,7 @@ fun MainScreen(
                                     stiffness = Spring.StiffnessMediumLow
                                 )
                             )
-                        val exit = fadeOut(animationSpec = tween(120)) +
+                        val exit = fadeOut(animationSpec = MotionTokens.emphasizedExit(120)) +
                             scaleOut(
                                 targetScale = 0.78f,
                                 transformOrigin = TransformOrigin(1f, 1f),
@@ -1122,7 +1163,7 @@ fun MainScreen(
                         // The modal covers the FAB: avoid a second layout/scale spring while
                         // the sheet is first composed. Keep the expressive tab-to-tab motion.
                         if (targetState == null || initialState == null) {
-                            (fadeIn(tween(120)) togetherWith fadeOut(tween(90))).using(null)
+                            (fadeIn(MotionTokens.standardEnter(120)) togetherWith fadeOut(MotionTokens.standardExit(90))).using(null)
                         } else {
                             (enter togetherWith exit).using(
                                 SizeTransform(clip = false) { _, _ ->
@@ -1160,7 +1201,7 @@ fun MainScreen(
                             onClick = {
                                 if (selectedTab != TabItem.RECURRING) return@ExtendedFloatingActionButton
                                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                showAddRecurringSheet = true
+                                subscriptionEditorState.open()
                             },
                             icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.btn_add)) },
                             text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
@@ -1190,10 +1231,17 @@ fun MainScreen(
                             translationY = with(density) { navBarOffsetY.toPx() }
                         }
                 ) {
-                    var isNavBarAppEntered by remember { mutableStateOf(false) }
-                    LaunchedEffect(Unit) {
-                        delay(750) // Synchronized with Material You Splash Exit
-                        isNavBarAppEntered = true
+                    val motion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion
+                    val isStartupAnimationActive = state.launchAnimationEnabled &&
+                        motion == com.example.vibefinance.ui.preferences.MotionLevel.FULL
+                    var isNavBarAppEntered by rememberSaveable { mutableStateOf(!isStartupAnimationActive) }
+                    LaunchedEffect(isStartupAnimationActive) {
+                        if (isStartupAnimationActive && !isNavBarAppEntered) {
+                            delay(750L) // Synchronized with Material You Splash Exit
+                            isNavBarAppEntered = true
+                        } else {
+                            isNavBarAppEntered = true
+                        }
                     }
 
                     val outlineVariant = MaterialTheme.colorScheme.outlineVariant
@@ -1226,31 +1274,44 @@ fun MainScreen(
                             val isSelected = selectedTab == tab
 
                             // Staggered Left-to-Right Pop Entrance & Staggered Right-to-Left Pop Exit Animation
-                            val popProgress = remember { androidx.compose.animation.core.Animatable(if (isNavBarVisible) 1f else 0f) }
+                            val popProgress = remember { androidx.compose.animation.core.Animatable(if (isNavBarAppEntered && isNavBarVisible) 1f else 0f) }
                             LaunchedEffect(isNavBarVisible, isNavBarAppEntered) {
                                 if (isNavBarAppEntered) {
                                     if (isNavBarVisible) {
-                                        popProgress.snapTo(0f)
-                                        delay(index * 50L + 20L) // Staggered left-to-right pop entrance
-                                        popProgress.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
+                                        if (motion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) {
+                                            popProgress.snapTo(1f)
+                                        } else {
+                                            popProgress.snapTo(0f)
+                                            val staggerDelay = if (isStartupAnimationActive) {
+                                                index * 50L + 20L // Standard splash exit stagger
+                                            } else {
+                                                index * 35L + 10L // Early snappy pop entrance when startup animation is off
+                                            }
+                                            delay(staggerDelay)
+                                            popProgress.animateTo(
+                                                targetValue = 1f,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                    stiffness = Spring.StiffnessMediumLow
+                                                )
                                             )
-                                        )
+                                        }
                                     } else {
-                                        delay((3 - index) * 40L) // Staggered right-to-left pop exit
-                                        popProgress.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
+                                        if (motion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) {
+                                            popProgress.snapTo(0f)
+                                        } else {
+                                            delay((3 - index) * 40L) // Staggered right-to-left pop exit
+                                            popProgress.animateTo(
+                                                targetValue = 0f,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                                    stiffness = Spring.StiffnessMediumLow
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 } else {
-                                    popProgress.snapTo(if (isNavBarVisible) 1f else 0f)
+                                    popProgress.snapTo(0f)
                                 }
                             }
 
@@ -1355,7 +1416,7 @@ fun MainScreen(
                         transitionSpec = {
                             // Official Material 3 Top-Level Destination Motion Spec (Fade + Scale In from 94%)
                             val enterTransition = fadeIn(
-                                animationSpec = tween(durationMillis = 210, easing = FastOutSlowInEasing)
+                                animationSpec = MotionTokens.emphasizedEnter(210)
                             ) + scaleIn(
                                 initialScale = 0.94f,
                                 transformOrigin = TransformOrigin.Center,
@@ -1365,7 +1426,7 @@ fun MainScreen(
                                 )
                             )
                             val exitTransition = fadeOut(
-                                animationSpec = tween(durationMillis = 90, easing = FastOutSlowInEasing)
+                                animationSpec = MotionTokens.emphasizedExit(90)
                             )
                             enterTransition togetherWith exitTransition
                         },
@@ -1386,10 +1447,10 @@ fun MainScreen(
                                     listState = dailyListState,
                                     topContentPadding = pageTopPadding,
                                     topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
-                                    bottomVisibilityInset = (
+                                    bottomVisibilityInsetProvider = { (
                                         if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                         else 100.dp
-                                    ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
+                                    ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                     onViewAllClick = {
                                         historyAccountFilterId = null
                                         historyCategoryFilter = null
@@ -1423,10 +1484,10 @@ fun MainScreen(
                                 listState = assetsListState,
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
-                                bottomVisibilityInset = (
+                                bottomVisibilityInsetProvider = { (
                                     if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 onViewAccountHistory = { accountId ->
                                     historyAccountFilterId = accountId
                                     historyCategoryFilter = null
@@ -1442,12 +1503,14 @@ fun MainScreen(
                                 listState = recurringListState,
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
-                                bottomVisibilityInset = (
+                                bottomVisibilityInsetProvider = { (
                                     if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 showAddSheet = showAddRecurringSheet,
-                                onDismissAddSheet = { showAddRecurringSheet = false }
+                                onDismissAddSheet = { showAddRecurringSheet = false },
+                                editorState = subscriptionEditorState,
+                                renderEditor = false
                             )
                             TabItem.HISTORY -> HistoryScreen(
                                 state = state,
@@ -1457,10 +1520,10 @@ fun MainScreen(
                                 listState = historyListState,
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
-                                bottomVisibilityInset = (
+                                bottomVisibilityInsetProvider = { (
                                     if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom),
+                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 accountFilterId = historyAccountFilterId,
                                 onClearAccountFilter = { historyAccountFilterId = null },
                                 categoryFilter = historyCategoryFilter,
@@ -1511,13 +1574,12 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.TopCenter)
                         .offset(y = paddingValues.calculateTopPadding())
                 )
-                val visibleBottomBarHeight = (
-                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
-                    else 100.dp
-                ).minus(navBarOffsetY)
                 SubtleGlassTransition(
                     state = hazeState, top = false, obscured = isBackgroundObscured,
-                    modifier = Modifier.align(Alignment.BottomCenter).offset(y = -visibleBottomBarHeight)
+                    modifier = Modifier.align(Alignment.BottomCenter).offset {
+                        val barHeight = if (measuredBottomBarHeightPx > 0f) measuredBottomBarHeightPx else 100.dp.toPx()
+                        IntOffset(0, -(barHeight - navBarOffsetY.toPx()).roundToInt())
+                    }
                 )
 
                 FlyingCashOverlay(
@@ -1538,6 +1600,18 @@ fun MainScreen(
         initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
         accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
         transition = transactionEditorTransition,
+    )
+
+    SubscriptionEntryHost(
+        visible = subscriptionEditorState.isOpen,
+        state = state,
+        editorState = subscriptionEditorState,
+        onIntent = viewModel::dispatch,
+        onDismiss = {
+            subscriptionEditorState.close()
+            showAddRecurringSheet = false
+        },
+        transition = subscriptionEditorTransition,
     )
 
     AssetEditorHost(
@@ -1966,7 +2040,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
             
             val itemModifier = if (isScrollable) Modifier else Modifier.weight(1f)
             
-            val haptic = LocalHapticFeedback.current
+            val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
             val view = LocalView.current
 
@@ -1984,7 +2058,6 @@ fun <T> ExpressiveSegmentedButtonGroup(
                         indication = ripple(bounded = true, color = colorMotion.rippleColor),
                         onClick = {
                             if (hapticsEnabled) {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                             }
                             view.playSoundEffect(SoundEffectConstants.CLICK)
@@ -2056,7 +2129,7 @@ fun ExpressiveAddButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val view = LocalView.current
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
     val shapeProgress by rememberCompletePressProgress(interactionSource)
     val cornerRadius = androidx.compose.ui.unit.lerp(restingCorner, pressedCorner, shapeProgress)
@@ -2074,7 +2147,6 @@ fun ExpressiveAddButton(
                     interactionSource = interactionSource,
                     indication = ripple(bounded = true),
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         view.playSoundEffect(SoundEffectConstants.CLICK)
                         com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                         onClick()
@@ -2108,6 +2180,272 @@ fun ExpressiveAddButton(
 }
 
 @Composable
+private fun ModeSwitcherAnimatedIcon(
+    mode: TransactionMode,
+    tint: Color,
+    isSelected: Boolean,
+    clickTrigger: Int,
+    modifier: Modifier = Modifier
+) {
+    val reducedMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion != com.example.vibefinance.ui.preferences.MotionLevel.FULL
+    val density = LocalDensity.current
+    val densityFactor = density.density
+    val iconSizePx = with(density) { 18.dp.toPx() }
+    val scale = iconSizePx / 24f
+
+    // Kinetic active scale (Material 3 Expressive pop when selected)
+    val animScale = remember { Animatable(if (isSelected) 1.08f else 1f) }
+
+    // Stroke draw-in / trim paths progress for Expense and Income (0f -> 1f)
+    val drawProgress = remember { Animatable(1f) }
+
+    // Directional slide offsets for Transfer:
+    // Upper arrow slides right (positive X offset)
+    // Lower arrow slides left (negative X offset)
+    val upperSlideX = remember { Animatable(0f) }
+    val lowerSlideX = remember { Animatable(0f) }
+
+    // Pre-create and cache vector paths and PathMeasures for 0-allocation 120 FPS rendering
+    val expenseLinePath = remember(scale) {
+        Path().apply {
+            moveTo(2.5f * scale, 7.5f * scale)
+            lineTo(9.5f * scale, 14.5f * scale)
+            lineTo(13.5f * scale, 10.5f * scale)
+            lineTo(21.0f * scale, 18.0f * scale)
+        }
+    }
+    val expenseHead1Path = remember(scale) {
+        Path().apply {
+            moveTo(21.0f * scale, 18.0f * scale)
+            lineTo(15.0f * scale, 18.0f * scale)
+        }
+    }
+    val expenseHead2Path = remember(scale) {
+        Path().apply {
+            moveTo(21.0f * scale, 18.0f * scale)
+            lineTo(21.0f * scale, 12.0f * scale)
+        }
+    }
+
+    val incomeLinePath = remember(scale) {
+        Path().apply {
+            moveTo(2.5f * scale, 16.5f * scale)
+            lineTo(9.5f * scale, 9.5f * scale)
+            lineTo(13.5f * scale, 13.5f * scale)
+            lineTo(21.0f * scale, 6.0f * scale)
+        }
+    }
+    val incomeHead1Path = remember(scale) {
+        Path().apply {
+            moveTo(21.0f * scale, 6.0f * scale)
+            lineTo(15.0f * scale, 6.0f * scale)
+        }
+    }
+    val incomeHead2Path = remember(scale) {
+        Path().apply {
+            moveTo(21.0f * scale, 6.0f * scale)
+            lineTo(21.0f * scale, 12.0f * scale)
+        }
+    }
+
+    val transferUpperPath = remember(scale) {
+        Path().apply {
+            moveTo(21f * scale, 9f * scale)
+            lineTo(17.01f * scale, 5f * scale)
+            lineTo(17.01f * scale, 8f * scale)
+            lineTo(10f * scale, 8f * scale)
+            lineTo(10f * scale, 10f * scale)
+            lineTo(17.01f * scale, 10f * scale)
+            lineTo(17.01f * scale, 13f * scale)
+            close()
+        }
+    }
+    val transferLowerPath = remember(scale) {
+        Path().apply {
+            moveTo(6.99f * scale, 11f * scale)
+            lineTo(3f * scale, 15f * scale)
+            lineTo(6.99f * scale, 19f * scale)
+            lineTo(6.99f * scale, 16f * scale)
+            lineTo(14f * scale, 16f * scale)
+            lineTo(14f * scale, 14f * scale)
+            lineTo(6.99f * scale, 14f * scale)
+            close()
+        }
+    }
+
+    val expenseLineMeasure = remember(expenseLinePath) {
+        PathMeasure().apply { setPath(expenseLinePath, false) }
+    }
+    val expenseHead1Measure = remember(expenseHead1Path) {
+        PathMeasure().apply { setPath(expenseHead1Path, false) }
+    }
+    val expenseHead2Measure = remember(expenseHead2Path) {
+        PathMeasure().apply { setPath(expenseHead2Path, false) }
+    }
+
+    val incomeLineMeasure = remember(incomeLinePath) {
+        PathMeasure().apply { setPath(incomeLinePath, false) }
+    }
+    val incomeHead1Measure = remember(incomeHead1Path) {
+        PathMeasure().apply { setPath(incomeHead1Path, false) }
+    }
+    val incomeHead2Measure = remember(incomeHead2Path) {
+        PathMeasure().apply { setPath(incomeHead2Path, false) }
+    }
+
+    val drawSegment = remember { Path() }
+    val strokeWidthPx = with(density) { 2.1.dp.toPx() }
+    val strokeStyle = remember(strokeWidthPx) {
+        Stroke(
+            width = strokeWidthPx,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+    }
+
+    LaunchedEffect(isSelected) {
+        if (reducedMotion) {
+            animScale.snapTo(if (isSelected) 1.08f else 1f)
+        } else {
+            animScale.animateTo(
+                targetValue = if (isSelected) 1.08f else 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(clickTrigger, isSelected) {
+        if (clickTrigger == 0 && !isSelected) {
+            drawProgress.snapTo(1f)
+            upperSlideX.snapTo(0f)
+            lowerSlideX.snapTo(0f)
+            return@LaunchedEffect
+        }
+
+        if (reducedMotion) {
+            drawProgress.snapTo(1f)
+            upperSlideX.snapTo(0f)
+            lowerSlideX.snapTo(0f)
+            return@LaunchedEffect
+        }
+
+        when (mode) {
+            TransactionMode.EXPENSE, TransactionMode.INCOME -> {
+                if (isSelected) {
+                    drawProgress.snapTo(0f)
+                    drawProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = MotionTokens.emphasized(320)
+                    )
+                } else {
+                    drawProgress.snapTo(1f)
+                }
+            }
+            TransactionMode.TRANSFER -> {
+                if (isSelected) {
+                    launch {
+                        upperSlideX.snapTo(0f)
+                        upperSlideX.animateTo(
+                            targetValue = 4.5f,
+                            animationSpec = tween(durationMillis = 130, easing = FastOutSlowInEasing)
+                        )
+                        upperSlideX.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                    }
+                    launch {
+                        lowerSlideX.snapTo(0f)
+                        lowerSlideX.animateTo(
+                            targetValue = -4.5f,
+                            animationSpec = tween(durationMillis = 130, easing = FastOutSlowInEasing)
+                        )
+                        lowerSlideX.animateTo(
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
+                    }
+                } else {
+                    upperSlideX.snapTo(0f)
+                    lowerSlideX.snapTo(0f)
+                }
+            }
+        }
+    }
+
+    Canvas(
+        modifier = modifier
+            .size(18.dp)
+            .graphicsLayer {
+                scaleX = animScale.value
+                scaleY = animScale.value
+            }
+    ) {
+        when (mode) {
+            TransactionMode.EXPENSE -> {
+                val p = drawProgress.value
+                val lineProgress = (p / 0.70f).coerceIn(0f, 1f)
+                val headProgress = ((p - 0.55f) / 0.45f).coerceIn(0f, 1f)
+
+                if (lineProgress > 0f) {
+                    drawSegment.reset()
+                    expenseLineMeasure.getSegment(0f, expenseLineMeasure.length * lineProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+                }
+
+                if (headProgress > 0f) {
+                    drawSegment.reset()
+                    expenseHead1Measure.getSegment(0f, expenseHead1Measure.length * headProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+
+                    drawSegment.reset()
+                    expenseHead2Measure.getSegment(0f, expenseHead2Measure.length * headProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+                }
+            }
+            TransactionMode.INCOME -> {
+                val p = drawProgress.value
+                val lineProgress = (p / 0.70f).coerceIn(0f, 1f)
+                val headProgress = ((p - 0.55f) / 0.45f).coerceIn(0f, 1f)
+
+                if (lineProgress > 0f) {
+                    drawSegment.reset()
+                    incomeLineMeasure.getSegment(0f, incomeLineMeasure.length * lineProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+                }
+
+                if (headProgress > 0f) {
+                    drawSegment.reset()
+                    incomeHead1Measure.getSegment(0f, incomeHead1Measure.length * headProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+
+                    drawSegment.reset()
+                    incomeHead2Measure.getSegment(0f, incomeHead2Measure.length * headProgress, drawSegment, true)
+                    drawPath(drawSegment, color = tint, style = strokeStyle)
+                }
+            }
+            TransactionMode.TRANSFER -> {
+                translate(left = upperSlideX.value * densityFactor, top = 0f) {
+                    drawPath(transferUpperPath, color = tint)
+                }
+                translate(left = lowerSlideX.value * densityFactor, top = 0f) {
+                    drawPath(transferLowerPath, color = tint)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AddExpenseSheetContent(
     state: com.example.vibefinance.ui.FinanceUiState,
     onIntent: (com.example.vibefinance.ui.FinanceIntent) -> Unit,
@@ -2122,7 +2460,7 @@ fun AddExpenseSheetContent(
 ) {
     val context = LocalContext.current
     val localFocusManager = LocalFocusManager.current
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
     val draft = rememberSaveable(saver = AddTransactionDraft.Saver) {
         AddTransactionDraft(initialMode,
@@ -2177,6 +2515,8 @@ fun AddExpenseSheetContent(
     // A trailing operator keeps the completed expression's prediction while Apply stays disabled.
     val calculationPreview = com.example.vibefinance.util.KeypadCalculatorEngine.preview(typedAmount)
     val convertedPreviewAmount = convertToHkd(calculationPreview?.toDouble()?.takeIf { it.isFinite() && it >= 0 })
+    val parsedAmount = typedAmount.toDoubleOrNull() ?: (rawAmount ?: (calculationPreview?.toDouble() ?: 0.0))
+    val liveEffectiveAmount = convertToHkd(parsedAmount) ?: parsedAmount
 
 
     val expenseCategories = remember(state.categoryMergeRules) {
@@ -2215,10 +2555,13 @@ fun AddExpenseSheetContent(
     val selectedToAccount = state.accounts.firstOrNull { it.id == selectedToAccountId }
 
     var showInlineAddCategory by remember { mutableStateOf(false) }
-    var showInlineAddAsset by remember { mutableStateOf(false) }
+    var isCategoryExpanded by rememberSaveable { mutableStateOf(false) }
+    var showAccountPickerSheet by rememberSaveable { mutableStateOf(false) }
+    var isPickingDestination by rememberSaveable { mutableStateOf(false) }
+    var showInlineAddAccountInSheet by remember { mutableStateOf(false) }
 
     val selectorOverlay = rememberSaveable(saver = EntrySelectorOverlayState.Saver) {
-        EntrySelectorOverlayState(if (isTransfer) "EntryAccount" else "EntryCategory")
+        EntrySelectorOverlayState(null)
     }
     BackHandler(enabled = selectorOverlay.activeTag != null || selectorOverlay.pendingTag != null) { selectorOverlay.close() }
     val scrollState = rememberScrollState()
@@ -2266,43 +2609,146 @@ fun AddExpenseSheetContent(
             val scrollHero = maxHeight < 520.dp || LocalDensity.current.fontScale > 1.5f
             Column(Modifier.fillMaxSize()) {
                 TransactionEntryTopBar(transactionMode, selectedCurrency, { selectedCurrency = it }, onDismissAddDialog)
-                if (!scrollHero) TransactionEntryAmount(typedAmount, selectedCurrency, expressionPreview)
                 ScrollBlurContainer(scrollState, Modifier.weight(1f).fillMaxWidth().testTag("EntryScrollContent"),
                     vertical = true, tagPrefix = "EntryScrollContent", blurActive = selectorOverlay.activeTag == null) { source ->
                     Column(source.fillMaxWidth().verticalScroll(scrollState).padding(horizontal = 16.dp)) {
-                        if (scrollHero) TransactionEntryAmount(typedAmount, selectedCurrency, expressionPreview)
                         val modeChoices = remember { listOf(TransactionMode.EXPENSE, TransactionMode.INCOME, TransactionMode.TRANSFER) }
-                        ExpressiveSegmentedButtonGroup(
+                        val isDarkTheme = LocalIsDarkTheme.current ?: (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+                        ExpressiveConnectedButtonGroup(
                             items = modeChoices,
                             selectedIndex = modeChoices.indexOf(transactionMode),
                             onItemSelected = { index ->
                                 if (!entrySubmitting && draft.switchMode(modeChoices[index])) {
-                                    selectorOverlay.advanceTo(if (modeChoices[index] == TransactionMode.TRANSFER) "EntryAccount" else "EntryCategory")
                                     showInlineAddCategory = false
+                                    isCategoryExpanded = false
                                     com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                 }
                             },
-                            hapticsEnabled = false,
-                            corners = ConnectedButtonCorners.Entry,
-                            spatialMotionEnabled = false,
-                            itemModifierProvider = { index -> Modifier.heightIn(min = 48.dp)
-                                .testTag("TransactionMode_${modeChoices[index].name}")
-                                .semantics { selected = transactionMode == modeChoices[index] } },
-                            iconProvider = { mode, tint ->
-                                val icon = when (mode) {
-                                    TransactionMode.EXPENSE -> Icons.Default.TrendingDown
-                                    TransactionMode.INCOME -> Icons.Default.TrendingUp
-                                    TransactionMode.TRANSFER -> Icons.Default.SwapHoriz
-                                }
-                                Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = tint)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp, bottom = 12.dp)
+                                .testTag("TransactionModeSwitcher"),
+                            inactiveContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            activeContainerColor = if (isDarkTheme) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary,
+                            activeContentColor = if (isDarkTheme) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary,
+                            focusBackdropColor = MaterialTheme.colorScheme.surface,
+                            itemModifierProvider = { index ->
+                                Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("TransactionMode_${modeChoices[index].name}")
                             },
-                            labelProvider = { mode -> stringResource(when (mode) {
-                                TransactionMode.EXPENSE -> R.string.filter_expense
-                                TransactionMode.INCOME -> R.string.filter_income
-                                TransactionMode.TRANSFER -> R.string.filter_transfer
-                            }) },
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("TransactionModeSwitcher")
+                            animatedIconProvider = { mode, tint, isSelected, clickTrigger ->
+                                ModeSwitcherAnimatedIcon(
+                                    mode = mode,
+                                    tint = tint,
+                                    isSelected = isSelected,
+                                    clickTrigger = clickTrigger
+                                )
+                            },
+                            labelProvider = { mode ->
+                                stringResource(
+                                    when (mode) {
+                                        TransactionMode.EXPENSE -> R.string.filter_expense
+                                        TransactionMode.INCOME -> R.string.filter_income
+                                        TransactionMode.TRANSFER -> R.string.filter_transfer
+                                    }
+                                )
+                            }
                         )
+
+                        val currencyInfo = remember(selectedCurrency) {
+                            CurrencyEngine.supportedCurrencies.firstOrNull { it.code == selectedCurrency }
+                                ?: CurrencyEngine.supportedCurrencies.first()
+                        }
+                        val currencySymbol = if (selectedCurrency == "HKD") "HK$" else currencyInfo.symbol
+                        val amountFocusRequester = remember { FocusRequester() }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) {
+                                    amountFocusRequester.requestFocus()
+                                },
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "$currencySymbol ",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                            BasicTextField(
+                                value = if (typedAmount == "0") "" else typedAmount,
+                                onValueChange = { input ->
+                                    if (input.isEmpty()) {
+                                        typedAmount = "0"
+                                    } else if (input == ".") {
+                                        typedAmount = "0."
+                                    } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
+                                        typedAmount = input
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                textStyle = MaterialTheme.typography.displaySmall.copy(
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Start
+                                ),
+                                visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                    androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                else
+                                    androidx.compose.ui.text.input.VisualTransformation.None,
+                                modifier = Modifier
+                                    .width(IntrinsicSize.Min)
+                                    .widthIn(min = 32.dp)
+                                    .focusRequester(amountFocusRequester)
+                                    .testTag("EntryAmount")
+                                    .semantics { stateDescription = typedAmount },
+                                decorationBox = { innerTextField ->
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (typedAmount == "0" || typedAmount.isEmpty()) {
+                                            Text(
+                                                text = "0",
+                                                style = MaterialTheme.typography.displaySmall.copy(
+                                                    fontSize = 42.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                                )
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
+                            )
+                            if (typedAmount.isNotEmpty() && typedAmount != "0") {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = {
+                                        typedAmount = "0"
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         if (selectedCurrency != "HKD") {
                             CurrencyRateStatus(selectedCurrency,
@@ -2311,8 +2757,25 @@ fun AddExpenseSheetContent(
                                 onRefresh = { rateRefreshRequest++ })
                         }
 
-                        AnimatedVisibility(
-                            visible = transactionMode == TransactionMode.EXPENSE,
+                        // ==========================================
+                        // BENTO CARD 1: Budget & Note (RoundedCornerShape(22.dp))
+                        // ==========================================
+                        Surface(
+                            shape = RoundedCornerShape(22.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                AnimatedVisibility(
+                                    visible = transactionMode == TransactionMode.EXPENSE,
                             enter = fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
                                 expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top),
                             exit = fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
@@ -2493,6 +2956,40 @@ fun AddExpenseSheetContent(
                             }
                         }
 
+                        AnimatedVisibility(
+                            visible = transactionMode == TransactionMode.TRANSFER,
+                            enter = fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
+                                expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top),
+                            exit = fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
+                                shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top)
+                        ) {
+                            LiveTransferBalanceFlowCard(
+                                sourceAccount = selectedAccount,
+                                destAccount = selectedToAccount,
+                                amount = liveEffectiveAmount,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            )
+                        }
+
+                        AnimatedVisibility(
+                            visible = transactionMode == TransactionMode.INCOME,
+                            enter = fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
+                                expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top),
+                            exit = fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
+                                shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top)
+                        ) {
+                            LiveIncomeAssetBoostCard(
+                                receivingAccount = selectedAccount,
+                                allAccounts = state.accounts,
+                                amount = liveEffectiveAmount,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                            )
+                        }
+
                         OutlinedTextField(
                             value = descriptionText,
                             onValueChange = { input ->
@@ -2515,7 +3012,10 @@ fun AddExpenseSheetContent(
                             }), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f), style = MaterialTheme.typography.bodyMedium) },
                             singleLine = true,
                             trailingIcon = {
-                                IconButton(onClick = { receiptPickerLauncher.launch("image/*") }) {
+                                IconButton(
+                                    onClick = { receiptPickerLauncher.launch("image/*") },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(
                                         imageVector = Icons.Default.CameraAlt,
                                         contentDescription = stringResource(R.string.quick_scan_receipt),
@@ -2531,9 +3031,31 @@ fun AddExpenseSheetContent(
                             ),
                             modifier = Modifier.fillMaxWidth().testTag("EntryDescription")
                         )
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                val resources = LocalContext.current.resources
+                val isZh = remember(resources) {
+                    resources.configuration.locales[0].language.startsWith("zh")
+                }
 
+                // ==========================================
+                // BENTO CARD 2: Classification & Asset (RoundedCornerShape(22.dp))
+                // ==========================================
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         AnimatedVisibility(
                             visible = !isTransfer,
                             enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
@@ -2546,13 +3068,67 @@ fun AddExpenseSheetContent(
                             )
                         ) {
                             Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                                Text(
-                                    text = if (transactionMode == TransactionMode.INCOME) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
+                                // Header Row: Label + Expand/Collapse Toggle
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (transactionMode == TransactionMode.INCOME)
+                                            stringResource(R.string.ui_main_income_category)
+                                        else
+                                            stringResource(R.string.sub_category_label),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                    )
+                                    val categoryArrowRotation by animateFloatAsState(
+                                        targetValue = if (isCategoryExpanded) 180f else 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        ),
+                                        label = "EntryCategory_arrowRotation"
+                                    )
+                                    Surface(
+                                        onClick = {
+                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                            isCategoryExpanded = !isCategoryExpanded
+                                        },
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.testTag("EntryCategory_toggle")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            val toggleText = if (isCategoryExpanded) {
+                                                if (isZh) "收合" else stringResource(R.string.settings_section_collapsed)
+                                            } else {
+                                                if (isZh) "展開全部" else stringResource(R.string.settings_section_expanded)
+                                            }
+                                            Text(
+                                                text = toggleText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Icon(
+                                                imageVector = Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .graphicsLayer { rotationZ = categoryArrowRotation }
+                                            )
+                                        }
+                                    }
+                                }
 
                                 AnimatedVisibility(
                                     visible = showInlineAddCategory && !isTransfer,
@@ -2592,13 +3168,11 @@ fun AddExpenseSheetContent(
                                                         if (name.isNotEmpty() && !incomeCategories.contains(name)) {
                                                             incomeCategories.add(0, name)
                                                             incomeCategoryText = name
-                                                            selectorOverlay.advanceTo("EntryAccount")
                                                         }
                                                     } else {
                                                         if (name.isNotEmpty() && !expenseCategories.contains(name)) {
                                                             expenseCategories.add(0, name)
                                                             expenseCategoryText = name
-                                                            selectorOverlay.advanceTo("EntryAccount")
                                                         }
                                                     }
                                                     newCatName = ""
@@ -2620,26 +3194,175 @@ fun AddExpenseSheetContent(
                                     val incomeMode = transactionMode == TransactionMode.INCOME
                                     val currentCategories = if (incomeMode) sortedIncomeCategories else sortedExpenseCategories
                                     val currentCategoryText = if (incomeMode) incomeCategoryText else expenseCategoryText
+                                    val deduplicatedCategories = remember(currentCategories, resources) {
+                                        currentCategories.distinctBy { getCategoryDisplayNameFromResources(resources, it) }
+                                    }
+                                    val categoryListState = rememberLazyListState()
+                                    LaunchedEffect(currentCategoryText, deduplicatedCategories.size) {
+                                        val selectedIdx = deduplicatedCategories.indexOfFirst {
+                                            getCategoryDisplayNameFromResources(resources, it).equals(getCategoryDisplayNameFromResources(resources, currentCategoryText), ignoreCase = true)
+                                        }
+                                        if (selectedIdx >= 0) {
+                                            categoryListState.animateScrollToItem((selectedIdx - 1).coerceAtLeast(0))
+                                        }
+                                    }
 
-                                    ExpandableEntrySelector(
-                                        items = currentCategories,
-                                        title = if (incomeMode) stringResource(R.string.ui_main_income_category) else stringResource(R.string.sub_category_label),
-                                        tagPrefix = "EntryCategory",
-                                        compactChoices = true,
-                                        keyProvider = { it },
-                                        subtitleProvider = { it },
-                                        selectedIndex = currentCategories.indexOf(currentCategoryText),
-                                        onItemSelected = { index ->
-                                            if (incomeMode) {
-                                                incomeCategoryText = currentCategories[index]
+                                    AnimatedContent(
+                                        targetState = isCategoryExpanded,
+                                        transitionSpec = {
+                                            if (targetState) {
+                                                (fadeIn(
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+                                                ) + expandVertically(
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                                    expandFrom = Alignment.Top
+                                                )).togetherWith(
+                                                    fadeOut(
+                                                        animationSpec = tween(90, easing = LinearEasing)
+                                                    ) + shrinkVertically(
+                                                        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                                                        shrinkTowards = Alignment.Top
+                                                    )
+                                                )
                                             } else {
-                                                expenseCategoryText = currentCategories[index]
-                                            }
-                                            selectorOverlay.advanceTo("EntryAccount")
+                                                (fadeIn(
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+                                                ) + expandVertically(
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                                                    expandFrom = Alignment.Top
+                                                )).togetherWith(
+                                                    fadeOut(
+                                                        animationSpec = tween(90, easing = LinearEasing)
+                                                    ) + shrinkVertically(
+                                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                                        shrinkTowards = Alignment.Top
+                                                    )
+                                                )
+                                            }.using(
+                                                SizeTransform(clip = false) { _, _ ->
+                                                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+                                                }
+                                            )
                                         },
-                                        onAdd = { showInlineAddCategory = !showInlineAddCategory },
-                                        labelProvider = { cat -> com.example.vibefinance.ui.home.getCategoryDisplayName(cat) }
-                                    )
+                                        label = "CategoryExpansionTransition",
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { expanded ->
+                                        if (!expanded) {
+                                            LazyRow(
+                                                state = categoryListState,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .horizontalFadingEdge(categoryListState, 16.dp)
+                                                    .testTag("EntryCategory")
+                                            ) {
+                                                items(deduplicatedCategories, key = { it }) { cat ->
+                                                    val isSelected = getCategoryDisplayNameFromResources(resources, currentCategoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                    FilterChip(
+                                                        selected = isSelected,
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            if (incomeMode) {
+                                                                incomeCategoryText = cat
+                                                            } else {
+                                                                expenseCategoryText = cat
+                                                            }
+                                                        },
+                                                        leadingIcon = {
+                                                            CategoryIcon(
+                                                                category = cat,
+                                                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        },
+                                                        label = {
+                                                            Text(
+                                                                com.example.vibefinance.ui.home.getCategoryDisplayName(cat),
+                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                maxLines = 1,
+                                                                softWrap = false,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.testTag("EntryCategory_row_$cat")
+                                                    )
+                                                }
+                                                item(key = "__add_category__") {
+                                                    FilterChip(
+                                                        selected = showInlineAddCategory,
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            showInlineAddCategory = !showInlineAddCategory
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                        label = { Text(stringResource(R.string.btn_add)) },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.testTag("EntryCategory_row_add")
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            FlowRow(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("EntryCategory_cloud"),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                deduplicatedCategories.forEach { cat ->
+                                                    val isSelected = getCategoryDisplayNameFromResources(resources, currentCategoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                    FilterChip(
+                                                        selected = isSelected,
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            if (incomeMode) {
+                                                                incomeCategoryText = cat
+                                                            } else {
+                                                                expenseCategoryText = cat
+                                                            }
+                                                            isCategoryExpanded = false
+                                                            scope.launch {
+                                                                val idx = deduplicatedCategories.indexOf(cat)
+                                                                if (idx >= 0) {
+                                                                    categoryListState.animateScrollToItem((idx - 1).coerceAtLeast(0))
+                                                                }
+                                                            }
+                                                        },
+                                                        leadingIcon = {
+                                                            CategoryIcon(
+                                                                category = cat,
+                                                                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = Modifier.size(16.dp)
+                                                            )
+                                                        },
+                                                        label = {
+                                                            Text(
+                                                                com.example.vibefinance.ui.home.getCategoryDisplayName(cat),
+                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                maxLines = 1,
+                                                                softWrap = false,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.testTag("EntryCategory_row_$cat")
+                                                    )
+                                                }
+                                                FilterChip(
+                                                    selected = showInlineAddCategory,
+                                                    onClick = {
+                                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                        showInlineAddCategory = !showInlineAddCategory
+                                                    },
+                                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                    label = { Text(stringResource(R.string.btn_add)) },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.testTag("EntryCategory_row_add")
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
@@ -2654,303 +3377,594 @@ fun AddExpenseSheetContent(
                             Spacer(Modifier.height(8.dp))
                         }
 
-                        // 3. Asset Selection Horizontal Grid
-                        Column(modifier = Modifier.fillMaxWidth().testTag("EntryAssetSection")) {
+                        // 3. Full-Width Selected Asset Card & Destination Card in Transfer Mode
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("EntryAssetSection"),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Text(
                                 text = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                modifier = Modifier.padding(bottom = 4.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                             )
 
+                            SelectedAccountCard(
+                                account = selectedAccount,
+                                isDestination = false,
+                                onClick = {
+                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                    isPickingDestination = false
+                                    showAccountPickerSheet = true
+                                },
+                                modifier = Modifier.testTag("EntryAccount_card")
+                            )
+
+                            // Destination Account Card in Transfer mode
                             AnimatedVisibility(
-                                visible = showInlineAddAsset,
-                                enter = expandVertically() + fadeIn(),
-                                exit = shrinkVertically() + fadeOut()
+                                visible = isTransfer,
+                                enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    expandFrom = Alignment.Top
+                                ),
+                                exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkVertically(
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    shrinkTowards = Alignment.Top
+                                )
                             ) {
                                 Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                        .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    var newAssetName by remember { mutableStateOf("") }
-                                    var selectedType by remember { mutableStateOf(AccountType.CASH) }
-                                    var initialBalanceText by remember { mutableStateOf("") }
-
-                                    Text(stringResource(R.string.ui_main_add_account), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-
-                                    OutlinedTextField(
-                                        value = newAssetName,
-                                        onValueChange = { newAssetName = it },
-                                        placeholder = { Text(stringResource(R.string.ui_main_account_hint)) },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                    Text(
+                                        text = stringResource(R.string.ui_main_destination_account),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                                     )
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(stringResource(R.string.ui_main_account_type), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.2f))
-                                        ExpressiveSegmentedButtonGroup(
-                                            corners = ConnectedButtonCorners.Entry,
-                                            spatialMotionEnabled = false,
-                                            items = AccountType.entries,
-                                            selectedIndex = AccountType.entries.indexOf(selectedType),
-                                            onItemSelected = { selectedType = AccountType.entries[it] },
-                                            modifier = Modifier.weight(1f),
-                                            isScrollable = true,
-                                            labelProvider = {
-                                                when (it) {
-                                                    AccountType.CASH -> stringResource(R.string.acc_type_cash)
-                                                    AccountType.BANK -> stringResource(R.string.ui_main_bank_short)
-                                                    AccountType.DEBIT -> stringResource(R.string.ui_main_debit_short)
-                                                    AccountType.CC -> stringResource(R.string.ui_main_credit_short)
-                                                    AccountType.INVESTMENT -> stringResource(R.string.assets_type_investment)
-                                                }
-                                            }
-                                        )
-                                    }
-
-                                    if (selectedType == AccountType.INVESTMENT) {
-                                        Text(stringResource(R.string.assets_investment_notice),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        OutlinedTextField(
-                                            visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                                androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-
-                                            value = initialBalanceText,
-                                            onValueChange = { initialBalanceText = it },
-                                            placeholder = { Text(if (selectedType == AccountType.CC) stringResource(R.string.ui_main_credit_limit_hint) else stringResource(R.string.ui_main_initial_balance_hint)) },
-                                            singleLine = true,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        val addAccountInteraction = remember { MutableInteractionSource() }
-                                        CompletePressButton(
-                                            onClick = {
-                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                                val name = newAssetName.trim()
-                                                val bal = initialBalanceText.toDoubleOrNull() ?: 0.0
-                                                if (name.isNotEmpty()) {
-                                                    val newAccount = AccountEntity(
-                                                        name = name,
-                                                        type = selectedType,
-                                                        balance = if (selectedType == AccountType.CC) 0.0 else bal,
-                                                        icon = when (selectedType) {
-                                                            AccountType.CASH -> "wallet"
-                                                            AccountType.BANK -> "bank"
-                                                            AccountType.DEBIT -> "debit_card"
-                                                            AccountType.CC -> "credit_card"
-                                                            AccountType.INVESTMENT -> "investment"
-                                                        },
-                                                        creditLimit = if (selectedType == AccountType.CC) bal else null
-                                                    )
-                                                    onIntent(com.example.vibefinance.ui.FinanceIntent.SaveAccount(newAccount))
-                                                }
-                                                newAssetName = ""
-                                                initialBalanceText = ""
-                                                showInlineAddAsset = false
-                                            },
-                                            shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                            interactionSource = addAccountInteraction,
-                                            modifier = Modifier.pressBounce(interactionSource = addAccountInteraction)
-                                        ) {
-                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(stringResource(R.string.btn_save))
-                                        }
-                                    }
+                                    SelectedAccountCard(
+                                        account = selectedToAccount,
+                                        isDestination = true,
+                                        onClick = {
+                                            com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                            isPickingDestination = true
+                                            showAccountPickerSheet = true
+                                        },
+                                        modifier = Modifier.testTag("EntryDestination_card")
+                                    )
                                 }
                             }
-
-                            ExpandableEntrySelector(
-                                items = sortedAccounts,
-                                title = if (isTransfer) stringResource(R.string.transfer_from) else stringResource(R.string.ui_main_asset_selection),
-                                tagPrefix = "EntryAccount",
-                                keyProvider = { it.id.toString() },
-                                subtitleProvider = { accountTypeLabel(it.type) },
-                                selectedIndex = sortedAccounts.indexOfFirst { it.id == selectedAccount?.id },
-                                onItemSelected = { index ->
-                                    selectedAccountId = sortedAccounts[index].id
-                                    if (isTransfer && selectedToAccountId == selectedAccountId) selectedToAccountId = null
-                                    selectorOverlay.advanceTo(if (isTransfer) "EntryDestination" else null)
-                                },
-                                iconProvider = { acc, tintColor ->
-                                    val accIcon = when (acc.type) {
-                                        AccountType.CASH -> Icons.Default.Savings
-                                        AccountType.BANK -> Icons.Default.AccountBalance
-                                        AccountType.DEBIT -> Icons.Default.CreditCard
-                                        AccountType.CC -> Icons.Default.ShoppingCart
-                                        AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
-                                    }
-                                    Icon(
-                                        imageVector = accIcon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = tintColor
-                                    )
-                                },
-                                onAdd = { showInlineAddAsset = !showInlineAddAsset },
-                                labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
-                            )
                         }
-
-                        // 4. Destination Account for internal transfer
-                        AnimatedVisibility(
-                            visible = isTransfer,
-                            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                expandFrom = Alignment.Top
-                            ),
-                            exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkVertically(
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                shrinkTowards = Alignment.Top
-                            )
-                        ) {
-                            Column(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    text = stringResource(R.string.ui_main_destination_account),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                                val destAccounts = remember(sortedAccounts, selectedAccount) {
-                                    sortedAccounts.filter { it.id != selectedAccount?.id }
-                                }
-                                ExpandableEntrySelector(
-                                    items = destAccounts,
-                                    title = stringResource(R.string.ui_main_destination_account),
-                                    tagPrefix = "EntryDestination",
-                                    keyProvider = { it.id.toString() },
-                                    subtitleProvider = { accountTypeLabel(it.type) },
-                                    selectedIndex = destAccounts.indexOfFirst { it.id == selectedToAccount?.id },
-                                    onItemSelected = { index ->
-                                        selectedToAccountId = destAccounts[index].id
-                                        selectorOverlay.close()
-                                    },
-                                    iconProvider = { acc, tintColor ->
-                                        val accIcon = when (acc.type) {
-                                            AccountType.CASH -> Icons.Default.Savings
-                                            AccountType.BANK -> Icons.Default.AccountBalance
-                                            AccountType.DEBIT -> Icons.Default.CreditCard
-                                            AccountType.CC -> Icons.Default.ShoppingCart
-                                            AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
-                                        }
-                                        Icon(
-                                            imageVector = accIcon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = tintColor
-                                        )
-                                    },
-                                    labelProvider = { acc -> acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Spacer(Modifier.height(6.dp))
                     }
                 }
-                // Four equal rows keep selector overlay bounds and connected controls stable.
-                val buttonHeight = 54.dp
-                val gap = 6.dp
+
+                Spacer(Modifier.height(6.dp))
+                    }
+                }
                 val amt = rawAmount
                 val isApplyEnabled = !entrySubmitting && amt != null && amt > 0 && convertedAmount != null &&
                     (selectedCurrency == "HKD" || (!rateLoading && rateQuote != null)) &&
                     draft.hasValidAccounts(selectedAccount?.id, selectedToAccount?.id)
-                Column(verticalArrangement = Arrangement.spacedBy(gap),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag("EntryKeypad")
-                        .onGloballyPositioned { selectorOverlay.keypadBounds = it.boundsInWindow() }) {
-                    listOf(listOf("7", "8", "9", "back"), listOf("4", "5", "6", "+"), listOf("1", "2", "3", "-"), listOf("0", ".", "=", "apply")).forEach { keys ->
-                        Row(Modifier.fillMaxWidth().height(buttonHeight), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                            keys.forEach { key ->
-                                if (key == "apply") KeyboardButton(
-                                    modifier = Modifier.weight(1f).alpha(if (isApplyEnabled) 1f else 0.5f).testTag("EntrySubmit"),
-                                    cornerRadius = 24.dp, type = KeyboardButtonType.PRIMARY, icon = rememberVectorPainter(Icons.Default.Check), enabled = isApplyEnabled,
-                                    contentDescription = stringResource(R.string.calculator_apply),
-                                    onClick = {
-                                        val accId = selectedAccount?.id
-                                        if (isApplyEnabled && accId != null && amt != null && !entrySubmitting) {
-                                            entrySubmitting = true
-                                            calculatorPress("=")
-                                            val finalHkdAmt = convertedAmount
-                                            val descWithFx = if (selectedCurrency != "HKD") {
-                                                val origStr = com.example.vibefinance.util.CurrencyEngine.formatOriginal(amt, selectedCurrency)
-                                                val quote = rateQuote ?: return@KeyboardButton
-                                                val detail = "$origStr; 1 ${quote.currencyCode} = ${quote.rateText()} HKD; ${quote.source} ${quote.rateDate}"
-                                                "${descriptionText.ifEmpty { if (isTransfer) "Transfer" else if (transactionMode == TransactionMode.INCOME) "Income" else "Purchase" }} ($detail)"
-                                            } else {
-                                                descriptionText.ifEmpty { "Purchase" }
-                                            }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .testTag("EntryKeypad")
+                        .onGloballyPositioned { selectorOverlay.keypadBounds = it.boundsInWindow() },
+                    color = Color.Transparent
+                ) {
+                    Button(
+                        onClick = {
+                            val accId = selectedAccount?.id
+                            if (isApplyEnabled && accId != null && amt != null && !entrySubmitting) {
+                                entrySubmitting = true
+                                com.example.vibefinance.util.VibeHaptics.successConfirm(calculatorView)
+                                val finalHkdAmt = convertedAmount
+                                val descWithFx = if (selectedCurrency != "HKD") {
+                                    val origStr = com.example.vibefinance.util.CurrencyEngine.formatOriginal(amt, selectedCurrency)
+                                    val quote = rateQuote ?: return@Button
+                                    val detail = "$origStr; 1 ${quote.currencyCode} = ${quote.rateText()} HKD; ${quote.source} ${quote.rateDate}"
+                                    "${descriptionText.ifEmpty { if (isTransfer) "Transfer" else if (transactionMode == TransactionMode.INCOME) "Income" else "Purchase" }} ($detail)"
+                                } else {
+                                    descriptionText.ifEmpty { "Purchase" }
+                                }
 
-                                            if (transactionMode == TransactionMode.TRANSFER && selectedToAccount != null) {
-                                                onIntent(
-                                                    com.example.vibefinance.ui.FinanceIntent.AddTransaction(
-                                                        amount = finalHkdAmt,
-                                                        category = "Transfer",
-                                                        accountId = accId,
-                                                        toAccountId = selectedToAccount?.id,
-                                                        isExcludedFromDailyBudget = true,
-                                                        description = if (selectedCurrency != "HKD") descWithFx else descriptionText.ifEmpty { "CC Payment Transfer" }
-                                                    )
-                                                )
-                                            } else if (transactionMode == TransactionMode.INCOME) {
-                                                onIntent(
-                                                    com.example.vibefinance.ui.FinanceIntent.AddTransaction(
-                                                        amount = -finalHkdAmt,
-                                                        category = incomeCategoryText.ifEmpty { "Income" },
-                                                        accountId = accId,
-                                                        description = descWithFx
-                                                    )
-                                                )
-                                            } else {
-                                                onIntent(
-                                                    com.example.vibefinance.ui.FinanceIntent.AddTransaction(
-                                                        amount = finalHkdAmt,
-                                                        category = expenseCategoryText,
-                                                        accountId = accId,
-                                                        description = descWithFx,
-                                                        isExcludedFromDailyBudget = !isDailyBudget,
-                                                        customIcon = expenseIcon
-                                                    )
-                                                )
-                                            }
-                                            onDismissAddDialog()
-                                        }
-                                    }
-                                ) else KeyboardButton(
-                                    modifier = Modifier.weight(1f).testTag("EntryKey_$key"),
-                                    cornerRadius = 24.dp, type = if (key in listOf("back", "+", "-", "=")) KeyboardButtonType.SECONDARY else KeyboardButtonType.DEFAULT,
-                                    text = if (key == "back") null else if (key == "-") "−" else key,
-                                    icon = if (key == "back") rememberVectorPainter(Icons.Default.Backspace) else null,
-                                    contentDescription = if (key == "back") stringResource(R.string.calculator_backspace) else key,
-                                    onClick = { calculatorPress(key) }, onLongClick = if (key == "back") ({ calculatorPress("clear") }) else null
-                                )
+                                if (transactionMode == TransactionMode.TRANSFER && selectedToAccount != null) {
+                                    onIntent(
+                                        com.example.vibefinance.ui.FinanceIntent.AddTransaction(
+                                            amount = finalHkdAmt,
+                                            category = "Transfer",
+                                            accountId = accId,
+                                            toAccountId = selectedToAccount?.id,
+                                            isExcludedFromDailyBudget = true,
+                                            description = if (selectedCurrency != "HKD") descWithFx else descriptionText.ifEmpty { "CC Payment Transfer" }
+                                        )
+                                    )
+                                } else if (transactionMode == TransactionMode.INCOME) {
+                                    onIntent(
+                                        com.example.vibefinance.ui.FinanceIntent.AddTransaction(
+                                            amount = -finalHkdAmt,
+                                            category = incomeCategoryText.ifEmpty { "Income" },
+                                            accountId = accId,
+                                            description = descWithFx
+                                        )
+                                    )
+                                } else {
+                                    onIntent(
+                                        com.example.vibefinance.ui.FinanceIntent.AddTransaction(
+                                            amount = finalHkdAmt,
+                                            category = expenseCategoryText,
+                                            accountId = accId,
+                                            description = descWithFx,
+                                            isExcludedFromDailyBudget = !isDailyBudget,
+                                            customIcon = expenseIcon
+                                        )
+                                    )
+                                }
+                                onDismissAddDialog()
                             }
-                        }
+                        },
+                        enabled = isApplyEnabled,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("EntrySubmit")
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(
+                                when (transactionMode) {
+                                    TransactionMode.EXPENSE -> R.string.btn_save_expense
+                                    TransactionMode.INCOME -> R.string.btn_save_income
+                                    TransactionMode.TRANSFER -> R.string.btn_confirm_transfer
+                                }
+                            ),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
             }
         }
+    }
+
+    if (showAccountPickerSheet) {
+        val selectableAccounts = remember(sortedAccounts, selectedAccountId, isPickingDestination) {
+            if (isPickingDestination) {
+                sortedAccounts.filter { it.id != selectedAccountId }
+            } else {
+                sortedAccounts
+            }
+        }
+        AppModalBottomSheet(
+            onDismissRequest = {
+                showAccountPickerSheet = false
+                showInlineAddAccountInSheet = false
+            },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                    .navigationBarsPadding()
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(if (isPickingDestination) R.string.ui_main_destination_account else R.string.ui_main_asset_selection),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = {
+                        showAccountPickerSheet = false
+                        showInlineAddAccountInSheet = false
+                    }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                // Account List (2 Columns Grid)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 2.dp)
+                ) {
+                    items(selectableAccounts, key = { it.id }) { acc ->
+                        val isSelected = acc.id == (if (isPickingDestination) selectedToAccountId else selectedAccountId)
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                    if (isPickingDestination) {
+                                        selectedToAccountId = acc.id
+                                    } else {
+                                        selectedAccountId = acc.id
+                                        if (isTransfer && selectedToAccountId == selectedAccountId) {
+                                            selectedToAccountId = null
+                                        }
+                                    }
+                                    showAccountPickerSheet = false
+                                    showInlineAddAccountInSheet = false
+                                }
+                                .testTag(if (isPickingDestination) "EntryDestination_row_${acc.id}" else "EntryAccount_row_${acc.id}")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = getAccountIcon(acc.type),
+                                                contentDescription = null,
+                                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                        ) {
+                                            Text(
+                                                text = accountTypeLabel(acc.type),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
+                                val balanceLabel = if (acc.type == AccountType.CC)
+                                    stringResource(R.string.ui_recurring_account_owing, formattedBal)
+                                else
+                                    stringResource(R.string.ui_recurring_account_balance, formattedBal)
+                                Text(
+                                    text = balanceLabel,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Inline "+ 新增帳戶" Toggle & Form
+                OutlinedButton(
+                    onClick = {
+                        showInlineAddAccountInSheet = !showInlineAddAccountInSheet
+                        com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("AccountPicker_AddAccountToggle"),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (showInlineAddAccountInSheet) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (showInlineAddAccountInSheet) stringResource(R.string.btn_cancel) else stringResource(R.string.ui_main_add_account))
+                }
+
+                AnimatedVisibility(
+                    visible = showInlineAddAccountInSheet,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        var newAssetName by remember { mutableStateOf("") }
+                        var selectedType by remember { mutableStateOf(AccountType.CASH) }
+                        var initialBalanceText by remember { mutableStateOf("") }
+
+                        Text(stringResource(R.string.ui_main_add_account), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+
+                        OutlinedTextField(
+                            value = newAssetName,
+                            onValueChange = { newAssetName = it },
+                            placeholder = { Text(stringResource(R.string.ui_main_account_hint)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(stringResource(R.string.ui_main_account_type), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.25f))
+                            ExpressiveSegmentedButtonGroup(
+                                corners = ConnectedButtonCorners.Entry,
+                                spatialMotionEnabled = false,
+                                items = AccountType.entries,
+                                selectedIndex = AccountType.entries.indexOf(selectedType),
+                                onItemSelected = { selectedType = AccountType.entries[it] },
+                                modifier = Modifier.weight(1f),
+                                isScrollable = true,
+                                labelProvider = {
+                                    when (it) {
+                                        AccountType.CASH -> stringResource(R.string.acc_type_cash)
+                                        AccountType.BANK -> stringResource(R.string.ui_main_bank_short)
+                                        AccountType.DEBIT -> stringResource(R.string.ui_main_debit_short)
+                                        AccountType.CC -> stringResource(R.string.ui_main_credit_short)
+                                        AccountType.INVESTMENT -> stringResource(R.string.assets_type_investment)
+                                    }
+                                }
+                            )
+                        }
+
+                        if (selectedType == AccountType.INVESTMENT) {
+                            Text(
+                                stringResource(R.string.assets_investment_notice),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                    androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                                value = initialBalanceText,
+                                onValueChange = { initialBalanceText = it },
+                                placeholder = { Text(if (selectedType == AccountType.CC) stringResource(R.string.ui_main_credit_limit_hint) else stringResource(R.string.ui_main_initial_balance_hint)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
+                            )
+                            val addAccountInteraction = remember { MutableInteractionSource() }
+                            CompletePressButton(
+                                onClick = {
+                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                    val name = newAssetName.trim()
+                                    val bal = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                    if (name.isNotEmpty()) {
+                                        val newAccount = AccountEntity(
+                                            name = name,
+                                            type = selectedType,
+                                            balance = if (selectedType == AccountType.CC) 0.0 else bal,
+                                            icon = when (selectedType) {
+                                                AccountType.CASH -> "wallet"
+                                                AccountType.BANK -> "bank"
+                                                AccountType.DEBIT -> "debit_card"
+                                                AccountType.CC -> "credit_card"
+                                                AccountType.INVESTMENT -> "investment"
+                                            },
+                                            creditLimit = if (selectedType == AccountType.CC) bal else null
+                                        )
+                                        onIntent(com.example.vibefinance.ui.FinanceIntent.SaveAccount(newAccount))
+                                    }
+                                    newAssetName = ""
+                                    initialBalanceText = ""
+                                    showInlineAddAccountInSheet = false
+                                    showAccountPickerSheet = false
+                                },
+                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                interactionSource = addAccountInteraction,
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .pressBounce(interactionSource = addAccountInteraction)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(stringResource(R.string.btn_save))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedAccountCard(
+    account: AccountEntity?,
+    isDestination: Boolean = false,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .bouncyClickable(shape = RoundedCornerShape(16.dp), onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = getAccountIcon(account?.type),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = account?.let { it.nickname?.takeIf { n -> n.isNotBlank() } ?: it.name }
+                            ?: stringResource(if (isDestination) R.string.ui_main_destination_account else R.string.ui_main_asset_selection),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    account?.let { acc ->
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                        ) {
+                            Text(
+                                text = accountTypeLabel(acc.type),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                account?.let { acc ->
+                    val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
+                    val balanceLabel = if (acc.type == AccountType.CC)
+                        stringResource(R.string.ui_recurring_account_owing, formattedBal)
+                    else
+                        stringResource(R.string.ui_recurring_account_balance, formattedBal)
+                    Text(
+                        text = balanceLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.ui_main_asset_selection),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+private fun getAccountIcon(type: AccountType?): ImageVector {
+    return when (type) {
+        AccountType.CASH -> Icons.Default.Savings
+        AccountType.BANK -> Icons.Default.AccountBalance
+        AccountType.DEBIT -> Icons.Default.CreditCard
+        AccountType.CC -> Icons.Default.ShoppingCart
+        AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
+        null -> Icons.Default.AccountBalance
+    }
+}
+
+private fun getCategoryDisplayNameFromResources(resources: Resources, category: String): String {
+    val normalized = category.trim().replaceFirst(Regex("^[^\\p{L}\\p{N}]+"), "").lowercase(Locale.US).trim()
+    return when (normalized) {
+        "food", "food & drink", "restaurant", "food & dining" -> resources.getString(R.string.cat_food)
+        "transport", "transit", "commute", "bus", "taxi" -> resources.getString(R.string.cat_transport)
+        "shopping", "clothing" -> resources.getString(R.string.cat_shopping)
+        "groceries", "supermarket" -> resources.getString(R.string.cat_groceries)
+        "electronics", "gadgets" -> resources.getString(R.string.cat_electronics)
+        "entertainment", "movie", "games", "gaming" -> resources.getString(R.string.cat_entertainment)
+        "utilities", "electricity", "water", "bills" -> resources.getString(R.string.cat_utilities)
+        "housing", "rent" -> resources.getString(R.string.cat_housing)
+        "health", "medical", "health & medical" -> resources.getString(R.string.cat_health)
+        "software / ai", "software", "ai", "subscription", "recurring" -> resources.getString(R.string.cat_software_ai)
+        "education", "tuition" -> resources.getString(R.string.cat_education)
+        "salary", "paycheck", "wages", "income" -> resources.getString(R.string.cat_salary)
+        "bonus", "reward" -> resources.getString(R.string.cat_bonus)
+        "investment", "dividend", "stocks" -> resources.getString(R.string.cat_investment)
+        "transfer" -> resources.getString(R.string.filter_transfer)
+        "part-time", "freelance", "side hustle" -> resources.getString(R.string.loc_cat_part_time)
+        "gift", "redpocket", "allowance" -> resources.getString(R.string.loc_cat_gift)
+        "other income" -> resources.getString(R.string.loc_cat_other_income)
+        "fitness", "gym" -> resources.getString(R.string.loc_cat_fitness)
+        "travel", "holiday" -> resources.getString(R.string.loc_cat_travel)
+        "others", "other" -> resources.getString(R.string.cat_others)
+        else -> category
     }
 }
 
@@ -2963,5 +3977,367 @@ private fun Modifier.layoutSize(
     val placeable = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(w, h))
     layout(w, h) {
         placeable.place(0, 0)
+    }
+}
+
+private fun formatLiveBalance(v: Double): String =
+    if (v < 0.0) String.format(Locale.US, "-$%,.2f", kotlin.math.abs(v))
+    else String.format(Locale.US, "$%,.2f", v)
+
+@Composable
+private fun LiveTransferBalanceFlowCard(
+    sourceAccount: AccountEntity?,
+    destAccount: AccountEntity?,
+    amount: Double,
+    modifier: Modifier = Modifier
+) {
+    val isSourceCc = sourceAccount?.type == AccountType.CC
+    val isDestCc = destAccount?.type == AccountType.CC
+    val sourceInitial = sourceAccount?.balance ?: 0.0
+    val sourceProjected = if (isSourceCc) sourceInitial + amount else sourceInitial - amount
+    val isInsufficient = !isSourceCc && amount > 0.0 && sourceInitial < amount
+    val destInitial = destAccount?.balance ?: 0.0
+    val destProjected = if (isDestCc) destInitial - amount else destInitial + amount
+    val isDebtCleared = isDestCc && amount > 0.0 && destProjected <= 0.0
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(
+            1.dp,
+            if (isInsufficient) MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        ),
+        modifier = modifier.testTag("LiveTransferBalanceFlowCard")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.SwapHoriz,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.live_transfer_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                if (isInsufficient) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.live_transfer_insufficient),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                } else if (isDebtCleared) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.live_transfer_debt_cleared),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Source account column
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = stringResource(R.string.live_transfer_from),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = sourceAccount?.let { it.nickname ?: it.name } ?: "—",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(R.string.live_transfer_current, formatLiveBalance(sourceInitial)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "➔ ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isInsufficient) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        )
+                        RollingNumberText(
+                            text = formatLiveBalance(sourceProjected),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isInsufficient) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                // Transfer Arrow & Amount indicator in the middle
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    if (amount > 0.0) {
+                        RollingNumberText(
+                            text = formatLiveBalance(amount),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                // Destination account column
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = stringResource(R.string.live_transfer_to),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (destAccount == null) {
+                        Text(
+                            text = stringResource(R.string.live_transfer_select_dest),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 2
+                        )
+                    } else {
+                        Text(
+                            text = destAccount.nickname ?: destAccount.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.live_transfer_current, formatLiveBalance(destInitial)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "➔ ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            RollingNumberText(
+                                text = formatLiveBalance(destProjected),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDebtCleared) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveIncomeAssetBoostCard(
+    receivingAccount: AccountEntity?,
+    allAccounts: List<AccountEntity>,
+    amount: Double,
+    modifier: Modifier = Modifier
+) {
+    val isCc = receivingAccount?.type == AccountType.CC
+    val isInvestment = receivingAccount?.type == AccountType.INVESTMENT
+    val initialBalance = receivingAccount?.balance ?: 0.0
+    val projectedBalance = if (isCc) initialBalance - amount else initialBalance + amount
+    val liquidAccounts = allAccounts.filter { it.type != AccountType.CC && it.type != AccountType.INVESTMENT }
+    val currentLiquidTotal = liquidAccounts.sumOf { it.balance }
+    val projectedLiquidTotal = currentLiquidTotal + if (!isCc && !isInvestment) amount else 0.0
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        modifier = modifier.testTag("LiveIncomeAssetBoostCard")
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.live_income_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                if (amount > 0.0) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.live_income_boost_badge, formatLiveBalance(amount)),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Left metric: Receiving Account
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = receivingAccount?.let { it.nickname ?: it.name } ?: stringResource(R.string.live_income_account_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.live_income_current, formatLiveBalance(initialBalance)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "➔ ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            RollingNumberText(
+                                text = formatLiveBalance(projectedBalance),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // Right metric: Total Liquid Assets
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = stringResource(R.string.live_income_total_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.live_income_current, formatLiveBalance(currentLiquidTotal)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "➔ ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            RollingNumberText(
+                                text = formatLiveBalance(projectedLiquidTotal),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

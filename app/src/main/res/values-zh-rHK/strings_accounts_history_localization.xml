@@ -102,4 +102,7 @@
     <string name="ah_theme_rose" formatted="false">玫瑰</string>
     <string name="ah_theme_crimson" formatted="false">深紅</string>
     <string name="ah_clear_search" formatted="false">清除搜尋</string>
+    <string name="ah_card_credit">信用卡溢繳結餘</string>
+    <string name="assets_labeled_balance">%1$s：%2$s</string>
+    <string name="ah_credit_balance_help">信用卡結餘：正數表示未償還欠款；負數表示已存入卡內的溢繳款項。</string>
 </resources>

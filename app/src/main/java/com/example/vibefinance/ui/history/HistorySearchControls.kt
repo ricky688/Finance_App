@@ -56,9 +56,9 @@ fun AnimatedHistorySearchBar(visibility: MutableTransitionState<Boolean>, query:
                 expandVertically(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top) +
                 fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
         exit = if (minimal) ExitTransition.None else
-            slideOutVertically(tween(300, easing = CubicBezierEasing(.2f, 0f, 0f, 1f))) { -it } +
-                shrinkVertically(tween(300, easing = CubicBezierEasing(.2f, 0f, 0f, 1f)), shrinkTowards = Alignment.Top) +
-                fadeOut(tween(220))) {
+            slideOutVertically(com.example.vibefinance.theme.MotionTokens.emphasized(300)) { -it } +
+                shrinkVertically(com.example.vibefinance.theme.MotionTokens.emphasized(300), shrinkTowards = Alignment.Top) +
+                fadeOut(com.example.vibefinance.theme.MotionTokens.standard(220))) {
         // Wait for the drop-down to settle before the IME changes the available window bounds.
         LaunchedEffect(visibility.isIdle, visibility.currentState, visibility.targetState) {
             if (visibility.isIdle && visibility.currentState && visibility.targetState) focus.requestFocus()

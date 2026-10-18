@@ -10,18 +10,32 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -130,7 +144,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -178,13 +192,75 @@ fun AssetEditorScreen(
     saveResult: AccountSaveResult? = null,
     onAccountCreated: ((AccountEntity) -> Unit)? = null,
     onDismissCreate: (() -> Unit)? = null,
+    transition: Transition<Boolean>? = null,
+    transformProgress: Float = 1f,
 ) {
+    val fallbackTransition = updateTransition(editorState.isOpen, label = "AssetEditorFallback")
+    val effectiveTransition = transition ?: fallbackTransition
+
+    val effectiveProgress = if (transition != null) transformProgress else (if (editorState.isOpen) 1f else 0f)
+
+    val sourceBounds = editorState.cardBounds
+    var destCardBounds by remember { mutableStateOf<Rect?>(null) }
+    val density = LocalDensity.current
+
+    // Compute spatial delta between source (clicked card) and destination (preview card)
+    val deltaX: Float
+    val deltaY: Float
+    val initialScaleX: Float
+    val initialScaleY: Float
+
+    if (sourceBounds != null && destCardBounds != null) {
+        deltaX = sourceBounds.left - destCardBounds!!.left
+        deltaY = sourceBounds.top - destCardBounds!!.top
+        initialScaleX = (sourceBounds.width / destCardBounds!!.width.coerceAtLeast(1f)).coerceIn(0.5f, 1.5f)
+        initialScaleY = (sourceBounds.height / destCardBounds!!.height.coerceAtLeast(1f)).coerceIn(0.5f, 1.5f)
+    } else if (sourceBounds != null) {
+        val estimatedDestTopPx = with(density) { 96.dp.toPx() }
+        val estimatedDestLeftPx = with(density) { 16.dp.toPx() }
+        deltaX = sourceBounds.left - estimatedDestLeftPx
+        deltaY = sourceBounds.top - estimatedDestTopPx
+        initialScaleX = 1f
+        initialScaleY = 1f
+    } else {
+        deltaX = 0f
+        deltaY = with(density) { 180.dp.toPx() }
+        initialScaleX = 0.92f
+        initialScaleY = 0.92f
+    }
+
+    // 1. Actual Card Motion (Travels upwards from clicked position to destination)
+    val cardMotionEasing = CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
+    val cardT = cardMotionEasing.transform(effectiveProgress.coerceIn(0f, 1f))
+
+    val currentCardTranslationX = androidx.compose.ui.util.lerp(deltaX, 0f, cardT)
+    val currentCardTranslationY = androidx.compose.ui.util.lerp(deltaY, 0f, cardT)
+    val currentCardScaleX = androidx.compose.ui.util.lerp(initialScaleX, 1f, cardT)
+    val currentCardScaleY = androidx.compose.ui.util.lerp(initialScaleY, 1f, cardT)
+    val currentCardElevation = androidx.compose.ui.unit.lerp(1.dp, 8.dp, cardT)
+
+    // 2. Top Bar Animation (Fades and slides down smoothly)
+    val topBarProgress = ((effectiveProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
+    val topBarAlpha = FastOutSlowInEasing.transform(topBarProgress)
+    val topBarOffsetY = (-36).dp * (1f - topBarAlpha)
+
+    // 3. Form Animation ("then the other elements pop up with ease in animation speed")
+    val formProgress = ((effectiveProgress - 0.28f) / 0.72f).coerceIn(0f, 1f)
+    val formEaseIn = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f).transform(formProgress)
+    val formAlpha = formEaseIn
+    val formOffsetY = 60.dp * (1f - formEaseIn)
+    val formScale = 0.94f + 0.06f * formEaseIn
+
+    // 4. Scaffold Background Alpha (Smoothly dissolves in as card ascends)
+    val scaffoldBgAlpha = FastOutSlowInEasing.transform(effectiveProgress.coerceIn(0f, 1f))
+    val animatedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = scaffoldBgAlpha)
+
     val editingAccountId = editorState.accountId
     val editingAccount = state.accounts.firstOrNull { it.id == editingAccountId }
     val initialPrefillAccount = editorState.prefillAccount
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val presentationLocale = LocalConfiguration.current.locales[0]
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     if (editingAccountId != null && editingAccount == null) {
         if (state.isLoading)
             Surface(Modifier.fillMaxSize()) {
@@ -386,6 +462,58 @@ fun AssetEditorScreen(
         )
     }
     val previewCardImage = rememberCardImagePainter(selectedCardImageUri)
+
+    val isFromCard = sourceBounds != null
+    val (targetThemeColor1, targetThemeColor2) = remember(selectedCardTheme, isDark) {
+        getCardThemeColors(selectedCardTheme, isDark)
+    }
+    val animatedThemeColor1 by animateColorAsState(
+        targetValue = targetThemeColor1,
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "themeColor1"
+    )
+    val animatedThemeColor2 by animateColorAsState(
+        targetValue = targetThemeColor2,
+        animationSpec = tween(350, easing = FastOutSlowInEasing),
+        label = "themeColor2"
+    )
+
+    val listCardColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(
+        alpha = if (previewCardImage != null) (if (isDark) 0.22f else 0.30f) else (if (isDark) 0.60f else 0.85f)
+    )
+    val startCardColor1 = if (isFromCard) listCardColor else animatedThemeColor1
+    val startCardColor2 = if (isFromCard) listCardColor else animatedThemeColor2
+    val startTextColor = if (isFromCard) MaterialTheme.colorScheme.onSurface else Color.White
+    val startSubtextColor = if (isFromCard) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f)
+    val startLast4Color = if (isFromCard) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
+    val startBorderColor = if (isFromCard) {
+        if (selectedAccentColorKey == null) {
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.35f)
+        } else {
+            accountAccent(typeState, selectedAccentColorKey).foreground.copy(alpha = 0.40f)
+        }
+    } else Color.Transparent
+
+    val currentCardColor1 = androidx.compose.ui.graphics.lerp(startCardColor1, animatedThemeColor1, cardT)
+    val currentCardColor2 = androidx.compose.ui.graphics.lerp(startCardColor2, animatedThemeColor2, cardT)
+    val animatedCardGradient = Brush.verticalGradient(listOf(currentCardColor1, currentCardColor2))
+
+    val currentTextColor = androidx.compose.ui.graphics.lerp(startTextColor, Color.White, cardT)
+    val currentSubtextColor = androidx.compose.ui.graphics.lerp(startSubtextColor, Color.White.copy(alpha = 0.7f), cardT)
+    val currentLast4Color = androidx.compose.ui.graphics.lerp(startLast4Color, Color.White.copy(alpha = 0.85f), cardT)
+    val currentBorderColor = androidx.compose.ui.graphics.lerp(startBorderColor, Color.Transparent, cardT)
+
+    val currentPreviewAccent = accountAccent(typeState, selectedAccentColorKey)
+    val animatedAccentBg by animateColorAsState(
+        targetValue = currentPreviewAccent.background,
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "accentBg"
+    )
+    val currentAccentBorderColor = androidx.compose.ui.graphics.lerp(
+        if (isFromCard) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.8f),
+        Color.White.copy(alpha = 0.8f),
+        cardT
+    )
 
     var billingDayDropdownExpanded by remember { mutableStateOf(false) }
     var paymentDayDropdownExpanded by remember { mutableStateOf(false) }
@@ -633,19 +761,15 @@ fun AssetEditorScreen(
     }
     Scaffold(
         modifier =
-            Modifier.fillMaxSize().testTag("AssetEditorSheet").pointerInput(Unit) {
-                // Own the entire overlay hit region while leaving child gestures untouched.
-                awaitPointerEventScope {
-                    while (true) awaitPointerEvent(
-                            androidx.compose.ui.input.pointer.PointerEventPass.Final
-                        )
-                        .changes
-                        .forEach { it.consume() }
-                }
-            },
-        containerColor = MaterialTheme.colorScheme.surface,
+            Modifier.fillMaxSize()
+                .testTag("AssetEditorSheet"),
+        containerColor = animatedContainerColor,
         topBar = {
             TopAppBar(
+                modifier = Modifier.graphicsLayer {
+                    alpha = topBarAlpha
+                    translationY = topBarOffsetY.toPx()
+                },
                 title = {
                     Text(
                         if (editingAccount == null) stringResource(R.string.ah_add_asset_card)
@@ -700,23 +824,50 @@ fun AssetEditorScreen(
                     !protocolDropdownExpanded &&
                     !patternDropdownExpanded
             val cyclePreview: @Composable () -> Unit = {
-                if (typeState == AccountType.CC) CreditCardCycleBadges(
-                    AccountEntity(id = editingAccountId ?: 0L, name = "", type = typeState, balance = 0.0, icon = "",
-                        creditLimit = creditLimitText.toDoubleOrNull(), billingDate = billingDateText.toIntOrNull(),
-                        paymentDate = paymentDateText.toIntOrNull(), paymentDeadline = paymentDeadlineText.toIntOrNull()), state.transactions)
+                if (typeState == AccountType.CC) {
+                    Box(
+                        modifier = Modifier.graphicsLayer {
+                            translationY = formOffsetY.toPx()
+                            scaleX = formScale
+                            scaleY = formScale
+                            alpha = formAlpha
+                        }
+                    ) {
+                        CreditCardCycleBadges(
+                            AccountEntity(id = editingAccountId ?: 0L, name = "", type = typeState, balance = 0.0, icon = "",
+                                creditLimit = creditLimitText.toDoubleOrNull(), billingDate = billingDateText.toIntOrNull(),
+                                paymentDate = paymentDateText.toIntOrNull(), paymentDeadline = paymentDeadlineText.toIntOrNull()), state.transactions)
+                    }
+                }
             }
             val previewCard: @Composable () -> Unit = {
-                Card(
-                    modifier =
-                        Modifier.fillMaxWidth()
-                            .height(160.dp)
-                            .testTag("AssetEditorPreview")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coords ->
+                            if (coords.isAttached && destCardBounds == null) {
+                                destCardBounds = coords.boundsInRoot()
+                            }
+                        }
+                ) {
+                    Card(
+                        modifier =
+                            Modifier.fillMaxWidth()
+                                .height(160.dp)
+                                .graphicsLayer {
+                                    translationX = currentCardTranslationX
+                                    translationY = currentCardTranslationY
+                                    scaleX = currentCardScaleX
+                                    scaleY = currentCardScaleY
+                                    shadowElevation = currentCardElevation.toPx()
+                                }
+                                .testTag("AssetEditorPreview")
                             .then(
                                 if (selectedCardImageUri.isEmpty()) {
-                                    Modifier.rotate3DOnTouch()
+                                    Modifier
                                 } else {
                                     Modifier.pointerInput(selectedCardImageUri) {
-                                        detectTransformGestures { _, pan, zoom, _ ->
+                                        detectCardImageTransform { pan, zoom ->
                                             val spanX = size.width * 0.4f
                                             val spanY = size.height * 0.4f
                                             if (spanX > 0f && spanY > 0f) {
@@ -742,12 +893,13 @@ fun AssetEditorScreen(
                                 }
                             ),
                     shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    border = BorderStroke(0.8.dp, currentBorderColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
                     Box(
                         modifier =
                             Modifier.fillMaxSize()
-                                .clip(RoundedCornerShape(22.dp))
+                                .clip(RoundedCornerShape(20.dp))
                                 .drawCardBackground(
                                     bitmap = previewCardImage,
                                     themeName = selectedCardTheme,
@@ -756,6 +908,7 @@ fun AssetEditorScreen(
                                     offsetX = selectedCardBgOffsetX,
                                     offsetY = selectedCardBgOffsetY,
                                     scale = selectedCardBgScale,
+                                    customBrush = animatedCardGradient,
                                 )
                     ) {
                         if (selectedCardImageUri.isEmpty()) {
@@ -789,7 +942,7 @@ fun AssetEditorScreen(
                                 }
                             Box(
                                 modifier =
-                                    Modifier.matchParentSize().clip(RoundedCornerShape(22.dp)),
+                                    Modifier.matchParentSize().clip(RoundedCornerShape(20.dp)),
                                 contentAlignment = Alignment.CenterEnd,
                             ) {
                                 Text(
@@ -801,7 +954,11 @@ fun AssetEditorScreen(
                                             letterSpacing = (-2).sp,
                                             fontFamily = JetBrainsMonoFontFamily,
                                         ),
-                                    color = Color.White.copy(alpha = 0.12f),
+                                    color = androidx.compose.ui.graphics.lerp(
+                                        if (isDark) Color.White.copy(alpha = 0.08f) else currentPreviewAccent.foreground.copy(alpha = 0.09f),
+                                        Color.White.copy(alpha = 0.12f),
+                                        cardT
+                                    ),
                                     maxLines = 1,
                                     softWrap = false,
                                     overflow = TextOverflow.Clip,
@@ -826,17 +983,15 @@ fun AssetEditorScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.weight(1f, fill = false),
                                 ) {
-                                    val previewAccent =
-                                        accountAccent(typeState, selectedAccentColorKey)
                                     Box(
                                         modifier =
                                             Modifier.padding(end = 8.dp)
                                                 .size(14.dp)
                                                 .clip(CircleShape)
-                                                .background(previewAccent.background)
+                                                .background(animatedAccentBg)
                                                 .border(
                                                     1.dp,
-                                                    Color.White.copy(alpha = 0.8f),
+                                                    currentAccentBorderColor,
                                                     CircleShape,
                                                 )
                                     )
@@ -847,7 +1002,7 @@ fun AssetEditorScreen(
                                                     stringResource(R.string.ah_card_preview)
                                                 }
                                             },
-                                        color = Color.White,
+                                        color = currentTextColor,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
@@ -866,7 +1021,7 @@ fun AssetEditorScreen(
                                 Column {
                                     Text(
                                         text = accountTypeDisplayLabel(typeState),
-                                        color = Color.White.copy(alpha = 0.7f),
+                                        color = currentSubtextColor,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold,
                                         letterSpacing = 1.sp,
@@ -876,7 +1031,7 @@ fun AssetEditorScreen(
                                     ) {
                                         Text(
                                             text = "•••• $cardLast4Text",
-                                            color = Color.White.copy(alpha = 0.85f),
+                                            color = currentLast4Color,
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.Medium,
                                         )
@@ -886,7 +1041,7 @@ fun AssetEditorScreen(
                                     ) {
                                         Text(
                                             text = nameText,
-                                            color = Color.White.copy(alpha = 0.85f),
+                                            color = currentLast4Color,
                                             style = MaterialTheme.typography.bodySmall,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -904,13 +1059,14 @@ fun AssetEditorScreen(
                                     text = formattedBalance,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
+                                    color = currentTextColor,
                                 )
                             }
                         }
                     }
                 }
             }
+        }
 
             val basicContent: @Composable () -> Unit = {
                 AssetEditorSection {
@@ -1289,6 +1445,9 @@ fun AssetEditorScreen(
                                 else androidx.compose.ui.text.input.VisualTransformation.None,
                             value = balanceText,
                             onValueChange = { balanceText = it },
+                            supportingText = if (typeState == AccountType.CC) {
+                                { Text(stringResource(R.string.ah_credit_balance_help)) }
+                            } else null,
                             label = {
                                 Text(
                                     if (typeState == AccountType.CC)
@@ -1314,14 +1473,14 @@ fun AssetEditorScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            val quickAdjustScrollState = rememberScrollState()
                             Row(
                                 modifier =
                                     Modifier.fillMaxWidth()
-                                        .horizontalFadingEdge(16.dp, 16.dp)
-                                        .horizontalScroll(rememberScrollState()),
+                                        .horizontalFadingEdge(quickAdjustScrollState, 16.dp)
+                                        .horizontalScroll(quickAdjustScrollState),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Spacer(modifier = Modifier.width(4.dp))
                                 listOf(50.0, 100.0, 500.0, 1000.0).forEach { delta ->
                                     SuggestionChip(
                                         onClick = {
@@ -1388,7 +1547,6 @@ fun AssetEditorScreen(
                                         shape = RoundedCornerShape(12.dp),
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(4.dp))
                             }
                         }
 
@@ -1893,15 +2051,15 @@ fun AssetEditorScreen(
                                 "crimson" to Pair(Color(0xFFB71C1C), Color(0xFFD32F2F)),
                             )
 
+                        val swatchScrollState = rememberScrollState()
                         Row(
                             modifier =
                                 Modifier.fillMaxWidth()
-                                    .horizontalFadingEdge(16.dp, 16.dp)
-                                    .horizontalScroll(rememberScrollState()),
+                                    .horizontalFadingEdge(swatchScrollState, 16.dp)
+                                    .horizontalScroll(swatchScrollState),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Spacer(modifier = Modifier.width(4.dp))
                             themes.forEach { (themeKey, colors) ->
                                 val isSelected = selectedCardTheme == themeKey
                                 val themeLabel = accountCardThemeLabel(themeKey)
@@ -1962,7 +2120,6 @@ fun AssetEditorScreen(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.width(4.dp))
                         }
                     }
 
@@ -3037,69 +3194,83 @@ fun AssetEditorScreen(
                 }
             }
             val formContent: @Composable () -> Unit = {
-                if (!isWide) { previewCard(); cyclePreview() }
-                if (currentResult is AccountSaveResult.Failed)
+                if (!isWide) {
+                    previewCard()
+                    cyclePreview()
+                }
+                Column(
+                    modifier =
+                        Modifier.fillMaxWidth().graphicsLayer {
+                            translationY = formOffsetY.toPx()
+                            scaleX = formScale
+                            scaleY = formScale
+                            alpha = formAlpha
+                        },
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (currentResult is AccountSaveResult.Failed)
+                        Text(
+                            currentResult.message,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.testTag("AssetEditorSaveError"),
+                        )
                     Text(
-                        currentResult.message,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.testTag("AssetEditorSaveError"),
-                    )
-                Text(
-                    stringResource(R.string.asset_editor_basic),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                basicContent()
-                if (typeState == AccountType.CC) {
-                    Text(
-                        stringResource(R.string.ah_billing_schedule),
+                        stringResource(R.string.asset_editor_basic),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    billingContent()
-                }
-                Text(
-                    stringResource(R.string.asset_editor_appearance),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                designContent()
-                Text(
-                    stringResource(R.string.asset_editor_automation),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                automationContent()
-                if (editingAccount != null)
-                    CompletePressOutlinedButton(
-                        onClick = { showDeleteConfirmDialog = true },
-                        enabled = !saving,
-                        shapes =
-                            ButtonDefaults.shapes(
-                                shape = RoundedCornerShape(12.dp),
-                                pressedShape = RoundedCornerShape(8.dp),
-                            ),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        colors =
-                            ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            ),
-                    ) {
-                        Icon(Icons.Default.Delete, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.btn_delete))
+                    basicContent()
+                    if (typeState == AccountType.CC) {
+                        Text(
+                            stringResource(R.string.ah_billing_schedule),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        billingContent()
                     }
-                Spacer(Modifier.height(16.dp))
+                    Text(
+                        stringResource(R.string.asset_editor_appearance),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    designContent()
+                    Text(
+                        stringResource(R.string.asset_editor_automation),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    automationContent()
+                    if (editingAccount != null)
+                        CompletePressOutlinedButton(
+                            onClick = { showDeleteConfirmDialog = true },
+                            enabled = !saving,
+                            shapes =
+                                ButtonDefaults.shapes(
+                                    shape = RoundedCornerShape(12.dp),
+                                    pressedShape = RoundedCornerShape(8.dp),
+                                ),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            colors =
+                                ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                        ) {
+                            Icon(Icons.Default.Delete, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.btn_delete))
+                        }
+                    Spacer(Modifier.height(48.dp))
+                }
             }
             Row(
                 modifier =
                     Modifier.align(Alignment.TopCenter)
                         .widthIn(max = 840.dp)
-                        .fillMaxWidth()
-                        .fillMaxHeight()
-                        .padding(horizontal = if (isWide) 24.dp else 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        .fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(if (isWide) 24.dp else 0.dp),
             ) {
                 if (isWide)
                     Column(
                         Modifier.width(260.dp)
-                            .padding(top = 12.dp)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = 24.dp, top = 12.dp, bottom = 12.dp)
                             .testTag("AssetEditorPreviewPane")
                     ) {
                         previewCard()
@@ -3117,7 +3288,12 @@ fun AssetEditorScreen(
                             sourceModifier
                                 .fillMaxWidth()
                                 .verticalScroll(editorScrollState, overscrollEffect = null)
-                                .padding(vertical = 12.dp)
+                                .padding(
+                                    start = if (isWide) 0.dp else 16.dp,
+                                    end = if (isWide) 24.dp else 16.dp,
+                                    top = 12.dp,
+                                    bottom = 12.dp,
+                                )
                                 .testTag("AssetEditorScrollContent"),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
@@ -3161,5 +3337,40 @@ private fun AssetEditorSection(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content,
         )
+    }
+}
+
+/** Multi-touch only image transformation detector that leaves single-finger drag unconsumed for vertical scroll. */
+private suspend fun PointerInputScope.detectCardImageTransform(
+    onTransform: (pan: Offset, zoom: Float) -> Unit
+) {
+    awaitEachGesture {
+        var prevCentroid = Offset.Zero
+        var prevSpan = 0f
+        var isMultiTouch = false
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Main)
+            val pressed = event.changes.filter { it.pressed }
+            if (pressed.size >= 2) {
+                isMultiTouch = true
+                val centroid =
+                    pressed.map { it.position }.reduce { a, b -> a + b } / pressed.size.toFloat()
+                val span = (pressed[0].position - pressed[1].position).getDistance()
+                if (prevSpan > 0f) {
+                    val pan = centroid - prevCentroid
+                    val zoom = span / prevSpan
+                    onTransform(pan, zoom)
+                    pressed.forEach { it.consume() }
+                }
+                prevCentroid = centroid
+                prevSpan = span
+            } else if (pressed.isEmpty()) {
+                break
+            } else {
+                if (isMultiTouch) break
+                prevSpan = 0f
+                // Single touch remains unconsumed so parent vertical scroll handles scrolling.
+            }
+        }
     }
 }

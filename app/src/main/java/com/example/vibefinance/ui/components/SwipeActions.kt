@@ -26,7 +26,7 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -71,7 +71,7 @@ fun SwipeActions(
         mutableStateOf(null)
     }
 
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var hasDetachedHapticFired by remember { mutableStateOf(false) }
 
     val recoverySpringSpec = remember {

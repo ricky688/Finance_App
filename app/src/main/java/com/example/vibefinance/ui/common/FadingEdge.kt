@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.common
 
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -42,6 +44,114 @@ fun Modifier.horizontalFadingEdge(
         }
 
         if (endFadePx > 0f && size.width > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startX = (size.width - endFadePx).coerceAtLeast(0f),
+                    endX = size.width
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+    }
+
+/**
+ * Scroll-state-aware horizontal fading edge for [LazyListState].
+ * Only fades an edge when content actually overflows in that direction, keeping items at the start
+ * or end scroll limits completely crisp and unclipped.
+ */
+fun Modifier.horizontalFadingEdge(
+    lazyListState: LazyListState,
+    maxFadeWidth: Dp = 16.dp
+): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+
+        val maxFadePx = maxFadeWidth.toPx()
+        if (maxFadePx <= 0f || size.width <= 0f) return@drawWithContent
+
+        val startFadePx = if (!lazyListState.canScrollBackward) {
+            0f
+        } else if (lazyListState.firstVisibleItemIndex > 0) {
+            maxFadePx
+        } else {
+            lazyListState.firstVisibleItemScrollOffset.toFloat().coerceIn(0f, maxFadePx)
+        }
+
+        val layoutInfo = lazyListState.layoutInfo
+        val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()
+        val endFadePx = if (!lazyListState.canScrollForward || lastVisible == null) {
+            0f
+        } else if (lastVisible.index < layoutInfo.totalItemsCount - 1) {
+            maxFadePx
+        } else {
+            val viewportEnd = layoutInfo.viewportEndOffset - layoutInfo.afterContentPadding
+            (lastVisible.offset + lastVisible.size - viewportEnd).toFloat().coerceIn(0f, maxFadePx)
+        }
+
+        if (startFadePx > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startX = 0f,
+                    endX = startFadePx.coerceAtMost(size.width)
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+
+        if (endFadePx > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color.Black, Color.Transparent),
+                    startX = (size.width - endFadePx).coerceAtLeast(0f),
+                    endX = size.width
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+    }
+
+/**
+ * Scroll-state-aware horizontal fading edge for [ScrollState].
+ * Only fades an edge when content actually overflows in that direction.
+ */
+fun Modifier.horizontalFadingEdge(
+    scrollState: ScrollState,
+    maxFadeWidth: Dp = 16.dp
+): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+
+        val maxFadePx = maxFadeWidth.toPx()
+        if (maxFadePx <= 0f || size.width <= 0f) return@drawWithContent
+
+        val startFadePx = if (scrollState.canScrollBackward) {
+            scrollState.value.toFloat().coerceIn(0f, maxFadePx)
+        } else {
+            0f
+        }
+
+        val endFadePx = if (scrollState.canScrollForward) {
+            (scrollState.maxValue - scrollState.value).toFloat().coerceIn(0f, maxFadePx)
+        } else {
+            0f
+        }
+
+        if (startFadePx > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color.Transparent, Color.Black),
+                    startX = 0f,
+                    endX = startFadePx.coerceAtMost(size.width)
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+
+        if (endFadePx > 0f) {
             drawRect(
                 brush = Brush.horizontalGradient(
                     colors = listOf(Color.Black, Color.Transparent),

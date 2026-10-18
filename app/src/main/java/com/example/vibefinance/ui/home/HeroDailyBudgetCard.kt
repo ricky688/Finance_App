@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppButton
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -40,6 +41,8 @@ import com.example.vibefinance.R
 import com.example.vibefinance.data.repository.DailyBudgetInfo
 import com.example.vibefinance.theme.HeroCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -217,6 +220,7 @@ fun HeroDailyBudgetCard(
         isNormal || isNoBudget -> MaterialTheme.colorScheme.onPrimary
         else -> MaterialTheme.colorScheme.onError
     }
+    val hapticView = androidx.compose.ui.platform.LocalView.current
 
     Box(
         modifier = modifier.fillMaxWidth().testTag("HeroDailyBudgetCard")
@@ -238,9 +242,20 @@ fun HeroDailyBudgetCard(
             )
         }
 
+        val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+            restingCorner = 28.dp,
+            pressedCorner = 16.dp
+        )
+
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = HeroCardShape,
+            modifier = Modifier
+                .fillMaxWidth()
+                .expressiveCardClickable(
+                    pressState = pressState,
+                    rippleColor = MaterialTheme.colorScheme.primary,
+                    onClick = onOpenBudgetDialog
+                ),
+            shape = pressState.shape,
             color = containerBg,
             border = if (isDark) BorderStroke(1.dp, cardBorderColor) else null,
             shadowElevation = if (isDark) 4.dp else 0.dp
@@ -267,6 +282,7 @@ fun HeroDailyBudgetCard(
                         )
                     }
                 }
+
 
                 Column(
                     modifier = Modifier
@@ -596,12 +612,11 @@ fun HeroDailyBudgetCard(
                     lineHeight = 22.sp
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
+                AppButton(
                     onClick = { showNewDayBudgetInfoSheet = false },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(14.dp)
+                        .height(48.dp)
                 ) {
                     Text(text = stringResource(R.string.btn_confirm), fontWeight = FontWeight.Bold)
                 }
@@ -639,7 +654,7 @@ fun HeroDailyBudgetCard(
                     lineHeight = 22.sp
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
+                AppButton(
                     onClick = {
                         showBudgetEndInfoSheet = false
                         onOpenBudgetDialog()
@@ -647,7 +662,6 @@ fun HeroDailyBudgetCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(text = stringResource(R.string.btn_new_period), fontWeight = FontWeight.Bold)

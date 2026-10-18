@@ -19,8 +19,30 @@ object CurrencyEngine {
         CurrencyInfo("TWD", "NT$", "🇹🇼")
     )
 
-    fun formatHkd(amount: Double): String {
-        return String.format(Locale.US, "HK$ %,.2f", amount)
+    fun formatHkd(amount: Double, showPositiveSign: Boolean = false): String {
+        val isNeg = amount < 0.0
+        val absVal = kotlin.math.abs(amount)
+        val formatted = String.format(Locale.US, "%,.2f", absVal)
+        return when {
+            isNeg -> "-HK$ $formatted"
+            showPositiveSign && amount > 0.0 -> "+HK$ $formatted"
+            else -> "HK$ $formatted"
+        }
+    }
+
+    fun formatSignedAmount(amount: Double, prefix: String = "HK$"): String {
+        val isNeg = amount < 0.0
+        val absVal = kotlin.math.abs(amount)
+        val formatted = String.format(Locale.US, "%,.2f", absVal)
+        val space = if (prefix.length > 1) " " else ""
+        return if (isNeg) "-$prefix$space$formatted" else "$prefix$space$formatted"
+    }
+
+    fun formatSignedCompact(amount: Double, prefix: String = "$"): String {
+        val isNeg = amount < 0.0
+        val absVal = kotlin.math.abs(amount)
+        val formatted = String.format(Locale.US, "%,.0f", absVal)
+        return if (isNeg) "-$prefix$formatted" else "$prefix$formatted"
     }
 
     fun formatOriginal(amount: Double, currencyCode: String): String {

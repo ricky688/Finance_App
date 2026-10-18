@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -732,6 +733,49 @@ fun SettingsSheet(
                                 }
                             }
 
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        VibeHaptics.toggle(view)
+                                        viewModel.dispatch(FinanceIntent.SetHapticFeedbackEnabled(!state.hapticFeedbackEnabled))
+                                    }
+                                    .testTag("HapticFeedbackSetting")
+                            ) {
+                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.size(42.dp).background(MaterialTheme.colorScheme.primaryContainer,
+                                            rememberIconShape("settings.haptic-feedback")),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Filled.Vibration, null, Modifier.size(22.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.appearance_haptic_feedback_title),
+                                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(stringResource(R.string.appearance_haptic_feedback_desc),
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    AppSwitch(
+                                        checked = state.hapticFeedbackEnabled,
+                                        onCheckedChange = {
+                                            viewModel.dispatch(FinanceIntent.SetHapticFeedbackEnabled(it))
+                                        },
+                                        modifier = Modifier.testTag("HapticFeedbackSwitch").semantics {
+                                            contentDescription = context.getString(R.string.appearance_haptic_feedback_title)
+                                        }
+                                    )
+                                }
+                            }
+
+                            com.example.vibefinance.ui.preferences.HapticStrengthSettings(state, viewModel::dispatch)
                             com.example.vibefinance.ui.preferences.MotionBlurSettings(state, viewModel::dispatch)
 
                             // Item 4: 圖示形狀 (Icon shape)

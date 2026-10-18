@@ -64,7 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,7 +87,7 @@ fun ImportDataPreviewSheet(
     onConfirm: (replaceExisting: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     var replaceExisting by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.getDefault()) }

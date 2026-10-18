@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.example.vibefinance.data.entity.SubscriptionEntity
 import com.example.vibefinance.data.entity.TransactionEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -287,5 +288,79 @@ class RecurringScreenBentoTest {
 
         val matched = findMatchingTransactionsForSubscription(sub, transactions)
         assertEquals(2, matched.size)
+    }
+
+    @Test
+    fun recurringCurrencyConversion_convertsForeignAmountToHkdAndFormatsDescription() {
+        val quote = com.example.vibefinance.data.currency.ExchangeRateQuote(
+            currencyCode = "USD",
+            rateToHkd = 7.78,
+            rateDate = "2026-10-16",
+            fetchedAtMillis = System.currentTimeMillis()
+        )
+        val foreignUsdAmount = 20.0
+        val convertedHkd = quote.convert(foreignUsdAmount)
+        assertEquals(155.60, convertedHkd, 0.001)
+
+        val formattedOrig = com.example.vibefinance.util.CurrencyEngine.formatOriginal(foreignUsdAmount, "USD")
+        assertEquals("🇺🇸 $ 20.00", formattedOrig)
+
+        val origStr = "[Orig: $formattedOrig; 1 ${quote.currencyCode} = ${quote.rateText()} HKD; ${quote.source} ${quote.rateDate}]"
+        val rawDesc = "ChatGPT Plus"
+        val finalDesc = "$rawDesc $origStr"
+        assertTrue(finalDesc.contains("ChatGPT Plus"))
+        assertTrue(finalDesc.contains("🇺🇸 $ 20.00"))
+        assertTrue(finalDesc.contains("1 USD = 7.78 HKD"))
+    }
+
+    @Test
+    fun recurringCurrencyEngine_supportedCurrenciesIncludeAllRequiredOptions() {
+        val supportedCodes = com.example.vibefinance.util.CurrencyEngine.supportedCurrencies.map { it.code }
+        val expectedCodes = listOf("HKD", "USD", "JPY", "EUR", "GBP", "CNY", "TWD")
+        assertEquals(expectedCodes, supportedCodes)
+    }
+
+    @Test
+    fun resolveRecurringExpenseCategories_matchesDailyExpenseCategoriesAndFrequency() {
+        val transactions = listOf(
+            TransactionEntity(id = 1, amount = 100.0, category = "Groceries", timestamp = 1000L, accountId = 1),
+            TransactionEntity(id = 2, amount = 50.0, category = "Groceries", timestamp = 2000L, accountId = 1),
+            TransactionEntity(id = 3, amount = 30.0, category = "Groceries", timestamp = 3000L, accountId = 1),
+            TransactionEntity(id = 4, amount = 25.0, category = "Transport", timestamp = 4000L, accountId = 1),
+            TransactionEntity(id = 5, amount = 45.0, category = "Transport", timestamp = 5000L, accountId = 1),
+            TransactionEntity(id = 6, amount = 120.0, category = "Dining", timestamp = 6000L, accountId = 1)
+        )
+        val categories = resolveRecurringExpenseCategories(
+            transactions = transactions,
+            extraCategories = listOf("Entertainment")
+        )
+
+        // Groceries (frequency 3) must be first, Transport (frequency 2) second, Dining (frequency 1) third
+        assertEquals("Groceries", categories[0])
+        assertEquals("Transport", categories[1])
+        assertEquals("Dining", categories[2])
+
+        // Must include DefaultExpenseCategories (Food, Transport, Shopping, Utilities, Other) and extra preset category
+        assertTrue(categories.contains("Food"))
+        assertTrue(categories.contains("Shopping"))
+        assertTrue(categories.contains("Utilities"))
+        assertTrue(categories.contains("Other"))
+        assertTrue(categories.contains("Entertainment"))
+    }
+
+    @Test
+    fun resolveRecurringExpenseCategories_appliesMergeRules() {
+        val rules = com.example.vibefinance.data.entity.CategoryMergeRules(
+            expense = mapOf("Supermarket" to "Groceries")
+        )
+        val transactions = listOf(
+            TransactionEntity(id = 1, amount = 100.0, category = "Supermarket", timestamp = 1000L, accountId = 1)
+        )
+        val categories = resolveRecurringExpenseCategories(
+            transactions = transactions,
+            categoryMergeRules = rules
+        )
+        assertTrue(categories.contains("Groceries"))
+        assertFalse(categories.contains("Supermarket"))
     }
 }

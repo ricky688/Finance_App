@@ -52,6 +52,65 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PageContentEntranceTest {
     @get:Rule val rule = createComposeRule()
+
+    @Test
+    fun movingViewportDoesNotRecomposeFinancialContent() {
+        var bottomInset by mutableStateOf(100.dp)
+        val bodyCompositions = java.util.concurrent.atomic.AtomicInteger()
+        rule.setContent {
+            MaterialTheme {
+                ContentEntranceViewport(Modifier.width(360.dp).height(440.dp), bottomVisibilityInsetProvider = { bottomInset }) {
+                    androidx.compose.runtime.SideEffect { bodyCompositions.incrementAndGet() }
+                    PageContentEntrance("stable") { Box(Modifier.height(100.dp).background(Color.Red)) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val settled = bodyCompositions.get()
+        repeat(8) { index ->
+            rule.runOnIdle { bottomInset = (90 - index * 10).dp }
+            rule.waitForIdle()
+        }
+        assertEquals("Bar motion must not recompose financial content", settled, bodyCompositions.get())
+    }
+
+    @Test
+    fun workbookHistoryRemainsLazyAndReadOnlyAcrossLongScrolls() {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("scrollWorkbook") == "true")
+        val descriptor = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("cat /data/local/tmp/asset-editor-test.xlsx")
+        val imported = android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use {
+            com.example.vibefinance.util.FinancialDataImportEngine.parseStream(it, "asset-editor-test.xlsx")
+        }
+        assertEquals(null, imported.error)
+        assertEquals(868, imported.rawTransactions.size)
+        val accounts = imported.detectedAccounts.mapIndexed { index, raw ->
+            AccountEntity(index + 1L, raw.name, type = raw.detectedType, balance = 0.0, icon = "bank")
+        }
+        assertEquals(14, accounts.size)
+        val ids = accounts.associate { it.name to it.id }
+        val transactions = imported.rawTransactions.mapIndexed { index, raw ->
+            TransactionEntity(index + 1L, raw.amount, raw.category, raw.timestamp, ids.getValue(raw.sourceAccountName),
+                if (raw.isTransfer) ids[raw.destinationAccountName] else null, description = raw.description)
+        }
+        assertEquals(52831.49, transactions.filter { it.amount > 0 && it.toAccountId == null }.sumOf { it.amount }, .001)
+        val list = androidx.compose.foundation.lazy.LazyListState()
+        var mutations = 0
+        rule.setContent { MaterialTheme {
+            HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts, transactions = transactions),
+                { mutations++ }, listState = list)
+        } }
+        rule.waitForIdle()
+        val count = list.layoutInfo.totalItemsCount
+        assertTrue(count >= transactions.size)
+        for (index in listOf(count / 3, count * 2 / 3, count - 1, 0)) {
+            rule.onNodeWithTag("HistoryList").performSemanticsAction(SemanticsActions.ScrollToIndex) { it(index) }
+            rule.waitForIdle()
+            assertTrue("History must compose only its visible window", list.layoutInfo.visibleItemsInfo.size in 1..30)
+        }
+        assertEquals(0, mutations)
+        assertEquals(868, transactions.map { it.id }.toSet().size)
+    }
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val accounts = (1L..24L).map {
         AccountEntity(it, "Account ${it.toString().padStart(2, '0')}", type = AccountType.CASH,

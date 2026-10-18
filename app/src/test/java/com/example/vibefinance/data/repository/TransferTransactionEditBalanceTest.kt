@@ -36,6 +36,40 @@ class TransferTransactionEditBalanceTest {
             timestamp = System.currentTimeMillis() + if (future) 86_400_000L else -1_000L))
         return InMemoryDatabase.transactions.value.single { it.id == id }
     }
+    @Test fun newTransfersCreditDestinationFundsOrReduceCreditCardDebtForEveryAccountType() = runTest {
+        for (sourceType in AccountType.entries) for (destinationType in AccountType.entries) {
+            val source = account(sourceType)
+            val destination = account(destinationType)
+            val id = repository.insertTransaction(TransactionEntity(amount = 25.0, category = "Transfer",
+                accountId = source, toAccountId = destination, timestamp = System.currentTimeMillis() - 1_000L))
+            val stored = InMemoryDatabase.transactions.value.single { it.id == id }
+            assertEquals("Source $sourceType to $destinationType",
+                if (sourceType == AccountType.CC) 1_025.0 else 975.0, balance(source), 1e-9)
+            assertEquals("Destination $sourceType to $destinationType",
+                if (destinationType == AccountType.CC) 975.0 else 1_025.0, balance(destination), 1e-9)
+            InMemoryDatabase.reloadAfterFullRestore(context)
+            assertEquals(stored, InMemoryDatabase.transactions.value.single { it.id == id })
+            assertEquals(if (destinationType == AccountType.CC) 975.0 else 1_025.0, balance(destination), 1e-9)
+            repository.deleteTransaction(stored)
+            assertEquals(1_000.0, balance(source), 1e-9)
+            assertEquals(1_000.0, balance(destination), 1e-9)
+        }
+    }
+    @Test fun bocPaymentAddsToGoCardCreditInsteadOfRemovingMoney() = runTest {
+        val boc = account(AccountType.BANK)
+        val go = InMemoryDatabase.insertAccount(AccountEntity(name = "Go UnionPay", type = AccountType.CC,
+            balance = -182.80, icon = "card"))
+        val id = repository.insertTransaction(TransactionEntity(amount = 99.0, category = "Transfer",
+            description = "CC Payment Transfer", accountId = boc, toAccountId = go,
+            timestamp = System.currentTimeMillis() - 1_000L))
+        assertEquals(901.0, balance(boc), 1e-9)
+        assertEquals(-281.80, balance(go), 1e-9)
+        InMemoryDatabase.reloadAfterFullRestore(context)
+        assertEquals(-281.80, balance(go), 1e-9)
+        repository.deleteTransaction(InMemoryDatabase.transactions.value.single { it.id == id })
+        assertEquals(1_000.0, balance(boc), 1e-9)
+        assertEquals(-182.80, balance(go), 1e-9)
+    }
     @Test fun incomeAndExpenseConvertAndRoundTripForEverySourceDestinationType() = runTest {
         for (sourceType in AccountType.entries) for (destType in AccountType.entries) for (income in listOf(false, true)) {
             val source = account(sourceType); val dest = account(destType)

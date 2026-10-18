@@ -3,6 +3,7 @@ package com.example.vibefinance.ui.home
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
+import com.example.vibefinance.theme.MotionTokens
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -32,6 +33,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,27 +64,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Commute
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.ElectricBolt
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.AutoMode
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
-import com.example.vibefinance.theme.ThemeMode
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -124,9 +111,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -161,19 +145,29 @@ import java.util.Locale
 
 @Composable
 fun CategoryIcon(category: String, tint: Color, modifier: Modifier = Modifier) {
-    val icon = when (category.lowercase(Locale.US)) {
-        "food", "food & drink", "restaurant" -> Icons.Default.Restaurant
+    val normalized = category.trim().replaceFirst(Regex("^[^\\p{L}\\p{N}]+"), "").lowercase(Locale.US).trim()
+    val icon = when (normalized) {
+        "food", "food & drink", "restaurant", "food & dining" -> Icons.Default.Restaurant
         "transport", "transit", "commute", "bus", "taxi" -> Icons.Default.Commute
-        "shopping", "clothing", "groceries" -> Icons.Default.ShoppingBag
+        "shopping", "clothing", "groceries", "supermarket" -> Icons.Default.ShoppingBag
         "utilities", "electricity", "water", "bills", "electronics", "gadgets" -> Icons.Default.ElectricBolt
         "transfer" -> Icons.Default.SwapHoriz
-        "entertainment", "netflix", "premium", "subscription", "recurring" -> Icons.Default.AutoMode
-        "salary", "paycheck", "wages" -> Icons.Default.Savings
+        "entertainment", "movie", "netflix", "premium", "subscription", "recurring" -> Icons.Default.AutoMode
+        "game", "games", "gaming" -> Icons.Default.SportsEsports
+        "education", "tuition" -> Icons.Default.School
+        "housing", "rent" -> Icons.Default.Home
+        "health", "medical", "health & medical" -> Icons.Default.LocalHospital
+        "software / ai", "software", "ai" -> Icons.Default.Memory
+        "fitness", "gym" -> Icons.Default.FitnessCenter
+        "travel", "holiday" -> Icons.Default.Flight
+        "salary", "paycheck", "wages", "income" -> Icons.Default.Savings
         "bonus", "reward" -> Icons.Default.Add
         "investment", "dividend", "stocks" -> Icons.AutoMirrored.Filled.TrendingUp
         "part-time", "freelance", "side hustle" -> Icons.Default.AccountBalance
-        "gift", "redpocket", "allowance" -> Icons.Default.Savings
-        else -> Icons.Default.MoreHoriz
+        "gift", "redpocket", "allowance", "petty cash" -> Icons.Default.CardGiftcard
+        "修改結餘" -> Icons.Default.Tune
+        "借錢", "還錢" -> Icons.Default.SwapHoriz
+        else -> Icons.Default.Category
     }
     Icon(icon, contentDescription = category, tint = tint, modifier = modifier)
 }
@@ -230,7 +224,8 @@ fun calculatePeriodTotalDays(startDate: Long, endDate: Long): Int {
 
 @Composable
 fun getCategoryDisplayName(category: String): String {
-    return when (category.lowercase(Locale.US).trim()) {
+    val normalized = category.trim().replaceFirst(Regex("^[^\\p{L}\\p{N}]+"), "").lowercase(Locale.US).trim()
+    return when (normalized) {
         "food", "food & drink", "restaurant", "food & dining" -> stringResource(R.string.cat_food)
         "transport", "transit", "commute", "bus", "taxi" -> stringResource(R.string.cat_transport)
         "shopping", "clothing" -> stringResource(R.string.cat_shopping)
@@ -272,18 +267,9 @@ fun HomeScreen(
     onOpenBudgetDialog: () -> Unit = {},
     onOpenRecalcSheet: () -> Unit = {},
     onPayCard: (Long) -> Unit = {},
-    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset }
 ) {
-    val entranceState = remember { DailyCardEntranceState() }
-    var viewportBounds by remember { mutableStateOf(Rect.Zero) }
-    val entranceViewport = with(LocalDensity.current) {
-        val top = viewportBounds.top + topVisibilityInset.toPx()
-        Rect(
-            viewportBounds.left, top, viewportBounds.right,
-            (viewportBounds.bottom - bottomVisibilityInset.toPx()).coerceAtLeast(top)
-        )
-    }
-
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
         totalMonthlyBudget = 0.0,
         totalSpentThisMonth = 0.0,
@@ -349,7 +335,19 @@ fun HomeScreen(
         periodExpenses.maxByOrNull { it.amount }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val hapticView = LocalView.current
+    var isEditMode by rememberSaveable { mutableStateOf(false) }
+
+    val effectiveCardOrder = remember(state.dailyCardOrder) {
+        val current = state.dailyCardOrder.filter { it in com.example.vibefinance.ui.DEFAULT_DAILY_CARD_ORDER }.toMutableList()
+        com.example.vibefinance.ui.DEFAULT_DAILY_CARD_ORDER.forEach { if (!current.contains(it)) current.add(it) }
+        current
+    }
+
+    com.example.vibefinance.ui.common.ContentEntranceViewport(
+        modifier = modifier.fillMaxSize(), topVisibilityInset = topVisibilityInset,
+        bottomVisibilityInsetProvider = bottomVisibilityInsetProvider, tagPrefix = "DailyArrival"
+    ) {
         AnimatedContent(
             targetState = state.isLoading,
             transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
@@ -361,154 +359,252 @@ fun HomeScreen(
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize()
-                        .onGloballyPositioned { viewportBounds = it.boundsInWindow() }
                         .testTag("DailyCardsList"),
                     contentPadding = PaddingValues(top = topContentPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-            // ICONIC HERO DAILY REMAINING BUDGET CARD (Option 5)
-            item(key = "daily-hero") {
-                DailyCardEntrance("hero", entranceState, entranceViewport) {
-                    HeroDailyBudgetCard(
-                        budgetInfo = budgetInfo,
-                        onOpenRecalcSheet = onOpenRecalcSheet,
-                        onOpenBudgetDialog = onOpenBudgetDialog
-                    )
-                }
-            }
-
-            // B. START BUDGET & PERIOD CARD (WholeBudgetCard)
-            item(key = "daily-period") {
-                DailyCardEntrance("period", entranceState, entranceViewport, delayMillis = 40) {
-                    WholeBudgetCard(
-                        modifier = Modifier
-                            .clip(BentoCardShape)
-                            .bouncyClickable(shape = BentoCardShape) { onOpenBudgetDialog() },
-                        budget = budgetInfo.totalMonthlyBudget,
-                        startDate = budgetInfo.startDate,
-                        endDate = budgetInfo.endDate,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-                }
-            }
-
-            // C. BENTO MATRIX SECTION
-            item(key = "daily-bento") {
-                val screenWidthDp = LocalConfiguration.current.screenWidthDp
-                val bentoSpacing = resolveBentoSpacing(screenWidthDp)
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(bentoSpacing),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Left: Remaining Budget, Right: Circular Days Left & Stats
-                    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(IntrinsicSize.Min),
-                        horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DailyCardEntrance(
-                            "remaining", entranceState, entranceViewport, delayMillis = 80,
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .height(160.dp)
-                        ) {
-                            RestAndSpentBudgetCard(
-                                modifier = Modifier.fillMaxSize(),
-                                remainingBudget = budgetInfo.monthlyRemaining,
-                                totalBudget = budgetInfo.totalMonthlyBudget,
-                                isDarkTheme = isDark
-                            )
-                        }
-                        val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
-                            calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
-                        }
-                        DailyCardEntrance(
-                            "days", entranceState, entranceViewport, delayMillis = 110,
-                            modifier = Modifier
-                                .weight(0.8f)
-                                .height(160.dp)
-                        ) {
-                            DaysLeftCard(
-                                modifier = Modifier.fillMaxSize(),
-                                daysLeft = budgetInfo.daysLeft,
-                                totalDays = totalPeriodDays
-                            )
+                    if (isEditMode) {
+                        item(key = "daily-edit-header") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DashboardCustomize,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.loc_custom_bento_layout),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(
+                                            onClick = {
+                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                onIntent(com.example.vibefinance.ui.FinanceIntent.ResetDailyCardOrder)
+                                            }
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.loc_reset),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                        }
+                                        FilledTonalButton(
+                                            onClick = {
+                                                com.example.vibefinance.util.VibeHaptics.successConfirm(hapticView)
+                                                isEditMode = false
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(34.dp)
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.loc_done),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Row of Lowest & Highest Stats
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(IntrinsicSize.Min),
-                        horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DailyCardEntrance(
-                            "lowest", entranceState, entranceViewport,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(128.dp)
-                        ) {
-                            MinMaxSpentCard(
-                                modifier = Modifier.fillMaxSize(), isMin = true,
-                                spends = periodExpenses, isDarkTheme = isDark
-                            )
-                        }
-                        DailyCardEntrance(
-                            "highest", entranceState, entranceViewport, delayMillis = 40,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(128.dp)
-                        ) {
-                            MinMaxSpentCard(
-                                modifier = Modifier.fillMaxSize(), isMin = false,
-                                spends = periodExpenses, isDarkTheme = isDark
-                            )
+                    effectiveCardOrder.forEachIndexed { index, cardKey ->
+                        item(key = cardKey) {
+                            val cardTitle = when (cardKey) {
+                                "daily-hero" -> stringResource(R.string.loc_daily_budget_hero)
+                                "daily-period" -> stringResource(R.string.loc_whole_budget_card)
+                                "daily-bento" -> stringResource(R.string.loc_bento_metrics)
+                                "daily-transactions" -> stringResource(R.string.loc_total_expenses)
+                                "daily-spending-chart" -> stringResource(R.string.loc_spending_trend)
+                                "daily-category-chart" -> stringResource(R.string.loc_category_analytics)
+                                "daily-calendar" -> stringResource(R.string.loc_financial_rhythm)
+                                else -> cardKey
+                            }
+                            DailyBentoCardWrapper(
+                                title = cardTitle,
+                                index = index,
+                                totalCount = effectiveCardOrder.size,
+                                isEditMode = isEditMode,
+                                onLongPress = { isEditMode = true },
+                                onMoveUp = {
+                                    if (index > 0) {
+                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                        val newOrder = effectiveCardOrder.toMutableList()
+                                        java.util.Collections.swap(newOrder, index, index - 1)
+                                        onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                    }
+                                },
+                                onMoveDown = {
+                                    if (index < effectiveCardOrder.size - 1) {
+                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                        val newOrder = effectiveCardOrder.toMutableList()
+                                        java.util.Collections.swap(newOrder, index, index + 1)
+                                        onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                    }
+                                },
+                                modifier = Modifier.animateItem()
+                            ) {
+                                when (cardKey) {
+                                    "daily-hero" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("hero") {
+                                            HeroDailyBudgetCard(
+                                                budgetInfo = budgetInfo,
+                                                onOpenRecalcSheet = onOpenRecalcSheet,
+                                                onOpenBudgetDialog = onOpenBudgetDialog
+                                            )
+                                        }
+                                    }
+                                    "daily-period" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("period", delayMillis = 40) {
+                                            WholeBudgetCard(
+                                                budget = budgetInfo.totalMonthlyBudget,
+                                                startDate = budgetInfo.startDate,
+                                                endDate = budgetInfo.endDate,
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                                ),
+                                                onClick = onOpenBudgetDialog
+                                            )
+                                        }
+                                    }
+                                    "daily-bento" -> {
+                                        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+                                        val bentoSpacing = resolveBentoSpacing(screenWidthDp)
+
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(IntrinsicSize.Min),
+                                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                                    "remaining", delayMillis = 80,
+                                                    modifier = Modifier
+                                                        .weight(1.2f)
+                                                        .height(160.dp)
+                                                ) {
+                                                    RestAndSpentBudgetCard(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        remainingBudget = budgetInfo.monthlyRemaining,
+                                                        totalBudget = budgetInfo.totalMonthlyBudget,
+                                                        isDarkTheme = isDark
+                                                    )
+                                                }
+                                                val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
+                                                    calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
+                                                }
+                                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                                    "days", delayMillis = 110,
+                                                    modifier = Modifier
+                                                        .weight(0.8f)
+                                                        .height(160.dp)
+                                                ) {
+                                                    DaysLeftCard(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        daysLeft = budgetInfo.daysLeft,
+                                                        totalDays = totalPeriodDays
+                                                    )
+                                                }
+                                            }
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(IntrinsicSize.Min),
+                                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                                    "lowest",
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(128.dp)
+                                                ) {
+                                                    MinMaxSpentCard(
+                                                        modifier = Modifier.fillMaxSize(), isMin = true,
+                                                        spends = periodExpenses, isDarkTheme = isDark
+                                                    )
+                                                }
+                                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                                    "highest", delayMillis = 40,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(128.dp)
+                                                ) {
+                                                    MinMaxSpentCard(
+                                                        modifier = Modifier.fillMaxSize(), isMin = false,
+                                                        spends = periodExpenses, isDarkTheme = isDark
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    "daily-transactions" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("transactions") {
+                                            TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+                                        }
+                                    }
+                                    "daily-spending-chart" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("spending-chart") {
+                                            DailySpendingLineChart(state = state)
+                                        }
+                                    }
+                                    "daily-category-chart" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("category-chart") {
+                                            CategoryDonutChart(
+                                                state = state,
+                                                onCategoryClick = onCategoryClick
+                                            )
+                                        }
+                                    }
+                                    "daily-calendar" -> {
+                                        com.example.vibefinance.ui.common.PageContentEntrance("calendar") {
+                                            SpendsCalendar(state = state, onPayCard = onPayCard)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-            }
 
-            item(key = "daily-transactions") {
-                DailyCardEntrance("transactions", entranceState, entranceViewport) {
-                    TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+                    // Bottom space
+                    item(key = "daily-bottom-space") {
+                        Spacer(modifier = Modifier.height(100.dp))
+                    }
                 }
-            }
-            item(key = "daily-spending-chart") {
-                DailyCardEntrance("spending-chart", entranceState, entranceViewport) {
-                    DailySpendingLineChart(state = state)
-                }
-            }
-            item(key = "daily-category-chart") {
-                DailyCardEntrance("category-chart", entranceState, entranceViewport) {
-                    CategoryDonutChart(
-                        state = state,
-                        onCategoryClick = onCategoryClick
-                    )
-                }
-            }
-            item(key = "daily-calendar") {
-                DailyCardEntrance("calendar", entranceState, entranceViewport) {
-                    SpendsCalendar(state = state, onPayCard = onPayCard)
-                }
-            }
-
-            // Bottom space
-            item(key = "daily-bottom-space") {
-                Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }
-}
-}
 }
 
 @Composable
@@ -523,15 +619,22 @@ fun TotalExpensesRow(
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val isCompact = screenWidthDp < 400
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        shape = BentoCardShape,
+        shape = pressState.shape,
         modifier = modifier
             .fillMaxWidth()
-            .clip(BentoCardShape)
-            .bouncyClickable(shape = BentoCardShape) { onViewAllClick() }
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) { onViewAllClick() }
     ) {
         Row(
             modifier = Modifier
@@ -656,15 +759,29 @@ fun CategoryDonutChart(
         cat to (strokeState to alphaState)
     }
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = pressState.shape,
         modifier = modifier
             .fillMaxWidth()
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = MaterialTheme.colorScheme.primary
+            ) {
+                val target = selectedCategory ?: categorySpending.firstOrNull()?.first
+                if (target != null) {
+                    onCategoryClick(target)
+                }
+            }
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
     ) {
         Column(
             modifier = Modifier
@@ -703,8 +820,8 @@ fun CategoryDonutChart(
                 }
                 AnimatedVisibility(
                     visible = selectedCategory != null,
-                    enter = fadeIn(animationSpec = tween(200)) + expandVertically(),
-                    exit = fadeOut(animationSpec = tween(150)) + shrinkVertically()
+                    enter = fadeIn(animationSpec = MotionTokens.standardEnter()) + expandVertically(animationSpec = MotionTokens.emphasizedEnter()),
+                    exit = fadeOut(animationSpec = MotionTokens.standardExit()) + shrinkVertically(animationSpec = MotionTokens.emphasizedExit())
                 ) {
                     Text(
                         text = stringResource(R.string.reset_filter),

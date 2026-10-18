@@ -16,4 +16,4 @@ internal fun DailyCardEntrance(
     modifier: Modifier = Modifier,
     delayMillis: Int = 0,
     content: @Composable () -> Unit,
-) = ContentEntrance(id, state, viewport, modifier, delayMillis, "DailyArrival", content)
+) = ContentEntrance(id, state, { viewport }, modifier, delayMillis, "DailyArrival", content)

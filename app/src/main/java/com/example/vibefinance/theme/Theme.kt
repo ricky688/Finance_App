@@ -21,8 +21,14 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
+import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.LocalAppButtonShapes
 
 /** Actual chosen mode, available before the animated palette has finished changing. */
 internal val LocalIsDarkTheme = staticCompositionLocalOf<Boolean?> { null }
@@ -114,6 +120,43 @@ fun VibeFinanceTheme(
     randomIconShapes: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val motionLevel = LocalExperience.current.motion
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    val resolvedMotionScheme = when (motionLevel) {
+        MotionLevel.MINIMAL -> MotionScheme.standard()
+        else -> MotionScheme.expressive()
+    }
+    @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+    VibeFinanceTheme(
+        darkTheme = darkTheme,
+        dynamicColorEnabled = dynamicColorEnabled,
+        appearancePalette = appearancePalette,
+        appearanceContrast = appearanceContrast,
+        paletteStyle = paletteStyle,
+        paletteSeeds = paletteSeeds,
+        pureBlackDarkMode = pureBlackDarkMode,
+        iconShape = iconShape,
+        randomIconShapes = randomIconShapes,
+        motionScheme = resolvedMotionScheme,
+        content = content
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun VibeFinanceTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColorEnabled: Boolean = true,
+    appearancePalette: AppearancePalette = AppearancePalette.ORIGINAL,
+    appearanceContrast: Int = 0,
+    paletteStyle: PaletteStyle = PaletteStyle.TONAL_SPOT,
+    paletteSeeds: Map<AppearancePalette, Int> = emptyMap(),
+    pureBlackDarkMode: Boolean = false,
+    iconShape: androidx.compose.ui.graphics.Shape = IconShapeMode.COOKIE_4.shape,
+    randomIconShapes: Boolean = false,
+    motionScheme: MotionScheme,
+    content: @Composable () -> Unit
+) {
     val context = LocalContext.current
     val dynamicColorAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S // Android 12+
     val originalColors = appearancePalette == AppearancePalette.ORIGINAL && appearanceContrast == 0 &&
@@ -162,12 +205,14 @@ fun VibeFinanceTheme(
     CompositionLocalProvider(
         LocalIconShape provides iconShape,
         LocalRandomIconShapes provides randomIconShapes,
-        LocalIsDarkTheme provides darkTheme
+        LocalIsDarkTheme provides darkTheme,
+        LocalAppButtonShapes provides AppButtonDefaults.shapes()
     ) {
         MaterialTheme(
             colorScheme = animatedColorScheme,
             typography = Typography,
             shapes = ExpressiveShapes,
+            motionScheme = motionScheme,
             content = content
         )
     }

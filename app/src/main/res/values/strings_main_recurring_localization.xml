@@ -73,8 +73,8 @@
     <string name="ui_recurring_months_short">%1$dM</string>
     <string name="ui_recurring_duration_months">%1$d Months</string>
     <string name="ui_recurring_per_month_cost">≈ HK$ %1$,.2f / month</string>
-    <string name="ui_recurring_account_owing">Owing: HK$ %1$d</string>
-    <string name="ui_recurring_account_balance">Bal: HK$ %1$d</string>
+    <string name="ui_recurring_account_owing">Owing: %1$s</string>
+    <string name="ui_recurring_account_balance">Bal: %1$s</string>
     <string name="ui_recurring_alert_overdue">🚨 Overdue: %1$s (HK$ %2$,.2f)</string>
     <string name="ui_recurring_alert_today">🔥 Renews Today: %1$s (HK$ %2$,.2f)</string>
     <string name="ui_recurring_alert_tomorrow">⏰ Renews Tomorrow: %1$s (HK$ %2$,.2f)</string>

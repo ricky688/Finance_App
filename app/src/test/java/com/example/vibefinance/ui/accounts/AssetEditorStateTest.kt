@@ -44,7 +44,12 @@ class AssetEditorStateTest {
                 )
             val state =
                 AssetEditorState().apply {
-                    open(prefill = account, paymentId = "payment", tab = "HISTORY")
+                    open(
+                        prefill = account,
+                        paymentId = "payment",
+                        tab = "HISTORY",
+                        sourceBounds = androidx.compose.ui.geometry.Rect(16f, 120f, 400f, 280f)
+                    )
                 }
             val saved = with(AssetEditorState.Saver) { SaverScope { true }.save(state) }
             val restored = AssetEditorState.Saver.restore(requireNotNull(saved))!!
@@ -53,6 +58,7 @@ class AssetEditorStateTest {
             assertEquals(account, restored.prefillAccount)
             assertEquals("payment", restored.originPaymentId)
             assertEquals("HISTORY", restored.originTab)
+            assertEquals(androidx.compose.ui.geometry.Rect(16f, 120f, 400f, 280f), restored.cardBounds)
         }
     }
 

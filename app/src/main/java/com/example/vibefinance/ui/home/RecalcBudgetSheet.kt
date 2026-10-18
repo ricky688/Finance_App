@@ -35,7 +35,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -82,7 +82,7 @@ fun RecalcBudgetSheet(
     onDismiss: () -> Unit = {}
 ) {
     var rememberChoice by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
 
     // Detect Light vs Dark Theme Mode (Matching Buckwheat Theme)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()

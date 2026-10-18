@@ -17,6 +17,8 @@ import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -29,6 +31,7 @@ fun MinMaxSpentCard(
     isMin: Boolean,
     spends: List<TransactionEntity>,
     isDarkTheme: Boolean = false,
+    onClick: () -> Unit = {},
 ) {
     val minSpent = remember(spends) { spends.minByOrNull { it.amount } }
     val maxSpent = remember(spends) { spends.maxByOrNull { it.amount } }
@@ -73,10 +76,20 @@ fun MinMaxSpentCard(
         }
     }
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+    val rippleColor = if (isMin) colorMinMain else colorMaxMain
+
     StatCard(
         modifier = modifier
-            .clip(BentoCardShape)
-            .bouncyClickable(shape = BentoCardShape) {},
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = rippleColor,
+                onClick = onClick
+            ),
+        shape = pressState.shape,
         value = amountText,
         label = label,
         colors = colors,

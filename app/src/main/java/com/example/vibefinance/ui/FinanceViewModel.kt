@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui
 
+import com.example.vibefinance.util.HapticStrength
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.CategoryKind
 import com.example.vibefinance.data.entity.CategoryMergeRules
@@ -62,6 +63,8 @@ data class FinanceUiState(
     val appearanceContrast: Int = 0,
     val pureBlackDarkMode: Boolean = false,
     val launchAnimationEnabled: Boolean = true,
+    val hapticFeedbackEnabled: Boolean = true,
+    val hapticStrength: HapticStrength = HapticStrength.STANDARD,
     val hideAmounts: Boolean = false,
     val appLockEnabled: Boolean = false,
     val motionLevel: com.example.vibefinance.ui.preferences.MotionLevel = com.example.vibefinance.ui.preferences.MotionLevel.FULL,
@@ -75,7 +78,19 @@ data class FinanceUiState(
     val discountShops: List<DiscountShop> = emptyList(),
     val importPreview: FinancialDataImportEngine.ImportDataPreview? = null,
     val isImporting: Boolean = false,
+    val dailyCardOrder: List<String> = DEFAULT_DAILY_CARD_ORDER,
+    val assetAccountOrder: List<Long> = emptyList(),
     val error: String? = null
+)
+
+val DEFAULT_DAILY_CARD_ORDER = listOf(
+    "daily-hero",
+    "daily-period",
+    "daily-bento",
+    "daily-transactions",
+    "daily-spending-chart",
+    "daily-category-chart",
+    "daily-calendar"
 )
 
 // MVI Intents
@@ -132,6 +147,8 @@ sealed interface FinanceIntent {
     data class SetMotionLevel(val level: com.example.vibefinance.ui.preferences.MotionLevel) : FinanceIntent
     data class SetBlurIntensity(val intensity: Float) : FinanceIntent
     data class SetLaunchAnimationEnabled(val enabled: Boolean) : FinanceIntent
+    data class SetHapticFeedbackEnabled(val enabled: Boolean) : FinanceIntent
+    data class SetHapticStrength(val strength: HapticStrength) : FinanceIntent
     data class SetIconShape(val shape: IconShapeMode) : FinanceIntent
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
@@ -143,6 +160,10 @@ sealed interface FinanceIntent {
     data class AnalyzeImportFile(val uri: Uri, val filename: String) : FinanceIntent
     data class ConfirmImport(val replaceExisting: Boolean = false) : FinanceIntent
     data object DismissImportPreview : FinanceIntent
+    data class SetDailyCardOrder(val order: List<String>) : FinanceIntent
+    data object ResetDailyCardOrder : FinanceIntent
+    data class SetAssetAccountOrder(val order: List<Long>) : FinanceIntent
+    data object ResetAssetAccountOrder : FinanceIntent
 }
 
 data class BatchTransactionResult(val requestId: String, val processing: Boolean, val success: Boolean = false, val error: String? = null)
@@ -174,13 +195,25 @@ class FinanceViewModel @Inject constructor(
 
     // Read before the first composition so a disabled intro cannot flash during loading.
     private val _uiState = MutableStateFlow(com.example.vibefinance.util.CoordinatedPreferences
-        .get(application, "vibe_finance_prefs").let { prefs -> FinanceUiState(
-            launchAnimationEnabled = prefs.getBoolean("launch_animation_enabled", true),
-            hideAmounts = prefs.getBoolean("hide_amounts", false),
-            appLockEnabled = prefs.getBoolean("app_lock_enabled", false),
-            motionLevel = com.example.vibefinance.ui.preferences.MotionLevel.fromStored(prefs.getString("motion_level", null)),
-            blurIntensity = prefs.getFloat("blur_intensity", 1f).coerceIn(0f, 1f)
-        ) })
+        .get(application, "vibe_finance_prefs").let { prefs ->
+            val hapticEnabled = prefs.getBoolean("haptic_feedback_enabled", true)
+            com.example.vibefinance.util.VibeHaptics.enabled = hapticEnabled
+            val hapticStrength = HapticStrength.fromStored(prefs.getString("haptic_strength", null))
+            com.example.vibefinance.util.VibeHaptics.strength = hapticStrength
+            val savedDailyOrder = prefs.getString("daily_card_order", null)?.split(",")?.filter { it.isNotBlank() } ?: DEFAULT_DAILY_CARD_ORDER
+            val savedAccountOrder = prefs.getString("asset_account_order", null)?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
+            FinanceUiState(
+                launchAnimationEnabled = prefs.getBoolean("launch_animation_enabled", true),
+                hapticFeedbackEnabled = hapticEnabled,
+                hapticStrength = hapticStrength,
+                hideAmounts = prefs.getBoolean("hide_amounts", false),
+                appLockEnabled = prefs.getBoolean("app_lock_enabled", false),
+                motionLevel = com.example.vibefinance.ui.preferences.MotionLevel.fromStored(prefs.getString("motion_level", null)),
+                blurIntensity = prefs.getFloat("blur_intensity", 1f).coerceIn(0f, 1f),
+                dailyCardOrder = savedDailyOrder,
+                assetAccountOrder = savedAccountOrder
+            )
+        })
     val uiState: StateFlow<FinanceUiState> = _uiState.asStateFlow()
 
     private val _requestedTab = MutableStateFlow<com.example.vibefinance.ui.main.TabItem?>(null)
@@ -235,6 +268,10 @@ class FinanceViewModel @Inject constructor(
         val savedContrast = prefs.getInt("appearance_contrast", 0).coerceIn(-1, 1)
         val savedPureBlack = prefs.getBoolean("pure_black_dark_mode", false)
         val savedLaunchAnimation = prefs.getBoolean("launch_animation_enabled", true)
+        val savedHapticFeedback = prefs.getBoolean("haptic_feedback_enabled", true)
+        com.example.vibefinance.util.VibeHaptics.enabled = savedHapticFeedback
+        val savedHapticStrength = HapticStrength.fromStored(prefs.getString("haptic_strength", null))
+        com.example.vibefinance.util.VibeHaptics.strength = savedHapticStrength
         val storedIconShape = prefs.getString("icon_shape", IconShapeMode.COOKIE_4.name)
         val savedIconShape = IconShapeMode.fromStoredName(storedIconShape)
         if (storedIconShape != savedIconShape.name) {
@@ -256,6 +293,8 @@ class FinanceViewModel @Inject constructor(
                 appearanceContrast = savedContrast,
                 pureBlackDarkMode = savedPureBlack,
                 launchAnimationEnabled = savedLaunchAnimation,
+                hapticFeedbackEnabled = savedHapticFeedback,
+                hapticStrength = savedHapticStrength,
                 hideAmounts = prefs.getBoolean("hide_amounts", false),
                 appLockEnabled = prefs.getBoolean("app_lock_enabled", false),
                 motionLevel = com.example.vibefinance.ui.preferences.MotionLevel.fromStored(prefs.getString("motion_level", null)),
@@ -590,6 +629,18 @@ class FinanceViewModel @Inject constructor(
                         .edit().putBoolean("launch_animation_enabled", intent.enabled).apply()
                     _uiState.update { it.copy(launchAnimationEnabled = intent.enabled) }
                 }
+                is FinanceIntent.SetHapticFeedbackEnabled -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putBoolean("haptic_feedback_enabled", intent.enabled).apply()
+                    _uiState.update { it.copy(hapticFeedbackEnabled = intent.enabled) }
+                    com.example.vibefinance.util.VibeHaptics.enabled = intent.enabled
+                }
+                is FinanceIntent.SetHapticStrength -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("haptic_strength", intent.strength.name).apply()
+                    com.example.vibefinance.util.VibeHaptics.strength = intent.strength
+                    _uiState.update { it.copy(hapticStrength = intent.strength) }
+                }
                 is FinanceIntent.SetIconShape -> {
                     _uiState.update { it.copy(iconShape = intent.shape) }
                     com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
@@ -607,6 +658,26 @@ class FinanceViewModel @Inject constructor(
                         AppLanguage.TRADITIONAL_CHINESE -> application.appString(R.string.feedback_language_chinese)
                     }
                     _uiEvents.emit(FinanceUiEvent.ShowToast(message))
+                }
+                is FinanceIntent.SetDailyCardOrder -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("daily_card_order", intent.order.joinToString(",")).apply()
+                    _uiState.update { it.copy(dailyCardOrder = intent.order) }
+                }
+                is FinanceIntent.ResetDailyCardOrder -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().remove("daily_card_order").apply()
+                    _uiState.update { it.copy(dailyCardOrder = DEFAULT_DAILY_CARD_ORDER) }
+                }
+                is FinanceIntent.SetAssetAccountOrder -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().putString("asset_account_order", intent.order.joinToString(",")).apply()
+                    _uiState.update { it.copy(assetAccountOrder = intent.order) }
+                }
+                is FinanceIntent.ResetAssetAccountOrder -> {
+                    com.example.vibefinance.util.CoordinatedPreferences.get(application, "vibe_finance_prefs")
+                        .edit().remove("asset_account_order").apply()
+                    _uiState.update { it.copy(assetAccountOrder = emptyList()) }
                 }
                 is FinanceIntent.SaveSubscription -> {
                     try {

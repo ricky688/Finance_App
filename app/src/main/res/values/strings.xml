@@ -107,7 +107,6 @@
     <string name="assets_compact_closing_unset">Closing day not set</string>
     <string name="assets_edit_balance">Change balance</string>
     <string name="assets_view_history">History</string>
-    <string name="assets_current_balance">Current balance: %1$s</string>
     <string name="assets_new_balance">New balance</string>
     <string name="assets_balance_change">Change: %1$s</string>
     <string name="assets_balance_history_hint">This adjustment appears in History and does not count toward your spending budget.</string>
@@ -152,6 +151,9 @@
     <string name="sub_account_label">Pay From Account / Card</string>
     <string name="sub_due_date_label">Next Payment Due Date</string>
     <string name="btn_save_subscription">Save Subscription</string>
+    <string name="btn_save_expense">Save Expense</string>
+    <string name="btn_save_income">Save Income</string>
+    <string name="btn_confirm_transfer">Confirm Transfer</string>
     <string name="btn_save_changes">Save Changes</string>
     <string name="msg_sub_deleted">Subscription deleted!</string>
     <string name="msg_sub_added">Subscription added!</string>
@@ -425,6 +427,8 @@
     <string name="edit_transfer_accounts_required">Choose two different accounts to save a transfer.</string>
     <string name="appearance_launch_animation_title">Launch animation</string>
     <string name="appearance_launch_animation_desc">Show the VibeFinance with Material You animation when opening the app.</string>
+    <string name="appearance_haptic_feedback_title">Haptic feedback</string>
+    <string name="appearance_haptic_feedback_desc">Provide tactile vibration feedback on touches and keystrokes.</string>
     <string name="privacy_lock_title">App lock</string>
     <string name="privacy_lock_desc">Use biometrics or your device screen lock when opening or returning to the app.</string>
     <string name="privacy_need_screen_lock">Set up a device PIN, pattern, or password in Android Settings before enabling app lock.</string>
@@ -513,4 +517,37 @@
     <string name="ui_main_note_hint_expense">Note / Merchant (e.g. Starbucks, Lunch)</string>
     <string name="ui_main_note_hint_income">Source / Note (e.g. Salary, Bonus, Client)</string>
     <string name="ui_main_note_hint_transfer">Transfer note (e.g. CC Payment, Savings)</string>
+    <string name="haptic_strength_title">Haptic strength</string>
+    <string name="haptic_strength_gentle">Gentle</string>
+    <string name="haptic_strength_standard">Standard</string>
+    <string name="haptic_strength_strong">Strong</string>
+    <string name="haptic_strength_desc">Adjust touch feedback across the app. The effect depends on your device and system vibration settings.</string>
+    <string name="haptic_strength_preview">Try feedback</string>
+
+    <!-- Bento Custom Layout & Card Ordering -->
+    <string name="loc_custom_bento_layout">Custom Bento Layout</string>
+    <string name="loc_reorder_assets">Reorder Assets &amp; Cards</string>
+    <string name="loc_reset">Reset</string>
+    <string name="loc_done">Done</string>
+    <string name="loc_daily_budget_hero">Remaining Budget Hero</string>
+    <string name="loc_whole_budget_card">Period Budget Card</string>
+    <string name="loc_bento_metrics">Budget Metrics Matrix</string>
+    <string name="loc_total_expenses">Total Expenses Summary</string>
+    <string name="loc_spending_trend">Daily Spending Trend</string>
+    <string name="loc_category_analytics">Category Breakdown</string>
+
+    <!-- Live Balance Flow & Income Boost Cards -->
+    <string name="live_transfer_title">Balance Flow Simulation</string>
+    <string name="live_transfer_from">From</string>
+    <string name="live_transfer_to">To</string>
+    <string name="live_transfer_current">Current: %s</string>
+    <string name="live_transfer_after">After: %s</string>
+    <string name="live_transfer_insufficient">Insufficient balance</string>
+    <string name="live_transfer_select_dest">Select destination account</string>
+    <string name="live_transfer_debt_cleared">Debt fully cleared</string>
+    <string name="live_income_title">Asset Growth Preview</string>
+    <string name="live_income_current">Current: %s</string>
+    <string name="live_income_account_label">Projected Account Balance</string>
+    <string name="live_income_total_label">Total Liquid Assets</string>
+    <string name="live_income_boost_badge">+%s</string>
 </resources>

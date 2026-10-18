@@ -8,6 +8,631 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-18 — v1.2.69 (107): Interactive Motion Orchestration for Compact/Detailed View Toggle in AssetsScreen
+- **2-Phase Icon Scaling Kinetics & Turnaround Glyph Swap (`AccountsScreen.kt`)**:
+  - Detailed -> Compact: Phase 1 executes an emphasized focus burst scaling up to `1.25x` (`150ms`, `MotionTokens.EmphasizedDecelerate`), morphs the glyph from `ViewStream` to `ViewAgenda` at the momentum peak, and Phase 2 settles smoothly down to the compact resting scale `0.90x` (`16.dp` equivalent) via `Spring.DampingRatioMediumBouncy` and `Spring.StiffnessMediumLow`.
+  - Compact -> Detailed: Phase 1 squashes down into an accelerated dip scaling down to `0.75x` (`150ms`, `MotionTokens.EmphasizedAccelerate`), morphs the glyph back to `ViewStream` at the momentum trough, and Phase 2 blooms smoothly back up to the detailed resting scale `1.0x` (`18.dp`).
+  - Executed inside `Modifier.graphicsLayer` for zero-recomposition GPU transformation, preserving 120 FPS layout stability without resizing the parent button container.
+- **Directional Slide & Soft Fade Label Transition**:
+  - Wired `AnimatedContent` for the button label text:
+    - Detailed -> Compact: Directional downward slide (`slideInVertically { -it / 2 }` + `fadeIn(150)`) paired with `slideOutVertically { it / 2 }` + `fadeOut(150)`.
+    - Compact -> Detailed: Directional upward slide (`slideInVertically { it / 2 }` + `fadeIn(150)`) paired with `slideOutVertically { -it / 2 }` + `fadeOut(150)`.
+- **Accessibility & MotionLevel.MINIMAL Compliance**:
+  - Evaluates `LocalExperience.current.motion == MotionLevel.MINIMAL`. When reduced motion is active, scaling and glyph swap snap immediately with `EnterTransition.None togetherWith ExitTransition.None`.
+  - Added first-composition lifecycle guard to avoid unintended animation playback on screen initial entry.
+- **Verification & Deployment**:
+  - Full unit test suite passed (`./gradlew testDebugUnitTest`, 382/382 passed).
+  - Built optimized release APK with R8 minification (`./gradlew assembleRelease`, 3.7MB).
+  - Installed release APK onto Samsung Galaxy S24 Ultra (`adb-R5CX22YGH7A-LIJF6v._adb-tls-connect._tcp`) via `adb install -r`.
+  - Also deployed release APK onto Waydroid (`192.168.240.112:5555`).
+  - Verified on physical phone: interactive toggling between Detailed view and Compact view (`phone_assets_scrolled.png`, `phone_assets_compact.png`, `phone_assets_detailed.png`), confirming icon scaling, glyph swap, text slide, and 100% data preservation.
+
+### 2026-10-18 — v1.2.68 (106): Material 3 Motion Tokens & MotionScheme Comprehensive Component Application
+- **Component Application of MotionTokens & MotionScheme**:
+  - **SpendsCalendar.kt**: Applied `MotionTokens.standardEnter()` / `MotionTokens.emphasizedEnter()` and `MotionTokens.standardExit()` / `MotionTokens.emphasizedExit()` to the `ExpressiveDualViewSwitcher` checkmark transition, and `MaterialTheme.motionScheme.fastEffectsSpec<Float>()` to the dual view mode transition crossfade.
+  - **HomeScreen.kt**: Applied `MotionTokens.standardEnter()` / `MotionTokens.emphasizedEnter()` and `MotionTokens.standardExit()` / `MotionTokens.emphasizedExit()` to the category filter reset button `AnimatedVisibility`.
+  - **CategoryBreakdownCard.kt**: Applied `MotionTokens.emphasizedEnter()` / `MotionTokens.standardEnter()` and `MotionTokens.emphasizedExit()` / `MotionTokens.standardExit()` to the interactive category detail popover card `AnimatedVisibility`.
+  - **RecurringScreen.kt**: Applied `MotionTokens` to category filter reset `AnimatedVisibility`, category breakdown center text transition `AnimatedContent`, and subscription/installment item removal `AnimatedVisibility`.
+  - **MainScreen.kt**: Applied `MotionTokens.emphasizedEnter(220)` to `sheetDepthProgress`, `MotionTokens.emphasizedEnter(180)` / `MotionTokens.emphasizedExit(120)` to FAB `AnimatedContent`, `MotionTokens.emphasizedEnter(210)` / `MotionTokens.emphasizedExit(90)` to `tabChangeTopLevel` `AnimatedContent`, and `MotionTokens.emphasized(320)` to transaction mode switch indicator drawing progress.
+- **Verification & Deployment**:
+  - Full unit test suite passed (`./gradlew testDebugUnitTest`, 382/382 passed).
+  - Connected test suites on Waydroid (`192.168.240.112:5555`): `CompletePressShapeTest` (11/11 passed).
+  - Deployed `v1.2.68` APK to Waydroid (`daily_verified_v68.png`, `settings_open_v68.png`, `seed_dialog_v68.png`, `history_v68.png`, `history_search_v68.png`).
+  - Restored full demo dataset (868 transactions, 14 accounts, HK$52,831.49 expenses).
+
+### 2026-10-18 — v1.2.67 (105): Global Expressive Button Style & Shape Morphing Suite
+- **Global Theme-Level Button Shape Style (`CompletePressButtons.kt`, `Theme.kt`)**:
+  - Defined `AppButtonDefaults` adhering to Material 3 Expressive guidelines:
+    - Resting shape: `CircleShape` (stadium pill).
+    - Pressed shape: `RoundedCornerShape(percent = 32)` (smooth rounded rectangle).
+    - `AppButtonDefaults.shapes(shape, pressedShape)` builder utilizing `ButtonDefaults.shapes(...)`.
+  - Defined `LocalAppButtonShapes = staticCompositionLocalOf<ButtonShapes?> { null }`.
+  - Injected `LocalAppButtonShapes provides AppButtonDefaults.shapes()` into `CompositionLocalProvider` within `VibeFinanceTheme` in `Theme.kt`.
+- **Public Expressive Button Suite (`AppButton`, `AppFilledTonalButton`, `AppOutlinedButton`, `AppTextButton`)**:
+  - Implemented standard, non-experimental overloads so callers do not require `@OptIn(ExperimentalMaterial3ExpressiveApi::class)`.
+  - Implemented `@ExperimentalMaterial3ExpressiveApi` overloads for callers supplying custom `shapes: ButtonShapes`.
+  - Standardized all button variants (`CompletePressButton`, `CompletePressFilledTonalButton`, `CompletePressOutlinedButton`, `CompletePressTextButton`) to default to `shapes: ButtonShapes = defaultButtonShapes()`.
+- **Motion Reduction Compliance (`CompletePressShape.kt`)**:
+  - Extended `rememberCompletePressProgress` to inspect `LocalExperience.current.motion == MotionLevel.MINIMAL`. When reduced motion is enabled, all button press and return morphs immediately `snap()`, honoring accessibility preferences.
+- **Consumer Adoption**:
+  - Refactored `HeroDailyBudgetCard.kt` dialog buttons and `SpendsCalendar.kt` calendar action buttons to adopt `AppButton` and `AppTextButton`.
+- **Verification & Deployment**:
+  - Unit tests: `AppButtonDefaultsTest` (3/3 passed), full unit test suite verified green (`./gradlew testDebugUnitTest`).
+  - Connected test suites verified on Waydroid (`192.168.240.112:5555`):
+    - `CompletePressShapeTest` (11/11 passed)
+    - `BudgetMotionTest` & `BudgetModeTransitionTest` (7/7 passed)
+  - Deployed `v1.2.67` APK to Waydroid (`daily_page_v67.png`, `settings_v67.png`, `settings_scrolled_v67.png`, `seed_dialog_v67.png`, `post_seed_v67.png`, `daily_verified_v67.png`, `daily_scrolled_v67.png`, `daily_bottom_v67.png`).
+  - Restored full demo dataset (868 transactions, 14 accounts, HK$52,831.49 expenses).
+
+### 2026-10-18 — v1.2.66 (104): Centralized Material 3 Motion Tokens & Root Expressive MotionScheme Integration
+- **Material 3 Easing Sets & Duration Tokens (`Motion.kt`)**:
+  - Implemented centralized `MotionTokens` following official Material 3 Motion specifications:
+    - **Emphasized Easing Set**: `Emphasized` (`CubicBezierEasing(0.2f, 0f, 0f, 1f)`), `EmphasizedDecelerate` (`CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)`), and `EmphasizedAccelerate` (`CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)`).
+    - **Standard Easing Set**: `Standard` (`CubicBezierEasing(0.2f, 0f, 0f, 1f)`), `StandardDecelerate` (`CubicBezierEasing(0f, 0f, 0.2f, 1f)`), and `StandardAccelerate` (`CubicBezierEasing(0.3f, 0f, 1f, 1f)`).
+    - **Expressive Overshoot Curve**: Centralized `FancyTransitionEasing = CubicBezierEasing(0.48f, 0.19f, 0.05f, 1.03f)`.
+    - **Material 3 Duration Tokens**: `DurationShort1` (50ms) through `DurationExtraLong4` (1000ms).
+    - **Animation Spec Helpers**: Built `emphasized()`, `emphasizedEnter()`, `emphasizedExit()`, `standard()`, `standardEnter()`, `standardExit()`, and `fancy()` spec generators.
+- **Root-Level `MotionScheme` Injection (`Theme.kt`)**:
+  - Integrated Material 3 Expressive motion directly into the root `MaterialTheme(motionScheme = ...)`:
+    - Default motion scheme set to `MotionScheme.expressive()`.
+    - Automatically falls back to `MotionScheme.standard()` when `motion == MotionLevel.MINIMAL` to honor reduced motion preferences.
+    - Preserved binary and source compatibility via overloaded `VibeFinanceTheme` constructors, avoiding leakage of `@ExperimentalMaterial3ExpressiveApi` to callers.
+- **Consumer Token Refactoring**:
+  - Migrated ad-hoc easing curves across `SettingsDrawerHost.kt`, `AssetEditorMotion.kt`, and `HistorySearchControls.kt` to consume centralized `MotionTokens`.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Connected instrumented test suites on Waydroid (`192.168.240.112:5555`):
+    - `BudgetModeTransitionTest` (3/3 green)
+    - `BudgetMotionTest` (4/4 green)
+    - `AppModalBottomSheetMotionTest` (2/2 green)
+  - Deployed `v1.2.66` APK to Waydroid (`daily_page_v66.png`, `daily_active_v66.png`, `settings_v66.png`, `settings_scrolled_v66.png`, `seed_confirm_v66.png`, `daily_seeded_v66.png`, `daily_middle_v66.png`, `daily_bottom_v66.png`), preserving full dataset (868 transactions, 14 accounts).
+
+### 2026-10-18 — v1.2.65 (103): Guaranteed Full-Cycle Shape Changing on Quick Press & MotionLevel.MINIMAL Compliance
+- **Guaranteed Full-Cycle Shape Changing on Quick Taps (`BouncyClickable.kt`, `RestAndSpentBudgetCard.kt`, `CompletePressShape.kt`)**:
+  - Upgraded `rememberExpressiveCardPress` and `RestAndSpentBudgetCard`'s `pressProgress` to use `rememberCompletePressProgress` coroutine latch mechanism:
+    - Quick taps (e.g. 50ms–300ms) guarantee completing the full inward contraction (`28.dp` -> `16.dp` at 160ms `FastOutSlowInEasing`) before springing back (`16.dp` -> `28.dp` under `Spring.DampingRatioMediumBouncy`), ensuring shape changing is completely visible and never aborted mid-flight.
+    - Long presses hold continuously at `16.dp` until finger release, transitioning back to `28.dp` with natural tactile spring rebound upon lift.
+    - `bouncyClickable` and `pressBounce` also upgraded to `rememberCompletePressProgress` with full playback guarantees.
+  - Added `MotionLevel.MINIMAL` compliance: when `motion == MotionLevel.MINIMAL`, all press and restoration specs instantly `snap()`, honoring user motion reduction preferences and preventing lingering animations.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Connected instrumented test suites on Waydroid (`192.168.240.112:5555`):
+    - `BudgetModeTransitionTest` (3/3 green)
+    - `BudgetMotionTest` (4/4 green)
+  - Deployed `v1.2.65` APK to Waydroid (`daily_page_v65.png`, `settings_v65.png`, `daily_seeded_v65.png`, `daily_active_v65.png`, `daily_spent_mode_v65.png`, `daily_middle_v65.png`, `daily_bottom_v65.png`).
+
+### 2026-10-18 — v1.2.64 (102): Unified Corner DP Shape Morphing & Bounded Semantic Ripple Highlights across Daily Cards
+- **Unified Tactile Shape Morphing (`28.dp` -> `16.dp`) across All Daily Page Cards (`BouncyClickable.kt`, `HomeScreen.kt`, `HeroDailyBudgetCard.kt`, `WholeBudgetCard.kt`, `RestAndSpentBudgetCard.kt`, `DaysLeftCard.kt`, `MinMaxSpentCard.kt`, `DailySpendingLineChart.kt`, `SpendsCalendar.kt`, `StatCard.kt`)**:
+  - Implemented `rememberExpressiveCardPress(restingCorner: Dp = 28.dp, pressedCorner: Dp = 16.dp)` and `Modifier.expressiveCardClickable(pressState, rippleColor)` to provide authentic Jetpack Compose dynamic corner morphing on all cards and widgets.
+  - Corner radius dynamically morphs from `28.dp` (resting) down to `16.dp` (pressed) under spring kinetics (`Spring.DampingRatioMediumBouncy`, `Spring.StiffnessMediumLow`) with lively overshoot recovery on release.
+  - Outer rectangle bounds stay strictly fixed (`left`, `top`, `right`, `bottom`), guaranteeing zero edge shift or shrinkage and maintaining constant `boundsInRoot` across state transitions.
+  - Applied Material You semantic bounded ripple highlights (`ripple(bounded = true, color = semanticColor)`):
+    - `HeroDailyBudgetCard`: Primary bounded ripple
+    - `WholeBudgetCard`: Primary bounded ripple
+    - `RestAndSpentBudgetCard`: Primary bounded ripple with asymmetric Spent mode morphing
+    - `DaysLeftCard`: Primary bounded ripple with exact wavy progress indicator and badge spec 100% preserved
+    - `MinMaxSpentCard` (Lowest Spending): Primary bounded ripple
+    - `MinMaxSpentCard` (Highest Spending): Error bounded ripple
+    - `TotalExpensesRow`: OnSurfaceVariant bounded ripple
+    - `DailySpendingLineChart`: OnSurfaceVariant bounded ripple
+    - `CategoryDonutChart`: Primary bounded ripple
+    - `SpendsCalendar`: OnSurfaceVariant bounded ripple
+- **Preserved Invariants & Framework Compliance**:
+  - `DaysLeftCard`'s wavy circular progress indicator and badge styling remain completely untouched.
+  - Zero fish animations on Hero card.
+  - Fixed semantic bounds maintained for test stability.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Connected instrumented test suites on Waydroid (`192.168.240.112:5555`):
+    - `BudgetModeTransitionTest` (3/3 green)
+    - `BudgetMotionTest` (4/4 green)
+  - Deployed `v1.2.64` APK to Waydroid (`daily_page_cleared_v64.png`, `daily_active_v64.png`, `daily_spent_mode_v64.png`, `daily_middle_v64.png`, `daily_bottom_v64.png`, `daily_calendar_v64.png`).
+
+### 2026-10-18 — v1.2.62 (99): Hero Card Fish Removal, Preserved Wavy Style & Fixed-Edge Corner DP Shape Morphing
+- **Preserved Wavy Style & Spec (`DaysLeftCard.kt`)**:
+  - Restored `DaysLeftCard` to its exact original design specification: `shape = BentoCardShape`, standard `CircleShape` center badge (`alpha = 0.12f`, `horizontal = 6.dp, vertical = 1.dp`), keeping the authentic Material 3 circular wavy progress indicator and flat toggle completely intact without altered badge styling or modified wave specs.
+- **Hero Card Fish Removal (`HeroDailyBudgetCard.kt`)**:
+  - Removed `TopDownFishPondOverlay` from `HeroDailyBudgetCard`, completely eliminating swimming fish, interactive tap responses, water ripples, and splashes from the Hero Daily Budget card.
+  - Kept ambient liquid wave filler and responsive metrics fully intact and moving at 120 FPS.
+- **Fixed-Edge Corner DP Shape Morphing (`BouncyClickable.kt`)**:
+  - Eliminated bounding rectangle edge insetting (`inset = 0f`) in `ExpressivePressedShape`. The outer rectangle edges (`left`, `top`, `right`, `bottom`) remain strictly fixed at the layout bounds during touch and state transitions.
+  - Shape changing strictly alters corner radii (`topLeftCornerRadius`, `topRightCornerRadius`, `bottomRightCornerRadius`, `bottomLeftCornerRadius`), ensuring Material 3 Expressive corner morphing dynamically modifies the dp of corners rather than shrinking or moving the card edges.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Connected instrumented test suites on Waydroid (`192.168.240.112:5555`):
+    - `BudgetModeTransitionTest` (3/3 green)
+    - `BudgetMotionTest` (4/4 green)
+    - `AmbientOcclusionTest` (4/4 green)
+  - Deployed `v1.2.62` APK to Waydroid (`verify_daily_budget_active_no_fish.png`, `verify_spent_mode_corner_morph.png`, `verify_settings_scrolled.png`), confirming clean fish-free Hero card, exact original wavy specs, and smooth corner dp shape changing with zero edge shifting.
+
+### 2026-10-17 — v1.2.61 (98): Material 3 Expressive Dynamic Shape Morphing across Daily Cards
+- **Dynamic Asymmetric Bento & Pill Morphing across Daily Overview (`DaysLeftCard.kt`, `RestAndSpentBudgetCard.kt`, `BouncyClickable.kt`, `StatCard.kt`, `WholeBudgetCard.kt`)**:
+  - **`DaysLeftCard.kt` Dynamic Corner & Badge Morphing**:
+    - Central badge morphs dynamically between a smooth 14dp pill in Flat mode and a scalloped 5dp squircle with spring bounce scaling (`1.05f`) and accented border in Wavy mode (`(14f - 9f * amplitudeState.value).dp`).
+    - Outer Bento container dynamically morphs its `topStart` and `bottomEnd` corners between 28dp (Flat) and 20dp (Wavy) based on indicator amplitude (`dynamicCardShape`).
+  - **`RestAndSpentBudgetCard.kt` Mode Shape Morphing**:
+    - Animated asymmetric corner morphing between Remaining mode (`RoundedCornerShape(28.dp)`) and Spent mode (`RoundedCornerShape(topStart = 28.dp, topEnd = 20.dp, bottomEnd = 28.dp, bottomStart = 20.dp)`) driven by `modeTransition.animateDp` with `Spring.DampingRatioMediumBouncy`.
+    - Mode indicator dots at top-right morph dynamically between a 4dp circle and a 12dp capsule pill (`RoundedCornerShape(2.dp)`).
+  - **`BouncyClickable.kt` Tactile Expressive Press Morphing**:
+    - Deepened tactile corner press morphing (`cornerScale = 1f - 0.50f * amount` reducing corners by up to 50% upon press) while maintaining fixed outer semantic layout bounds (`scale = 1f` when `shape != null`) to satisfy `boundsInRoot` invariants.
+  - **`StatCard.kt` & `WholeBudgetCard.kt` Outer Morph Restoration**:
+    - Removed redundant internal static clipping (`.clip(BentoCardShape)`) so outer tactile press shape morphing is unhindered; modernized `CountDaysChip` to `RoundedCornerShape(12.dp)`.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Connected instrumented test suites on Waydroid (`192.168.240.112:5555`):
+    - `BudgetModeTransitionTest` (3/3 green)
+    - `BudgetMotionTest` (4/4 green)
+    - `AmbientOcclusionTest` (4/4 green)
+  - Deployed `v1.2.61` APK to Waydroid (`verify_daily_cards_main.png`, `verify_daily_days_left_flat.png`, `verify_daily_wavy_mode_shape.png`, `verify_daily_spent_mode_shape.png`), preserving full dataset (868 transactions, 14 accounts).
+
+### 2026-10-17 — v1.2.60 (97): Removed Fishes Easter Egg from Total Remaining Budget Card
+- **Total Remaining Budget Card Cleanup (`RestAndSpentBudgetCard.kt`)**:
+  - Removed `TopDownFishPondOverlay` from `RestAndSpentBudgetCard`, completely eliminating swimming koi, out-of-water floundering fish, water ripples, and dust animations from the Total Remaining Budget card.
+  - Preserved native Material 3 Expressive tactile click and mode toggle (`showSpentCard = !showSpentCard`) via card-level `Modifier.bouncyClickable(shape = BentoCardShape)`, ensuring smooth transition between Remaining and Spent views without touch interception.
+  - Kept `TopDownFishPondOverlay` available for the top Daily Budget card (`HeroDailyBudgetCard.kt`).
+- **Verification & Deployment**:
+  - Full test suite passed green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Instrumented test suite on Waydroid (`192.168.240.112:5555`): `BudgetModeTransitionTest` (3/3 green).
+  - Deployed `v1.2.60` APK to Waydroid (`verify_daily_home_card.png`, `verify_spent_toggle_no_fishes.png`, `verify_remaining_toggle_back.png`), preserving full dataset (868 transactions, 14 accounts).
+
+### 2026-10-17 — v1.2.59 (96): Connected Button Group Trim Path Stroke Draw-In & Directional Slide Motion
+- **Custom Canvas Icon Micro-Animations (`MainScreen.kt`)**:
+  - Replaced static `ImageVector` rendering with dedicated zero-allocation Compose `Canvas` vector path rendering using cached `PathMeasure` contours and independent transform scopes.
+  - **Expense (`TransactionMode.EXPENSE`) & Income (`TransactionMode.INCOME`) — Trim Path Stroke Draw-In**:
+    - Implemented authentic vector stroke draw-in (`PathMeasure.getSegment`) with rounded caps and joins (`StrokeCap.Round`, `StrokeJoin.Round`, `2.1.dp` stroke width).
+    - As `drawProgress` animates from `0f` to `1f` (via `tween(320, easing = FastOutSlowInEasing)`), the zigzag trendline strikes across from origin to tip (`0%` to `70%` progress), and the dual arrowhead wings unfold outward simultaneously from the tip (`55%` to `100%` progress).
+    - Visual verified in mid-draw (`verify_expense_drawin_active.png`) and completed resting state (`verify_expense_drawin_complete.png`).
+  - **Transfer (`TransactionMode.TRANSFER`) — Directional Slide**:
+    - Deconstructed `SwapHoriz` into its two independent constituent arrows: upper arrow pointing right (`M21,9 L17.01,5...`) and lower arrow pointing left (`M6.99,11 L3,15...`).
+    - When clicked or activated, triggers an energetic directional slide: the upper arrow slides to the right (`upperSlideX: 0dp -> +4.5dp -> 0dp`) and the lower arrow slides to the left (`lowerSlideX: 0dp -> -4.5dp -> 0dp`), using `tween(130)` acceleration followed by `Spring.DampingRatioMediumBouncy` / `Spring.StiffnessMediumLow` elastic recoil settling.
+    - Visually verified in active motion on Waydroid (`verify_transfer_sliding_active.png`) and resting state (`verify_directional_slide_transfer.png`).
+  - **Accessibility & Performance**:
+    - Respects reduced motion (`LocalExperience.current.motion != MotionLevel.FULL`), instantly rendering complete paths at resting position with zero animation when enabled.
+    - Pre-allocates and caches `Path`, `PathMeasure`, and `Stroke` structures outside the draw loop for 120 FPS zero-allocation performance.
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Instrumented test suite on Waydroid (`192.168.240.112:5555`): `AddTransactionModeInteractionTest` (6/6 green).
+  - Deployed `v1.2.59` APK to Waydroid (`verify_settings_scroll.png` confirms `VibeFinance v1.2.59`), preserving full dataset (868 transactions, 14 accounts).
+
+### 2026-10-17 — v1.2.58 (95): Connected Button Group Kinetic Mode Selection & Spring Scale
+- **Kinetic Icon Selection Motion (`MainScreen.kt`, `ExpressiveConnectedButtonGroup.kt`)**:
+  - Added `clickTriggers: SnapshotStateList<Int>` and `animatedIconProvider` parameter to `ExpressiveConnectedButtonGroup`.
+  - Added subtle kinetic spring scaling (`1.08f` scale when active) inside zero-recomposition `graphicsLayer` using `Spring.DampingRatioNoBouncy` and `Spring.StiffnessMediumLow`.
+  - Allowed tapping currently selected mode to trigger kinetic animation without disrupting selection state.
+
+### 2026-10-17 — v1.2.57 (94): Top Transaction Mode Switcher Optimization with M3 Expressive Connected Button Group
+- **Material 3 Expressive Connected Button Group Specification Upgrade (`MainScreen.kt`, `ExpressiveConnectedButtonGroup.kt`)**:
+  - Replaced legacy disconnected floating pills (`ExpressiveSegmentedButtonGroup` with 8dp spacing and pill corners) with standardized Material 3 Expressive `ExpressiveConnectedButtonGroup`.
+  - **Connected Shape Geometry**: Utilizes native `ButtonGroupDefaults.connectedLeadingButtonShapes()` (asymmetric: large outer 24dp, inner 6dp), `ButtonGroupDefaults.connectedMiddleButtonShapes()` (uniform 6dp inner corners), and `ButtonGroupDefaults.connectedTrailingButtonShapes()` (asymmetric: inner 6dp, large outer 24dp) with `ButtonGroupDefaults.ConnectedSpaceBetween` (2dp seam).
+  - **Color Roles & Visual Hierarchy**:
+    - Active / Selected item: `primary` (light theme) / `primaryContainer` (dark theme) container with high-contrast `onPrimary` / `onPrimaryContainer` text and icon.
+    - Inactive / Unselected items: subtle `surfaceContainerHigh` container with `onSurfaceVariant` content, providing clear visual hierarchy against the form background and eliminating low-contrast mint green blocks.
+  - **Single Leading Icon Visual Language**:
+    - Mode-specific leading icons (`TrendingDown` for Expense, `TrendingUp` for Income, `SwapHoriz` for Transfer) sized at 18dp.
+    - Zero redundant double-checkmarks (`✓ ↘ 支出` removed, replaced with clean `↘ 支出` / `↗ 收入` / `⇄ 轉帳`).
+    - Added subtle kinetic spring scaling (`1.08f` scale when active) inside zero-recomposition `graphicsLayer` using `Spring.DampingRatioNoBouncy` and `Spring.StiffnessMediumLow` to prevent visual vertigo during mode transitions.
+  - **Touch & Accessibility Ergonomics**:
+    - Maintained 48dp minimum accessible touch target height (`heightIn(min = 48.dp)`).
+    - Upgraded typography to `MaterialTheme.typography.labelMedium` / `labelLarge` with `FontWeight.Bold` on active selection and `FontWeight.SemiBold` on inactive items.
+    - Preserved full test semantic tags (`TransactionModeSwitcher`, `TransactionMode_EXPENSE`, `TransactionMode_INCOME`, `TransactionMode_TRANSFER`) and radio button semantics.
+- **Verification & Deployment**:
+  - Unit tests: `./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin` passed cleanly (100% green).
+  - Instrumented tests on Waydroid: `AddTransactionModeInteractionTest` (6/6 green), `TransactionEntryHostTest` & `ExpressiveConnectedButtonGroupTest` (10/10 green).
+  - Verified on live Waydroid device (`192.168.240.112:5555`) with the 868-transaction / 14-account dataset intact across Light and Dark themes (`verify_optimized_connected_button_group.png`, `verify_income_selected.png`, `verify_transfer_selected.png`, `verify_dark_theme_switcher.png`).
+
+### 2026-10-17 — v1.2.56 (93): Categorical Chip Expansion Transition Animation & 2-Column Asset Selector Grid
+- **Category Chip Expansion Transition Animation (`MainScreen.kt`)**:
+  - Implemented fluid `AnimatedContent` transition with M3E spring kinematics (`Spring.DampingRatioLowBouncy` and `Spring.StiffnessMediumLow`) for the Category `FilterChip` selector when toggling between single-row `LazyRow` and multi-row `FlowRow` tag cloud.
+  - Expansion employs `expandVertically(expandFrom = Alignment.Top) + fadeIn()` paired with `shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()`, animated height resize via `SizeTransform(clip = false)`, and a spring-animated 180° rotation (`categoryArrowRotation`) on the `EntryCategory_toggle` chevron icon.
+  - Normalized leading symbols/emojis in `CategoryIcon` and `getCategoryDisplayName` so all standard and custom categories receive dedicated vector icons and cleanly deduplicate with built-in categories.
+- **2-Column Asset & Card Picker Grid (`MainScreen.kt`)**:
+  - Redesigned the asset selection modal bottom sheet (`AppModalBottomSheet`) from a single-column `LazyColumn` to a responsive 2-column `LazyVerticalGrid` (`columns = GridCells.Fixed(2)`).
+  - Each account/card tile features a compact Bento card layout (`RoundedCornerShape(16.dp)`): top row with 32dp circular icon container, account type badge (`現金`, `銀行`, `信用卡`), and selection checkmark; middle row with bold truncated account name; bottom row with real-time formatted balance / debt (`結餘：HK$298`, `欠款：-HK$236`).
+- **Verification & Deployment**:
+  - Full test suite verified green (`./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin`).
+  - Tested on Waydroid (`192.168.240.112:5555`) with the 868-transaction / 14-account dataset preserved.
+  - Verified visual quality in `verify_expanded_category_transition.png` and `verify_2col_account_picker.png`.
+
+### 2026-10-17 — v1.2.55 (92): Add Transaction Material 3 Expressive 2-Card Bento Layout & In-Place Expandable Tag Cloud
+- **Material 3 Expressive 2-Card Bento Architecture (`MainScreen.kt`)**:
+  - Reorganized the transaction entry page into a cohesive Hero Header (Transaction Mode Switcher `[支出 | 收入 | 轉帳]`, centered 42sp bold `BasicTextField` Hero Amount `EntryAmount`, and currency conversion banner `CurrencyRateStatus`) followed by two structured Bento section cards (`RoundedCornerShape(22.dp)`).
+  - **Bento Card 1: Budget & Note (`Card 1: 預算與備註`)**: Groups the Daily Budget toggle (`EntryDailyBudget`), live dynamic preview (Daily Budget preview, Income Asset Boost, or Transfer Balance Flow preview), and the Merchant/Note input field with a 48dp touch-target receipt scanner camera button (`EntryCameraScan`).
+  - **Bento Card 2: Classification & Asset (`Card 2: 分類與帳戶`)**: Groups the Category `FilterChip` selector, Expense Icon picker, and full-width Selected Asset card (`EntryAccount_card`, plus `EntryDestination_card` in Transfer mode).
+- **In-Place Expandable Category Tag Cloud, Icons & Deduplication (`MainScreen.kt`)**:
+  - Added a header-level expand/collapse toggle (`展開全部` / `收合`, `EntryCategory_toggle`) with `animateContentSize` between a single-row horizontally scrollable `LazyRow` (`EntryCategory`, with scroll-state-aware `horizontalFadingEdge`) and a multi-row wrapped `FlowRow` tag cloud (`EntryCategory_cloud`).
+  - Selecting any category chip in expanded mode automatically collapses the cloud back to the single-row `LazyRow` and scrolls the selected chip into view via `animateScrollToItem`.
+  - Displayed a category icon or emoji on each Category `FilterChip` via `CategoryIcon`.
+  - Implemented localized display-name deduplication via `getCategoryDisplayNameFromResources` so duplicate raw keys that map to the identical localized name (e.g., `"Food"` and `"Food & Drink"` both displaying as `"餐飲美食"`) are deduplicated according to transaction frequency.
+  - Retained trailing `+ 新增` (`EntryCategory_row_add`) chip for inline custom category creation.
+- **Full-Width Selected Asset Card & Modal Bottom Sheet Picker (`AppModalBottomSheet`)**:
+  - Replaced legacy floating `Popup` overlay (`ExpandableEntrySelector`) with a full-width `SelectedAccountCard` (`EntryAccount_card`, `EntryDestination_card`) showing the active account icon, display name, account type, formatted live available balance or credit card owing amount (`CurrencyEngine.formatSignedCompact`), and trailing chevron.
+  - Tapping the asset card opens a standard Material 3 `AppModalBottomSheet` listing all selectable accounts with real-time signed balances and an inline `+ 新增帳戶` creation flow backed by `FinanceIntent.SaveAccount`.
+  - Completely eliminated auto-opening popups on initial screen appearance and mode switches (`selectorOverlay.advanceTo` removed).
+- **Test Suite Alignments & Verification**:
+  - Updated `AddTransactionModeInteractionTest.kt`, `GuidedEntrySelectorTest.kt`, and `TransactionEntryHostTest.kt` to target new Bento card structure, Hero Amount input, `AppModalBottomSheet`, and expandable tag cloud.
+  - Added new unit test suite `AddTransactionBentoUnitTest.kt` covering decimal regex validation, draft mode switching, Saver roundtrip, and category localized display-name deduplication.
+  - Connected test suite passed on physical/emulated device (21 tests green).
+  - All unit tests (`./gradlew testDebugUnitTest`) passed with 100% green status.
+- **Acceptance Criteria Verification Checklist**:
+  - [x] Opening Add Expense, Income, or Transfer displays the Hero Header and 2 Bento section cards without any auto-opening popup covering the screen.
+  - [x] Tapping the Category expand/collapse toggle transitions smoothly between the single-row `LazyRow` and multi-row `FlowRow` of `FilterChip`s, and selecting a chip in expanded mode auto-collapses to the single row and reveals the selected chip.
+  - [x] Duplicate localized category labels (such as duplicate `餐飲美食`) do not appear simultaneously, and each category chip displays its category icon/emoji.
+  - [x] Asset selection displays a full-width card with real-time formatted account balance and opens an `AppModalBottomSheet` account selector (with account creation support) on tap.
+  - [x] `./gradlew assembleDebug testDebugUnitTest compileDebugAndroidTestKotlin` succeeds with 0 errors.
+  - [x] `graphify update .` and `git diff --check` complete cleanly.
+
+### 2026-10-17 — v1.2.54 (91): Single-Row Category FilterChips in Add Expense & Income
+- **Unified Single-Row `FilterChip` Category Selector (`MainScreen.kt`)**:
+  - Replaced `ExpandableEntrySelector` (and its automatic 3-column popup card grid + expand toggle button) for the Category field in `AddExpenseSheetContent` (`MainScreen.kt`) with a single-row horizontally scrollable `LazyRow` of Material 3 `FilterChip`s (`RoundedCornerShape(12.dp)`), matching the Add Subscription and Installment category chip experience in `RecurringScreen.kt`.
+  - Retained the Asset selector's rich card / expandable selector (`ExpandableEntrySelector` for `EntryAccount` and `EntryDestination`).
+  - Removed the automatic `EntryCategory` popup on initial Expense/Income entry so the entire transaction form (amount, budget preview, note, category `FilterChip` row, expense icon, and asset selector) is immediately visible without a popup blocking the lower half of the screen.
+  - Applied scroll-state-aware `Modifier.horizontalFadingEdge(categoryListState, 16.dp)`, automatic `animateScrollToItem` tracking when selecting categories, leading `Check` icon on the active chip, and a trailing `+ 新增` (`EntryCategory_row_add`) `FilterChip` to toggle inline category creation.
+- **Verification & Deployment**:
+  - Updated instrumented tests (`EntrySelectorOverlayTest.kt`, `GuidedEntrySelectorTest.kt`, `TransactionEntryHostTest.kt`, `FinancialSuiteInteractionTest.kt`) to reflect the single-row `FilterChip` Category selector.
+  - `./gradlew assembleDebug testDebugUnitTest` passed with all unit tests green, and verified on Waydroid (`192.168.240.112:5555`).
+
+### 2026-10-17 — v1.2.53 (90): Scroll-Aware Category Chip Fading Edge & ScrollBlurContainer Clean Alpha Mask
+- **Scroll-Aware Horizontal Fading Edges (`FadingEdge.kt`, `RecurringScreen.kt`, `AssetEditorScreen.kt`)**:
+  - Added scroll-state-aware `Modifier.horizontalFadingEdge(lazyListState: LazyListState, maxFadeWidth: Dp)` and `Modifier.horizontalFadingEdge(scrollState: ScrollState, maxFadeWidth: Dp)` overloads in `FadingEdge.kt`.
+  - Replaced static `.horizontalFadingEdge(12.dp, 12.dp)` across all 6 horizontal chip/selector `LazyRow`s in `RecurringScreen.kt` (Subscription Presets, Subscription Category Chips, Subscription Accounts, Installment Duration Presets, Installment Category Chips, Installment Accounts) and both horizontal `Row`s in `AssetEditorScreen.kt` (Quick Adjust Chips and Card Theme Swatches) with dynamic scroll-aware fading.
+  - At the start scroll limit (`!canScrollBackward`), `startFadePx` is now `0f` so the first chip (e.g., `✓ 餐飲美食`, `🎬 Netflix`, `🏦 Mox Bank`, `3 期`, `+$50`) is 100% crisp and never washed out on its left edge.
+  - At the end scroll limit or when all chips fit within the row (`!canScrollForward`), `endFadePx` is `0f` so non-overflowing chip rows and end items remain completely unclipped.
+  - Added automatic `animateScrollToItem` tracking on category selection in `RecurringScreen.kt` so newly selected category chips are brought cleanly away from overflowing fade boundaries.
+- **Clean Alpha Fade in `ScrollBlurContainer` (`ScrollBlurContainer.kt`)**:
+  - Removed the `Haze` `surfaceContainer`-tinted blur box overlay (`Modifier.hazeEffect`) that previously stacked on top of `Modifier.horizontalFadingEdge` / `Modifier.verticalFadingEdge` and produced a discolored gray-green smudge over category chips (`EntryCategory_row` in `MainScreen.kt`) and scroll container boundaries, while preserving offscreen `BlendMode.DstIn` alpha fading and `*_start_fade` / `*_end_fade` semantics tags.
+
+### 2026-10-17 — v1.2.52 (89): Full-Screen Subscription Entry Host & Asset Editor Edge-to-Edge Scrollability Fix
+- **Full-Screen Subscription & Installment Entry (`SubscriptionEntryHost.kt`, `RecurringScreen.kt`, `MainScreen.kt`)**:
+  - Migrated Add/Edit Subscription & Installment Plans from a `ModalBottomSheet` into a full-screen slide-over page (`SubscriptionEntryHost`), matching the exact Material 3 Expressive right-edge transition (`assetEditorSlideSpec`, `assetEditorFadeSpec`, `assetEditorScaleSpec`) and background depth motion (`assetEditorBackgroundMotion`) of `TransactionEntryHost` and `AssetEditorHost`.
+  - Introduced `SubscriptionEditorState` with saveable state restoration and hosted `SubscriptionEntryHost` at the root of `MainScreen` above the bottom navigation bar and FAB.
+  - Added a pinned top navigation bar with a back arrow, contextual title/subtitle, and currency selector (`EntryCurrency`), above an edge-to-edge vertically scrollable 2-card + Hero form and sticky bottom action bar.
+- **Asset Editor Scrollability Fix (`AssetEditorScreen.kt`)**:
+  - Removed `Modifier.rotate3DOnTouch()` from the 160dp top preview card inside the Asset Editor form, which previously ran an infinite `awaitPointerEventScope` loop capturing all touch events and blocking vertical scroll gestures initiated on the card.
+  - Removed the redundant `.clickable(onClick = {})` modifier on the `Scaffold` that intercepted unconsumed pointer-down events.
+  - Moved horizontal margin padding (`16.dp` / `24.dp`) from the outer `Row` to inside the `verticalScroll` `Column` within `ScrollBlurContainer`, eliminating the left/right screen-edge dead zones so touches anywhere across the full width scroll smoothly.
+  - Added `verticalScroll` to the 260dp left preview pane in wide/tablet mode.
+- **Verification & Deployment**:
+  - `./gradlew assembleDebug testDebugUnitTest` passed with all unit tests green.
+  - Deployed to Waydroid (`192.168.240.112:5555`) with the 868-transaction, 14-account dataset intact, and verified full-screen subscription entry transitions and smooth Asset Editor scrolling across the preview card and screen edges.
+
+### 2026-10-17 — v1.2.51 (88): Material 3 Expressive Add Subscription & Installment Bottom Sheet Streamlining
+- **Add Subscription & Installment Sheet Optimization (優化新增訂閱與分期計劃底部彈窗)**:
+  - **Eliminated Vertical Bloat & Inverted Hierarchy (`RecurringScreen.kt`)**:
+    - Removed redundant `LiveSubscriptionPreviewCard` and `LiveInstallmentPreviewCard` which consumed ~130dp with empty placeholders.
+    - Promoted Amount to the top as a Material 3 Expressive **Hero Amount** using `BasicTextField` (`42sp` bold, centered, decimal keyboard, clear `✕` button, currency status display).
+    - Directly paired the Hero Amount with the Frequency Connected Button Group (`[每月 | 每年 | 每週]`), allowing instant input of both amount and billing cadence in a single cohesive view.
+  - **Reorganized into 2 Logical Bento Cards**:
+    - **Card 1: 服務與分類 (Subscription Details)**: Popular Presets carousel (Netflix, Spotify, ChatGPT, etc.) with 1-tap autofill, Subscription Name field with reactive leading brand emoji/category icon, and category filter chips with inline custom category adding.
+    - **Card 2: 付款與週期 (Payment & Schedule)**: Linked account selector with normalized signed balances (`Mox Bank 結餘: -HK$846`) and next payment due date picker.
+  - **Dynamic Brand Color Feedback**:
+    - Instant reactive accent tinting (e.g. Netflix Red `#E50914`, Spotify Green `#1DB954`, ChatGPT Teal `#10A37F`) dynamically tints the currency prefix, text cursor, leading icon, and preset chip border.
+  - **Symmetrical Installment Plan Modernization**:
+    - Hero Total Amount input directly paired with Duration preset chips (`[3期 | 6期 | 12期 | 24期 | 36期]`) and stepper (`-` / `+`) with real-time per-month cost calculation (`≈ HK$ xxx / 月`).
+    - Grouped into 2 cards: Purchase Details and Payment Account & First Due Date.
+  - **Verification & Deployment**:
+    - `./gradlew testDebugUnitTest`: All unit tests passed.
+    - `./gradlew assembleDebug`: Compiled successfully in 9s.
+    - Installed on Waydroid (`192.168.240.112:5555`) with full test dataset (868 transactions, 14 accounts) preserved.
+    - Verified interactions (preset selection, dynamic color feedback, amount typing, frequency switching, installment live calculation) and captured screenshots.
+
+### 2026-10-17 — v1.2.50 (87): Material 3 Expressive UI/UX Refinement & Currency Sign Standardization
+- **Material 3 Expressive UI/UX Refinement & Currency Sign Standardization (全面 M3 Expressive UI/UX 細化與符號標準化)**:
+  - **M3 Expressive v1.4.0 Specification (`.agents/rules/M3E.md`)**:
+    - Upgraded specification to v1.4.0, formalizing zero bouncy physics on navigation, unified `ExpressiveConnectedButtonGroup` usage, and standard currency prefix placement.
+  - **Negative Sign & Currency Formatting Normalization (`CurrencyEngine.kt`, `AccountsScreen.kt`, `MoneySeparationChart.kt`, `RecurringScreen.kt`)**:
+    - Fixed negative amounts placing the minus sign inside the currency prefix (`HK$ -845.89` / `$-846`) into proper standard placement: `-HK$ 845.89` / `-$846`.
+    - Added `CurrencyEngine.formatSignedAmount` and `CurrencyEngine.formatSignedCompact` with adaptive spacing (`prefix.length > 1` gets space, single-char symbols like `$` do not).
+    - Updated account card balances, net worth, total assets, total debt, asset allocation bar chart, donut chart center, and recurring payment account picker to use normalized signed formatting.
+  - **Connected Button Group Standardization (`RecurringScreen.kt`, `AccountsScreen.kt`)**:
+    - Eliminated redundant bespoke `ConnectedButtonGroup` in `RecurringScreen.kt` (saved ~120 lines of redundant code) and delegated directly to `ExpressiveConnectedButtonGroup`.
+    - Removed legacy floating 32dp underline bar on `AssetGroupSelector` in `AccountsScreen.kt`, yielding a clean connected shape group with full accessibility and proper light/dark focus motion.
+  - **Preserved Database & Zero Idle Overhead**:
+    - All 28 unit tests passing (`./gradlew testDebugUnitTest`).
+    - Successfully built and installed on Waydroid (`192.168.240.112:5555`).
+
+### 2026-10-16 — v1.2.49 (86): Floundering Fish on Dry Space & Water-Boundary Partition
+- **Water Space vs. Dry Space Partition & Floundering Fish (水陸空間分界與乾燥處擱淺打挺魚彩蛋)**:
+  - **Dynamic Water Boundary Calculation (`TopDownPondFish.kt`)**:
+    - `TopDownFishPondOverlay` accepts `waterRatio: Float` (from `HeroDailyBudgetCard`'s `animatedRatio` and `RestAndSpentBudgetCard`'s `ratio`).
+    - Dynamically measures card width via `Modifier.onSizeChanged` and computes the exact water partition boundary `waterlineX = width * waterRatio`.
+  - **Differentiated Touch Interactivity**:
+    - **Water Space (`x <= waterlineX`)**: Preserves smooth swimming minimalist gray fishes, concentric ripples (`WaterRipple`), and splashing water beads (`WaterDroplet`).
+    - **Dry Land / No-Water Space (`x > waterlineX`)**:
+      - Spawns 1–2 frantic **floundering fishes** (`isFloundering = true`, `waterBoundaryX = waterlineX`).
+      - Spawns tiny dry dust specks (`isDryDust = true`) scattering locally; completely suppresses water ripples.
+  - **Floundering Fish Motion & Physics**:
+    - **Violent Tail Thrashing**: Frantic 32 Hz oscillation reflecting struggling on dry land.
+    - **Exaggerated Spine Arch**: C-curved body arching (`archBend = W * 0.95f`) reacting to hopping phase.
+    - **Parabolic Flop & Hop**: 4.2 Hz bouncing hops with upward vertical displacement ($1.5 \times$ width) and lateral kicks directed towards the water boundary (48 px/s).
+    - **Roll & Tilt**: Tilts $\pm 35^\circ$ during aerial hops.
+    - **Rescue into Water Closed-Loop**: When the floundering fish kicks and crosses `waterBoundaryX`, it splashes back into water (`WaterRipple` + `WaterDroplet`), straightens its spine, and smoothly transitions into swimming mode!
+  - **Zero Idle CPU Overhead**:
+    - Retained frame ticker sleeping logic; elements expire and clear after 1.8s, restoring 0% CPU consumption when idle.
+  - **Dataset Intact**:
+    - Temporary test transactions verified and deleted cleanly; workbook dataset completely preserved.
+- **Verification**:
+  - All 28 unit tests passed (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots (`waydroid_v1249_divided_card.png`, `waydroid_v1249_floundering_fish_1.png`, `waydroid_v1249_swimming_water_fish.png`).
+  - Walkthrough artifact documented in `floundering_fish_walkthrough.md`.
+
+### 2026-10-16 — v1.2.48 (85): Gray Color Palette for Easter Egg Fishes & Water Droplets
+- **Gray Color Palette for Fishes & Water Droplets (游魚、水珠與水波紋全面灰階化)**:
+  - **Adaptive Minimalist Gray Palette (`TopDownPondFish.kt`)**:
+    - Replaced the white/pearl palette with a modern, sophisticated minimalist slate & neutral gray palette.
+    - Light Theme (`MinimalGrayFishPaletteLight`): Uses deep slate gray (`0xFF475569`), slate gray (`0xFF64748B`), zinc gray (`0xFF52525B`), cool gray (`0xFF6B7280`), and zinc (`0xFF71717A`) for rich contrast against the light mint/seafoam wave card.
+    - Dark Theme (`MinimalGrayFishPaletteDark`): Uses cool silver gray (`0xFF94A3B8`), mist stone gray (`0xFFA1A1AA`), pale slate frost (`0xFFCBD5E1`), mineral gray (`0xFF8E9BAE`), and frosted slate (`0xFF78889B`) for luminous clarity against dark pine surfaces.
+  - **Gray Splashing Water Droplets & Ripples**:
+    - Water droplets (`WaterDroplet`) and expanding concentric ripples (`WaterRipple`) adopt matching slate gray tones (`0xFF64748B` in Light mode, `0xFF94A3B8` in Dark mode), creating an elegant liquid mercury / ink-wash visual feel.
+  - **Dynamic Hairline Outlines**:
+    - Adaptive hairline 0.55dp contour: subtle dark slate in light mode (`Color(0x250F172A)`) and cool frosted white in dark mode (`Color(0x35FFFFFF)`).
+  - **Zero Idle CPU Overhead**:
+    - Preserved frame ticker lifecycle, sleeping completely when no elements are on screen.
+- **Verification**:
+  - All 28 unit tests passed (`./gradlew testDebugUnitTest`).
+  - Debug APK built and deployed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots in both light and dark themes.
+  - Walkthrough artifact documented in `gray_fishes_and_droplets_walkthrough.md`.
+
+### 2026-10-16 — v1.2.47 (84): Minimalist Fish Style & Silhouette Redesign
+- **Minimalist Fish Style & Silhouette Redesign (彩蛋游魚造型與剪影全面極簡化)**:
+  - **Sleek Fluid Silhouette (`TopDownPondFish.kt`)**:
+    - Transformed fishes from realistic biological koi illustrations into sleek, aerodynamic, hydrodynamic fluid vector silhouettes.
+    - Adjusted length-to-width aspect ratio from 3.2:1 to a slender 3.8:1 (`fishWidth = 8.5dp`, `fishLength = 32dp`) for higher elegance.
+    - Simplified body contour into a pure continuous cubic-bezier spindle (`bodyPath`), eliminating complex biological bulges.
+  - **Eliminated Illustrative Complexities**:
+    - **No Eyes (無眼點設計)**: Completely removed circular eye dots, eliminating cartoonish look and establishing an abstract, zen visual tone.
+    - **No Blotches / Spots (無雜斑設計)**: Removed dorsal blotches and spot paths; the fish surface is pure, uniform, and monochromatic.
+    - **Whisper-Thin Swept Winglet Fins (輕透流線微羽鰭)**: Replaced bulky segmented fin flaps with slender aerodynamic winglets (`leftFinPath`, `rightFinPath`) with soft translucency (`alpha * 0.36f`).
+    - **Minimalist Crescent Tail Fin (簡約月牙尾鰭)**: Replaced bifurcated swallowtail with a clean, sweeping crescent fin fading into water (`alpha * 0.70f` to `0.18f`).
+  - **Refined Water Droplets & Micro-Outline**:
+    - Water droplets rendered as pure, clean translucent beads without busy internal specular double-dots.
+    - Added an ultra-fine 0.55dp hairline contour (`Color(0x180F172A).copy(alpha = alpha * 0.12f)`) ensuring razor-sharp silhouette definition in both Light and Dark themes.
+  - **Zero Idle CPU Overhead**:
+    - Retained frame ticker deactivation when no fishes, ripples, or droplets are active.
+- **Verification**:
+  - All 28 unit tests passed (`./gradlew testDebugUnitTest`).
+  - Debug APK assembled and deployed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots in both light mode and dark mode.
+  - Walkthrough artifact documented in `minimal_fish_style_walkthrough.md`.
+
+### 2026-10-16 — v1.2.46 (83): Minimalist Color Scheme for Easter Egg Fishes & Water Droplets
+- **Minimalist Palette for Pond Fishes & Water Droplets (彩蛋游魚與水滴效果全面極簡化)**:
+  - **Refined Color Palette**:
+    - Replaced the previous saturated, bright orange, coral, and amber koi tones with a calm, zen, and minimalist monochromatic palette (`MinimalFishPalette`): Pure Pearl White (`0xFFFFFFFF`), Crisp Silver Mist (`0xF5F8FAFC`), Frosted Platinum (`0xEEF1F5F9`), Translucent Slate Pearl (`0xE0E2E8F0`), and Subtle Mint Water Tint (`0xEEF0FDF4`).
+    - Replaced the bright red dorsal spot (`0xFFFF3D00`) with soft sumi-e ink washes and pearl sheens (`MinimalSpotPalette`): subtle pearl highlight, soft slate ink (`0x3064748B`), and delicate charcoal wash (`0x25334155`).
+    - Softened fish eyes to muted charcoal (`Color(0xFF334155).copy(alpha = alpha * 0.65f)`) and added a faint, delicate outline (`0.75dp`, `Color(0x1F0F172A).copy(alpha = alpha * 0.16f)`) ensuring crisp edge definition against both light mint and dark backgrounds.
+  - **Splashing Water Droplets & Minimalist Ripples (`WaterDroplet`)**:
+    - Replaced orange-tinted ripples with pure translucent water white ripples (`Color.White.copy(alpha = 0.45f)`).
+    - Introduced dynamic `WaterDroplet` beads splashing radially from the tap point with subtle parabolic trajectory, dynamic opacity fade-out, and realistic specular highlights in pure minimalist white.
+  - **Applied Across All Liquid Wave Cards**:
+    - Updated `TopDownPondFish.kt`, affecting both `HeroDailyBudgetCard` and `RestAndSpentBudgetCard` on the Daily page without increasing CPU overhead (0% when idle).
+- **Verification**:
+  - All unit tests passed (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid emulator (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots: single tap and rapid multi-tap in Hero card, observing graceful minimalist white koi and splashing water droplets against the wave backdrop.
+  - Knowledge graph updated (`graphify update .`) and `git diff --check` verified clean.
+
+### 2026-10-16 — v1.2.45 (82): Live Balance Flow & Income Asset Boost Cards in Transaction Entry
+- **Live Balance Flow & Income Asset Boost Cards (即時帳戶餘額流動與增益卡片)**:
+  - **Eliminated Blank Spaces on Income and Transfer Tabs**:
+    - Addressed the noticeable blank space in the Daily Add Transaction bottom sheet (`AddExpenseSheetContent` in `MainScreen.kt`) when switching from Expense to Income or Transfer modes.
+  - **Live Transfer Balance Flow Card (`LiveTransferBalanceFlowCard`)**:
+    - Mode: Active in Transfer (`轉帳`) mode.
+    - Shows real-time dynamic balance simulation:
+      - Source Account: Current balance ➔ Projected balance (debt increase for credit cards, asset decrease for bank/cash).
+      - Flow Indicator: Arrow `→` with typed amount in primary theme accent.
+      - Destination Account: Current balance ➔ Projected balance (debt repayment for credit cards, asset increase for bank/cash). If not yet selected, shows prompt "請在下方選擇收款帳戶".
+    - Smart Insufficient Balance & Debt Clearance Badges:
+      - If source is a non-credit account and transfer amount > balance, card adopts an error border and displays a prominent warning badge: `▲ 轉出帳戶結餘不足` with projected balance in error red.
+      - If destination is a credit card and repayment clears debt (`projected <= 0`), displays a primary badge: `✓ 欠款全數清還`.
+  - **Live Income Asset Boost Card (`LiveIncomeAssetBoostCard`)**:
+    - Mode: Active in Income (`收入`) mode.
+    - Real-time asset growth preview:
+      - Receiving Account: Shows current balance ➔ Projected balance with `➔` indicator.
+      - Total Liquid Assets (`總流動資產變動`): Dynamically aggregates all liquid non-credit, non-investment accounts, previewing total liquid asset expansion in primary green.
+      - Asset Boost Badge: Top-right badge showing `+HK$xxx` when an amount is typed.
+  - **Material 3 Expressive & Smooth Kinetic Transitions**:
+    - Seamless non-bouncy spring physics (`Spring.DampingRatioNoBouncy`) on mode switching with vertical expansion/shrink and fading.
+    - Integrated `RollingNumberText` for fluid digit roll animations on amount entry or account switching.
+    - Clean currency formatting using `formatLiveBalance`, keeping minus signs properly placed (`-$xxx.xx`).
+  - **Comprehensive Multi-Locale String Resources**:
+    - Added localized string entries across all 5 locale files: English, Simplified Chinese, Traditional Chinese (TW, HK, Hant).
+- **Verification**:
+  - All unit tests passed (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid emulator (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots: verified initial 0 state, typing 5000 in Income mode, asset growth badge and liquid balance update, switching to Transfer mode, insufficient balance error styling, Clear to 0 transition, and smooth return to Expense mode.
+  - Knowledge graph updated (`graphify update .`) and `git diff --check` verified clean.
+
+### 2026-10-16 — v1.2.44 (81): Large Centered Borderless Amount Display & Quick Increment Removal
+- **Large Centered Borderless Amount Display (大字號水平置中無邊框金額與移除快捷加額按鈕)**:
+  - **Removed Quick Increment Chips**:
+    - Completely removed the `+HK$ 10`, `+HK$ 50`, `+HK$ 100`, `+HK$ 500` chips from the Daily Add Transaction sheet (`MainScreen.kt`), eliminating visual clutter.
+  - **Large Borderless Amount**:
+    - Positioned directly below the 3 connected buttons (`支出 | 收入 | 轉帳`), horizontally centered across the full screen width.
+    - Removed `OutlinedTextField` container outline and background box, rendering naked, modern typography.
+    - Prominently displays dynamic currency prefix (e.g. `HK$ ` in primary theme green, 32sp bold) followed by the amount (42sp bold, dimmed when 0, solid when entered).
+  - **Interactive Precision & System Decimal Keyboard**:
+    - Backed by `BasicTextField` with tap-to-focus interactivity, immediately invoking the native system decimal keyboard (`KeyboardType.Decimal`).
+    - Integrated subtle one-tap Clear icon button (`Icons.Default.Clear`) when an amount is typed, resetting back to `HK$ 0`.
+    - Retained `.testTag("EntryAmount").semantics { stateDescription = typedAmount }` for test compatibility.
+  - **Unified Across All Modes**:
+    - Consistent centered layout across Expense (`新增支出`), Income (`新增收入`), and Transfer (`帳戶轉帳`).
+- **Verification**:
+  - All unit tests passed cleanly (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid emulator (`192.168.240.112:5555`).
+  - Verified on live screen with screenshots: initial centered `HK$ 0`, decimal keyboard activation, typing `128.5`, dynamic budget warnings, clear back to `HK$ 0`, and mode switching.
+  - Codebase knowledge graph synchronized (`graphify update .`).
+
+### 2026-10-16 — v1.2.43 (80): System Decimal Numeric Keyboard & Streamlined Transaction Entry Form
+- **System Numeric Keyboard for Transaction Entry (改用系統數字鍵盤與表單佈局升級)**:
+  - Replaced the fixed, bulky 4×4 custom calculator keypad with a spacious, streamlined Material 3 transaction entry layout inspired by the Recurring page (`AddEditSubscriptionSheet`).
+  - **Editable Amount Field & Quick Increment Chips**:
+    - Replaced the static header amount display with an interactive `OutlinedTextField` with `KeyboardOptions(keyboardType = KeyboardType.Decimal)` and dynamic currency prefix (`$currencySymbol`).
+    - Added instant clear button (`Icons.Default.Clear`) when text is entered.
+    - Integrated quick increment chips (`+10`, `+50`, `+100`, `+500`) directly underneath the amount field with tactile haptic ticks.
+  - **Unrestricted Viewport & Natural Form Flow**:
+    - Removed the 240dp fixed numpad crowding the bottom of the screen, allowing Category, Note/Merchant, Asset Selection, and Budget Preview to fit comfortably on one viewport without cramped scrolling.
+    - Dismissing or focusing the amount field naturally invokes or hides the system decimal keyboard; focusing the Note field seamlessly displays the standard full alphanumeric keyboard without overlapping keypad conflicts.
+  - **Full-Width Action Button**:
+    - Replaced the keypad's bottom-right button with an expressive, full-width `Button` (`儲存支出` / `儲存收入` / `確認轉帳`) with checkmark icon (`Icons.Default.Check`) floating securely above navigation insets / IME.
+- **Verification**:
+  - All unit tests passed cleanly (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid emulator (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots: tested initial layout, quick increment chips, system decimal keypad emergence, clear button, mode switching (支出, 收入, 轉帳), and clean back dismissal.
+  - Updated codebase knowledge graph (`graphify update .`).
+
+### 2026-10-16 — v1.2.42 (79): Unified Expense Categories & Custom Category Creation for Recurring Subscriptions & Installments
+- **Unified Recurring Expense Categories (定期訂閱與分期計劃支出類別全面統一)**:
+  - Unified the category selection system in `AddEditSubscriptionSheet` on the Recurring page (`RecurringScreen.kt`) to match the Daily page Add Expense flow.
+  - **Dynamic Frequency Sorting & Comprehensive Discovery (`resolveRecurringExpenseCategories`)**:
+    - Replaced the previously static hardcoded category lists with dynamic resolution via `categoryChoices(CategoryKind.EXPENSE, ...)`, aggregating default expense categories (`Food`, `Transport`, `Shopping`, `Utilities`, `Other`) plus custom categories found across transactions, existing subscriptions, category limits, and category merge rules.
+    - Automatically sorts categories by transaction usage frequency so the user's most frequently used categories (e.g. `Groceries` / `超市雜貨`, `Food & Drink` / `餐飲美食`, `Transport` / `交通出行`, `Shopping` / `購物消費`, `Utilities` / `水電公用`) appear first.
+  - **Inline Custom Category Addition (`+ 新增`)**:
+    - Embedded `+ 新增` category chip at the end of the category chip row in both the Subscription (`固定訂閱`) and Installment (`分期計劃`) tabs.
+    - Clicking `+ 新增` expands an inline category entry field (`showInlineAddCategory`) allowing users to type and add any custom expense category on the fly, immediately selecting it and adding it to the available category chips.
+  - **UI & Checkmark Indication**:
+    - Integrated leading checkmark icon (`✓`) on selected category chips and localized display names using `getCategoryDisplayName(cat)`.
+  - **Device Package Hygiene**:
+    - Uninstalled obsolete legacy development package `com.example.vibefinance` (v1.0.12) from Waydroid and ensured all execution strictly runs the official release package `com.ricky688.vibefinance` (v1.2.42).
+- **Verification**:
+  - All unit tests passed (`./gradlew testDebugUnitTest`), including new test coverage in `RecurringScreenBentoTest.kt` verifying frequency-based ordering and category merge rules.
+  - Built debug APK and deployed in place (`-r`) to Waydroid emulator (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots: verified Daily page categories match Recurring page categories, verified checkmark on selected chip, tested opening inline custom category entry field, and verified both Subscription and Installment tabs.
+  - Updated codebase knowledge graph (`graphify update .`).
+
+### 2026-10-16 — v1.2.41 (78): Foreign Currency Selector & Live Exchange Rate Conversion for Recurring Subscriptions & Installments
+- **Foreign Currency Support for Recurring Subscriptions & Installments (定期與分期多幣種匯率換算)**:
+  - Replicated the foreign currency conversion system from the Daily page Add Expense flow into `AddEditSubscriptionSheet` on the Recurring page (`RecurringScreen.kt`).
+  - **Currency Selector Pill & Options**:
+    - Embedded `EntryCurrency` selector pill in the top header and Bento Card section headers (`🇭🇰 HKD`, `🇺🇸 USD`, `🇯🇵 JPY`, `🇪🇺 EUR`, `🇬🇧 GBP`, `🇨🇳 CNY`, `🇹🇼 TWD`).
+    - Added dynamic currency symbol prefixes (`$`, `¥`, `€`, `£`, `NT$`, etc.) to Amount text fields and quick increment chips (`+$ 10`, `+$ 50`, `+$ 100`, `+$ 500` / `+$ 500`, `+$ 1000`, etc.).
+  - **Live Exchange Rate Engine (`CurrencyRateStatus`)**:
+    - Integrated `CurrencyRateStatus` live exchange rate banner across both Subscription and Installment tabs when a foreign currency is selected.
+    - Displays live reference quotation (e.g. `1 USD = HK$7.8539`), quotation date, source provider (Frankfurter API), and a refresh button with offline/cached badge fallbacks.
+  - **Live Converted HKD Previews**:
+    - `LiveSubscriptionPreviewCard` and `LiveInstallmentPreviewCard` display the converted HKD amounts alongside the original currency labels (e.g. `HK$ 534.22` with `🇺🇸 $ 68.02 · ／月`, or `HK$ 785.39 ／月 (共 HK$ 9,425)` with `🇺🇸 $ 1,200.00`).
+  - **Data Integrity & Metadata Persistence**:
+    - Persists the converted HKD cost to `SubscriptionEntity`, preserving existing budget, balance, and reporting pipelines without requiring database migrations.
+    - Appends original currency quotation metadata to installment descriptions (e.g. `[Orig: 🇺🇸 $ 1,200.00 @ 7.8539]`), keeping full historical audit trails.
+- **Verification**:
+  - All **363 unit tests passed** with 0 failures (`./gradlew testDebugUnitTest`), including new test coverage in `RecurringScreenBentoTest.kt`.
+  - Debug APK built and installed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified on live device with ARTEMIS screenshots: currency dropdown selection, live Frankfurter exchange rate fetch, real-time conversion in subscription/installment preview cards, persistence to database, and swipe-to-delete. Restored clean dataset state.
+  - Updated codebase knowledge graph (`graphify update .`).
+
+### 2026-10-16 — v1.2.40 (77): Smooth Color Morphing for Container Transform & Theme Selection
+- **Smooth Container Transform Color Transitions (平滑色彩演色與漸層插值)**:
+  - Addressed visual jarring where colors changed abruptly upon tapping a card to open the editor or when selecting theme palettes:
+  - **Dynamic Card Background Morphing**:
+    - Extracted `getCardThemeColors(themeName: String?, isDark: Boolean): Pair<Color, Color>` in `AccountsScreen.kt` and updated `Modifier.drawCardBackground` to support `customBrush: Brush? = null`.
+    - In `AssetEditorScreen.kt`, interpolated the moving card's background from the list card's exact resting surface color (`MaterialTheme.colorScheme.surfaceContainerHighest`) to the target theme gradient via `androidx.compose.ui.graphics.lerp` across the travel progress `cardT` (0f -> 1.0f).
+    - When opened from a list card, the card begins with 100% list surface color and smoothly morphs into the rich metallic/theme gradient as it lifts and travels to the top.
+  - **Smooth Typography & Border Interpolation**:
+    - Title text, account type subtitle, card last-4 digits, and balance numbers interpolate smoothly from list styling (`onSurface` / `onSurfaceVariant`) to card styling (`Color.White` with proper alpha levels).
+    - Border strokes smoothly dissolve from `outlineVariant` into `Color.Transparent` as the card elevates (`elevation`: 1.dp -> 8.dp).
+    - Watermark text smoothly crossfades between subtle surface tint and card overlay white.
+  - **Smooth Theme & Accent Swatch Switching**:
+    - Animated theme color endpoints (`animatedThemeColor1`, `animatedThemeColor2`) and accent background (`animatedAccentBg`) via `animateColorAsState` (300-350ms with `FastOutSlowInEasing`), so selecting different card themes in the editor dissolves seamlessly without snapping.
+  - **Background Scaffold & Scrim Dissolve**:
+    - Softened `scrimAlpha` in `AssetEditorHost` to gentle 0.12f with `FastOutSlowInEasing`, removing the muddy dark flash in light mode.
+    - Updated `scaffoldBgAlpha` to transition gracefully across `0f -> 1.0f` using `FastOutSlowInEasing.transform(effectiveProgress)`, eliminating the previous 0.35f hard snap.
+- **Verification**:
+  - All **361 unit tests passed** with 0 failures (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified on live device: tapping card lifts with seamless color morphing, palette switching animates smoothly, and dismissing/returning to the Assets list crossfades cleanly back to list styling.
+  - Updated codebase knowledge graph (`graphify update .`).
+
+### 2026-10-15 — v1.2.39 (76): True Spatial Container Transform (Actual Card Lifting & Moving Up)
+- **True Spatial Container Transform (實體卡片位移展開)**:
+  - Addressed user feedback where the card transition felt like a static animation rather than the actual clicked card physically traveling into place:
+  - **Layout Coordinates Tracking**: Added `cardBounds: Rect?` and `isTransitionActive: Boolean` to `AssetEditorState` (with full backward-compatible `Saver` support). `ExpressiveAccountListItem`, `CompactAccountRow`, and the "+ Add Asset" buttons in `AccountsScreen.kt` now capture their exact on-screen geometry (`boundsInRoot()`) via `Modifier.onGloballyPositioned`.
+  - **Seamless Card Hiding on Assets List**: When the editor opens or transitions, the selected account card in `AccountsScreen.kt` is smoothly hidden (`alpha = 0f`), allowing the rising card container to take over seamlessly without visual ghosting or layout shifts.
+  - **Spatial Translation & Kinematics (`AssetEditorScreen.kt`)**:
+    - The preview card measures its resting destination coordinates on screen.
+    - At `progress = 0`, the preview card is rendered at the exact pixel position, size, and scale of the clicked card (`deltaX`, `deltaY`, `scaleX`, `scaleY`), elevating with 12.dp shadow.
+    - As `progress` advances (0f -> 1.0f), the card physically lifts off the screen and travels upward into its top preview position via `CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)`.
+    - **Ease-in Elements Pop-up**: Once the rising card clears the lower space (`progress >= 0.28f`), form fields (identity, billing schedule, card design, automation, delete) pop up from 60dp below with ease-in velocity (`CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)`), scale (0.94f -> 1.0f), and fade-in.
+    - **TopAppBar Slide & Fade**: TopAppBar actions slide down from above (`(-36).dp * (1f - topBarAlpha)`) and fade in smoothly.
+    - **Reverse Dismissal**: On closing, the preview card glides back down to its exact spot in the list, and as it arrives, the list item smoothly reappears.
+- **Verification**:
+  - All **361 unit tests passed** with 0 failures (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Tested on live device: tapping "Mox Bank" card physically lifts and moves up into the editor top position, form elements pop up with ease-in speed, scrolling works across the entire form, and tapping Back cleanly returns to the Assets list.
+  - Updated codebase knowledge graph (`graphify update .`).
+
+### 2026-10-15 — v1.2.38 (75): Refined Container Transform motion & Asset Editor scrollability fix
+- **Material 3 Container Transform Motion Upgrade**:
+  - Eliminated horizontal background page swipe: anchored underlying Assets page in place without horizontal translation (`enableSlide = false` when `assetEditorState.isOpen`), adding subtle depth focus (scale 0.96f, alpha 0.90f).
+  - Hierarchical container transform entrance:
+    - Original card moves up smoothly to the top preview slot (`cardOffsetY`: 220dp -> 0dp, `cardScale`: 0.90f -> 1.0f) driven by `Spring.StiffnessMediumLow` non-bouncy spring kinematics while container corners morph (24dp -> 0dp).
+    - Other form elements (identity, billing schedule, appearance, automation, delete) pop up with staggered ease-in speed (`formOffsetY`: 70dp -> 0dp, `formAlpha`: 0f -> 1f, `delayMillis = 110`, `CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)`).
+    - TopAppBar actions fade in with slight delay (`topBarAlpha`: `delayMillis = 90`).
+- **Full-Screen Asset & Card Editor Scrollability Fix**:
+  - Resolved touch interception on editor sheet: removed `PointerEventPass.Final` `.consume()` on root `Scaffold` that was consuming down pointer changes across all non-interactive areas (card backgrounds, titles, whitespace, margins), which had starved Compose's `scrollable` from receiving unconsumed down events and rendered almost the entire editor unscrollable.
+  - Replaced with non-consuming root click sink (`clickable(interactionSource, indication = null) {}`) that prevents background touch pass-through without trapping vertical drags.
+  - Upgraded custom card image gesture handling (`detectCardImageTransform`): distinguishes multi-touch (pinch-to-zoom / 2-finger pan) from single-finger swipe, enabling single-finger drags on the 160dp preview card to smoothly scroll the parent sheet.
+  - Added bottom clearance spacer (`48.dp`) ensuring the delete button and bottom-most fields are fully accessible above system navigation gestures.
+- **Verification**:
+  - All **361 unit tests passed** with 0 failures/errors/skips (`./gradlew testDebugUnitTest`).
+  - Debug APK built and installed in place (`-r`) on Waydroid (`192.168.240.112:5555`).
+  - Verified through interactive device testing and screencaps: card container rising motion, staggered ease-in pop-up, multi-stage vertical scrolling from card preview and section backgrounds down to the delete button, and return back to the Assets list.
+
+### 2026-10-15 — v1.2.37 (74): Top-down swimming koi wave interaction, Bento Grid card reordering & Container Transform
+- **Interactive Top-Down Koi Wave Overlay**:
+  - Tapping the liquid wave card on the Daily Remaining Budget Hero (`HeroDailyBudgetCard.kt`) triggers dynamic top-down koi fish with authentic spindle teardrop anatomy, animated fluttering pectoral fins, oscillating swallowtail caudal fin, dorsal stripes, and expanding concentric water ripples (`TopDownPondFish.kt`).
+  - Swims outward smoothly with spring physics and fades over ~3.6s with tactile haptic tick feedback (`VibeHaptics.lightTick`). Continuous frame rendering ticker operates strictly when entities exist, guaranteeing 0% idle CPU usage.
+- **Custom Bento Grid Layout on Daily & Assets Pages**:
+  - Daily page (`HomeScreen.kt`): Dynamic card layout allowing custom reordering of the 6 core Bento cards (`HeroDailyBudgetCard`, `WholeBudgetCard`, `BentoMetricsCard`, `TotalExpensesRow`, `DailySpendingLineChart`, `CategoryBreakdownCard`) via long-press or reorder mode with move up/down controls, drag handles, and reset button. Persisted in `FinanceUiState.dailyCardOrder` and `vibe_finance_prefs`.
+  - Assets page (`AccountsScreen.kt`): Added Reorder action button next to the compact/detailed mode switcher, edit mode banner with Reset/Done controls, and per-card move up/down actions with fluid `Modifier.animateItem()` placement transitions. Persisted in `FinanceUiState.assetAccountOrder`.
+- **Material 3 Expressive Container Transform**:
+  - Clicking an asset card now transitions into the full-screen Asset Editor (`AssetEditorHost`) with a true Container Transform: scaling from 0.82f to 1.0f via non-bouncy spring physics, Emphasized CubicBezier easing (280ms), and corner morphing from 24dp to 0dp.
+- **Localization**:
+  - Added strings for Bento layout, asset reordering, reset, and card titles across all 5 supported locale resource sets (`values`, `values-zh-rHK`, `values-zh-rTW`, `values-b+zh+Hant`, `values-zh`).
+- **Verification**:
+  - All **361 unit tests passed** with zero failures/errors/skips (`./gradlew testDebugUnitTest`).
+  - `git diff --check` verified clean formatting and whitespace.
+
+### 2026-10-15 — v1.2.36 (73): Adjustable app haptic strength
+- Settings → Customization adds a discrete Material 3 slider with Gentle, Standard and Strong levels, localized descriptions and a Try feedback preview. Both controls disable when app haptics are off while preserving the selected level. Standard keeps native feedback; custom levels scale amplitude where supported, otherwise pulse duration, retaining confirmation/warning gaps and API 24 compatibility. Android touch-feedback settings remain respected.
+- Persisted the optional typed `haptic_strength` preference, synchronized initialization/reload and added backup type/enum validation. Older backups retain the Standard default; full workbook backup round-trip now includes the haptics toggle/strength without changing the archive schema or financial data.
+- Routed all explicit Compose feedback callers through a remembered engine bound to their actual View, including dialogs/sheets, which reset platform composition locals. Kept the main-window provider for platform components. Removed duplicate raw feedback in calendar/keypad paths and the haptics switch callback. No new dependencies or device-scale changes.
+- Verification: all **361 unit tests passed** with zero failures/errors/skips, including amplitude clamping, pulse/gap preservation, API 24 duration fallback, disabled/system-off behavior, Compose routing, preference reload, invalid backup values and the supplied workbook round-trip (**868 transactions / 14 accounts / HK$52,831.49 expenses**). Debug and AndroidTest builds passed. All **6 Waydroid device checks passed** (5.393s): three-level selection/preview, disabled controls, scoped 1.8× text in dark theme, dialog-local routing and existing connected-button behavior. Initial hardware tests incorrectly assumed the older test runtime exposed amplitude segments; corrected those checks to API 31 while keeping API 24/28 fallback checks. A device regression exposed dialog provider replacement, fixed before final verification.
+- Delivered **1.2.36 / 73**, debug installed in place on selected Waydroid with data retained. ARTEMIS verified the control/preview in the real Settings drawer; temporary Gentle selection was restored to Standard. README and code graph refreshed; final diff/whitespace and all five locale XML resources checked. Hardware feel cannot be assessed on Waydroid; a physical-device tactile comparison remains necessary. No release artifact, commit, push or publishing.
+
+### 2026-10-15 — v1.2.35 (72): Recurring menu inside commitment card
+- Moved the calendar-export three-dot menu from its separate row above the summary into the Estimated Monthly Commitment card's header, using the same action slot in compact and wide layouts. The title uses remaining width; the menu retains its native touch target and popup anchor. The export progress indicator wraps beside its button rather than claiming full page width.
+- Kept existing export, empty-state feedback, month-end confirmation, busy handling and financial calculations unchanged. No resources, dependencies, preferences, persistence or backup changes. Explored the existing Recurring menu with ARTEMIS on selected Waydroid before the update.
+- Verification: **351 unit tests passed**, zero failures/errors/skips; debug and AndroidTest builds passed. All **7 existing device checks passed** (7.608s), covering Recurring arrivals/settled updates, the ordinary Add form and income-card behavior. ARTEMIS screenshots verified the relocated button inside the card, its dropdown anchor, export-action invocation and menu closure on the empty-schedule device. Wide layout uses the same slot but was not physically explored. No financial mutations or device scale changes.
+- Delivered **1.2.35 / 72**, debug installed in place on Waydroid with data retained and package metadata verified. README and code graph refreshed; final diff/whitespace reviewed. No release artifact, commit, push or publishing.
+
+### 2026-10-15 — v1.2.34 (71): Full-fidelity haptic feedback engine and settings toggle
+- Introduced comprehensive tactile haptic feedback across interactive surfaces: Calculator Keypad (numbers, operators, backspace, clear, apply), cards (`bouncyClickable`), segmented buttons, and bottom navigation.
+- Dual-path architecture in `VibeHaptics.kt`: leverages `FLAG_IGNORE_VIEW_SETTING` with `view.isHapticFeedbackEnabled = true` for high-fidelity native View haptics (triggering Samsung linear resonant actuator SemHaptic profiles `mType=50065/50038`), with programmatic `Vibrator` / `VibrationEffect` predefined fallbacks (`EFFECT_TICK`, `EFFECT_CLICK`, `EFFECT_HEAVY_CLICK`, `EFFECT_DOUBLE_CLICK`) and tuned waveforms on API 26+.
+- Added `<uses-permission android:name="android.permission.VIBRATE" />` to `AndroidManifest.xml`.
+- Added user-facing toggle in Settings under Customization ("觸覺回饋" / "Haptic feedback") with persisted state via `FinanceUiState.hapticFeedbackEnabled`, `FinanceIntent.SetHapticFeedbackEnabled`, and `vibe_finance_prefs`.
+- Localized in English, Traditional Chinese (Hong Kong `zh-rHK`, Taiwan `zh-rTW`, `b+zh+Hant`), and Simplified Chinese (`zh`).
+- Verification: all **351 unit tests passed**, zero failures/errors/skips, including new `VibeHapticsTest`. Built release APK `VibeFinance-v1.2.34.apk` (3.7MB) and release App Bundle `VibeFinance-v1.2.34.aab` (8.6MB), installed APK in place (`-r`) on user's Samsung Galaxy S24 Ultra (`adb-R5CX22YGH7A-LIJF6v._adb-tls-connect._tcp`). Verified hardware haptic motor activation via dumpsys, UI state persistence, and data integrity (all user financial records intact).
+
+### 2026-10-14 — v1.2.33 (70): Reduce shared scrolling CPU overhead
+- Samsung read-only ADB diagnostics on v1.2.32 confirmed 994/7708 janky frames (12.90%), frame p95 61ms versus GPU p95 8ms. These are cumulative diagnostics, not a controlled scrolling benchmark. The subsequent 20-second phone trace captured an idle/suspended app, so it cannot establish the cause or improvement for the phone's 933-record workload. Private logs, APK copy and traces remain in /tmp rather than the repository. No phone interactions, settings or financial writes were performed.
+- An active Waydroid trace found repeated Compose recomposition/measure/layout, including an 18.77ms measure/layout segment in its worst 28.15ms main frame. Moved viewport bounds/insets into stable State objects observed only by entrance effects; Main now passes navigation-bar insets as providers and positions the bottom glass with a layout lambda. Daily reuses the shared viewport/arrival implementation with its existing tags and timing. Deferred reads follow [Compose performance guidance](https://developer.android.com/develop/ui/compose/performance/bestpractices#defer-reads).
+- ScrollBlurContainer observes clamped edge extents with derivedStateOf, avoiding composition for each pixel once its fade reaches 16dp. History remembers selected/visible ID sets against their actual source data. Preserved financial calculations, backups, IDs, blur radius/tint, fading edges, card entrance timing, Reduced/Minimal motion, top-bar collapse and device scale. No new dependencies or resources.
+- Verification: all **347 unit tests passed**, zero failures/errors/skips. Debug and AndroidTest builds passed. All **48 device checks passed** (50.061s), covering page arrivals, bar collapse, selector/heatmap fading edges, History selection, card labels and the added scrolling regressions. The read-only memory fixture preserves the supplied **868 transactions / 14 accounts / HK$52,831.49 expenses**; long History jumps retain a small visible-item window and dispatch no mutations. The initial composition-count fixture supplied changing Dp values directly and therefore recomposed its parent; corrected it to exercise the deferred-provider path actually used by Main, with an atomic counter. That final guard passes without extra financial-body compositions.
+- Matching 25-second/32MiB Waydroid traces retained their final 8.184s/8.343s with comparable 423/433 frames and 233/250 touch slices. Per-frame CPU: main 4.877 → 2.244ms (-54%), measure/layout 2.815 → 0.494ms (-82%), recomposition 2.218 → 0.195ms (-91%). Main frames above 16.67ms fell 8 → 0. Across twelve repeated real-app scroll trials, aggregate jank stayed 11/2456 → 11/2470 (~0.45% both); FrameTimeline average also did not improve. This proves reduced CPU work, not an overall FPS/jank-rate gain or a physical-phone improvement. Rendering/scheduling remains a limit in this emulator run.
+- Delivered **1.2.33 / 70**, debug installed in place on selected Waydroid with data retained and package metadata verified. README and code graph refreshed; final diff/whitespace reviewed. Samsung received only read-only diagnostics; no installation or data changes. Its actual large-history scrolling still needs a check with the optimized build. No release artifact, commit, push or publishing.
+
+### 2026-10-14 — v1.2.32 (69): Distinguish card credit from outstanding debt
+- The supplied screenshots identify Go UnionPay as CC and show -182.80 → -281.80 after BOC sends 99.00. CC stores debt, so this is 99.00 more card credit, not lost money. Detailed and compact cards now name Outstanding debt or Card credit and show the positive magnitude for CC. Other account types retain their signed available balance. The existing card preview and balance dialog share the same presentation; both balance editors explain positive debt versus negative credit. All five locale resources updated and the replaced balance string removed.
+- Kept stored amounts, account types, transfer accounting, ID/reference integrity, net-worth calculations and backup formats unchanged. Added an exact BOC/Go negative-credit regression with reload and deletion reversal, alongside direct transfers across all 25 source/destination type combinations. ARTEMIS/ADB explored the Assets card, balance dialog and account History read-only before writing UI checks; no financial records or device scale were modified.
+- Verification: **347 unit tests passed** with zero failures/errors/skips, including workbook/import/backup regressions. Debug and AndroidTest builds passed. All **19 Waydroid device tests passed** (24.445s): four new card-credit cases plus existing debit-filter, asset-editor contract and restoration checks. Covered exact credit/debt/zero/debit labels and amounts, receiving-payment display updates, compact dark larger text, raw signed editor guidance, preview, Traditional Chinese and privacy masking. Financial fixtures are memory-only; display preference writes route to the test APK. Corrected new locators to inspect the unmerged balance text and scroll via the merged account name; temporary diagnostics removed.
+- Delivered **1.2.32 / 69**, debug installed in place with data retained and package metadata verified. README/code graph refreshed; final diff and whitespace checked. The user's physical-phone ledger was not modified or independently audited. No release artifact, commit, push or publishing.
+
+### 2026-10-14 — Transfer balance diagnosis (test-only; 1.2.31 / 68 unchanged)
+- Investigated a report that A → B reduces both displayed balances. Current account/repository paths credit receiving CASH/BANK/DEBIT/INVESTMENT funds, while CC stores outstanding debt and correctly decreases on receipt. Did not change financial signs or reinterpret existing balances without identifying B's saved type.
+- Added a direct-creation regression across all 25 source/destination type combinations, including persisted reload and deletion reversal. All **11 targeted tests passed** (TransferTransactionEditBalanceTest + DebitAccountSemanticsTest). Existing edit-conversion coverage remains intact. ARTEMIS/ADB inspected the selected Waydroid's Assets page read-only; private snapshot inspection was unavailable because Android run-as failed. No saved records or device scale changed.
+- The following screenshots resolved the type/sign ambiguity; see v1.2.32 above. This diagnostic step changed no app behavior/version and created no installation, release artifact, commit or push. Code graph refreshed and whitespace checked.
+
 ### 2026-10-14 — v1.2.31 (68): Guided transaction selectors
 - Expense and Income open Category automatically; selecting a category scrolls to and opens Asset Selection. Transfer opens From Account and advances to Destination. The final account choice closes the popup, leaving the keypad ready without submitting. Expanded panels use three columns, including wide/large-font layouts; connected-button heights, emoji colors, fading edges and fixed keypad bounds remain intact.
 - Save the active or dismissed selector stage across rotation. Wait for the full-screen entrance to finish before opening the first panel, and for the previous popup to close before native BringIntoView relocation opens the next. Back/Collapse cancel pending progression. Use measured outer-row height rather than clipped screen bounds so short viewports and empty destination rows can still advance. Removed simultaneous same-tag category composition during mode changes and exposed connected-row selected semantics. No financial persistence, backup, validation or resource changes.

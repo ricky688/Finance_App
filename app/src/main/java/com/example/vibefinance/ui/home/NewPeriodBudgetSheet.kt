@@ -44,7 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -65,7 +65,7 @@ fun NewPeriodBudgetSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
 
     // Pre-fill initial budget amount from previous period or default 1500

@@ -17,7 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** ARTEMIS/ADB verified: switch modes, retain note/expression, select destination, submit to memory. */
+/** ARTEMIS/ADB verified: Bento 2-Card layout, Category tag cloud, Full-width Asset Card with modal bottom sheet. */
 @RunWith(AndroidJUnit4::class)
 class AddTransactionModeInteractionTest {
     @get:Rule val compose = createComposeRule()
@@ -37,34 +37,31 @@ class AddTransactionModeInteractionTest {
                 emptyMap(), emptyMap(), exchangeRateLoader = loader, prefilledDestinationAccountId = prefill)
         }
     }
-    private fun dismissSelectors() {
-        compose.waitForIdle()
-        listOf("EntryCategory", "EntryAccount", "EntryDestination").forEach { prefix ->
-            if (compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithTag("${prefix}_collapse").performClick()
-                compose.waitUntil(5_000) { compose.onAllNodesWithTag("${prefix}_expanded").fetchSemanticsNodes().isEmpty() }
-            }
-        }
+
+    private fun amount(value: String) {
+        compose.onNodeWithTag("EntryAmount").performScrollTo().performTextReplacement(value)
     }
-    private fun key(value: String) { dismissSelectors(); compose.onNodeWithTag("EntryKey_$value").assertIsDisplayed().performClick() }
+    private fun assertAmount(value: String) {
+        compose.onNodeWithTag("EntryAmount").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, value))
+    }
     private fun mode(value: TransactionMode) {
-        dismissSelectors()
         val tag = "TransactionMode_${value.name}"
         compose.onNodeWithTag(tag).performScrollTo().performClick()
         compose.waitForIdle()
-        dismissSelectors()
         compose.onNodeWithTag(tag).assertIsSelected()
     }
-    private fun submit() { dismissSelectors(); compose.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick() }
-    private fun amount(expression: String) { compose.onNodeWithTag("EntryAmount").assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.StateDescription, expression)) }
+    private fun submit() {
+        compose.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick()
+    }
     private fun source(id: Long) {
-        dismissSelectors(); compose.onNodeWithTag("EntryAccount_row_$id").performScrollTo().performClick(); dismissSelectors()
+        compose.onNodeWithTag("EntryAccount_card").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryAccount_row_$id").performScrollTo().performClick()
     }
     private fun destination(id: Long) {
-        dismissSelectors(); compose.onNodeWithTag("EntryDestination_row_$id").performScrollTo().performClick(); dismissSelectors()
+        compose.onNodeWithTag("EntryDestination_card").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryDestination_row_$id").performScrollTo().performClick()
     }
     private fun note(value: String) {
-        dismissSelectors()
         compose.onNodeWithTag("EntryDescription").performScrollTo().performTextReplacement(value)
         androidx.test.espresso.Espresso.closeSoftKeyboard()
     }
@@ -72,7 +69,7 @@ class AddTransactionModeInteractionTest {
     @Test fun sharedDraftAndCurrencySurviveAllModesAndRecreation() {
         val restoration = StateRestorationTester(compose)
         restoration.setContent(content())
-        key("6"); key("+")
+        amount("10")
         note("午餐 🍜")
         source(2)
         compose.onNodeWithTag("EntryCurrency").performClick()
@@ -80,15 +77,14 @@ class AddTransactionModeInteractionTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("EntryConvertedAmount").fetchSemanticsNodes().isNotEmpty() }
         mode(TransactionMode.INCOME)
         compose.onNodeWithTag("EntryBudgetSection").assertDoesNotExist()
-        amount("6+")
+        assertAmount("10")
         mode(TransactionMode.TRANSFER)
         compose.onNodeWithTag("EntryCategory").assertDoesNotExist()
         destination(1)
         restoration.emulateSavedInstanceStateRestore()
         compose.onNodeWithTag("TransactionMode_TRANSFER").assertIsSelected()
-        amount("6+")
+        assertAmount("10")
         compose.onNodeWithTag("EntryDescription").assertTextContains("午餐 🍜")
-        key("4")
         submit()
         assertEquals(82.0, submitted!!.amount, 0.001)
         assertEquals(2L, submitted!!.accountId)
@@ -100,14 +96,12 @@ class AddTransactionModeInteractionTest {
 
     @Test fun incomeSubmissionUsesSelectedModeAndPreservesNoteAndSource() {
         compose.setContent(content())
-        key("1"); key("2"); key("+"); key("3")
+        amount("15")
         note("Salary note")
         source(2)
         mode(TransactionMode.INCOME)
-        compose.onNodeWithTag("EntryDestination").assertDoesNotExist()
+        compose.onNodeWithTag("EntryDestination_card").assertDoesNotExist()
         compose.onNodeWithTag("EntryBudgetSection").assertDoesNotExist()
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        compose.onNodeWithTag("EntryModeTitle").assertTextEquals(context.getString(R.string.quick_add_income))
         submit()
         assertEquals(-15.0, submitted!!.amount, 0.0)
         assertEquals(2L, submitted!!.accountId)
@@ -117,7 +111,7 @@ class AddTransactionModeInteractionTest {
 
     @Test fun transferRequiresDestinationAndSwitchingBackRestoresExpensePrediction() {
         compose.setContent(content())
-        key("6")
+        amount("6")
         mode(TransactionMode.TRANSFER)
         compose.onNodeWithTag("EntryCategory").assertDoesNotExist()
         compose.onNodeWithTag("EntryBudgetSection").assertDoesNotExist()
@@ -127,7 +121,7 @@ class AddTransactionModeInteractionTest {
         source(2) // A source cannot also be the previously selected destination.
         compose.onNodeWithTag("EntrySubmit").assertIsNotEnabled()
         mode(TransactionMode.EXPENSE)
-        compose.onNodeWithTag("EntryDestination").assertDoesNotExist()
+        compose.onNodeWithTag("EntryDestination_card").assertDoesNotExist()
         compose.onNodeWithTag("EntryBudgetSection").assertExists()
         compose.onNodeWithTag("EntryCategory").assertExists()
         compose.onNodeWithTag("EntrySubmit").assertIsEnabled()
@@ -143,7 +137,7 @@ class AddTransactionModeInteractionTest {
         compose.setContent(content(TransactionMode.TRANSFER, 2))
         compose.onNodeWithTag("TransactionMode_TRANSFER").assertIsSelected()
         assertNull(submitted)
-        key("5")
+        amount("5")
         mode(TransactionMode.INCOME)
         mode(TransactionMode.TRANSFER)
         compose.onNodeWithTag("EntrySubmit").assertIsEnabled()
@@ -152,5 +146,47 @@ class AddTransactionModeInteractionTest {
         assertEquals(1L, submitted!!.accountId)
         assertEquals(2L, submitted!!.toAccountId)
         assertTrue(submitted!!.isExcludedFromDailyBudget)
+    }
+
+    @Test fun transferModeDisplaysBentoCardsWithoutAutoOpeningSheet() {
+        compose.setContent(content(TransactionMode.EXPENSE))
+        compose.onNodeWithTag("EntryAccount_card").assertIsDisplayed()
+        compose.onNodeWithTag("EntryDestination_card").assertDoesNotExist()
+
+        // Switch to Transfer mode
+        mode(TransactionMode.TRANSFER)
+
+        // Verify both asset cards are visible and NO bottom sheet is auto-opened
+        compose.onNodeWithTag("EntryAccount_card").assertIsDisplayed()
+        compose.onNodeWithTag("EntryDestination_card").assertIsDisplayed()
+        compose.onAllNodesWithTag("EntryAccount_row_1").assertCountEquals(0)
+        compose.onAllNodesWithTag("EntryDestination_row_1").assertCountEquals(0)
+
+        // Tapping card opens the bottom sheet
+        compose.onNodeWithTag("EntryAccount_card").performClick()
+        compose.onNodeWithTag("EntryAccount_row_1").assertIsDisplayed()
+
+        // Selecting account updates selection and closes sheet
+        compose.onNodeWithTag("EntryAccount_row_1").performClick()
+        compose.onAllNodesWithTag("EntryAccount_row_1").assertCountEquals(0)
+    }
+
+    @Test fun categoryTagCloudToggleAndAutoCollapseOnSelection() {
+        compose.setContent(content(TransactionMode.EXPENSE))
+        // Verify initially LazyRow is visible and FlowRow tag cloud is not
+        compose.onNodeWithTag("EntryCategory").assertIsDisplayed()
+        compose.onNodeWithTag("EntryCategory_cloud").assertDoesNotExist()
+
+        // Toggle to expand
+        compose.onNodeWithTag("EntryCategory_toggle").performScrollTo().performClick()
+        compose.onNodeWithTag("EntryCategory_cloud").assertIsDisplayed()
+
+        // Tap a category chip inside the cloud (e.g. food / utilities)
+        compose.onAllNodes(hasTestTag("EntryCategory_row_Food") or hasTestTag("EntryCategory_row_Utilities") or hasTestTag("EntryCategory_row_Transport"))
+            .onFirst().performClick()
+
+        // Auto-collapses back to single row LazyRow
+        compose.onNodeWithTag("EntryCategory").assertIsDisplayed()
+        compose.onNodeWithTag("EntryCategory_cloud").assertDoesNotExist()
     }
 }

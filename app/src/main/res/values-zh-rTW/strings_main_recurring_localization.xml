@@ -73,8 +73,8 @@
     <string name="ui_recurring_months_short">%1$d 期</string>
     <string name="ui_recurring_duration_months">%1$d 個月</string>
     <string name="ui_recurring_per_month_cost">≈ HK$ %1$,.2f／月</string>
-    <string name="ui_recurring_account_owing">欠款：HK$ %1$d</string>
-    <string name="ui_recurring_account_balance">結餘：HK$ %1$d</string>
+    <string name="ui_recurring_account_owing">欠款：%1$s</string>
+    <string name="ui_recurring_account_balance">結餘：%1$s</string>
     <string name="ui_recurring_alert_overdue">🚨 已逾期：%1$s（HK$ %2$,.2f）</string>
     <string name="ui_recurring_alert_today">🔥 今日續訂：%1$s（HK$ %2$,.2f）</string>
     <string name="ui_recurring_alert_tomorrow">⏰ 明日續訂：%1$s（HK$ %2$,.2f）</string>

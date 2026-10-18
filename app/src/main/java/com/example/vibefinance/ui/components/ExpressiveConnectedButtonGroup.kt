@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
@@ -37,7 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -56,10 +58,18 @@ fun <T> ExpressiveConnectedButtonGroup(
     lightModeFocusMotion: Boolean = true,
     compact: Boolean = false,
     focusBackdropColor: Color = Color.Unspecified,
+    inactiveContainerColor: Color = Color.Unspecified,
+    inactiveContentColor: Color = Color.Unspecified,
+    activeContainerColor: Color = Color.Unspecified,
+    activeContentColor: Color = Color.Unspecified,
+    iconProvider: @Composable ((T, Color) -> Unit)? = null,
+    animatedIconProvider: @Composable ((item: T, tint: Color, isSelected: Boolean, clickTrigger: Int) -> Unit)? = null,
+    itemModifierProvider: ((Int) -> Modifier)? = null,
     labelProvider: @Composable (T) -> String
 ) {
     val colors = MaterialTheme.colorScheme
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
+    val clickTriggers = remember(items.size) { androidx.compose.runtime.mutableStateListOf(*Array(items.size) { 0 }) }
 
     Row(
         modifier = modifier.fillMaxWidth().selectableGroup(),
@@ -73,6 +83,10 @@ fun <T> ExpressiveConnectedButtonGroup(
             val colorMotion = rememberConnectedButtonColorMotion(
                 isSelected = isSelected,
                 isPressed = isPressed,
+                inactiveContainerColor = if (inactiveContainerColor != Color.Unspecified) inactiveContainerColor else colors.primaryContainer.copy(alpha = 0.4f),
+                inactiveContentColor = if (inactiveContentColor != Color.Unspecified) inactiveContentColor else colors.onPrimaryContainer,
+                activeContainerColor = if (activeContainerColor != Color.Unspecified) activeContainerColor else colors.primary,
+                activeContentColor = if (activeContentColor != Color.Unspecified) activeContentColor else colors.onPrimary,
                 backdropColor = if (focusBackdropColor == Color.Unspecified) colors.surface else focusBackdropColor,
                 enabled = lightModeFocusMotion
             )
@@ -86,6 +100,9 @@ fun <T> ExpressiveConnectedButtonGroup(
                     CompletePressToggleButton(
                         checked = isSelected,
                         onCheckedChange = {
+                            if (index < clickTriggers.size) {
+                                clickTriggers[index] = clickTriggers[index] + 1
+                            }
                             onItemSelected(index)
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         },
@@ -105,6 +122,7 @@ fun <T> ExpressiveConnectedButtonGroup(
                         elevation = null,
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.fillMaxWidth()
+                            .then(itemModifierProvider?.invoke(index) ?: Modifier)
                             .heightIn(min = if (compact) 40.dp else 48.dp)
                             .semantics {
                                 selected = isSelected
@@ -121,24 +139,49 @@ fun <T> ExpressiveConnectedButtonGroup(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = if (compact) 4.dp else 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AnimatedVisibility(
-                                    visible = isSelected,
-                                    enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
-                                        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
-                                    ),
-                                    exit = fadeOut(spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
-                                        spring(stiffness = Spring.StiffnessMediumLow)
+                                if (animatedIconProvider != null) {
+                                    val trigger = if (index < clickTriggers.size) clickTriggers[index] else 0
+                                    animatedIconProvider(item, colorMotion.contentColor, isSelected, trigger)
+                                    Spacer(Modifier.width(6.dp))
+                                } else if (iconProvider != null) {
+                                    val iconScale by animateFloatAsState(
+                                        targetValue = if (isSelected) 1.08f else 1f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        ),
+                                        label = "btnGroupIconScale_$index"
                                     )
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
+                                    Box(
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = iconScale
+                                            scaleY = iconScale
+                                        },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        iconProvider(item, colorMotion.contentColor)
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                } else {
+                                    AnimatedVisibility(
+                                        visible = isSelected,
+                                        enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
+                                            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                                        ),
+                                        exit = fadeOut(spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
+                                            spring(stiffness = Spring.StiffnessMediumLow)
+                                        )
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                        }
                                     }
                                 }
                                 Text(
                                     text = labelProvider(item),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
+                                    style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                                     maxLines = 1,
                                     softWrap = false,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,

@@ -5,6 +5,13 @@ import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomS
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.completePressShape
+import com.example.vibefinance.ui.components.AppButton
+import com.example.vibefinance.ui.components.AppTextButton
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+import com.example.vibefinance.ui.common.expressiveCardClickable
+import com.example.vibefinance.theme.MotionTokens
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.ui.unit.IntOffset
 
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
@@ -58,9 +65,8 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
 import android.view.SoundEffectConstants
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
@@ -95,7 +101,7 @@ fun ExpressiveDualViewSwitcher(
     val modes = remember { listOf(CalendarDisplayMode.HEATMAP, CalendarDisplayMode.CALENDAR) }
     val selectedIndex = modes.indexOf(currentMode).coerceAtLeast(0)
     var pressedIndex by remember { mutableStateOf<Int?>(null) }
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val view = LocalView.current
     val colors = MaterialTheme.colorScheme
     val trackColor = colors.surfaceContainerHighest.copy(alpha = 0.35f)
@@ -207,7 +213,6 @@ fun ExpressiveDualViewSwitcher(
                             indication = ripple(bounded = true, color = colorMotion.rippleColor),
                             onClick = {
                                 if (!isSelected) {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     view.playSoundEffect(SoundEffectConstants.CLICK)
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onModeSelected(mode)
@@ -224,10 +229,10 @@ fun ExpressiveDualViewSwitcher(
                     ) {
                         AnimatedVisibility(
                             visible = isSelected,
-                            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                                    expandHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)),
-                            exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                                    shrinkHorizontally(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                            enter = fadeIn(animationSpec = MotionTokens.standardEnter()) +
+                                    expandHorizontally(animationSpec = MotionTokens.emphasizedEnter()),
+                            exit = fadeOut(animationSpec = MotionTokens.standardExit()) +
+                                    shrinkHorizontally(animationSpec = MotionTokens.emphasizedExit())
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -408,14 +413,23 @@ fun SpendsCalendar(
         0.3f
     )
 
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
+        restingCorner = 28.dp,
+        pressedCorner = 16.dp
+    )
+
     Card(
         colors = CardDefaults.cardColors(
             containerColor = cardBg
         ),
-        shape = RoundedCornerShape(24.dp),
+        shape = pressState.shape,
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+            .expressiveCardClickable(
+                pressState = pressState,
+                rippleColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) { /* Tactile press */ }
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
     ) {
         Column(
             modifier = Modifier
@@ -463,15 +477,18 @@ fun SpendsCalendar(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+            val effectsSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+
             AnimatedContent(
                 targetState = displayMode,
                 transitionSpec = {
                     if (targetState == CalendarDisplayMode.CALENDAR) {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeOut())
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeIn(animationSpec = effectsSpec))
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeOut(animationSpec = effectsSpec))
                     } else {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeIn())
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeOut())
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> -width / 3 } + fadeIn(animationSpec = effectsSpec))
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) { width -> width / 3 } + fadeOut(animationSpec = effectsSpec))
                     }
                 },
                 label = "dualViewModeTransition"
@@ -672,8 +689,8 @@ fun SpendsCalendar(
                             Text(stringResource(R.string.calendar_statement_period, cycle.start.toString(), cycle.closing.toString()))
                             Text(stringResource(R.string.calendar_statement_estimate, amount))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { showDetailSheet = false; onPayCard(card.id) }, modifier = Modifier.testTag("CalendarPay_${card.id}")) { Text(stringResource(R.string.calendar_pay_now), maxLines = 1) }
-                                TextButton(onClick = { com.example.vibefinance.util.CalendarSyncHelper.addCardDeadlineToSystemCalendar(context, card, date) }) { Text(stringResource(R.string.calendar_add), maxLines = 1) }
+                                AppButton(onClick = { showDetailSheet = false; onPayCard(card.id) }, modifier = Modifier.testTag("CalendarPay_${card.id}")) { Text(stringResource(R.string.calendar_pay_now), maxLines = 1) }
+                                AppTextButton(onClick = { com.example.vibefinance.util.CalendarSyncHelper.addCardDeadlineToSystemCalendar(context, card, date) }) { Text(stringResource(R.string.calendar_add), maxLines = 1) }
                             }
                         }
                     }

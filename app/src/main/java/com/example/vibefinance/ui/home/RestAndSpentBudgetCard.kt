@@ -3,15 +3,24 @@
 package com.example.vibefinance.ui.home
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
+import com.example.vibefinance.ui.components.rememberCompletePressProgress
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.vibefinance.ui.common.bouncyClickable
 import androidx.compose.material3.*
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -56,6 +65,62 @@ fun RestAndSpentBudgetCard(
     val remainingDotAlpha by modeTransition.animateFloat(
         transitionSpec = { effectsSpec }, label = "remainingDotAlpha"
     ) { if (it) 0.3f else 1f }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressProgress by rememberCompletePressProgress(
+        interactionSource = interactionSource,
+        pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
+        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    )
+
+    // Dynamic Card Corner Shape Changing between Remaining (28dp) and Spent (20dp asymmetric bento)
+    val cardCornerRadius by modeTransition.animateDp(
+        transitionSpec = {
+            if (motion == MotionLevel.MINIMAL) snap()
+            else spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        },
+        label = "restCardCornerMorph"
+    ) { isSpent ->
+        if (isSpent) 20.dp else 28.dp
+    }
+
+    // On press, corner radius contracts (28dp -> 16dp)
+    val pressCornerFactor = 1f - (12f / 28f) * pressProgress.coerceIn(0f, 1f)
+    val currentTopStart = 28.dp * pressCornerFactor
+    val currentBottomEnd = 28.dp * pressCornerFactor
+    val currentTopEnd = cardCornerRadius * pressCornerFactor
+    val currentBottomStart = cardCornerRadius * pressCornerFactor
+
+    val cardShape = RoundedCornerShape(
+        topStart = currentTopStart,
+        topEnd = currentTopEnd,
+        bottomEnd = currentBottomEnd,
+        bottomStart = currentBottomStart
+    )
+
+    // Capsule pill shape morphing for mode indicator dots
+    val remainingDotWidth by modeTransition.animateDp(
+        transitionSpec = {
+            if (motion == MotionLevel.MINIMAL) snap()
+            else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+        },
+        label = "remainingDotWidth"
+    ) { if (it) 4.dp else 12.dp }
+
+    val spentDotWidth by modeTransition.animateDp(
+        transitionSpec = {
+            if (motion == MotionLevel.MINIMAL) snap()
+            else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+        },
+        label = "spentDotWidth"
+    ) { if (it) 12.dp else 4.dp }
 
     val ratio = if (totalBudget > 0) (remainingBudget / totalBudget).coerceIn(0.0, 1.0).toFloat() else 0f
     val isFullBudget = ratio >= 1.0f
@@ -111,8 +176,13 @@ fun RestAndSpentBudgetCard(
     Box(
         modifier = modifier
             .testTag("RemainingBudgetCard")
-            .clip(shape = BentoCardShape)
-            .bouncyClickable(shape = BentoCardShape) { showSpentCard = !showSpentCard }
+            .clip(shape = cardShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(bounded = true, color = MaterialTheme.colorScheme.primary)
+            ) {
+                showSpentCard = !showSpentCard
+            }
             .onGloballyPositioned {
                 heightDp = with(localDensity) { it.size.height.toDp() }
                 widthDp = with(localDensity) { it.size.width.toDp() }
@@ -122,7 +192,7 @@ fun RestAndSpentBudgetCard(
 
         Card(
             modifier = Modifier.fillMaxWidth().height(resolvedHeight),
-            shape = BentoCardShape,
+            shape = cardShape,
             colors = CardDefaults.cardColors(
                 containerColor = colors.container,
                 contentColor = colors.onContainer,
@@ -217,27 +287,28 @@ fun RestAndSpentBudgetCard(
             }
         }
 
-        // Indicator dots at top right
+        // Indicator dots at top right (shape changing between circle and capsule pill)
         Row(
             modifier = Modifier
                 .padding(16.dp)
-                .align(Alignment.TopEnd)
+                .align(Alignment.TopEnd),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 Modifier
-                    .size(4.dp)
+                    .size(width = remainingDotWidth, height = 4.dp)
                     .background(
                         color = colors.onContainer.copy(alpha = remainingDotAlpha.coerceIn(0.3f, 1f)),
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(2.dp),
                     )
             )
             Spacer(Modifier.width(4.dp))
             Box(
                 Modifier
-                    .size(4.dp)
+                    .size(width = spentDotWidth, height = 4.dp)
                     .background(
                         color = colors.onContainer.copy(alpha = (1.3f - remainingDotAlpha).coerceIn(0.3f, 1f)),
-                        shape = CircleShape,
+                        shape = RoundedCornerShape(2.dp),
                     )
             )
         }

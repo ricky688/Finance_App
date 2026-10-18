@@ -49,6 +49,7 @@ fun StatCard(
     label: String,
     contentPadding: PaddingValues? = null,
     colors: CardColors = CardDefaults.cardColors(),
+    shape: androidx.compose.ui.graphics.Shape = BentoCardShape,
     valueFontSize: TextUnit = TextUnit.Unspecified,
     valueFontStyle: TextStyle = MaterialTheme.typography.displayMedium,
     labelFontStyle: TextStyle = MaterialTheme.typography.labelMedium,
@@ -67,8 +68,8 @@ fun StatCard(
     val effectiveValueFontSize = calculateStatCardValueFontSize(value, isCompact, valueFontSize)
 
     Card(
-        modifier = modifier.clip(BentoCardShape),
-        shape = BentoCardShape,
+        modifier = modifier,
+        shape = shape,
         colors = colors,
     ) {
         val textColor = LocalContentColor.current

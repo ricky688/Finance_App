@@ -2,6 +2,7 @@ package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import com.example.vibefinance.theme.MotionTokens
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
@@ -73,7 +74,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -109,7 +110,7 @@ fun CategoryBreakdownCard(
     onSelectTransactions: (() -> Unit)? = null
 ) {
     var actionsExpanded by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    val haptic = rememberVibeHapticFeedback()
     val expenseTransactions = remember(transactions) {
         transactions.filter { it.toAccountId == null && !it.isBalanceAdjustment && it.amount > 0 }
     }
@@ -421,10 +422,10 @@ fun CategoryBreakdownCard(
                 // Interactive Category Popover / Detail Card
                 AnimatedVisibility(
                     visible = activeCategory != null,
-                    enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) +
-                        fadeIn(spring(stiffness = Spring.StiffnessMediumLow)),
-                    exit = shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow)) +
-                        fadeOut(spring(stiffness = Spring.StiffnessMediumLow))
+                    enter = expandVertically(animationSpec = MotionTokens.emphasizedEnter()) +
+                        fadeIn(animationSpec = MotionTokens.standardEnter()),
+                    exit = shrinkVertically(animationSpec = MotionTokens.emphasizedExit()) +
+                        fadeOut(animationSpec = MotionTokens.standardExit())
                 ) {
                     (activeCategory ?: lastVisibleCategory)?.let { cat ->
                         val catTotal = categoryTotals.find { it.key == cat }?.value ?: 0.0

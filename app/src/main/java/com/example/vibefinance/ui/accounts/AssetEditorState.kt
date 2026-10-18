@@ -1,14 +1,14 @@
 package com.example.vibefinance.ui.accounts
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Transition
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,16 +39,26 @@ class AssetEditorState {
     var originTab by mutableStateOf<String?>(null)
         private set
 
+    var cardBounds by mutableStateOf<Rect?>(null)
+        private set
+
+    var isTransitionActive by mutableStateOf(false)
+        internal set
+
     fun open(
         accountId: Long? = null,
         prefill: AccountEntity? = null,
         paymentId: String? = null,
         tab: String? = null,
+        sourceBounds: Rect? = null,
     ) {
         this.accountId = accountId
         prefillAccount = prefill
         originPaymentId = paymentId
         originTab = tab
+        if (sourceBounds != null) {
+            cardBounds = sourceBounds
+        }
         sessionId = UUID.randomUUID().toString()
         isOpen = true
     }
@@ -68,6 +78,7 @@ class AssetEditorState {
                         it.prefillAccount?.let(::encodeEditorAccount).orEmpty(),
                         it.originPaymentId.orEmpty(),
                         it.originTab.orEmpty(),
+                        it.cardBounds?.let { r -> "${r.left},${r.top},${r.right},${r.bottom}" }.orEmpty(),
                     )
                 },
                 restore = { saved ->
@@ -81,6 +92,19 @@ class AssetEditorState {
                                 ?.let(::decodeEditorAccount)
                         originPaymentId = (saved[4] as String).takeIf { it.isNotEmpty() }
                         originTab = (saved[5] as String).takeIf { it.isNotEmpty() }
+                        if (saved.size > 6) {
+                            cardBounds = (saved[6] as? String)?.takeIf { it.isNotEmpty() }?.split(",")?.let { parts ->
+                                if (parts.size == 4) {
+                                    val l = parts[0].toFloatOrNull()
+                                    val t = parts[1].toFloatOrNull()
+                                    val r = parts[2].toFloatOrNull()
+                                    val b = parts[3].toFloatOrNull()
+                                    if (l != null && t != null && r != null && b != null) {
+                                        Rect(l, t, r, b)
+                                    } else null
+                                } else null
+                            }
+                        }
                     }
                 },
             )
@@ -101,26 +125,55 @@ fun AssetEditorHost(
     onDismissCreate: (() -> Unit)? = null,
     transition: Transition<Boolean> = updateTransition(editorState.isOpen, label = "Asset editor"),
 ) {
-    transition.AnimatedVisibility(
-        visible = { it },
-        enter =
-            slideInHorizontally(assetEditorSlideSpec()) { it } +
-                fadeIn(assetEditorFadeSpec()) +
-                scaleIn(assetEditorScaleSpec(), initialScale = 1.15f),
-        exit =
-            slideOutHorizontally(assetEditorSlideSpec()) { it } +
-                fadeOut(assetEditorFadeSpec()) +
-                scaleOut(assetEditorScaleSpec(), targetScale = 1.15f),
-    ) {
-        key(editorState.sessionId) {
-            AssetEditorScreen(
-                state,
-                editorState,
-                onIntent,
-                saveResult,
-                onAccountCreated,
-                onDismissCreate,
-            )
+    if (transition.currentState || transition.targetState) {
+        DisposableEffect(transition.currentState, transition.targetState) {
+            editorState.isTransitionActive = transition.currentState || transition.targetState
+            onDispose {
+                editorState.isTransitionActive = false
+            }
+        }
+
+        val progress by transition.animateFloat(
+            transitionSpec = {
+                androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                )
+            },
+            label = "containerProgress"
+        ) { open ->
+            if (open) 1f else 0f
+        }
+
+        val scrimAlpha by transition.animateFloat(
+            transitionSpec = {
+                androidx.compose.animation.core.tween(
+                    durationMillis = 300,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            },
+            label = "scrimAlpha"
+        ) { open ->
+            if (open) 0.12f else 0f
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = scrimAlpha))
+        ) {
+            key(editorState.sessionId) {
+                AssetEditorScreen(
+                    state = state,
+                    editorState = editorState,
+                    onIntent = onIntent,
+                    saveResult = saveResult,
+                    onAccountCreated = onAccountCreated,
+                    onDismissCreate = onDismissCreate,
+                    transition = transition,
+                    transformProgress = progress,
+                )
+            }
         }
     }
 }
