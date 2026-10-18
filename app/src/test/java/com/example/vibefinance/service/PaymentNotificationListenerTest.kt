@@ -31,9 +31,71 @@ class PaymentNotificationListenerTest {
             "收款成功，轉數快 HK$2,500.00 已存入您的戶口"
         )
         for (message in alerts) {
-            assertFalse(PaymentNotificationListener.isPaymentNotification("FPS payment", message))
-            assertNull(PaymentNotificationListener.parseNotification("FPS payment", message, "hk.com.hkicl.fps"))
+            val parsed = PaymentNotificationListener.parseNotification("FPS payment", message, "hk.com.hkicl.fps")
+            if (parsed != null) {
+                org.junit.Assert.assertNotEquals("EXPENSE", parsed.transactionType)
+            }
         }
+    }
+
+    @Test
+    fun outgoingBochkFpsTransferParsesCorrectly() {
+        val title = "BOCHK 中銀香港"
+        val text = "您於2026/10/18 14:28透過手機銀行經轉數快從賬戶012...230轉出港元1,253.44給763...888，款項已成功發送給收款人。\n\n交易參考編號為「12261018F003680868」。\n\n查詢：在線客服/39882388"
+        val pkg = "com.bankofchina.bochk.mobileapplication"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Expected parsed payment for BOCHK transfer", parsed)
+        assertEquals(1253.44, parsed!!.amount, 0.001)
+        assertEquals("763...888", parsed.merchant)
+        assertEquals("230", parsed.cardLast4)
+        assertEquals("Bank of China", parsed.assetName)
+        assertEquals("TRANSFER", parsed.transactionType)
+        assertFalse(parsed.isTopUp)
+        assertEquals("Transfer", PaymentNotificationListener.determineCategory(parsed.merchant, text))
+    }
+
+    @Test
+    fun incomingHangSengTransferParsesCorrectly() {
+        val title = "恒生個人理財"
+        val text = "付款人POON T** C***於2026-10-18存入港元1.00至你的賬戶763-709XXX-888。查看轉賬詳情。"
+        val pkg = "com.hangseng.rbmobile"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Expected parsed payment for Hang Seng transfer", parsed)
+        assertEquals(1.00, parsed!!.amount, 0.001)
+        assertEquals("POON T** C***", parsed.merchant)
+        assertEquals("888", parsed.cardLast4)
+        assertEquals("Hang Seng Bank", parsed.assetName)
+        assertEquals("TRANSFER", parsed.transactionType)
+        assertFalse(parsed.isTopUp)
+        assertEquals("Transfer", PaymentNotificationListener.determineCategory(parsed.merchant, text))
+    }
+
+    @Test
+    fun incomingMoxFpsTransferParsesCorrectly() {
+        val title = "收到款項"
+        val text = "💰 💖 WEN R******已向你付款HKD300.00。"
+        val pkg = "com.mox.bank"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Expected parsed payment for Mox incoming transfer", parsed)
+        assertEquals(300.00, parsed!!.amount, 0.001)
+        assertEquals("WEN R******", parsed.merchant)
+        assertNull(parsed.cardLast4)
+        assertEquals("Mox Bank", parsed.assetName)
+        assertEquals("INCOME", parsed.transactionType)
+        assertFalse(parsed.isTopUp)
+        assertEquals("Transfer", PaymentNotificationListener.determineCategory(parsed.merchant, text))
+
+        val parsedWithMoxTitle = PaymentNotificationListener.parseNotification("Mox", text, pkg)
+        assertNotNull(parsedWithMoxTitle)
+        assertEquals("WEN R******", parsedWithMoxTitle!!.merchant)
+        assertEquals(300.00, parsedWithMoxTitle.amount, 0.001)
+        assertEquals("Mox Bank", parsedWithMoxTitle.assetName)
     }
 
     @Test

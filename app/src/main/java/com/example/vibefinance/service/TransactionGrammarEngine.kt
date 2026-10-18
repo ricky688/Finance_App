@@ -25,11 +25,19 @@ object TransactionGrammarEngine {
         RegexOption.IGNORE_CASE
     )
 
+    // Emoji & decorative symbol prefix stripper
+    private val emojiPrefix = Regex("^[\\s\\p{So}\\p{Sk}\\p{Sm}\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]+")
+
     // Preposition regex anchors for merchant extraction
     private val zhAnchorPatterns = listOf(
         // AlipayHK / Digital wallet authorization anchors (e.g. 成功通過Google授權自動付款支付 / 授權Kangaroo Limited自動付款)
         Regex("(?:成功)?(?:通[過过]|透[過过]|經由|经由)\\s*([^，,。\\n]+?)\\s*授權(?:自動)?(?:付款|扣款|支付)", RegexOption.IGNORE_CASE),
         Regex("授權\\s*([^，,。\\n]+?)\\s*(?:自動)?(?:付款|扣款|支付)", RegexOption.IGNORE_CASE),
+        Regex("付款人\\s*([^，,。\\n]+?)\\s*(?:於|在|存入|已|，|,|。)", RegexOption.IGNORE_CASE),
+        // Payer sent/paid to user: e.g. WEN R******已向你付款HKD300.00 / 陳大文向您轉帳HK$500
+        Regex("(?:^|[\\s，,。\\n]+)([^，,。\\n]+?)\\s*(?:已向|向)(?:你|您|閣下)(?:付款|轉[賬帳]|支付|匯款)", RegexOption.IGNORE_CASE),
+        Regex("(?:轉出|轉帳|轉賬|轉交|匯出).*?給\\s*([^，,。\\n]+?)(?:[，,。\\n]|款項|$)", RegexOption.IGNORE_CASE),
+        Regex("(?:給|轉給|轉至|轉到|轉賬給|轉帳給|轉賬至|轉帳至|匯給|匯至)\\s*([^，,。\\n]+?)(?:[，,。\\n]|款項已成功|款項|$)", RegexOption.IGNORE_CASE),
         Regex("(?:在|於)\\s*([^，,。\\n]+?)\\s*(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡)", RegexOption.IGNORE_CASE),
         Regex("(?:向|付款予|付款給|支付予|支付給)\\s*([^，,。\\n]+?)\\s*(?:付款|支付|轉帳|轉賬|完成|$)", RegexOption.IGNORE_CASE),
         Regex("(?:付款|支付|成功付款|成功支付)\\s*(?:予|給|到)\\s*([^，,。\\n]+?)(?:\\s+(?:完成|HKD|HK\\$|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
@@ -47,13 +55,13 @@ object TransactionGrammarEngine {
 
     // Universal currency amount extractor
     private val currencyRegex = Regex(
-        "(?:HKD|HK\\$|\\$|USD|TWD|NT\\$|RMB|￥|€|£)\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*(?:HKD|HK\\$|\\$|元|圓)",
+        "(?:HKD|HK\\$|\\$|港元|港幣|USD|TWD|NT\\$|RMB|￥|€|£)\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*(?:HKD|HK\\$|\\$|港元|港幣|元|圓)",
         RegexOption.IGNORE_CASE
     )
 
-    // Card last 4 digits
+    // Card / Bank Account last 3-4 digits
     private val cardLast4Regex = Regex(
-        "(?i)(?:card|尾號|末四位|末4位|後四位|後4位|最後數字|最後四位|最後4位|ending in|ending|acct|結尾|•+|\\*+|x+)\\s*(\\d{4})|\\b(?:\\d{4})\\s*(?:卡|信用卡|扣賬卡|戶口)"
+        "(?i)(?:card|尾號|末[三四34]位|後[三四34]位|最後數字|最後[三四34]位|ending in|ending|acct|結尾|•+|\\*+|x+|\\.{2,})\\s*(\\d{3,4})(?!\\d)|(?:[賬帳]戶|戶口|account|acct)[:：\\s]*[0-9a-zA-Z-]*[•●*xX.]{2,}[\\s-]*([0-9]{3,4})(?!\\d)|[0-9a-zA-Z-]*[•●*xX.]{2,}[\\s-]*([0-9]{3,4})(?!\\d)|\\b(?:\\d{4})\\s*(?:卡|信用卡|扣賬卡|戶口)"
     )
 
     // Negative filters (spam, OTP, promos, statements, logins)
@@ -68,7 +76,8 @@ object TransactionGrammarEngine {
     // Intent patterns
     private val incomePatterns = listOf(
         Regex("(?i)\\b(?:salary|payroll|dividend|deposit|incoming|credited|receiv(?:e|ed|ing))\\b"),
-        Regex("薪金|工資|入息|出糧|存入戶口|存入帳戶|轉入戶口|轉入帳戶|收到轉帳|收到轉賬|收款成功|收到款項|已存入|已轉入|收到來自|已收款")
+        Regex("薪金|工資|入息|出糧|存入戶口|存入帳戶|轉入戶口|轉入帳戶|收到轉帳|收到轉賬|收款成功|收到款項|已存入|已轉入|收到來自|已收款"),
+        Regex("(?:已向|向)(?:你|您|閣下)(?:付款|轉[賬帳]|支付|匯款)")
     )
 
     private val repaymentPatterns = listOf(
@@ -78,7 +87,8 @@ object TransactionGrammarEngine {
 
     private val transferPatterns = listOf(
         Regex("(?i)(?:\\b(?:transfer(?:red)?|top[- ]?up|reload|aavs)\\b|ocl\\*|octopus\\s*(?:aavs|top[- ]?up|reload|app))"),
-        Regex("八達通(?:自動)?(?:增值|充值|儲值)|(?:增值|充值|儲值)八達通|自動增值|轉[賬帳]至八達通|由銀行戶口轉[賬帳]|轉[賬帳]至|轉入八達通")
+        Regex("八達通(?:自動)?(?:增值|充值|儲值)|(?:增值|充值|儲值)八達通|自動增值|轉[賬帳]至八達通|由銀行戶口轉[賬帳]|轉[賬帳]至|轉入八達通"),
+        Regex("轉出|轉入|轉[賬帳]|轉數快|經轉數快|轉給|轉至|轉到|轉交|匯出|匯入|匯給|匯至|付款人.*存入|查看轉[賬帳]詳情|款項已成功發送|發送給收款人")
     )
 
     private val expensePatterns = listOf(
@@ -127,7 +137,8 @@ object TransactionGrammarEngine {
         val rawCandidates = listOf(text, title)
         val candidates = rawCandidates.flatMap { raw ->
             val stripped = zhTimestampPrefix.replace(raw.trim(), "")
-            if (stripped != raw && stripped.isNotBlank()) listOf(stripped, raw) else listOf(raw)
+            val strippedEmoji = emojiPrefix.replace(stripped, "").trim()
+            listOf(strippedEmoji, stripped, raw).distinct().filter { it.isNotBlank() }
         }
 
         // Try Chinese anchors
@@ -172,20 +183,26 @@ object TransactionGrammarEngine {
     }
 
     /**
-     * Extracts card last 4 digits if present.
+     * Extracts card or bank account last 3-4 digits if present.
      */
     fun extractCardLast4(title: String, text: String): String? {
         val match = cardLast4Regex.find(text) ?: cardLast4Regex.find(title) ?: return null
-        return (match.groupValues[1].ifEmpty { match.groupValues.getOrNull(2).orEmpty() }).takeIf { it.length == 4 }
+        val digits = match.groupValues.drop(1).firstOrNull { it.isNotBlank() } ?: ""
+        return digits.takeIf { it.length in 3..4 }
     }
 
     private fun cleanMerchantString(raw: String): String {
-        return raw.replace(Regex("(?:[0-9.,]+|[•*xX]{2,}|HKD|HK\\$|HK|\\$|USD|TWD|元|圓)"), "")
+        return raw.replace(Regex("(?:HKD|HK\\$|HK|\\$|USD|TWD|NT\\$|RMB|￥|€|£|港元|港幣)\\s*[0-9.,]+|[0-9.,]+\\s*(?:HKD|HK\\$|HK|\\$|USD|TWD|NT\\$|RMB|￥|€|£|港元|港幣|元|圓)"), "")
             .replace(Regex("^(?:由|來自|向|於|在|成功|已)?(?:通[過过]|透[過过]|經由|经由)?\\s*"), "")
             .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|付款|支付|扣款)$"), "")
-            .replace(Regex("^[，,。：:\\-\\s>]+|[，,。：:\\-\\s>]+$"), "")
+            .replace(Regex("^[\\s，,。：:\\-\\s>~·•\\p{So}\\p{Sk}\\p{Sm}\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]+|[，,。：:\\-\\s>~·•\\p{So}\\p{Sk}\\p{Sm}\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]+$"), "")
             .trim()
             .take(40)
+    }
+
+    private fun isOctopusTopUp(title: String, text: String): Boolean {
+        val combined = "$title $text".lowercase(Locale.US)
+        return combined.contains("八達通") || combined.contains("octopus") || combined.contains("ocl*") || combined.contains("aavs")
     }
 
     /**
@@ -202,14 +219,23 @@ object TransactionGrammarEngine {
         val extractedMerchant = extractMerchant(title, text, intent)
         val merchant = when {
             !extractedMerchant.isNullOrBlank() -> extractedMerchant
-            intent == ParsedTransactionType.TRANSFER -> "八達通增值"
+            intent == ParsedTransactionType.TRANSFER -> if (isOctopusTopUp(title, text)) "八達通增值" else "轉賬 / 轉數快"
             intent == ParsedTransactionType.INCOME -> "薪金 / 入息轉入"
             intent == ParsedTransactionType.REPAYMENT -> "信用卡繳費還款"
-            title.isNotBlank() && !title.contains("銀行", ignoreCase = true) && !title.contains("Bank", ignoreCase = true) -> title.trim()
+            title.isNotBlank() && !title.contains("銀行", ignoreCase = true) && !title.contains("Bank", ignoreCase = true) &&
+                title != "收到款項" && title != "轉帳" && title != "轉賬" -> title.trim()
             else -> "日常消費"
         }
 
-        val assetHint = card?.let { "Card ••$it" } ?: title.ifBlank { "銀行帳戶" }
+        val assetHint = card?.let { "Card ••$it" } ?: when {
+            packageName.contains("mox", ignoreCase = true) || title.contains("mox", ignoreCase = true) -> "Mox Bank"
+            packageName.contains("bochk", ignoreCase = true) || title.contains("中銀", ignoreCase = true) -> "Bank of China"
+            packageName.contains("hangseng", ignoreCase = true) || title.contains("恒生", ignoreCase = true) -> "Hang Seng Bank"
+            packageName.contains("hsbc", ignoreCase = true) || title.contains("匯豐", ignoreCase = true) -> "HSBC"
+            title.isNotBlank() && !title.contains("銀行", ignoreCase = true) && !title.contains("Bank", ignoreCase = true) &&
+                title != "收到款項" && title != "轉帳" && title != "轉賬" -> title.trim()
+            else -> "銀行帳戶"
+        }
         val confidence = if (!extractedMerchant.isNullOrBlank()) 0.95f else 0.80f
 
         return GrammarParseResult(

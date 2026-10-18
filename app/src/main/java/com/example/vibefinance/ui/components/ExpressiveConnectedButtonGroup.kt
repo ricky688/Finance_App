@@ -148,7 +148,7 @@ fun <T> ExpressiveConnectedButtonGroup(
                                         targetValue = if (isSelected) 1.08f else 1f,
                                         animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
+                                            stiffness = Spring.StiffnessLow
                                         ),
                                         label = "btnGroupIconScale_$index"
                                     )

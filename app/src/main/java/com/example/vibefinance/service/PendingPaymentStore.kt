@@ -130,13 +130,14 @@ object PendingPaymentStore {
             return null
         }
 
-        val isOctopusTopUpTx = isTopUp || transactionType == "TRANSFER" ||
+        val isOctopusTopUpTx = isTopUp ||
+            ((isOctopusHint(assetHint) || isOctopusHint(merchant) || isOctopusHint(rawTitle) || isOctopusHint(rawText)) && transactionType == "TRANSFER") ||
             merchant.contains("OCL*", ignoreCase = true) || merchant.contains("OCTOPUS", ignoreCase = true)
 
         if (isOctopusTopUpTx) {
             // Deduplicate concurrent top-up notifications (e.g. Bank app + Samsung Wallet) within 90s
             val duplicateIndex = _pending.value.indexOfFirst {
-                (it.isTopUp || it.transactionType == "TRANSFER" || it.merchant.contains("OCL*", ignoreCase = true) || it.merchant.contains("OCTOPUS", ignoreCase = true)) &&
+                (it.isTopUp || (it.transactionType == "TRANSFER" && (isOctopusHint(it.assetHint) || isOctopusHint(it.merchant))) || it.merchant.contains("OCL*", ignoreCase = true) || it.merchant.contains("OCTOPUS", ignoreCase = true)) &&
                     kotlin.math.abs(it.amount - amount) < 0.01 &&
                     kotlin.math.abs(it.detectedAt - detectedAt) <= 90_000L
             }
@@ -270,7 +271,7 @@ object PendingPaymentStore {
     fun findMatchingAccount(payment: PendingPayment, accounts: List<AccountEntity>): AccountEntity? {
         if (accounts.isEmpty()) return null
 
-        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
+        val isTopUp = payment.isTopUp || (payment.transactionType == "TRANSFER" && isOctopusPayment(payment))
         val nonOctopus = if (isTopUp) accounts.filter { !isOctopusAccount(it) } else emptyList()
         val hasNonOctopusFunding = isTopUp && nonOctopus.isNotEmpty()
         val searchPool = if (hasNonOctopusFunding) nonOctopus else accounts
@@ -534,12 +535,13 @@ object PendingPaymentStore {
         val payment = _pending.value.firstOrNull { it.id == paymentId } ?: return false
         val account = InMemoryDatabase.accounts.value.firstOrNull { it.id == accountId } ?: return false
         val transactionKey = "notification:${payment.id}"
-        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
-        val isIncome = !isTopUp && payment.transactionType == "INCOME"
+        val isOctopusTopUpTx = payment.isTopUp || (payment.transactionType == "TRANSFER" && isOctopusPayment(payment))
+        val isGeneralTransfer = !isOctopusTopUpTx && payment.transactionType == "TRANSFER"
+        val isIncome = !isOctopusTopUpTx && !isGeneralTransfer && payment.transactionType == "INCOME"
         val isRepayment = payment.transactionType == "REPAYMENT"
 
         val isDestinationOctopus = isOctopusAccount(account)
-        val destinationOctopus = if (isTopUp && !isDestinationOctopus) {
+        val destinationOctopus = if (isOctopusTopUpTx && !isDestinationOctopus) {
             InMemoryDatabase.accounts.value.firstOrNull { it.id != account.id && isOctopusAccount(it) }
         } else null
 
@@ -549,7 +551,7 @@ object PendingPaymentStore {
         val isExcluded: Boolean
 
         when {
-            isTopUp -> {
+            isOctopusTopUpTx -> {
                 txCategory = "Top-up"
                 isExcluded = true
                 if (destinationOctopus != null) {
@@ -563,10 +565,42 @@ object PendingPaymentStore {
                     txAmount = -payment.amount
                 }
             }
+            isGeneralTransfer -> {
+                txCategory = "Transfer"
+                isExcluded = true
+                val rawCombined = "${payment.rawTitle} ${payment.rawText}".lowercase(Locale.ROOT)
+                val isIncoming = rawCombined.contains("存入") || rawCombined.contains("轉入") ||
+                    rawCombined.contains("付款人") || rawCombined.contains("received") ||
+                    rawCombined.contains("deposited") || rawCombined.contains("incoming") ||
+                    rawCombined.contains("收到款項") || rawCombined.contains("向你付款") ||
+                    rawCombined.contains("向您付款")
+                if (isIncoming) {
+                    toAccountId = null
+                    txAmount = -payment.amount
+                } else {
+                    // Outgoing transfer: check if counterparty matches an existing user account
+                    val destinationAccount = InMemoryDatabase.accounts.value.firstOrNull { acc ->
+                        acc.id != account.id && (
+                            (!payment.merchant.isBlank() && (acc.name.contains(payment.merchant) || (acc.cardLast4 != null && payment.merchant.contains(acc.cardLast4)))) ||
+                            acc.getNotificationAliasList().any { alias -> alias.isNotBlank() && payment.merchant.contains(alias, ignoreCase = true) }
+                        )
+                    }
+                    toAccountId = destinationAccount?.id
+                    txAmount = payment.amount
+                }
+            }
             isIncome -> {
                 toAccountId = null
                 txAmount = -payment.amount
-                txCategory = "Salary"
+                val rawCombined = "${payment.rawTitle} ${payment.rawText}".lowercase(Locale.ROOT)
+                txCategory = when {
+                    rawCombined.contains("薪金") || rawCombined.contains("工資") || rawCombined.contains("出糧") ||
+                    rawCombined.contains("salary") || rawCombined.contains("payroll") -> "Salary"
+                    rawCombined.contains("股息") || rawCombined.contains("dividend") -> "Investment"
+                    rawCombined.contains("轉") || rawCombined.contains("fps") || rawCombined.contains("付款") ||
+                    rawCombined.contains("pay") || rawCombined.contains("存入") || rawCombined.contains("收到款項") -> "Transfer"
+                    else -> "Income"
+                }
                 isExcluded = true
             }
             isRepayment -> {

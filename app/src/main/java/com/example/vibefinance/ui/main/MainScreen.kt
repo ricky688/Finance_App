@@ -2311,7 +2311,7 @@ private fun ModeSwitcherAnimatedIcon(
                 targetValue = if (isSelected) 1.08f else 1f,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow
+                    stiffness = Spring.StiffnessLow
                 )
             )
         }
@@ -2338,7 +2338,10 @@ private fun ModeSwitcherAnimatedIcon(
                     drawProgress.snapTo(0f)
                     drawProgress.animateTo(
                         targetValue = 1f,
-                        animationSpec = MotionTokens.emphasized(320)
+                        animationSpec = tween(
+                            durationMillis = 1200,
+                            easing = FastOutSlowInEasing
+                        )
                     )
                 } else {
                     drawProgress.snapTo(1f)
@@ -2350,13 +2353,13 @@ private fun ModeSwitcherAnimatedIcon(
                         upperSlideX.snapTo(0f)
                         upperSlideX.animateTo(
                             targetValue = 4.5f,
-                            animationSpec = tween(durationMillis = 130, easing = FastOutSlowInEasing)
+                            animationSpec = tween(durationMillis = 280, easing = MotionTokens.EmphasizedDecelerate)
                         )
                         upperSlideX.animateTo(
                             targetValue = 0f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
+                                stiffness = Spring.StiffnessLow
                             )
                         )
                     }
@@ -2364,13 +2367,13 @@ private fun ModeSwitcherAnimatedIcon(
                         lowerSlideX.snapTo(0f)
                         lowerSlideX.animateTo(
                             targetValue = -4.5f,
-                            animationSpec = tween(durationMillis = 130, easing = FastOutSlowInEasing)
+                            animationSpec = tween(durationMillis = 280, easing = MotionTokens.EmphasizedDecelerate)
                         )
                         lowerSlideX.animateTo(
                             targetValue = 0f,
                             animationSpec = spring(
                                 dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
+                                stiffness = Spring.StiffnessLow
                             )
                         )
                     }
@@ -2393,8 +2396,8 @@ private fun ModeSwitcherAnimatedIcon(
         when (mode) {
             TransactionMode.EXPENSE -> {
                 val p = drawProgress.value
-                val lineProgress = (p / 0.70f).coerceIn(0f, 1f)
-                val headProgress = ((p - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                val lineProgress = (p / 0.78f).coerceIn(0f, 1f)
+                val headProgress = ((p - 0.65f) / 0.35f).coerceIn(0f, 1f)
 
                 if (lineProgress > 0f) {
                     drawSegment.reset()
@@ -2414,8 +2417,8 @@ private fun ModeSwitcherAnimatedIcon(
             }
             TransactionMode.INCOME -> {
                 val p = drawProgress.value
-                val lineProgress = (p / 0.70f).coerceIn(0f, 1f)
-                val headProgress = ((p - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                val lineProgress = (p / 0.78f).coerceIn(0f, 1f)
+                val headProgress = ((p - 0.65f) / 0.35f).coerceIn(0f, 1f)
 
                 if (lineProgress > 0f) {
                     drawSegment.reset()
@@ -3838,7 +3841,7 @@ fun AddExpenseSheetContent(
 }
 
 @Composable
-private fun SelectedAccountCard(
+internal fun SelectedAccountCard(
     account: AccountEntity?,
     isDestination: Boolean = false,
     onClick: () -> Unit,
@@ -3929,7 +3932,7 @@ private fun SelectedAccountCard(
     }
 }
 
-private fun getAccountIcon(type: AccountType?): ImageVector {
+internal fun getAccountIcon(type: AccountType?): ImageVector {
     return when (type) {
         AccountType.CASH -> Icons.Default.Savings
         AccountType.BANK -> Icons.Default.AccountBalance
@@ -3940,7 +3943,7 @@ private fun getAccountIcon(type: AccountType?): ImageVector {
     }
 }
 
-private fun getCategoryDisplayNameFromResources(resources: Resources, category: String): String {
+internal fun getCategoryDisplayNameFromResources(resources: Resources, category: String): String {
     val normalized = category.trim().replaceFirst(Regex("^[^\\p{L}\\p{N}]+"), "").lowercase(Locale.US).trim()
     return when (normalized) {
         "food", "food & drink", "restaurant", "food & dining" -> resources.getString(R.string.cat_food)

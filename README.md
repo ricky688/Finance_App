@@ -6,6 +6,56 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 ## 🚀 Features
 
+### Bank & FPS Incoming and Outgoing Notification Interception (1.2.74)
+- **Mox Bank & Emoji Prefix Support**:
+  - Automatically strips decorative notification emojis (`💰 💖 `, `🎉`, `✨`, `💸`) while preserving asterisk-masked names (`WEN R******`).
+  - Added preposition anchor `(?:^|[\s，,。\n]+)([^，,。\n]+?)\s*(?:已向|向)(?:你|您|閣下)(?:付款|轉[賬帳]|支付|匯款)` to extract counterparties from incoming payment notifications.
+  - Package-aware asset resolution maps `com.mox.bank` to `Mox Bank` and accurately disambiguates `\bpayme\b` from packages containing `.payment`.
+- **Bank & FPS Transfer Interception (1.2.73)**:
+  - Supports `港元` and `港幣` currency prefixes/suffixes and CJK-resilient card/account number extraction (e.g. `012...230` -> `230`, `763-709XXX-888` -> `888`).
+  - Correctly intercepts outgoing FPS transfers (`BOCHK 中銀香港`) and incoming deposits (`恒生個人理財`), classifying them into `Transfer` category with `isExcluded = true`.
+
+### Ultra-Smooth Decelerated Pacing for Expense & Income Icons (1.2.72)
+- **Extended Stroke Draw-in Duration (1200ms) with FastOutSlowInEasing (`MainScreen.kt`)**:
+  - Increased `drawProgress` animation duration for `TransactionMode.EXPENSE` and `TransactionMode.INCOME` from `680ms` to `1200ms`.
+  - Switched from `MotionTokens.emphasized` to `tween(1200, easing = FastOutSlowInEasing)` to eliminate rapid front-loaded speed spikes, establishing an even, luxurious stroke animation pace across the entire path.
+  - Re-anchored path progress phases:
+    - Main zig-zag line stroke progresses steadily until `p = 0.78f` (~930ms).
+    - Arrowhead emerges smoothly from `p = 0.65f` to `1.0f` (~780ms - 1200ms).
+
+### Mode Switcher Animated Icon Duration & Speed Tuning (1.2.71)
+- **Reduced Animation Speed & Extended Duration for Transaction Mode Icons (`MainScreen.kt`, `ExpressiveConnectedButtonGroup.kt`)**:
+  - **Stroke Draw-in Duration Extended (`drawProgress`)**:
+    - For `TransactionMode.EXPENSE` and `TransactionMode.INCOME`, extended the vector trim path / stroke draw-in animation from `320ms` to `680ms` (`MotionTokens.emphasized(680)`).
+    - Reduced the draw-in speed by more than 50%, providing an unhurried, graceful, and clearly perceptible path tracing animation for the trending-down (Expense) and trending-up (Income) arrows.
+  - **Transfer Opposing Arrow Slide Kinetics (`upperSlideX`, `lowerSlideX`)**:
+    - Extended the outward slide duration from `130ms` (`FastOutSlowInEasing`) to `280ms` (`MotionTokens.EmphasizedDecelerate`).
+    - Softened the return settling spring from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`, extending overall animation duration to ~650ms.
+  - **Active Icon Scale Kinetics (`animScale`)**:
+    - Softened the active scale pop spring stiffness from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`, harmonizing the scale expansion with the extended stroke draw-in duration.
+  - **Global Fallback Icon Scale**:
+    - Softened `iconScale` spring in `ExpressiveConnectedButtonGroup.kt` from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`.
+
+### Material 3 Expressive UI/UX Parity for Subscription & Installment Entry Pages (1.2.70)
+- **Removal of Popular Quick-Adding Carousel**:
+  - Completely removed `POPULAR_SUBSCRIPTION_PRESETS` `LazyRow` and preset selector chips from `RecurringScreen.kt` to eliminate redundant UI clutter and maintain clean, focused entry.
+- **Material 3 Expressive 2-Card Bento Architecture**:
+  - **Hero Amount Header**: Extracted the input amount to a prominent top-level hero header featuring centered 42sp bold text with currency prefix, instant clear button, and real-time `CurrencyRateStatus` foreign currency conversion banner.
+  - **Bento Card 1 (Identity & Cycle / Duration)** (`RoundedCornerShape(22.dp)`, `surfaceContainer`, 1dp outline):
+    - Subscriptions: Subscription Name `OutlinedTextField` with dynamic leading brand/category indicator, billing frequency `ConnectedButtonGroup` (Monthly, Quarterly, Yearly, Weekly), and unified Next Payment Date picker.
+    - Installments: Purchase Name `OutlinedTextField`, duration presets (`FilterChip`s in `LazyRow` with `horizontalFadingEdge(16.dp)`) & Stepper (`- / +` with month count and live per-month cost preview), and First Due Date picker.
+  - **Bento Card 2 (Classification & Payment Asset)** (`RoundedCornerShape(22.dp)`, `surfaceContainer`, 1dp outline):
+    - Category FilterChips with In-Place Tag Cloud Expansion: Header with "類別" and localized "展開全部 / 收合" pill button with spring-animated rotating chevron. Smooth `AnimatedContent` transition between a single-row `LazyRow` (with scroll fading edge) and a multi-row wrapped `FlowRow` tag cloud.
+    - Category Icons & Deduplication: Each category chip renders a dynamic icon (`CategoryIcon(cat, 16.dp)`), bold text when selected, and deduplicates identical localized display names. Selecting a chip auto-collapses to single-row and scrolls to the selected item. Inline `+ 新增` category creation field.
+    - Full-Width `SelectedAccountCard` (`RoundedCornerShape(16.dp)`): Shows account type icon in `CircleShape`, name/nickname, `AccountType` badge, real-time formatted balance or credit card owing amount (`HK$...`), and trailing chevron.
+  - **Modal Bottom Sheet Account Picker**:
+    - Tapping `SelectedAccountCard` opens `AppModalBottomSheet` with a 2-column `LazyVerticalGrid` of all accounts with live balances, active selection indicator, and inline `+ 新增帳戶` creation with `ExpressiveSegmentedButtonGroup`.
+  - **Sticky Bottom Action Bar**:
+    - Standardized to full-width `CompletePressButton` (50dp height, `RoundedCornerShape(16.dp)`, check icon, haptic feedback, and press bounce motion).
+- **Code Sharing & Clean Architecture**:
+  - Made `SelectedAccountCard`, `getAccountIcon`, and `getCategoryDisplayNameFromResources` internal in `MainScreen.kt` for direct reuse in `RecurringScreen.kt`, eliminating duplicate code.
+  - Wired `onAddNewAccount` through `SubscriptionEntryHost.kt` to `FinanceIntent.SaveAccount`.
+
 ### Interactive Motion Orchestration for Compact/Detailed View Toggle in AssetsScreen (1.2.69)
 - **2-Phase Icon Motion & Turnaround Glyph Swap (`AccountsScreen.kt`)**:
   - Detailed -> Compact: Phase 1 focuses with an emphasized burst scaling up to `1.25x` (`150ms`, `MotionTokens.EmphasizedDecelerate`), morphs the glyph from `ViewStream` to `ViewAgenda` at the momentum peak, and Phase 2 settles smoothly down to the compact resting scale `0.90x` (`16.dp` equivalent) via `Spring.DampingRatioMediumBouncy` and `Spring.StiffnessMediumLow`.

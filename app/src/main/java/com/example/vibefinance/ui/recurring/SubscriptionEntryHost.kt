@@ -190,6 +190,7 @@ fun SubscriptionEntryHost(
                             )
                             dismiss()
                         },
+                        onAddNewAccount = { onIntent(FinanceIntent.SaveAccount(it)) },
                     )
                 }
             }

@@ -1,3 +1,9 @@
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class
+)
+
 package com.example.vibefinance.ui.recurring
 
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -14,6 +20,24 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import com.example.vibefinance.ui.common.pressBounce
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
+import com.example.vibefinance.ui.main.ConnectedButtonCorners
+import com.example.vibefinance.ui.components.AppModalBottomSheet
+import com.example.vibefinance.ui.main.SelectedAccountCard
+import com.example.vibefinance.ui.main.getAccountIcon
+import com.example.vibefinance.ui.main.getCategoryDisplayNameFromResources
+import com.example.vibefinance.ui.main.accountTypeLabel
+import kotlinx.coroutines.launch
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -2505,10 +2529,14 @@ fun AddEditSubscriptionSheet(
     categoryMergeRules: CategoryMergeRules = CategoryMergeRules(),
     exchangeRateLoader: ExchangeRateLoader? = null,
     modifier: Modifier = Modifier,
-    onSaveInstallment: (totalAmount: Double, category: String, accountId: Long, description: String, installments: Int, firstDueDate: Long) -> Unit = { _, _, _, _, _, _ -> }
+    onSaveInstallment: (totalAmount: Double, category: String, accountId: Long, description: String, installments: Int, firstDueDate: Long) -> Unit = { _, _, _, _, _, _ -> },
+    onAddNewAccount: ((AccountEntity) -> Unit)? = null
 ) {
     val haptic = rememberVibeHapticFeedback()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val hapticView = LocalView.current
+    val resources = context.resources
 
     // Currency & Exchange Rate State
     var selectedCurrency by rememberSaveable { mutableStateOf("HKD") }
@@ -2617,6 +2645,13 @@ fun AddEditSubscriptionSheet(
 
     var showInlineAddCategory by remember { mutableStateOf(false) }
     var newCatName by remember { mutableStateOf("") }
+    var isCategoryExpanded by rememberSaveable { mutableStateOf(false) }
+    var showAccountPickerSheet by remember { mutableStateOf(false) }
+    var showInlineAddAccountInSheet by remember { mutableStateOf(false) }
+    val deduplicatedCategories = remember(expenseCategories, resources) {
+        expenseCategories.distinctBy { getCategoryDisplayNameFromResources(resources, it) }
+    }
+    val isZh = remember { Locale.getDefault().language.startsWith("zh") }
 
     fun onAddNewCategory(rawName: String) {
         val trimmed = rawName.trim()
@@ -2786,150 +2821,110 @@ fun AddEditSubscriptionSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                // 1. HERO AMOUNT & FREQUENCY CONTAINER
+                                // Hero Amount Row (Parity with Daily Page Add Expense)
                                 val activeBrandColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary
-                                Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 18.dp, horizontal = 16.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        // Hero Amount Row
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable(
-                                                    interactionSource = remember { MutableInteractionSource() },
-                                                    indication = null
-                                                ) {
-                                                    amountFocusRequester.requestFocus()
-                                                },
-                                            horizontalArrangement = Arrangement.Center,
-                                            verticalAlignment = Alignment.CenterVertically
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
                                         ) {
-                                            Text(
-                                                text = "$currencySymbol ",
-                                                style = MaterialTheme.typography.headlineMedium.copy(
-                                                    fontSize = 32.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = activeBrandColor
-                                                )
-                                            )
-                                            BasicTextField(
-                                                value = if (amountText == "0") "" else amountText,
-                                                onValueChange = { input ->
-                                                    if (input.isEmpty()) {
-                                                        amountText = ""
-                                                    } else if (input == ".") {
-                                                        amountText = "0."
-                                                    } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
-                                                        amountText = input
-                                                    }
-                                                },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                singleLine = true,
-                                                cursorBrush = SolidColor(activeBrandColor),
-                                                textStyle = MaterialTheme.typography.displaySmall.copy(
-                                                    fontSize = 42.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    textAlign = TextAlign.Start
-                                                ),
-                                                visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                                else
-                                                    androidx.compose.ui.text.input.VisualTransformation.None,
-                                                modifier = Modifier
-                                                    .width(IntrinsicSize.Min)
-                                                    .widthIn(min = 36.dp)
-                                                    .focusRequester(amountFocusRequester)
-                                                    .semantics { stateDescription = amountText },
-                                                decorationBox = { innerTextField ->
-                                                    Box(contentAlignment = Alignment.CenterStart) {
-                                                        if (amountText.isEmpty() || amountText == "0") {
-                                                            Text(
-                                                                text = "0",
-                                                                style = MaterialTheme.typography.displaySmall.copy(
-                                                                    fontSize = 42.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                                                )
-                                                            )
-                                                        }
-                                                        innerTextField()
-                                                    }
-                                                }
-                                            )
-                                            if (amountText.isNotEmpty() && amountText != "0") {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                IconButton(
-                                                    onClick = {
-                                                        amountText = ""
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    },
-                                                    modifier = Modifier.size(32.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.Clear,
-                                                        contentDescription = stringResource(R.string.ui_main_clear),
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(20.dp)
+                                            amountFocusRequester.requestFocus()
+                                        },
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "$currencySymbol ",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = activeBrandColor
+                                        )
+                                    )
+                                    BasicTextField(
+                                        value = if (amountText == "0") "" else amountText,
+                                        onValueChange = { input ->
+                                            if (input.isEmpty()) {
+                                                amountText = ""
+                                            } else if (input == ".") {
+                                                amountText = "0."
+                                            } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
+                                                amountText = input
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        cursorBrush = SolidColor(activeBrandColor),
+                                        textStyle = MaterialTheme.typography.displaySmall.copy(
+                                            fontSize = 42.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = TextAlign.Start
+                                        ),
+                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        else
+                                            androidx.compose.ui.text.input.VisualTransformation.None,
+                                        modifier = Modifier
+                                            .width(IntrinsicSize.Min)
+                                            .widthIn(min = 36.dp)
+                                            .focusRequester(amountFocusRequester)
+                                            .semantics { stateDescription = amountText },
+                                        decorationBox = { innerTextField ->
+                                            Box(contentAlignment = Alignment.CenterStart) {
+                                                if (amountText.isEmpty() || amountText == "0") {
+                                                    Text(
+                                                        text = "0",
+                                                        style = MaterialTheme.typography.displaySmall.copy(
+                                                            fontSize = 42.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                                        )
                                                     )
                                                 }
+                                                innerTextField()
                                             }
                                         }
-
-                                        if (selectedCurrency != "HKD") {
-                                            CurrencyRateStatus(
-                                                currencyCode = selectedCurrency,
-                                                result = rateResult,
-                                                loading = rateLoading,
-                                                convertedAmount = convertedSubscriptionAmount,
-                                                onRefresh = { rateRefreshRequest++ }
+                                    )
+                                    if (amountText.isNotEmpty() && amountText != "0") {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        IconButton(
+                                            onClick = {
+                                                amountText = ""
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = stringResource(R.string.ui_main_clear),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
-
-                                        // Frequency Selector
-                                        val selectedFreqIndex = frequenciesList.indexOfFirst { it.equals(frequencyText, ignoreCase = true) }.coerceAtLeast(0)
-                                        val monthlyStr = stringResource(R.string.filter_monthly)
-                                        val yearlyStr = stringResource(R.string.filter_yearly)
-                                        val weeklyStr = stringResource(R.string.filter_weekly)
-
-                                        ConnectedButtonGroup(
-                                            items = frequenciesList,
-                                            selectedIndex = selectedFreqIndex,
-                                            onItemSelected = { index ->
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                frequencyText = frequenciesList[index]
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            labelProvider = { freq ->
-                                                when (freq.lowercase(Locale.US)) {
-                                                    "monthly" -> monthlyStr
-                                                    "yearly", "annual" -> yearlyStr
-                                                    "weekly" -> weeklyStr
-                                                    else -> freq
-                                                }
-                                            }
-                                        )
                                     }
                                 }
 
-                                // 2. CARD 1: SUBSCRIPTION IDENTITY & CATEGORY
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
+                                if (selectedCurrency != "HKD") {
+                                    CurrencyRateStatus(
+                                        currencyCode = selectedCurrency,
+                                        result = rateResult,
+                                        loading = rateLoading,
+                                        convertedAmount = convertedSubscriptionAmount,
+                                        onRefresh = { rateRefreshRequest++ }
+                                    )
+                                }
+
+                                // ==========================================
+                                // BENTO CARD 1: DETAILS & CYCLE (RoundedCornerShape(22.dp))
+                                // ==========================================
+                                Surface(
                                     shape = RoundedCornerShape(22.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
                                         modifier = Modifier
@@ -2944,56 +2939,6 @@ fun AddEditSubscriptionSheet(
                                             color = MaterialTheme.colorScheme.primary,
                                             letterSpacing = 0.8.sp
                                         )
-
-                                        // Quick Presets Carousel if adding new
-                                        if (subscription == null) {
-                                            val presetsListState = rememberLazyListState()
-                                            LazyRow(
-                                                state = presetsListState,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalFadingEdge(presetsListState, 16.dp)
-                                            ) {
-                                                items(POPULAR_SUBSCRIPTION_PRESETS) { preset ->
-                                                    val isPresetActive = nameText.equals(preset.name, ignoreCase = true)
-                                                    Surface(
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        color = if (isPresetActive) preset.brandColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                        border = BorderStroke(
-                                                            1.dp,
-                                                            if (isPresetActive) preset.brandColor else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                                        ),
-                                                        modifier = Modifier
-                                                            .clip(RoundedCornerShape(12.dp))
-                                                            .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                nameText = preset.name
-                                                                amountText = if (preset.defaultAmount % 1.0 == 0.0) preset.defaultAmount.toLong().toString() else preset.defaultAmount.toString()
-                                                                categoryText = preset.category
-                                                                frequencyText = preset.frequency
-                                                                if (!expenseCategories.contains(preset.category)) {
-                                                                    expenseCategories.add(0, preset.category)
-                                                                }
-                                                            }
-                                                    ) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                                        ) {
-                                                            Text(text = preset.emoji, fontSize = 14.sp)
-                                                            Spacer(modifier = Modifier.width(4.dp))
-                                                            Text(
-                                                                text = recurringPresetLabel(preset),
-                                                                style = MaterialTheme.typography.labelMedium,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = if (isPresetActive) preset.brandColor else MaterialTheme.colorScheme.onSurface
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
 
                                         // Subscription Name TextField with leading brand/category indicator
                                         OutlinedTextField(
@@ -3029,209 +2974,36 @@ fun AddEditSubscriptionSheet(
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
-                                        // Category Chips
+                                        // Frequency Selector
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Text(
-                                                text = stringResource(R.string.sub_category_label),
+                                                text = stringResource(R.string.ui_recurring_billing_frequency),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            val selectedFreqIndex = frequenciesList.indexOfFirst { it.equals(frequencyText, ignoreCase = true) }.coerceAtLeast(0)
+                                            val monthlyStr = stringResource(R.string.filter_monthly)
+                                            val yearlyStr = stringResource(R.string.filter_yearly)
+                                            val weeklyStr = stringResource(R.string.filter_weekly)
 
-                                            AnimatedVisibility(
-                                                visible = showInlineAddCategory && selectedSheetTab == 0,
-                                                enter = expandVertically() + fadeIn(),
-                                                exit = shrinkVertically() + fadeOut()
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(vertical = 4.dp)
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                                                        .padding(12.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = stringResource(R.string.ui_main_add_category),
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        OutlinedTextField(
-                                                            value = newCatName,
-                                                            onValueChange = { newCatName = it },
-                                                            placeholder = { Text(stringResource(R.string.ui_main_category_hint)) },
-                                                            singleLine = true,
-                                                            modifier = Modifier.weight(1f),
-                                                            textStyle = MaterialTheme.typography.bodyMedium
-                                                        )
-                                                        Button(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                onAddNewCategory(newCatName)
-                                                            },
-                                                            shape = CircleShape
-                                                        ) {
-                                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                            Spacer(modifier = Modifier.width(4.dp))
-                                                            Text(stringResource(R.string.btn_add))
-                                                        }
+                                            ConnectedButtonGroup(
+                                                items = frequenciesList,
+                                                selectedIndex = selectedFreqIndex,
+                                                onItemSelected = { index ->
+                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                    frequencyText = frequenciesList[index]
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                labelProvider = { freq ->
+                                                    when (freq.lowercase(Locale.US)) {
+                                                        "monthly" -> monthlyStr
+                                                        "yearly", "annual" -> yearlyStr
+                                                        "weekly" -> weeklyStr
+                                                        else -> freq
                                                     }
                                                 }
-                                            }
-
-                                            val subCategoryListState = rememberLazyListState()
-                                            LaunchedEffect(categoryText, expenseCategories.size) {
-                                                val selectedIdx = expenseCategories.indexOfFirst { it.equals(categoryText, ignoreCase = true) }
-                                                if (selectedIdx >= 0) {
-                                                    subCategoryListState.animateScrollToItem((selectedIdx - 1).coerceAtLeast(0))
-                                                }
-                                            }
-                                            LazyRow(
-                                                state = subCategoryListState,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalFadingEdge(subCategoryListState, 16.dp)
-                                            ) {
-                                                items(expenseCategories) { cat ->
-                                                    val isSelected = categoryText.equals(cat, ignoreCase = true)
-                                                    FilterChip(
-                                                        selected = isSelected,
-                                                        onClick = {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            categoryText = cat
-                                                        },
-                                                        leadingIcon = if (isSelected) {
-                                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                                        } else null,
-                                                        label = {
-                                                            Text(
-                                                                getCategoryDisplayName(cat),
-                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                                maxLines = 1,
-                                                                softWrap = false,
-                                                                overflow = TextOverflow.Ellipsis
-                                                            )
-                                                        },
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    )
-                                                }
-                                                item {
-                                                    FilterChip(
-                                                        selected = showInlineAddCategory && selectedSheetTab == 0,
-                                                        onClick = {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            showInlineAddCategory = !showInlineAddCategory
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                                                        label = { Text(stringResource(R.string.btn_add)) },
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // 3. CARD 2: PAYMENT SOURCE & CYCLE
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(22.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.ui_recurring_payment_cycle),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 0.8.sp
-                                        )
-
-                                        // Account Selector
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.sub_account_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                            val subAccountListState = rememberLazyListState()
-                                            LazyRow(
-                                                state = subAccountListState,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalFadingEdge(subAccountListState, 16.dp)
-                                            ) {
-                                                items(accounts) { acc ->
-                                                    val isSelected = accountIdText == acc.id
-                                                    Surface(
-                                                        shape = RoundedCornerShape(14.dp),
-                                                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                        border = BorderStroke(
-                                                            1.dp,
-                                                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                                        ),
-                                                        modifier = Modifier
-                                                            .clip(RoundedCornerShape(14.dp))
-                                                            .bouncyClickable(shape = RoundedCornerShape(14.dp)) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                accountIdText = acc.id
-                                                            }
-                                                    ) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                                        ) {
-                                                            val accIcon = when (acc.type) {
-                                                                AccountType.CC -> Icons.Default.CreditCard
-                                                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
-                                                                AccountType.DEBIT -> Icons.Default.CreditCard
-                                                                AccountType.BANK -> Icons.Default.AccountBalance
-                                                                else -> Icons.Default.Payments
-                                                            }
-                                                            Icon(
-                                                                imageVector = accIcon,
-                                                                contentDescription = null,
-                                                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
-                                                            Spacer(modifier = Modifier.width(8.dp))
-                                                            Column {
-                                                                Text(
-                                                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
-                                                                    style = MaterialTheme.typography.labelMedium,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                                )
-                                                                val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
-                                                                val balanceLabel = if (acc.type == AccountType.CC) stringResource(R.string.ui_recurring_account_owing, formattedBal) else stringResource(R.string.ui_recurring_account_balance, formattedBal)
-                                                                val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
-                                                                Text(
-                                                                    text = balLabel,
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
                                         }
 
                                         // Next Payment Date
@@ -3249,8 +3021,8 @@ fun AddEditSubscriptionSheet(
 
                                             Surface(
                                                 shape = RoundedCornerShape(14.dp),
-                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(14.dp))
@@ -3289,6 +3061,296 @@ fun AddEditSubscriptionSheet(
                                         }
                                     }
                                 }
+
+                                // ==========================================
+                                // BENTO CARD 2: CLASSIFICATION & PAYMENT ASSET (RoundedCornerShape(22.dp))
+                                // ==========================================
+                                Surface(
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        // Category Header Row with in-place expand/collapse toggle
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.sub_category_label),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            )
+
+                                            val rotateDegrees by animateFloatAsState(
+                                                targetValue = if (isCategoryExpanded) 180f else 0f,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                                label = "categoryChevronRotation"
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                        isCategoryExpanded = !isCategoryExpanded
+                                                    }
+                                                    .testTag("RecurringCategoryExpandToggle")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    val toggleText = if (isCategoryExpanded) {
+                                                        if (isZh) "收合" else stringResource(R.string.settings_section_collapsed)
+                                                    } else {
+                                                        if (isZh) "展開全部" else stringResource(R.string.settings_section_expanded)
+                                                    }
+                                                    Text(
+                                                        text = toggleText,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Icon(
+                                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier
+                                                            .size(14.dp)
+                                                            .graphicsLayer { rotationZ = rotateDegrees }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Inline Add Category Form
+                                        AnimatedVisibility(
+                                            visible = showInlineAddCategory && selectedSheetTab == 0,
+                                            enter = expandVertically() + fadeIn(),
+                                            exit = shrinkVertically() + fadeOut()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.ui_main_add_category),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    OutlinedTextField(
+                                                        value = newCatName,
+                                                        onValueChange = { newCatName = it },
+                                                        placeholder = { Text(stringResource(R.string.ui_main_category_hint)) },
+                                                        singleLine = true,
+                                                        modifier = Modifier.weight(1f),
+                                                        textStyle = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    val addCatInteraction = remember { MutableInteractionSource() }
+                                                    CompletePressButton(
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            onAddNewCategory(newCatName)
+                                                        },
+                                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                        interactionSource = addCatInteraction,
+                                                        modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(stringResource(R.string.btn_add))
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Category Tag Cloud / Single Row
+                                        val subCategoryListState = rememberLazyListState()
+                                        LaunchedEffect(categoryText, deduplicatedCategories.size) {
+                                            val selectedIdx = deduplicatedCategories.indexOfFirst {
+                                                getCategoryDisplayNameFromResources(resources, it).equals(getCategoryDisplayNameFromResources(resources, categoryText), ignoreCase = true)
+                                            }
+                                            if (selectedIdx >= 0) {
+                                                subCategoryListState.animateScrollToItem((selectedIdx - 1).coerceAtLeast(0))
+                                            }
+                                        }
+
+                                        AnimatedContent(
+                                            targetState = isCategoryExpanded,
+                                            transitionSpec = {
+                                                if (targetState) {
+                                                    (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
+                                                     shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
+                                                } else {
+                                                    (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
+                                                     shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
+                                                }.using(SizeTransform(clip = false) { _, _ -> spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow) })
+                                            },
+                                            label = "SubscriptionCategoryExpansionTransition",
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) { expanded ->
+                                            if (!expanded) {
+                                                LazyRow(
+                                                    state = subCategoryListState,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .horizontalFadingEdge(subCategoryListState, 16.dp)
+                                                        .testTag("RecurringCategory")
+                                                ) {
+                                                    items(deduplicatedCategories, key = { it }) { cat ->
+                                                        val isSelected = getCategoryDisplayNameFromResources(resources, categoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                        FilterChip(
+                                                            selected = isSelected,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                categoryText = cat
+                                                            },
+                                                            leadingIcon = {
+                                                                CategoryIcon(
+                                                                    category = cat,
+                                                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            },
+                                                            label = {
+                                                                Text(
+                                                                    getCategoryDisplayName(cat),
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                    maxLines = 1,
+                                                                    softWrap = false,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringCategory_row_$cat")
+                                                        )
+                                                    }
+                                                    item(key = "__add_category__") {
+                                                        FilterChip(
+                                                            selected = showInlineAddCategory && selectedSheetTab == 0,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                showInlineAddCategory = !showInlineAddCategory
+                                                            },
+                                                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                            label = { Text(stringResource(R.string.btn_add)) },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringCategory_row_add")
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                FlowRow(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .testTag("RecurringCategory_cloud"),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    deduplicatedCategories.forEach { cat ->
+                                                        val isSelected = getCategoryDisplayNameFromResources(resources, categoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                        FilterChip(
+                                                            selected = isSelected,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                categoryText = cat
+                                                                isCategoryExpanded = false
+                                                                scope.launch {
+                                                                    val idx = deduplicatedCategories.indexOf(cat)
+                                                                    if (idx >= 0) {
+                                                                        subCategoryListState.animateScrollToItem((idx - 1).coerceAtLeast(0))
+                                                                    }
+                                                                }
+                                                            },
+                                                            leadingIcon = {
+                                                                CategoryIcon(
+                                                                    category = cat,
+                                                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            },
+                                                            label = {
+                                                                Text(
+                                                                    getCategoryDisplayName(cat),
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                    maxLines = 1,
+                                                                    softWrap = false,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringCategory_row_$cat")
+                                                        )
+                                                    }
+                                                    FilterChip(
+                                                        selected = showInlineAddCategory && selectedSheetTab == 0,
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            showInlineAddCategory = !showInlineAddCategory
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                        label = { Text(stringResource(R.string.btn_add)) },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.testTag("RecurringCategory_row_add")
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                        // Payment Asset Card
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("RecurringAssetSection"),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.sub_account_label),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            )
+
+                                            SelectedAccountCard(
+                                                account = selectedAccount,
+                                                isDestination = false,
+                                                onClick = {
+                                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                    showAccountPickerSheet = true
+                                                },
+                                                modifier = Modifier.testTag("RecurringAccount_card")
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             // --- INSTALLMENT PLAN FORM ---
@@ -3296,114 +3358,154 @@ fun AddEditSubscriptionSheet(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                // 1. HERO TOTAL AMOUNT & DURATION CONTAINER
+                                // Hero Total Amount Row (Parity with Daily Page Add Expense & Subscription)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) {
+                                            installmentAmountFocusRequester.requestFocus()
+                                        },
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "$currencySymbol ",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            fontSize = 32.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.tertiary
+                                        )
+                                    )
+                                    BasicTextField(
+                                        value = if (installmentTotalAmountText == "0") "" else installmentTotalAmountText,
+                                        onValueChange = { input ->
+                                            if (input.isEmpty()) {
+                                                installmentTotalAmountText = ""
+                                            } else if (input == ".") {
+                                                installmentTotalAmountText = "0."
+                                            } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
+                                                installmentTotalAmountText = input
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                        singleLine = true,
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.tertiary),
+                                        textStyle = MaterialTheme.typography.displaySmall.copy(
+                                            fontSize = 42.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            textAlign = TextAlign.Start
+                                        ),
+                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        else
+                                            androidx.compose.ui.text.input.VisualTransformation.None,
+                                        modifier = Modifier
+                                            .width(IntrinsicSize.Min)
+                                            .widthIn(min = 36.dp)
+                                            .focusRequester(installmentAmountFocusRequester)
+                                            .semantics { stateDescription = installmentTotalAmountText },
+                                        decorationBox = { innerTextField ->
+                                            Box(contentAlignment = Alignment.CenterStart) {
+                                                if (installmentTotalAmountText.isEmpty() || installmentTotalAmountText == "0") {
+                                                    Text(
+                                                        text = "0",
+                                                        style = MaterialTheme.typography.displaySmall.copy(
+                                                            fontSize = 42.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                                        )
+                                                    )
+                                                }
+                                                innerTextField()
+                                            }
+                                        }
+                                    )
+                                    if (installmentTotalAmountText.isNotEmpty() && installmentTotalAmountText != "0") {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        IconButton(
+                                            onClick = {
+                                                installmentTotalAmountText = ""
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = stringResource(R.string.ui_main_clear),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if (selectedCurrency != "HKD") {
+                                    CurrencyRateStatus(
+                                        currencyCode = selectedCurrency,
+                                        result = rateResult,
+                                        loading = rateLoading,
+                                        convertedAmount = convertedInstallmentTotal,
+                                        onRefresh = { rateRefreshRequest++ }
+                                    )
+                                }
+
+                                // ==========================================
+                                // BENTO CARD 1: PURCHASE DETAILS & DURATION (RoundedCornerShape(22.dp))
+                                // ==========================================
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 18.dp, horizontal = 16.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                            .padding(16.dp),
                                         verticalArrangement = Arrangement.spacedBy(14.dp)
                                     ) {
-                                        // Hero Total Amount Row
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable(
-                                                    interactionSource = remember { MutableInteractionSource() },
-                                                    indication = null
-                                                ) {
-                                                    installmentAmountFocusRequester.requestFocus()
-                                                },
-                                            horizontalArrangement = Arrangement.Center,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "$currencySymbol ",
-                                                style = MaterialTheme.typography.headlineMedium.copy(
-                                                    fontSize = 32.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.tertiary
-                                                )
-                                            )
-                                            BasicTextField(
-                                                value = if (installmentTotalAmountText == "0") "" else installmentTotalAmountText,
-                                                onValueChange = { input ->
-                                                    if (input.isEmpty()) {
-                                                        installmentTotalAmountText = ""
-                                                    } else if (input == ".") {
-                                                        installmentTotalAmountText = "0."
-                                                    } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
-                                                        installmentTotalAmountText = input
-                                                    }
-                                                },
-                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                                singleLine = true,
-                                                cursorBrush = SolidColor(MaterialTheme.colorScheme.tertiary),
-                                                textStyle = MaterialTheme.typography.displaySmall.copy(
-                                                    fontSize = 42.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    textAlign = TextAlign.Start
-                                                ),
-                                                visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                                else
-                                                    androidx.compose.ui.text.input.VisualTransformation.None,
-                                                modifier = Modifier
-                                                    .width(IntrinsicSize.Min)
-                                                    .widthIn(min = 36.dp)
-                                                    .focusRequester(installmentAmountFocusRequester)
-                                                    .semantics { stateDescription = installmentTotalAmountText },
-                                                decorationBox = { innerTextField ->
-                                                    Box(contentAlignment = Alignment.CenterStart) {
-                                                        if (installmentTotalAmountText.isEmpty() || installmentTotalAmountText == "0") {
-                                                            Text(
-                                                                text = "0",
-                                                                style = MaterialTheme.typography.displaySmall.copy(
-                                                                    fontSize = 42.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                                                )
-                                                            )
-                                                        }
-                                                        innerTextField()
-                                                    }
-                                                }
-                                            )
-                                            if (installmentTotalAmountText.isNotEmpty() && installmentTotalAmountText != "0") {
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                IconButton(
-                                                    onClick = {
-                                                        installmentTotalAmountText = ""
-                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    },
-                                                    modifier = Modifier.size(32.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.Clear,
-                                                        contentDescription = stringResource(R.string.ui_main_clear),
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.size(20.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        Text(
+                                            text = stringResource(R.string.ui_recurring_purchase_details),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                            letterSpacing = 0.8.sp
+                                        )
 
-                                        if (selectedCurrency != "HKD") {
-                                            CurrencyRateStatus(
-                                                currencyCode = selectedCurrency,
-                                                result = rateResult,
-                                                loading = rateLoading,
-                                                convertedAmount = convertedInstallmentTotal,
-                                                onRefresh = { rateRefreshRequest++ }
-                                            )
-                                        }
+                                        // Purchase Name TextField
+                                        OutlinedTextField(
+                                            value = installmentNameText,
+                                            onValueChange = { installmentNameText = it },
+                                            label = { Text(stringResource(R.string.ui_recurring_purchase_name)) },
+                                            placeholder = { Text(stringResource(R.string.ui_recurring_purchase_hint)) },
+                                            leadingIcon = {
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            Icons.Default.ViewTimeline,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.tertiary,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = MaterialTheme.colorScheme.tertiary,
+                                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
 
                                         // Duration Presets & Stepper
                                         Column(
@@ -3443,8 +3545,8 @@ fun AddEditSubscriptionSheet(
 
                                             Surface(
                                                 shape = RoundedCornerShape(14.dp),
-                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
@@ -3507,266 +3609,6 @@ fun AddEditSubscriptionSheet(
                                                 }
                                             }
                                         }
-                                    }
-                                }
-
-                                // 2. CARD 1: PURCHASE DETAILS
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(22.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.ui_recurring_purchase_details),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.tertiary,
-                                            letterSpacing = 0.8.sp
-                                        )
-
-                                        OutlinedTextField(
-                                            value = installmentNameText,
-                                            onValueChange = { installmentNameText = it },
-                                            label = { Text(stringResource(R.string.ui_recurring_purchase_name)) },
-                                            placeholder = { Text(stringResource(R.string.ui_recurring_purchase_hint)) },
-                                            leadingIcon = {
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                                                    modifier = Modifier.size(28.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Icon(
-                                                            Icons.Default.ViewTimeline,
-                                                            contentDescription = null,
-                                                            tint = MaterialTheme.colorScheme.tertiary,
-                                                            modifier = Modifier.size(16.dp)
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(14.dp),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = MaterialTheme.colorScheme.tertiary,
-                                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                            ),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        // Category Chips
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.sub_category_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-
-                                            AnimatedVisibility(
-                                                visible = showInlineAddCategory && selectedSheetTab == 1,
-                                                enter = expandVertically() + fadeIn(),
-                                                exit = shrinkVertically() + fadeOut()
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(vertical = 4.dp)
-                                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                                                        .padding(12.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = stringResource(R.string.ui_main_add_category),
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        color = MaterialTheme.colorScheme.tertiary
-                                                    )
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        OutlinedTextField(
-                                                            value = newCatName,
-                                                            onValueChange = { newCatName = it },
-                                                            placeholder = { Text(stringResource(R.string.ui_main_category_hint)) },
-                                                            singleLine = true,
-                                                            modifier = Modifier.weight(1f),
-                                                            textStyle = MaterialTheme.typography.bodyMedium
-                                                        )
-                                                        Button(
-                                                            onClick = {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                onAddNewCategory(newCatName)
-                                                            },
-                                                            shape = CircleShape
-                                                        ) {
-                                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                            Spacer(modifier = Modifier.width(4.dp))
-                                                            Text(stringResource(R.string.btn_add))
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            val instCategoryListState = rememberLazyListState()
-                                            LaunchedEffect(installmentCategoryText, expenseCategories.size) {
-                                                val selectedIdx = expenseCategories.indexOfFirst { it.equals(installmentCategoryText, ignoreCase = true) }
-                                                if (selectedIdx >= 0) {
-                                                    instCategoryListState.animateScrollToItem((selectedIdx - 1).coerceAtLeast(0))
-                                                }
-                                            }
-                                            LazyRow(
-                                                state = instCategoryListState,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalFadingEdge(instCategoryListState, 16.dp)
-                                            ) {
-                                                items(expenseCategories) { cat ->
-                                                    val isSelected = installmentCategoryText.equals(cat, ignoreCase = true)
-                                                    FilterChip(
-                                                        selected = isSelected,
-                                                        onClick = {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            installmentCategoryText = cat
-                                                        },
-                                                        leadingIcon = if (isSelected) {
-                                                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                                        } else null,
-                                                        label = {
-                                                            Text(
-                                                                getCategoryDisplayName(cat),
-                                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                                maxLines = 1,
-                                                                softWrap = false,
-                                                                overflow = TextOverflow.Ellipsis
-                                                            )
-                                                        },
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    )
-                                                }
-                                                item {
-                                                    FilterChip(
-                                                        selected = showInlineAddCategory && selectedSheetTab == 1,
-                                                        onClick = {
-                                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                            showInlineAddCategory = !showInlineAddCategory
-                                                        },
-                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
-                                                        label = { Text(stringResource(R.string.btn_add)) },
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // 3. CARD 2: PAYMENT SOURCE & FIRST DUE DATE
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(22.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.ui_recurring_payment_due),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.tertiary,
-                                            letterSpacing = 0.8.sp
-                                        )
-
-                                        // Account Selector
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.sub_account_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val instAccountListState = rememberLazyListState()
-                                            LazyRow(
-                                                state = instAccountListState,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalFadingEdge(instAccountListState, 16.dp)
-                                            ) {
-                                                items(accounts) { acc ->
-                                                    val isSelected = installmentAccountId == acc.id
-                                                    Surface(
-                                                        shape = RoundedCornerShape(14.dp),
-                                                        color = if (isSelected) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                        border = BorderStroke(
-                                                            1.dp,
-                                                            if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                                        ),
-                                                        modifier = Modifier
-                                                            .clip(RoundedCornerShape(14.dp))
-                                                            .bouncyClickable(shape = RoundedCornerShape(14.dp)) {
-                                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                                installmentAccountId = acc.id
-                                                            }
-                                                    ) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                                                        ) {
-                                                            val accIcon = when (acc.type) {
-                                                                AccountType.CC -> Icons.Default.CreditCard
-                                                                AccountType.INVESTMENT -> Icons.AutoMirrored.Filled.TrendingUp
-                                                                AccountType.DEBIT -> Icons.Default.CreditCard
-                                                                AccountType.BANK -> Icons.Default.AccountBalance
-                                                                else -> Icons.Default.Payments
-                                                            }
-                                                            Icon(
-                                                                imageVector = accIcon,
-                                                                contentDescription = null,
-                                                                tint = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
-                                                            Spacer(modifier = Modifier.width(8.dp))
-                                                            Column {
-                                                                Text(
-                                                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
-                                                                    style = MaterialTheme.typography.labelMedium,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurface
-                                                                )
-                                                                val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
-                                                                val balanceLabel = if (acc.type == AccountType.CC) stringResource(R.string.ui_recurring_account_owing, formattedBal) else stringResource(R.string.ui_recurring_account_balance, formattedBal)
-                                                                val balLabel = if (!acc.nickname.isNullOrBlank() && acc.nickname != acc.name) "${acc.name} · $balanceLabel" else balanceLabel
-                                                                Text(
-                                                                    text = balLabel,
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = if (isSelected) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
 
                                         // First Due Date
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3783,8 +3625,8 @@ fun AddEditSubscriptionSheet(
 
                                             Surface(
                                                 shape = RoundedCornerShape(14.dp),
-                                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(14.dp))
@@ -3820,6 +3662,296 @@ fun AddEditSubscriptionSheet(
                                                     )
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+
+                                // ==========================================
+                                // BENTO CARD 2: CLASSIFICATION & PAYMENT ASSET (RoundedCornerShape(22.dp))
+                                // ==========================================
+                                Surface(
+                                    shape = RoundedCornerShape(22.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                                    ) {
+                                        // Category Header Row with in-place expand/collapse toggle
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.sub_category_label),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            )
+
+                                            val rotateDegrees by animateFloatAsState(
+                                                targetValue = if (isCategoryExpanded) 180f else 0f,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                                label = "categoryChevronRotation_installment"
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .clickable {
+                                                        com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                        isCategoryExpanded = !isCategoryExpanded
+                                                    }
+                                                    .testTag("RecurringInstallmentCategoryExpandToggle")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    val toggleText = if (isCategoryExpanded) {
+                                                        if (isZh) "收合" else stringResource(R.string.settings_section_collapsed)
+                                                    } else {
+                                                        if (isZh) "展開全部" else stringResource(R.string.settings_section_expanded)
+                                                    }
+                                                    Text(
+                                                        text = toggleText,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.tertiary
+                                                    )
+                                                    Icon(
+                                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.tertiary,
+                                                        modifier = Modifier
+                                                            .size(14.dp)
+                                                            .graphicsLayer { rotationZ = rotateDegrees }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Inline Add Category Form
+                                        AnimatedVisibility(
+                                            visible = showInlineAddCategory && selectedSheetTab == 1,
+                                            enter = expandVertically() + fadeIn(),
+                                            exit = shrinkVertically() + fadeOut()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                                    .padding(12.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Text(
+                                                    text = stringResource(R.string.ui_main_add_category),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = MaterialTheme.colorScheme.tertiary
+                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    OutlinedTextField(
+                                                        value = newCatName,
+                                                        onValueChange = { newCatName = it },
+                                                        placeholder = { Text(stringResource(R.string.ui_main_category_hint)) },
+                                                        singleLine = true,
+                                                        modifier = Modifier.weight(1f),
+                                                        textStyle = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    val addCatInteraction = remember { MutableInteractionSource() }
+                                                    CompletePressButton(
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            onAddNewCategory(newCatName)
+                                                        },
+                                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                        interactionSource = addCatInteraction,
+                                                        modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(stringResource(R.string.btn_add))
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Category Tag Cloud / Single Row
+                                        val instCategoryListState = rememberLazyListState()
+                                        LaunchedEffect(installmentCategoryText, deduplicatedCategories.size) {
+                                            val selectedIdx = deduplicatedCategories.indexOfFirst {
+                                                getCategoryDisplayNameFromResources(resources, it).equals(getCategoryDisplayNameFromResources(resources, installmentCategoryText), ignoreCase = true)
+                                            }
+                                            if (selectedIdx >= 0) {
+                                                instCategoryListState.animateScrollToItem((selectedIdx - 1).coerceAtLeast(0))
+                                            }
+                                        }
+
+                                        AnimatedContent(
+                                            targetState = isCategoryExpanded,
+                                            transitionSpec = {
+                                                if (targetState) {
+                                                    (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
+                                                     shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
+                                                } else {
+                                                    (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
+                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
+                                                     shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
+                                                }.using(SizeTransform(clip = false) { _, _ -> spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow) })
+                                            },
+                                            label = "InstallmentCategoryExpansionTransition",
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) { expanded ->
+                                            if (!expanded) {
+                                                LazyRow(
+                                                    state = instCategoryListState,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .horizontalFadingEdge(instCategoryListState, 16.dp)
+                                                        .testTag("RecurringInstallmentCategory")
+                                                ) {
+                                                    items(deduplicatedCategories, key = { it }) { cat ->
+                                                        val isSelected = getCategoryDisplayNameFromResources(resources, installmentCategoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                        FilterChip(
+                                                            selected = isSelected,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                installmentCategoryText = cat
+                                                            },
+                                                            leadingIcon = {
+                                                                CategoryIcon(
+                                                                    category = cat,
+                                                                    tint = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            },
+                                                            label = {
+                                                                Text(
+                                                                    getCategoryDisplayName(cat),
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                    maxLines = 1,
+                                                                    softWrap = false,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringInstallmentCategory_row_$cat")
+                                                        )
+                                                    }
+                                                    item(key = "__add_category_inst__") {
+                                                        FilterChip(
+                                                            selected = showInlineAddCategory && selectedSheetTab == 1,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                showInlineAddCategory = !showInlineAddCategory
+                                                            },
+                                                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                            label = { Text(stringResource(R.string.btn_add)) },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringInstallmentCategory_row_add")
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                FlowRow(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .testTag("RecurringInstallmentCategory_cloud"),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    deduplicatedCategories.forEach { cat ->
+                                                        val isSelected = getCategoryDisplayNameFromResources(resources, installmentCategoryText).equals(getCategoryDisplayNameFromResources(resources, cat), ignoreCase = true)
+                                                        FilterChip(
+                                                            selected = isSelected,
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                installmentCategoryText = cat
+                                                                isCategoryExpanded = false
+                                                                scope.launch {
+                                                                    val idx = deduplicatedCategories.indexOf(cat)
+                                                                    if (idx >= 0) {
+                                                                        instCategoryListState.animateScrollToItem((idx - 1).coerceAtLeast(0))
+                                                                    }
+                                                                }
+                                                            },
+                                                            leadingIcon = {
+                                                                CategoryIcon(
+                                                                    category = cat,
+                                                                    tint = if (isSelected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            },
+                                                            label = {
+                                                                Text(
+                                                                    getCategoryDisplayName(cat),
+                                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                                    maxLines = 1,
+                                                                    softWrap = false,
+                                                                    overflow = TextOverflow.Ellipsis
+                                                                )
+                                                            },
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            modifier = Modifier.testTag("RecurringInstallmentCategory_row_$cat")
+                                                        )
+                                                    }
+                                                    FilterChip(
+                                                        selected = showInlineAddCategory && selectedSheetTab == 1,
+                                                        onClick = {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            showInlineAddCategory = !showInlineAddCategory
+                                                        },
+                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                        label = { Text(stringResource(R.string.btn_add)) },
+                                                        shape = RoundedCornerShape(12.dp),
+                                                        modifier = Modifier.testTag("RecurringInstallmentCategory_row_add")
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                        // Payment Asset Card
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("RecurringInstallmentAssetSection"),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = stringResource(R.string.sub_account_label),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                                            )
+
+                                            SelectedAccountCard(
+                                                account = selectedInstallmentAccount,
+                                                isDestination = false,
+                                                onClick = {
+                                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                    showAccountPickerSheet = true
+                                                },
+                                                modifier = Modifier.testTag("RecurringInstallmentAccount_card")
+                                            )
                                         }
                                     }
                                 }
@@ -3876,7 +4008,8 @@ fun AddEditSubscriptionSheet(
                         }
 
                         if (selectedSheetTab == 0) {
-                            Button(
+                            val saveInteraction = remember { MutableInteractionSource() }
+                            CompletePressButton(
                                 onClick = {
                                     if (canSaveSubscription) {
                                         val finalAmount = if (selectedCurrency == "HKD") {
@@ -3898,14 +4031,17 @@ fun AddEditSubscriptionSheet(
                                     }
                                 },
                                 enabled = canSaveSubscription,
-                                modifier = Modifier
-                                    .weight(if (subscription != null) 0.65f else 1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(percent = 32)),
+                                interactionSource = saveInteraction,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
+                                ),
+                                modifier = Modifier
+                                    .weight(if (subscription != null) 0.65f else 1f)
+                                    .height(50.dp)
+                                    .pressBounce(interactionSource = saveInteraction)
+                                    .testTag("SubscriptionSaveButton")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
@@ -3920,7 +4056,8 @@ fun AddEditSubscriptionSheet(
                                 )
                             }
                         } else {
-                            Button(
+                            val saveInstallmentInteraction = remember { MutableInteractionSource() }
+                            CompletePressButton(
                                 onClick = {
                                     if (canSaveInstallment) {
                                         val finalTotal = if (selectedCurrency == "HKD") {
@@ -3946,14 +4083,17 @@ fun AddEditSubscriptionSheet(
                                     }
                                 },
                                 enabled = canSaveInstallment,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(percent = 32)),
+                                interactionSource = saveInstallmentInteraction,
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.tertiary,
                                     contentColor = MaterialTheme.colorScheme.onTertiary
-                                )
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .pressBounce(interactionSource = saveInstallmentInteraction)
+                                    .testTag("InstallmentSaveButton")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
@@ -3966,6 +4106,313 @@ fun AddEditSubscriptionSheet(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showAccountPickerSheet) {
+            val sortedAccounts = remember(accounts) {
+                accounts.sortedWith(
+                    compareBy<AccountEntity> { acc ->
+                        when (acc.type) {
+                            AccountType.CASH -> 0
+                            AccountType.BANK -> 1
+                            AccountType.DEBIT -> 2
+                            AccountType.CC -> 3
+                            AccountType.INVESTMENT -> 4
+                        }
+                    }.thenBy { it.name }
+                )
+            }
+            AppModalBottomSheet(
+                onDismissRequest = {
+                    showAccountPickerSheet = false
+                    showInlineAddAccountInSheet = false
+                },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                        .navigationBarsPadding()
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ui_main_asset_selection),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = {
+                            showAccountPickerSheet = false
+                            showInlineAddAccountInSheet = false
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    // Account List (2 Columns Grid)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(sortedAccounts, key = { it.id }) { acc ->
+                            val isSelected = acc.id == (if (selectedSheetTab == 0) accountIdText else installmentAccountId)
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                        if (selectedSheetTab == 0) {
+                                            accountIdText = acc.id
+                                        } else {
+                                            installmentAccountId = acc.id
+                                        }
+                                        showAccountPickerSheet = false
+                                        showInlineAddAccountInSheet = false
+                                    }
+                                    .testTag("RecurringAccount_row_${acc.id}")
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = getAccountIcon(acc.type),
+                                                    contentDescription = null,
+                                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                            ) {
+                                                Text(
+                                                    text = accountTypeLabel(acc.type),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
+                                    val balanceLabel = if (acc.type == AccountType.CC)
+                                        stringResource(R.string.ui_recurring_account_owing, formattedBal)
+                                    else
+                                        stringResource(R.string.ui_recurring_account_balance, formattedBal)
+                                    Text(
+                                        text = balanceLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (onAddNewAccount != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Inline "+ 新增帳戶" Toggle & Form
+                        OutlinedButton(
+                            onClick = {
+                                showInlineAddAccountInSheet = !showInlineAddAccountInSheet
+                                com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("RecurringAccountPicker_AddAccountToggle"),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showInlineAddAccountInSheet) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (showInlineAddAccountInSheet) stringResource(R.string.btn_cancel) else stringResource(R.string.ui_main_add_account))
+                        }
+
+                        AnimatedVisibility(
+                            visible = showInlineAddAccountInSheet,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                var newAssetName by remember { mutableStateOf("") }
+                                var selectedType by remember { mutableStateOf(AccountType.CASH) }
+                                var initialBalanceText by remember { mutableStateOf("") }
+
+                                Text(stringResource(R.string.ui_main_add_account), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+
+                                OutlinedTextField(
+                                    value = newAssetName,
+                                    onValueChange = { newAssetName = it },
+                                    placeholder = { Text(stringResource(R.string.ui_main_account_hint)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(stringResource(R.string.ui_main_account_type), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(0.25f))
+                                    val cashStr = stringResource(R.string.acc_type_cash)
+                                    val bankStr = stringResource(R.string.ui_main_bank_short)
+                                    val debitStr = stringResource(R.string.ui_main_debit_short)
+                                    val creditStr = stringResource(R.string.ui_main_credit_short)
+                                    val investStr = stringResource(R.string.assets_type_investment)
+                                    ExpressiveSegmentedButtonGroup(
+                                        corners = ConnectedButtonCorners.Entry,
+                                        items = AccountType.entries,
+                                        selectedIndex = AccountType.entries.indexOf(selectedType),
+                                        onItemSelected = { selectedType = AccountType.entries[it] },
+                                        modifier = Modifier.weight(1f),
+                                        isScrollable = true,
+                                        labelProvider = {
+                                            when (it) {
+                                                AccountType.CASH -> cashStr
+                                                AccountType.BANK -> bankStr
+                                                AccountType.DEBIT -> debitStr
+                                                AccountType.CC -> creditStr
+                                                AccountType.INVESTMENT -> investStr
+                                            }
+                                        }
+                                    )
+                                }
+
+                                if (selectedType == AccountType.INVESTMENT) {
+                                    Text(
+                                        stringResource(R.string.assets_investment_notice),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+                                        value = initialBalanceText,
+                                        onValueChange = { initialBalanceText = it },
+                                        placeholder = { Text(if (selectedType == AccountType.CC) stringResource(R.string.ui_main_credit_limit_hint) else stringResource(R.string.ui_main_initial_balance_hint)) },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    val addAccountInteraction = remember { MutableInteractionSource() }
+                                    CompletePressButton(
+                                        onClick = {
+                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                            val name = newAssetName.trim()
+                                            val bal = initialBalanceText.toDoubleOrNull() ?: 0.0
+                                            if (name.isNotEmpty()) {
+                                                val newAccount = AccountEntity(
+                                                    name = name,
+                                                    type = selectedType,
+                                                    balance = if (selectedType == AccountType.CC) 0.0 else bal,
+                                                    icon = when (selectedType) {
+                                                        AccountType.CASH -> "wallet"
+                                                        AccountType.BANK -> "bank"
+                                                        AccountType.DEBIT -> "debit_card"
+                                                        AccountType.CC -> "credit_card"
+                                                        AccountType.INVESTMENT -> "investment"
+                                                    },
+                                                    creditLimit = if (selectedType == AccountType.CC) bal else null
+                                                )
+                                                onAddNewAccount(newAccount)
+                                            }
+                                            newAssetName = ""
+                                            initialBalanceText = ""
+                                            showInlineAddAccountInSheet = false
+                                            showAccountPickerSheet = false
+                                        },
+                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                        interactionSource = addAccountInteraction,
+                                        modifier = Modifier
+                                            .height(48.dp)
+                                            .pressBounce(interactionSource = addAccountInteraction)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(stringResource(R.string.btn_save))
+                                    }
+                                }
                             }
                         }
                     }

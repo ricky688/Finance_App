@@ -8,6 +8,88 @@ This document details all recent features, architectural changes, modified files
 
 VibeFinance is a modern personal finance Android application using Jetpack Compose, Material 3 Expressive design tokens, Room/`InMemoryDatabase`, Kotlin Coroutines/Flow, and MVI architecture.
 
+### 2026-10-18 — v1.2.74 (112): Mox Bank & FPS Incoming Payment Notification Interception
+- **Emoji Prefix Stripping & Payer Preposition Anchors (`TransactionGrammarEngine.kt`)**:
+  - Implemented `emojiPrefix` and extended `cleanMerchantString` to cleanly strip decorative notification emoji headers (e.g. `💰 💖 `, `🎉`, `✨`, `💸`) while preserving asterisk-masked names (`WEN R******`).
+  - Added payer anchor pattern `(?:^|[\s，,。\n]+)([^，,。\n]+?)\s*(?:已向|向)(?:你|您|閣下)(?:付款|轉[賬帳]|支付|匯款)` to extract counterparty names from notifications like `💰 💖 WEN R******已向你付款HKD300.00。`.
+  - Expanded `incomePatterns` to classify `已向你付款` / `向你付款` / `向你轉帳` into `ParsedTransactionType.INCOME`.
+  - Added bank identification for `Mox Bank` via `assetHint` when package is `com.mox.bank` or title contains `Mox`.
+- **Package-Aware Asset Name Resolution & PayMe Disambiguation (`PaymentNotificationListener.kt`)**:
+  - Enhanced `resolveAssetName` to accept `packageName`, enabling instant identification of `Mox Bank`, `ZA Bank`, `Bank of China`, `Hang Seng Bank`, `HSBC`, etc. even when titles are generic (e.g. `收到款項`).
+  - Re-anchored `PayMe` detection with exact word boundary `\bpayme\b` ahead of `HSBC` and generic bank rules, preventing package names containing `.payment` (such as `hk.alipay.payment`) from falsely matching PayMe while correctly mapping `hk.com.hsbc.payme` to `PayMe`.
+  - Added positive payment keywords: `收到款項`, `已向你付款`, `向你付款`, `已向您付款`, `向您付款`.
+  - Updated `determineCategory` to categorize `收到款項` and `向你付款` as `Transfer`.
+- **Incoming Income Flow & Categorization (`PendingPaymentStore.kt`)**:
+  - In `accept`, dynamically assigns `Transfer` category to incoming payments containing `轉`, `fps`, `付款`, `存入`, or `收到款項`, while reserving `Salary` for explicit payroll/salary notices.
+  - Generates credit transactions (`txAmount = -payment.amount`) with `isExcluded = true` so incoming funds properly credit account balances without distorting daily expense budgets.
+- **Testing & Deployment**:
+  - Added unit test `parseMoxFpsIncomingPaymentSample` in `TransactionGrammarEngineTest.kt` and `incomingMoxFpsTransferParsesCorrectly` in `PaymentNotificationListenerTest.kt`.
+  - Verified 100% test pass across all 386 tests (`./gradlew testDebugUnitTest`).
+  - Compiled and deployed release build (`versionCode=112`, `versionName="1.2.74"`) to target device `192.168.240.112:5555`.
+
+### 2026-10-18 — v1.2.73 (111): Bank & FPS Transfer Notification Interception Algorithm Refinement
+- **Universal Currency & Preposition Anchor Expansion (`TransactionGrammarEngine.kt`)**:
+  - Expanded universal currency regex to support `港元` and `港幣` both as prefixes and suffixes.
+  - Added specialized Chinese preposition anchors for bank and FPS transfers:
+    - Outgoing transfers: captures recipient merchant/account after `給 / 轉給 / 轉出...給` (e.g. `從賬戶012...230轉出港元1,253.44給763...888` -> merchant `763...888`).
+    - Incoming transfers: captures counterparty payer name after `付款人` before action verbs `於 / 在 / 存入 / 已` (e.g. `付款人POON T** C***於2026-10-18存入港元1.00` -> merchant `POON T** C***`).
+  - Account & card digit extraction: removed ASCII `\b` boundary from Chinese account patterns, reliably capturing 3-4 digits from masked account numbers like `012...230` (`230`) and `763-709XXX-888` (`888`).
+  - Intent classification: mapped `轉出`, `經轉數快`, `款項已成功發送`, `發送給收款人`, `查看轉[賬帳]詳情`, and `付款人.*存入` to `ParsedTransactionType.TRANSFER`.
+- **Privacy-First Payment Notification Listener Guards (`PaymentNotificationListener.kt`)**:
+  - Reordered filter sequence: `isIrrelevantOctopusTitle` is evaluated before the grammar engine to ensure promotional Octopus marketing alerts remain strictly rejected.
+  - Set grammar engine early-acceptance confidence threshold to `0.90f` and preserved specialized routing for transit tickets.
+  - Updated `resolveAssetName` to identify specific financial institutions (`Bank of China`, `Hang Seng Bank`, `HSBC`, `Citi`, `Chase`, `Mox Bank`) before falling back to generic transfer rails.
+  - Added Transfer category recognition in `determineCategory` for transfer-related merchants and text keywords.
+- **Transfer Transaction Ingestion & Directionality (`PendingPaymentStore.kt`)**:
+  - Isolated Octopus top-up logic from general bank/FPS transfers.
+  - For general incoming bank transfers (`存入` / `轉入` / `付款人`), creates credit entries (`txAmount = -payment.amount`) with `Transfer` category and `isExcluded = true`.
+  - For outgoing bank transfers (`轉出`), creates debit entries (`txAmount = payment.amount`) with `Transfer` category and `isExcluded = true`.
+- **Testing & Release Verification**:
+  - Unit tests added in `TransactionGrammarEngineTest.kt` and `PaymentNotificationListenerTest.kt` for BOCHK outgoing FPS transfer and Hang Seng incoming deposit notifications.
+  - Verified 100% pass across all 386 unit tests (`./gradlew testDebugUnitTest`).
+  - Compiled release APK and installed replacement update (`versionCode=111`, `versionName="1.2.73"`) via `adb install -r` to target device `192.168.240.112:5555`.
+
+### 2026-10-18 — v1.2.72 (110): Ultra-Smooth Decelerated Pacing for Expense & Income Icons
+- **Extended Stroke Draw-in Duration (1200ms) with FastOutSlowInEasing (`MainScreen.kt`)**:
+  - Increased `drawProgress` animation duration for `TransactionMode.EXPENSE` and `TransactionMode.INCOME` from `680ms` to `1200ms`.
+  - Switched from `MotionTokens.emphasized` to `tween(1200, easing = FastOutSlowInEasing)` to eliminate rapid front-loaded speed spikes, establishing an even, luxurious stroke animation pace across the entire path.
+  - Re-anchored path progress phases:
+    - Main zig-zag line stroke progresses steadily until `p = 0.78f` (~930ms).
+    - Arrowhead emerges smoothly from `p = 0.65f` to `1.0f` (~780ms - 1200ms).
+
+### 2026-10-18 — v1.2.71 (109): Mode Switcher Animated Icon Duration & Speed Tuning
+- **Reduced Animation Speed & Extended Duration for Transaction Mode Icons (`MainScreen.kt`, `ExpressiveConnectedButtonGroup.kt`)**:
+  - **Stroke Draw-in Duration Extended (`drawProgress`)**:
+    - For `TransactionMode.EXPENSE` and `TransactionMode.INCOME`, extended the vector trim path / stroke draw-in animation from `320ms` to `680ms` (`MotionTokens.emphasized(680)`).
+    - Reduced the draw-in speed by more than 50%, providing an unhurried, graceful, and clearly perceptible path tracing animation for the trending-down (Expense) and trending-up (Income) arrows.
+  - **Transfer Opposing Arrow Slide Kinetics (`upperSlideX`, `lowerSlideX`)**:
+    - Extended the outward slide duration from `130ms` (`FastOutSlowInEasing`) to `280ms` (`MotionTokens.EmphasizedDecelerate`).
+    - Softened the return settling spring from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`, extending overall animation duration to ~650ms.
+  - **Active Icon Scale Kinetics (`animScale`)**:
+    - Softened the active scale pop spring stiffness from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`, harmonizing the scale expansion with the extended stroke draw-in duration.
+  - **Global Fallback Icon Scale**:
+    - Softened `iconScale` spring in `ExpressiveConnectedButtonGroup.kt` from `Spring.StiffnessMediumLow` to `Spring.StiffnessLow`.
+
+### 2026-10-18 — v1.2.70 (108): Material 3 Expressive UI/UX Parity for Subscription & Installment Entry Pages
+- **Removal of Popular Quick-Adding Carousel**:
+  - Completely removed `POPULAR_SUBSCRIPTION_PRESETS` `LazyRow` and preset selector chips from `RecurringScreen.kt` to eliminate redundant UI clutter and maintain clean, focused entry.
+- **Material 3 Expressive 2-Card Bento Architecture**:
+  - **Hero Amount Header**: Extracted the input amount to a prominent top-level hero header featuring centered 42sp bold text with currency prefix, instant clear button, and real-time `CurrencyRateStatus` foreign currency conversion banner.
+  - **Bento Card 1 (Identity & Cycle / Duration)** (`RoundedCornerShape(22.dp)`, `surfaceContainer`, 1dp outline):
+    - Subscriptions: Subscription Name `OutlinedTextField` with dynamic leading brand/category indicator, billing frequency `ConnectedButtonGroup` (Monthly, Quarterly, Yearly, Weekly), and unified Next Payment Date picker.
+    - Installments: Purchase Name `OutlinedTextField`, duration presets (`FilterChip`s in `LazyRow` with `horizontalFadingEdge(16.dp)`) & Stepper (`- / +` with month count and live per-month cost preview), and First Due Date picker.
+  - **Bento Card 2 (Classification & Payment Asset)** (`RoundedCornerShape(22.dp)`, `surfaceContainer`, 1dp outline):
+    - Category FilterChips with In-Place Tag Cloud Expansion: Header with "類別" and localized "展開全部 / 收合" pill button with spring-animated rotating chevron. Smooth `AnimatedContent` transition between a single-row `LazyRow` (with scroll fading edge) and a multi-row wrapped `FlowRow` tag cloud.
+    - Category Icons & Deduplication: Each category chip renders a dynamic icon (`CategoryIcon(cat, 16.dp)`), bold text when selected, and deduplicates identical localized display names. Selecting a chip auto-collapses to single-row and scrolls to the selected item. Inline `+ 新增` category creation field.
+    - Full-Width `SelectedAccountCard` (`RoundedCornerShape(16.dp)`): Shows account type icon in `CircleShape`, name/nickname, `AccountType` badge, real-time formatted balance or credit card owing amount (`HK$...`), and trailing chevron.
+  - **Modal Bottom Sheet Account Picker**:
+    - Tapping `SelectedAccountCard` opens `AppModalBottomSheet` with a 2-column `LazyVerticalGrid` of all accounts with live balances, active selection indicator, and inline `+ 新增帳戶` creation with `ExpressiveSegmentedButtonGroup`.
+  - **Sticky Bottom Action Bar**:
+    - Standardized to full-width `CompletePressButton` (50dp height, `RoundedCornerShape(16.dp)`, check icon, haptic feedback, and press bounce motion).
+- **Code Sharing & Clean Architecture**:
+  - Made `SelectedAccountCard`, `getAccountIcon`, and `getCategoryDisplayNameFromResources` internal in `MainScreen.kt` for direct reuse in `RecurringScreen.kt`, eliminating duplicate code.
+  - Wired `onAddNewAccount` through `SubscriptionEntryHost.kt` to `FinanceIntent.SaveAccount`.
+
 ### 2026-10-18 — v1.2.69 (107): Interactive Motion Orchestration for Compact/Detailed View Toggle in AssetsScreen
 - **2-Phase Icon Scaling Kinetics & Turnaround Glyph Swap (`AccountsScreen.kt`)**:
   - Detailed -> Compact: Phase 1 executes an emphasized focus burst scaling up to `1.25x` (`150ms`, `MotionTokens.EmphasizedDecelerate`), morphs the glyph from `ViewStream` to `ViewAgenda` at the momentum peak, and Phase 2 settles smoothly down to the compact resting scale `0.90x` (`16.dp` equivalent) via `Spring.DampingRatioMediumBouncy` and `Spring.StiffnessMediumLow`.

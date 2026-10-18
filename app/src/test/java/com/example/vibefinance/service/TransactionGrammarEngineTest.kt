@@ -141,4 +141,44 @@ class TransactionGrammarEngineTest {
             assertNull("Engine parse must reject spam/security: $text", TransactionGrammarEngine.parse(title, text, "com.bank.app"))
         }
     }
+
+    @Test
+    fun parseBochkOutgoingFpsTransferSample() {
+        val title = "BOCHK 中銀香港"
+        val text = "您於2026/10/18 14:28透過手機銀行經轉數快從賬戶012...230轉出港元1,253.44給763...888，款項已成功發送給收款人。\n\n交易參考編號為「12261018F003680868」。\n\n查詢：在線客服/39882388"
+        val result = TransactionGrammarEngine.parse(title, text, "com.bankofchina.bochk.mobileapplication")
+        assertNotNull("Expected parse result for BOCHK FPS transfer", result)
+        assertEquals("763...888", result!!.merchant)
+        assertEquals(1253.44, result.amount, 0.001)
+        assertEquals("230", result.cardLast4)
+        assertEquals(ParsedTransactionType.TRANSFER, result.intent)
+        assertTrue(result.confidence >= 0.9f)
+    }
+
+    @Test
+    fun parseHangSengIncomingTransferSample() {
+        val title = "恒生個人理財"
+        val text = "付款人POON T** C***於2026-10-18存入港元1.00至你的賬戶763-709XXX-888。查看轉賬詳情。"
+        val result = TransactionGrammarEngine.parse(title, text, "com.hangseng.rbmobile")
+        assertNotNull("Expected parse result for Hang Seng transfer", result)
+        assertEquals("POON T** C***", result!!.merchant)
+        assertEquals(1.00, result.amount, 0.001)
+        assertEquals("888", result.cardLast4)
+        assertEquals(ParsedTransactionType.TRANSFER, result.intent)
+        assertTrue(result.confidence >= 0.9f)
+    }
+
+    @Test
+    fun parseMoxFpsIncomingPaymentSample() {
+        val title = "收到款項"
+        val text = "💰 💖 WEN R******已向你付款HKD300.00。"
+        val result = TransactionGrammarEngine.parse(title, text, "com.mox.bank")
+        assertNotNull("Expected parse result for Mox FPS incoming transfer", result)
+        assertEquals("WEN R******", result!!.merchant)
+        assertEquals(300.00, result.amount, 0.001)
+        assertNull(result.cardLast4)
+        assertEquals(ParsedTransactionType.INCOME, result.intent)
+        assertEquals("Mox Bank", result.assetHint)
+        assertTrue(result.confidence >= 0.9f)
+    }
 }
