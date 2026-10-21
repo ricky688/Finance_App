@@ -61,12 +61,18 @@ internal fun rememberConnectedButtonColorMotion(
     activeContentColor: Color = MaterialTheme.colorScheme.onPrimary,
     backdropColor: Color = MaterialTheme.colorScheme.surface,
     enabled: Boolean = true,
-    preserveContentColors: Boolean = false
+    preserveContentColors: Boolean = false,
+    isHovered: Boolean = false
 ): ConnectedButtonColorMotion {
     val isDarkTheme = isConnectedButtonDarkTheme()
     val useFocusMotion = enabled && !isDarkTheme
     // A held Dark button must retain its current selection colors until the click commits.
     val isFocused = isSelected || (useFocusMotion && isPressed)
+    val effectiveInactiveContainer = if (isHovered && enabled && !isSelected) {
+        inactiveContainerColor.copy(alpha = (inactiveContainerColor.alpha + 0.08f).coerceAtMost(1f))
+    } else {
+        inactiveContainerColor
+    }
     val progress = if (useFocusMotion) {
         animateFloatAsState(
             targetValue = if (isFocused) 1f else 0f,
@@ -84,7 +90,7 @@ internal fun rememberConnectedButtonColorMotion(
         stiffness = Spring.StiffnessLow
     )
     val containerColor by animateColorAsState(
-        targetValue = if (isFocused) activeContainerColor else inactiveContainerColor,
+        targetValue = if (isFocused) activeContainerColor else effectiveInactiveContainer,
         animationSpec = colorAnimationSpec,
         label = "connectedContainer"
     )
@@ -99,7 +105,7 @@ internal fun rememberConnectedButtonColorMotion(
         contentColor = if (useFocusMotion && !preserveContentColors) inactiveContentColor else contentColor,
         contentModifier = if (useFocusMotion) Modifier.insetFocusColorMotion(
             progress = progress,
-            inactiveColor = inactiveContainerColor,
+            inactiveColor = effectiveInactiveContainer,
             primaryColor = activeContainerColor,
             inactiveContentColor = inactiveContentColor,
             primaryContentColor = activeContentColor,

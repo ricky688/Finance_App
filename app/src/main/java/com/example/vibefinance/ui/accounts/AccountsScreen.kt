@@ -23,6 +23,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.snap
 import com.example.vibefinance.theme.MotionTokens
 import androidx.compose.foundation.BorderStroke
@@ -141,6 +142,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -149,7 +151,12 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
 import com.example.vibefinance.util.InstalledAppInfo
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -646,7 +653,7 @@ fun filterAccounts(accounts: List<AccountEntity>, filter: AssetFilter): List<Acc
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun AssetGroupSelector(
+internal fun AssetGroupSelector(
     accounts: List<AccountEntity>,
     selectedFilter: AssetFilter,
     onSelectFilter: (AssetFilter) -> Unit,
@@ -692,19 +699,75 @@ private fun AssetGroupSelector(
                 AssetFilter.DEBIT_CARDS -> Icons.Default.AccountBalanceWallet
                 AssetFilter.CREDIT_CARDS -> Icons.Default.CreditCard
             }
-            val iconScale = animateFloatAsState(
-                targetValue = if (selected) 1.08f else 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
-                label = "assetGroupIcon_$index"
-            )
+            val motion = LocalExperience.current.motion
+            val density = LocalDensity.current.density
+            val iconBounceScale = remember { Animatable(if (selected) 1.08f else 1f) }
+            val iconBounceOffsetY = remember { Animatable(0f) }
+            var wasSelected by remember { mutableStateOf(selected) }
+            var clickTrigger by remember { mutableIntStateOf(0) }
+            var lastTrigger by remember { mutableIntStateOf(0) }
+
+            LaunchedEffect(selected, clickTrigger, motion) {
+                val entering = selected && !wasSelected
+                val reselected = selected && wasSelected && (clickTrigger != lastTrigger)
+                wasSelected = selected
+                lastTrigger = clickTrigger
+
+                if ((entering || reselected) && motion == MotionLevel.FULL) {
+                    coroutineScope {
+                        launch {
+                            iconBounceScale.snapTo(1f)
+                            iconBounceScale.animateTo(
+                                targetValue = 1.20f,
+                                animationSpec = tween(durationMillis = 80, easing = FastOutSlowInEasing)
+                            )
+                            iconBounceScale.animateTo(
+                                targetValue = 1.08f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                        }
+                        launch {
+                            iconBounceOffsetY.snapTo(0f)
+                            iconBounceOffsetY.animateTo(
+                                targetValue = -2.5f,
+                                animationSpec = tween(durationMillis = 80, easing = FastOutSlowInEasing)
+                            )
+                            iconBounceOffsetY.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                        }
+                    }
+                } else if (selected) {
+                    if (motion == MotionLevel.REDUCED) {
+                        iconBounceScale.animateTo(1.08f, tween(120))
+                    } else {
+                        iconBounceScale.snapTo(1.08f)
+                    }
+                    iconBounceOffsetY.snapTo(0f)
+                } else {
+                    if (motion == MotionLevel.MINIMAL) {
+                        iconBounceScale.snapTo(1f)
+                    } else {
+                        iconBounceScale.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                    }
+                    iconBounceOffsetY.snapTo(0f)
+                }
+            }
 
             ConnectedButtonRipple(isSelected = selected) {
                 CompletePressToggleButton(
                     checked = selected,
-                    onCheckedChange = { onSelectFilter(filter) },
+                    onCheckedChange = {
+                        clickTrigger++
+                        onSelectFilter(filter)
+                    },
                     interactionSource = interactionSource,
                     modifier = Modifier
                         .weight(1f)
@@ -734,14 +797,21 @@ private fun AssetGroupSelector(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Row(
-                            modifier = Modifier.graphicsLayer {
-                                scaleX = iconScale.value
-                                scaleY = iconScale.value
-                            },
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .testTag("assetFilterIcon_${filter.name}")
+                                    .graphicsLayer {
+                                        scaleX = iconBounceScale.value
+                                        scaleY = iconBounceScale.value
+                                        translationY = iconBounceOffsetY.value * density
+                                    }
+                                    .size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(text = count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }

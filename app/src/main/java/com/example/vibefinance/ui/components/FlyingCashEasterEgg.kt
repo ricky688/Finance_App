@@ -124,6 +124,29 @@ fun FlyingCashOverlay(
 ) {
     if (triggerKey <= 0L) return
 
+    val activeBursts = remember { mutableStateListOf<Long>() }
+    val complete by rememberUpdatedState(onCompleted)
+    LaunchedEffect(triggerKey) {
+        activeBursts.add(triggerKey)
+    }
+    activeBursts.forEach { burstKey ->
+        key(burstKey) {
+            FlyingCashBurst(burstKey, modifier) {
+                activeBursts.remove(burstKey)
+                // Completing an older flock must not reset a newer one in the caller.
+                if (activeBursts.isEmpty()) complete()
+            }
+        }
+    }
+}
+
+@Composable
+private fun FlyingCashBurst(
+    triggerKey: Long,
+    modifier: Modifier,
+    onCompleted: () -> Unit
+) {
+
     val motionLevel = com.example.vibefinance.ui.preferences.LocalExperience.current.motion
     if (motionLevel == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) {
         LaunchedEffect(triggerKey) {
@@ -236,10 +259,9 @@ fun FlyingCashOverlay(
         val bottomY = heightPx + with(density) { 50.dp.toPx() }
         val topY = with(density) { -80.dp.toPx() }
 
-        val currentProgress = progress.value
-        val elapsedSeconds = currentProgress * 3.6f
-
         Canvas(modifier = Modifier.fillMaxSize()) {
+            val currentProgress = progress.value
+            val elapsedSeconds = currentProgress * 3.6f
             particles.forEach { particle ->
                 val p = currentProgress
                 val activeP = ((p - particle.delayRatio) / particle.durationRatio).coerceIn(0f, 1f)

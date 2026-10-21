@@ -68,6 +68,30 @@ class TransactionEntryHostTest {
         }
     }
 
+    @Test fun receiptPickerCancellationReenablesScannerWithoutChangingDraftOrSaving() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val filter = android.content.IntentFilter(android.content.Intent.ACTION_GET_CONTENT).apply {
+            addCategory(android.content.Intent.CATEGORY_OPENABLE)
+            addDataType("image/*")
+        }
+        val monitor = instrumentation.addMonitor(filter,
+            android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED, null), true)
+        try {
+            show()
+            rule.onNodeWithTag("EntryDescription").performTextReplacement("Retain receipt note")
+            rule.onNodeWithTag("ReceiptScannerAction").performScrollTo().performClick()
+            rule.waitUntil(8_000) { monitor.hits == 1 }
+            rule.waitForIdle()
+            rule.onNodeWithTag("ReceiptScannerAction").assertIsEnabled()
+            rule.onNodeWithTag("EntryDescription").assertTextContains("Retain receipt note")
+            rule.onNodeWithTag("ReceiptScannerAction").performClick()
+            rule.waitUntil(8_000) { monitor.hits == 2 }
+            rule.onNodeWithTag("TransactionEntryScreen").assertExists()
+        } finally {
+            instrumentation.removeMonitor(monitor)
+        }
+    }
+
     private fun waitClosed() {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("TransactionEntryScreen").fetchSemanticsNodes().isEmpty() }
     }
@@ -79,6 +103,83 @@ class TransactionEntryHostTest {
         rule.onNodeWithTag("EntrySubmit").assertIsDisplayed()
     }
 
+    private fun waitKeyboard(visible: Boolean) {
+        rule.waitUntil(8_000) {
+            WindowInsetsCompat.toWindowInsetsCompat(view.rootWindowInsets).isVisible(WindowInsetsCompat.Type.ime()) == visible
+        }
+    }
+
+    @Test fun entryAutomaticallyOpensNumericKeyboardAndAllModesRetainIt() {
+        show()
+        waitKeyboard(true)
+        rule.onNodeWithTag("EntryAmount").assertIsFocused().performTextReplacement("12.50")
+        for (mode in listOf(TransactionMode.INCOME, TransactionMode.TRANSFER, TransactionMode.EXPENSE)) {
+            rule.onNodeWithTag("TransactionMode_${mode.name}").performScrollTo().performClick().assertIsSelected()
+            waitKeyboard(true)
+            rule.onNodeWithTag("EntryAmount").assertIsFocused().assertTextEquals("12.50")
+        }
+        assertEquals(0, backgroundClicks)
+    }
+
+    @Test fun manuallyHiddenKeyboardIsNotReopenedByModeSwitching() {
+        show()
+        waitKeyboard(true)
+        pressBack()
+        waitKeyboard(false)
+        for (mode in listOf(TransactionMode.INCOME, TransactionMode.TRANSFER, TransactionMode.EXPENSE)) {
+            rule.onNodeWithTag("TransactionMode_${mode.name}").performScrollTo().performClick().assertIsSelected()
+            rule.waitForIdle()
+            waitKeyboard(false)
+        }
+        rule.onNodeWithTag("TransactionEntryScreen").assertExists()
+    }
+
+    @Test fun modeCardsResizeWithoutOvershootOrSettledPositionJumps() {
+        show()
+        waitKeyboard(true)
+        pressBack()
+        waitKeyboard(false)
+        rule.mainClock.autoAdvance = false
+        val tags = listOf("EntryModePreview", "EntryModeClassification")
+        fun heights(): List<Float> = tags.map {
+            val bounds = rule.onNodeWithTag(it).getUnclippedBoundsInRoot()
+            (bounds.bottom - bounds.top).value
+        }
+        for (mode in listOf(TransactionMode.INCOME, TransactionMode.TRANSFER, TransactionMode.EXPENSE,
+            TransactionMode.TRANSFER, TransactionMode.INCOME, TransactionMode.EXPENSE)) {
+            val samples = mutableListOf(heights())
+            rule.onNodeWithTag("TransactionMode_${mode.name}").performClick()
+            repeat(24) {
+                rule.mainClock.advanceTimeBy(16)
+                rule.waitForIdle()
+                samples += heights()
+            }
+            for (index in tags.indices) {
+                val start = samples.first()[index]; val end = samples.last()[index]
+                for (value in samples.map { it[index] }) {
+                    assertTrue("${tags[index]} must stay within its start/end heights", value >= minOf(start, end) - 1f && value <= maxOf(start, end) + 1f)
+                }
+                samples.zipWithNext().forEach { (before, after) ->
+                    assertTrue("${tags[index]} must not reverse during resizing",
+                        if (end >= start) after[index] >= before[index] - 1f else after[index] <= before[index] + 1f)
+                }
+            }
+            val settled = tags.map { rule.onNodeWithTag(it).getUnclippedBoundsInRoot() }
+            rule.mainClock.advanceTimeBy(800)
+            rule.waitForIdle()
+            assertEquals(settled, tags.map { rule.onNodeWithTag(it).getUnclippedBoundsInRoot() })
+        }
+        val expenseHeights = heights()
+        for (mode in listOf(TransactionMode.INCOME, TransactionMode.TRANSFER, TransactionMode.EXPENSE)) {
+            rule.onNodeWithTag("TransactionMode_${mode.name}").performClick()
+            rule.mainClock.advanceTimeBy(64)
+            rule.waitForIdle()
+        }
+        rule.mainClock.advanceTimeBy(800)
+        rule.waitForIdle()
+        assertEquals("Interrupted switches must settle back to the original layout", expenseHeights, heights())
+    }
+
     @Test fun coversWindowAndBlocksBackgroundTouches() {
         show()
         val window = rule.onNodeWithTag("EntryFixtureWindow").getUnclippedBoundsInRoot()
@@ -88,6 +189,10 @@ class TransactionEntryHostTest {
         rule.onNodeWithTag("TransactionEntryScreen").performTouchInput { click(Offset(width / 2f, height - 2f)) }
         assertEquals(0, backgroundClicks)
         rule.onNodeWithTag("TransactionModeSwitcher").assertIsDisplayed()
+        waitKeyboard(true)
+        pressBack()
+        waitKeyboard(false)
+        rule.onNodeWithTag("TransactionEntryScreen").assertExists()
         pressBack()
         waitClosed()
     }

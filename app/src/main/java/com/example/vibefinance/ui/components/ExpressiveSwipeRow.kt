@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalDensity
 import com.example.vibefinance.util.rememberVibeHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.vibefinance.ui.common.expressiveHoverLayer
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -166,6 +167,7 @@ fun ExpressiveSwipeRow(
             }
         }
 
+        val rowInteractionSource = remember { MutableInteractionSource() }
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -201,9 +203,18 @@ fun ExpressiveSwipeRow(
                     }
                 )
                 .clip(shape)
+                .expressiveHoverLayer(
+                    interactionSource = rowInteractionSource,
+                    enabled = !selectionMode,
+                    shape = shape,
+                    liftDp = 1.dp,
+                    highlightRim = true
+                )
                 .combinedClickable(
-                    interactionSource = remember { MutableInteractionSource() }, indication = null,
-                    hapticFeedbackEnabled = false, onLongClick = onLongClick,
+                    interactionSource = rowInteractionSource,
+                    indication = null,
+                    hapticFeedbackEnabled = false,
+                    onLongClick = onLongClick,
                     onClick = { onEdit() }
                 ),
             shape = shape,

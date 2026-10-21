@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
@@ -119,6 +120,33 @@ class DailyCardEntranceTest {
         showLowest()
         assertTrue("Scrolling back must retain the completed arrival",
             abs(fullyVisible - brightness(capture("lowest-revisited", lowest))) < 6f)
+    }
+
+    @Test
+    fun budgetRow_daysStaySquareAndRemainingMatchesHeight_acrossAvailableWidths() {
+        rule.mainClock.autoAdvance = false
+        val state = FinanceUiState(isLoading = false)
+        var availableWidth by mutableStateOf(280.dp)
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.requiredWidth(availableWidth).height(800.dp)) {
+                    HomeScreen(
+                        state = state,
+                        onIntent = {},
+                        onOpenBudgetDialog = {},
+                    )
+                }
+            }
+        }
+        for (width in listOf(280.dp, 360.dp, 600.dp, 840.dp)) {
+            rule.runOnIdle { availableWidth = width }
+            rule.mainClock.advanceTimeByFrame()
+            val days = rule.onNodeWithTag("DailyArrival:days").fetchSemanticsNode().size
+            val remaining = rule.onNodeWithTag("DailyArrival:remaining").fetchSemanticsNode().size
+            assertTrue("Days Left must have positive dimensions at $width", days.width > 0)
+            assertEquals("Days Left must be square at $width", days.width, days.height)
+            assertEquals("Both cards must share a height at $width", days.height, remaining.height)
+        }
     }
 
     private fun awaitStagger() {

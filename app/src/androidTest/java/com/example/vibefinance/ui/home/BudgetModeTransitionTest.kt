@@ -5,6 +5,8 @@ package com.example.vibefinance.ui.home
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -96,6 +98,35 @@ class BudgetModeTransitionTest {
         card().performClick(); advance(32)
         assertAmount(false)
         rule.onNodeWithTag("BudgetMode_SPENT", true).assertDoesNotExist()
+    }
+
+    @Test fun returningToCardRetainsAmountBoundsThroughoutSettling() {
+        // Daily card interactions were explored with ARTEMIS on Waydroid; this fixture never writes finances.
+        var visible by androidx.compose.runtime.mutableStateOf(true)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            CompositionLocalProvider(LocalAmbientMotionEnabled provides false) {
+                MaterialTheme {
+                    if (visible) RestAndSpentBudgetCard(remainingBudget = 2439.5, totalBudget = 2500.0,
+                        modifier = Modifier.width(240.dp).height(160.dp))
+                }
+            }
+        }
+        val amount = rule.onNodeWithText("$2,439.50", useUnmergedTree = true)
+        val expected = amount.fetchSemanticsNode().boundsInRoot
+        fun checkFrames() {
+            repeat(12) {
+                rule.mainClock.advanceTimeByFrame()
+                rule.waitForIdle()
+                assertEquals("Amount must not jump while the card settles", expected, amount.fetchSemanticsNode().boundsInRoot)
+            }
+        }
+        checkFrames()
+        rule.runOnIdle { visible = false }
+        advance(32)
+        rule.onNodeWithTag("RemainingBudgetCard").assertDoesNotExist()
+        rule.runOnIdle { visible = true }
+        checkFrames()
     }
 
     private fun changedPixels(a: ImageBitmap, b: ImageBitmap): Int {

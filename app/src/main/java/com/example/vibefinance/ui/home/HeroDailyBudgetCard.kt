@@ -2,6 +2,8 @@ package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import com.example.vibefinance.ui.components.AppButton
+import com.example.vibefinance.ui.components.TapIconEffect
+import com.example.vibefinance.ui.components.rememberTapIconMotion
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -112,6 +114,7 @@ fun HeroDailyBudgetCard(
     onOpenBudgetDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val recalculateMotion = rememberTapIconMotion(TapIconEffect.RECALCULATE)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     // Buckwheat State Machine
@@ -534,10 +537,11 @@ fun HeroDailyBudgetCard(
                                 .weight(1f)
                                 .height(44.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .bouncyClickable(shape = RoundedCornerShape(16.dp)) {
+                                .testTag("RecalculateBudgetAction")
+                                .bouncyClickable(enabled = !recalculateMotion.isRunning, shape = RoundedCornerShape(16.dp)) {
                                     if (isNoBudget || isPeriodEnded || isBudgetEnd) {
                                         onOpenBudgetDialog()
-                                    } else {
+                                    } else if (recalculateMotion.start()) {
                                         onOpenRecalcSheet()
                                     }
                                 },
@@ -554,7 +558,8 @@ fun HeroDailyBudgetCard(
                                     imageVector = if (isNoBudget) Icons.Default.Bolt else Icons.Default.Autorenew,
                                     contentDescription = null,
                                     tint = actionButtonTextColor,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(recalculateMotion.modifier)
+                                        .testTag("RecalculateBudgetIcon")
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(

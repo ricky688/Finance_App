@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +13,7 @@ import com.example.vibefinance.ui.preferences.PrivacyText as Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -64,13 +68,29 @@ private fun ExpenseIconPicker(value: String?, category: String, onConfirm: (Stri
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         symbols.forEach { symbol ->
                             val token = ExpenseIcon.symbol(symbol)
+                            val isSymbolSelected = !typing && selected == token
+                            val symbolScale by animateFloatAsState(
+                                targetValue = if (isSymbolSelected) 1.15f else 1f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "expenseSymbolScale_${symbol.name}"
+                            )
                             Surface(onClick = { selected = token; typedEmoji = ""; typing = false },
                                 modifier = Modifier.weight(1f).height(68.dp).testTag("ExpenseIconSymbol_${symbol.name}"),
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (!typing && selected == token) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                                color = if (isSymbolSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                                 Column(Modifier.padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                    Icon(symbol.vector(), null, Modifier.size(24.dp))
+                                    Icon(
+                                        imageVector = symbol.vector(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp).graphicsLayer {
+                                            scaleX = symbolScale
+                                            scaleY = symbolScale
+                                        }
+                                    )
                                     Text(stringResource(symbol.label()), style = MaterialTheme.typography.labelSmall,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
@@ -84,11 +104,26 @@ private fun ExpenseIconPicker(value: String?, category: String, onConfirm: (Stri
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         emojis.forEach { emoji ->
                             val token = ExpenseIcon.emoji(emoji)
+                            val isEmojiSelected = !typing && selected == token
+                            val emojiScale by animateFloatAsState(
+                                targetValue = if (isEmojiSelected) 1.20f else 1f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "expenseEmojiScale_$emoji"
+                            )
                             Surface(onClick = { selected = token; typedEmoji = emoji; typing = false },
                                 modifier = Modifier.weight(1f).height(48.dp).testTag("ExpenseIconEmoji_$emoji"),
                                 shape = RoundedCornerShape(16.dp),
-                                color = if (!typing && selected == token) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow) {
-                                Box(contentAlignment = Alignment.Center) { Text(emoji) }
+                                color = if (isEmojiSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = emojiScale
+                                        scaleY = emojiScale
+                                    }
+                                ) { Text(emoji) }
                             }
                         }
                     }

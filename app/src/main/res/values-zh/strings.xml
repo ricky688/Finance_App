@@ -550,4 +550,5 @@
     <string name="live_income_account_label">入账后账户余额</string>
     <string name="live_income_total_label">总流动资产变动</string>
     <string name="live_income_boost_badge">+%s</string>
+    <string name="chart_daily_budget_spend">每日预算</string>
 </resources>

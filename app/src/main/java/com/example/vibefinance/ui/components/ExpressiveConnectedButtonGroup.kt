@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,6 +81,7 @@ fun <T> ExpressiveConnectedButtonGroup(
             val isSelected = index == selectedIndex
             val interactionSource = remember(item) { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
+            val isHovered by interactionSource.collectIsHoveredAsState()
             val colorMotion = rememberConnectedButtonColorMotion(
                 isSelected = isSelected,
                 isPressed = isPressed,
@@ -88,7 +90,8 @@ fun <T> ExpressiveConnectedButtonGroup(
                 activeContainerColor = if (activeContainerColor != Color.Unspecified) activeContainerColor else colors.primary,
                 activeContentColor = if (activeContentColor != Color.Unspecified) activeContentColor else colors.onPrimary,
                 backdropColor = if (focusBackdropColor == Color.Unspecified) colors.surface else focusBackdropColor,
-                enabled = lightModeFocusMotion
+                enabled = lightModeFocusMotion,
+                isHovered = isHovered
             )
 
             // Compact controls retain a 48dp row allocation around the 40dp visual button.

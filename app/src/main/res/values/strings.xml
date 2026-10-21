@@ -550,4 +550,5 @@
     <string name="live_income_account_label">Projected Account Balance</string>
     <string name="live_income_total_label">Total Liquid Assets</string>
     <string name="live_income_boost_badge">+%s</string>
+    <string name="chart_daily_budget_spend">Daily budget</string>
 </resources>

@@ -12,6 +12,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -28,6 +30,33 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class BudgetMotionTest {
     @get:Rule val rule = createComposeRule()
+
+    @Test fun recalculateActionDebouncesWhileItsIconAnimates() {
+        rule.mainClock.autoAdvance = false
+        var opens = 0
+        val now = System.currentTimeMillis()
+        rule.setContent {
+            MaterialTheme {
+                HeroDailyBudgetCard(
+                    budgetInfo = DailyBudgetInfo(
+                        totalMonthlyBudget = 1500.0, totalSpentThisMonth = 300.0,
+                        monthlyRemaining = 1200.0, dailyAllowance = 100.0,
+                        dailyRemaining = 50.0, daysLeft = 12,
+                        startDate = now - 86_400_000L, endDate = now + 12 * 86_400_000L),
+                    onOpenRecalcSheet = { opens++ }, onOpenBudgetDialog = { error("Wrong action") },
+                    modifier = Modifier.width(360.dp))
+            }
+        }
+        rule.mainClock.advanceTimeBy(1500); rule.waitForIdle()
+        val button = rule.onNodeWithTag("RecalculateBudgetAction")
+        button.performClick()
+        rule.mainClock.advanceTimeBy(64); rule.waitForIdle()
+        button.assertIsNotEnabled()
+        rule.runOnIdle { org.junit.Assert.assertEquals(1, opens) }
+        rule.mainClock.advanceTimeBy(3000); rule.waitForIdle()
+        button.assertIsEnabled().performClick()
+        rule.runOnIdle { org.junit.Assert.assertEquals(2, opens) }
+    }
 
     @Test fun todayWave_keepsMovingAfterTheFirstFiveSeconds() {
         rule.mainClock.autoAdvance = false

@@ -28,6 +28,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +60,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -87,7 +90,6 @@ import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
 import com.example.vibefinance.ui.FinanceUiState
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -106,27 +108,14 @@ fun DailySpendingLineChart(
 ) {
     // 1. Gather daily spending for the last 7 days including today
     val today = LocalDate.now()
-    val last7Days = remember {
+    val last7Days = remember(today) {
         (0..6).map { today.minusDays(it.toLong()) }.reversed()
     }
-
-    val dailySpending = remember(state.transactions, last7Days) {
-        val map = mutableMapOf<LocalDate, Double>()
-        last7Days.forEach { map[it] = 0.0 }
-        
-        state.transactions.forEach { tx ->
-            if (tx.toAccountId == null && !tx.isExcludedFromDailyBudget && tx.amount > 0) {
-                val date = Instant.ofEpochMilli(tx.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
-                if (map.containsKey(date)) {
-                    map[date] = (map[date] ?: 0.0) + tx.amount
-                }
-            }
-        }
-        last7Days.map { date ->
-            val spending = map[date] ?: 0.0
-            date to spending
-        }
+    val zone = ZoneId.systemDefault()
+    val spendingDays = remember(state.transactions, last7Days, zone) {
+        spendingTrendDays(state.transactions, last7Days, zone)
     }
+    val dailySpending = remember(spendingDays) { spendingDays.map { it.date to it.daily } }
 
     val cumulativeSpending = remember(dailySpending) {
         var cumSum = 0.0
@@ -141,8 +130,10 @@ fun DailySpendingLineChart(
 
     val activeDataset = if (chartMode == DailyChartMode.CUMULATIVE) cumulativeSpending else dailySpending
 
-    val maxSpending = remember(activeDataset) {
-        val maxVal = activeDataset.maxOfOrNull { it.second } ?: 0.0
+    val maxSpending = remember(activeDataset, spendingDays, chartMode) {
+        val maxVal = if (chartMode == DailyChartMode.DAILY)
+            spendingDays.maxOfOrNull { it.daily + it.nonDaily } ?: 0.0
+        else activeDataset.maxOfOrNull { it.second } ?: 0.0
         if (maxVal < 10.0) 50.0 else maxVal
     }
 
@@ -160,6 +151,13 @@ fun DailySpendingLineChart(
             targetValue = (spending / maxSpending).toFloat().coerceIn(0f, 1f),
             animationSpec = chartMotionSpec,
             label = "spendingTrendPoint_$index",
+        )
+    }
+    val nonDailyRatios = spendingDays.mapIndexed { index, day ->
+        animateFloatAsState(
+            targetValue = if (chartMode == DailyChartMode.DAILY) (day.nonDaily / maxSpending).toFloat() else 0f,
+            animationSpec = chartMotionSpec,
+            label = "spendingTrendNonDaily_$index",
         )
     }
     val dailyDetailAlpha = animateFloatAsState(
@@ -386,6 +384,18 @@ fun DailySpendingLineChart(
                 }
             }
 
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(stringResource(R.string.chart_daily_budget_spend),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.non_daily_expense_badge) + ": " +
+                    String.format(Locale.US, "$%,.2f", spendingDays.getOrNull(activeIndex)?.nonDaily ?: 0.0),
+                    modifier = Modifier.testTag("SpendingTrendNonDailyValue"),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Bezier Chart Canvas & Interactive Scrubbing Layer
@@ -512,14 +522,22 @@ fun DailySpendingLineChart(
                             val isSel = idx == activeIndex
                             val barWidth = 14.dp.toPx()
                             val barTop = pt.y
-                            val barHeight = (height - barTop).coerceAtLeast(0f)
+                            val grayHeight = height * nonDailyRatios[idx].value.coerceIn(0f, 1f)
+                            val stackTop = (barTop - grayHeight).coerceAtLeast(0f)
                             val barAlpha = if (isSel) 0.35f else 0.12f
-                            drawRoundRect(
-                                color = strokeColor.copy(alpha = barAlpha * detailAlpha),
-                                topLeft = Offset(pt.x - barWidth / 2, barTop),
-                                size = Size(barWidth, barHeight),
-                                cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                            )
+                            val left = pt.x - barWidth / 2
+                            val outline = Path().apply {
+                                addRoundRect(RoundRect(left, stackTop, left + barWidth, height,
+                                    CornerRadius(6.dp.toPx(), 6.dp.toPx())))
+                            }
+                            clipPath(outline) {
+                                drawRect(
+                                    color = Color.Gray.copy(alpha = (if (isSel) 0.65f else 0.42f) * detailAlpha),
+                                    topLeft = Offset(left, stackTop), size = Size(barWidth, (barTop - stackTop).coerceAtLeast(0f)))
+                                drawRect(
+                                    color = strokeColor.copy(alpha = barAlpha * detailAlpha),
+                                    topLeft = Offset(left, barTop), size = Size(barWidth, (height - barTop).coerceAtLeast(0f)))
+                            }
                         }
                     }
 

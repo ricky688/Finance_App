@@ -548,4 +548,5 @@
     <string name="live_income_account_label">入帳後帳戶結餘</string>
     <string name="live_income_total_label">總流動資產變動</string>
     <string name="live_income_boost_badge">+%s</string>
+    <string name="chart_daily_budget_spend">每日預算</string>
 </resources>

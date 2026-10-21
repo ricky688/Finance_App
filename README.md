@@ -6,6 +6,105 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 ## 🚀 Features
 
+### Bespoke Animated Category Illustrations (1.2.93)
+- Custom Canvas-rendered internal component animations for 15 primary categories matching user physical specifications:
+  - **Food**: Knife and fork tilt and touch each other twice (clink! clink!) with contact spark flashes.
+  - **Coffee**: Coffee cup fills from bottom (0% to 100%), then wavy steam curls up to show it is hot.
+  - **Shopping**: An item drops directly from above into the shopping bag with impact squash-and-stretch.
+  - **Transit & Car**: Vehicle engine starting with vertical vibration rumble, rear exhaust smoke puffs, rev, and launch.
+  - **Flight**: Airplane flies up off the top edge and loops in from the bottom like Android's flight mode animation.
+  - **Home**: Warm amber window/door light illuminates inside while chimney smoke puffs float out.
+  - **Bills**: Minimal `$` dollar sign pops up from the receipt paper and floats to the left.
+  - **Health**: Heartbeat ECG pulse wave sweeps across the medical cross with cardiac pulse and radiating healing ripple ring.
+  - **School**: Graduation cap tosses high up into the air with swaying tassel and floats softly back down.
+  - **Fitness**: Dumbbell is lifted twice: Lift 1 curls up and returns; Lift 2 powers up higher with a peak hold and gym floor impact.
+  - **Gift**: Gift box anticipation jiggle with lid popping open and bursting confetti sparkles.
+  - **Games**: Gamepad played with D-pad thumb shifts and rapid action button combo flashing.
+  - **Movies**: Clapperboard top arm opens and claps shut twice (CLACK! CLACK!).
+  - **Pets**: Three cute cat paw prints step across one by one from left to right.
+  - **Work**: Briefcase is lifted from the floor by its handle, swings with walking momentum, and sets down.
+- Re-tapping any selected category chip replays its full custom animation.
+- Zero parent recompositions via GPU layer rendering, with complete adherence to user motion preferences (Full, Reduced, Minimal).
+
+### Category-Tailored Physical Kinetic Choreography (1.2.92)
+- Multi-stage physical animations tailored to the real-world action and metaphor of each category icon across transaction entry (`LazyRow` & `FlowRow`) and recurring transaction selectors:
+  - **Transport**: Car engine ignition vibration rumble -> rev lean back -> acceleration surge launch.
+  - **Food & Dining**: Knife & fork raise -> sharp downward slice impact with squash -> spring clink.
+  - **Shopping & Groceries**: Upward handle pull -> pendulum bag swing -> weighted landing settle.
+  - **Entertainment & Subscriptions**: Projector film reel stutter crank -> high-speed 360° accelerated spin-up.
+  - **Gaming**: Rapid 4-way D-Pad combo dashes -> button smash squash -> victory spring pop.
+  - **Utilities & Electronics**: High-voltage lightning arc zap strobe with jagged angle flicker.
+  - **Housing & Rent**: Upward roof stretch -> firm downward foundation stomp lock.
+  - **Health & Medical**: Cardiac double pulse rhythm (Lub-DUB).
+  - **Fitness & Gym**: Straining dumbbell bicep curl lift -> peak contraction hold -> weighted thump.
+  - **Travel & Holiday**: Runway taxi roll -> nose pitch up -> soaring takeoff climb.
+  - **Savings / Salary**: Piggy bank coin drop impact -> joyful jiggle wobble -> satisfied rebound.
+  - **Education & Tuition**: Graduation cap toss launch -> drifting flutter descent.
+  - **Gift**: Excitement box jiggle -> explosive lid pop.
+  - **Investment**: Upward diagonal trend leap.
+  - **Software / AI**: CPU memory clock cycle pulse surges.
+- Re-tapping an already-selected category chip replays its full bespoke choreography.
+- 100% GPU `graphicsLayer` execution (`scaleX`, `scaleY`, `translationX`, `translationY`, `rotationZ`) maintaining zero layout recomposition and full adherence to user motion preferences (Full, Reduced, Minimal).
+
+### Expressive Category Icon Animations (1.2.91)
+- Micro-interactions for category icons across the transaction entry panel (`LazyRow` & `FlowRow`), recurring transaction category selectors, and expense icon pickers.
+- Category-tailored spring gestures: Food wobble, Transport forward surge, Shopping bag swing, Entertainment/Subscription 360° spin, Gaming controller tilt, and Utilities/Housing spring pops.
+- Reselection replay: Tapping an already-selected category chip replays its full kinetic micro-gesture without layout recomposition.
+- Animated "+ Add Category" button with 90° spring rotation upon tag cloud expansion and micro-scale bounce.
+- 0-recomposition GPU layers (`graphicsLayer`) with full support for user motion preferences (Full, Reduced, Minimal).
+
+### Material 3 Expressive Hover State Layer (1.2.90)
+- Global pointer hover state layer (`Modifier.expressiveHoverLayer`) across Cards, Buttons, Connected Button Groups, and List Rows.
+- Expressive Lift & Specular Rim Glow: 8% dynamic tint overlay, 1.5dp spring lift for cards (`1.dp` for buttons), and 1.5dp top-edge specular rim glow (12% alpha).
+- Zero-recomposition GPU layers (`graphicsLayer`, `drawWithContent`) and outline-aware shape clipping.
+- Tiered user motion preferences: Full (spring lift + tint + rim glow), Reduced (tint + rim glow without translation), and Minimal (static snap).
+
+### Guided transaction entry (1.2.90)
+- Tap Done on the amount keyboard to dismiss it and reveal the expanded Expense/Income categories. Choosing a category then opens the existing asset picker. Transfers guide you through source, then destination, excluding the source account.
+- Zero amounts stay in the amount field. Dismissing a picker ends guidance; manual editing remains available and saving always requires confirmation.
+
+### Reselection icon micro-interaction replay (1.2.89)
+- Re-clicking an already-selected bottom navigation tab (Daily, Assets, Recurring, History) or Assets category filter (All accounts 🐷, Assets 🏛️, Debit Cards 👛, Credit Cards 💳) replays its expressive icon motion and haptic feedback.
+- Animations run smoothly with zero parent recomposition in GPU layers and respect user motion settings.
+
+### Responsive Daily budget cards (1.2.88)
+- The Days Left card stays square; the adjacent Remaining/Spent card follows its height using the available row width, retaining the existing 60:40 width balance and entrance animations.
+
+### Assets category filter icon micro spring pop (1.2.87)
+- Category filter buttons on the Assets screen (All accounts 🐷, Assets 🏛️, Debit Cards 👛, Credit Cards 💳) perform an expressive 2.5dp micro-lift and spring bounce when selected (`scale: 1f -> 1.20f -> 1.08f`), while keeping the adjacent account count and label steady.
+- Frame animations run entirely in GPU layers with zero parent recomposition, and dynamically respect Full, Reduced, and Minimal motion preferences.
+
+### Restored editor navigation (1.2.86)
+- Daily and Recurring FABs open and close their full-screen editors with the original right-edge slide, fade and scale. The bubble expansion/morph is removed; plus-icon micro-interactions and recurring draft restoration remain.
+
+### Non-daily spending in the Daily trend (1.2.84)
+- Daily mode stacks non-daily expenses in gray above the existing daily-budget bars, with a matching selected-day amount. The chart range includes the full stack.
+- The curve, cumulative summary and daily average still use daily-budget spending only. Transfers, income and balance adjustments do not become expense bars.
+
+### Expressive action icons (1.2.83)
+- Recalculate uses the original refresh icon for a clockwise spring turn and a completion pulse, blocking repeat activation while animating. Its existing budget sheet remains unchanged.
+- Daily’s original plus icon follows transaction entry state between 0° and 45°, with an opening pulse. The full-screen editor still covers the FAB while open; the existing strength-aware virtual-key haptic is retained once per opening.
+- The original receipt camera icon performs a brief shutter pulse before opening the existing image picker. Duplicate launches are blocked through selection/scanning; cancellation restores availability and preserves the draft.
+- Animated rotation/scale reads stay in GPU layers. Reduced/Minimal motion skips playful movement, and preference changes reset in-flight tap effects.
+
+### Expressive bottom-navigation icons (1.2.82)
+- Switching tabs plays a one-shot Daily jelly bounce, Assets column lift, Recurring clockwise loop-arrow rotation or History row swipe. Icons return to rest; their 24dp slots, labels and native selection indicators remain stable.
+- History rows move right out of view and return from the left, staggered from top to bottom. Assets columns lift gently from left to right, joined by a subtle independent roof lift and a delayed base lift. Every layer returns to its original position; the whole bank does not scale.
+- Retains the original Home, AccountBalance, AutoMode and List icons. Only AutoMode’s original circular-arrow path rotates; its center sparkle and surrounding marks stay fixed.
+- Geometry is read only in GPU-layer lambdas. Reduced/Minimal motion skips these effects; existing strength-aware selection haptics are retained without an extra vibration.
+
+### Stable transaction mode transitions (1.2.78)
+- Expense, Income and Transfer preview/classification cards use coordinated crossfades and eased container resizing. Mode-specific cards no longer expand and collapse against each other or bounce their surrounding layout. Keyboard and draft retention remain intact.
+
+### Ready-to-type transaction entry (1.2.77)
+- Opening transaction entry focuses the amount and shows the numeric keyboard after page entrance. Expense, Income and Transfer retain the same amount field and open keyboard; manually hiding it remains respected during mode changes.
+
+### Overlapping logo Easter egg (1.2.76)
+- Repeated five-tap logo triggers add independent flying-cash flocks. Earlier flocks finish naturally without restarting or clearing newer ones. The overlay stays non-blocking and respects motion settings.
+
+### Stable remaining-budget layout (1.2.75)
+- Daily’s remaining-budget card resolves its typography and padding from the available size before its first placement, preventing the extra text-layout jump when returning from another tab. Existing entrance, wave and Remaining/Spent transitions are retained.
+
 ### Bank & FPS Incoming and Outgoing Notification Interception (1.2.74)
 - **Mox Bank & Emoji Prefix Support**:
   - Automatically strips decorative notification emojis (`💰 💖 `, `🎉`, `✨`, `💸`) while preserving asterisk-masked names (`WEN R******`).

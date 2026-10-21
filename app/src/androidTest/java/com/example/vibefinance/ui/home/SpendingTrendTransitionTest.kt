@@ -34,6 +34,7 @@ import java.util.Locale
 @RunWith(AndroidJUnit4::class)
 class SpendingTrendTransitionTest {
     @get:Rule val rule = createComposeRule()
+    private var nonDailyAmount by mutableStateOf(9999.0)
     private fun show(motion: MotionLevel = MotionLevel.FULL, dark: Boolean = false, empty: Boolean = false) {
         val today = LocalDate.now()
         val entries = listOf(10.0, 40.0, 0.0, 80.0, 5.0, 60.0, 20.0).mapIndexed { index, amount ->
@@ -42,8 +43,7 @@ class SpendingTrendTransitionTest {
         }
         val records = if (empty) emptyList() else entries + listOf(
             entries.last().copy(id = 8, amount = -1000.0),
-            entries.last().copy(id = 9, amount = 5000.0, toAccountId = 2),
-            entries.last().copy(id = 10, amount = 9999.0, isExcludedFromDailyBudget = true))
+            entries.last().copy(id = 9, amount = 5000.0, toAccountId = 2))
         rule.mainClock.autoAdvance = false
         rule.setContent {
             val configuration = Configuration(LocalConfiguration.current).apply { setLocale(Locale.ENGLISH) }
@@ -53,7 +53,8 @@ class SpendingTrendTransitionTest {
                 MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(),
                     motionScheme = MotionScheme.expressive()) {
                     Box(Modifier.width(360.dp).background(MaterialTheme.colorScheme.background)) {
-                        DailySpendingLineChart(FinanceUiState(isLoading = false, transactions = records))
+                        DailySpendingLineChart(FinanceUiState(isLoading = false, transactions = if (empty) records else
+                            records + entries.last().copy(id = 10, amount = nonDailyAmount, isExcludedFromDailyBudget = true)))
                     }
                 }
             }
@@ -62,7 +63,7 @@ class SpendingTrendTransitionTest {
     }
     private fun advance(ms: Long) { rule.mainClock.advanceTimeBy(ms); rule.waitForIdle() }
     private fun mode(mode: DailyChartMode) = rule.onNodeWithTag("SpendingTrendMode_${mode.name}")
-    private fun canvas() = rule.onNodeWithTag("SpendingTrendCanvas")
+    private fun canvas() = rule.onNodeWithTag("SpendingTrendCanvas", useUnmergedTree = true)
     private fun image() = canvas().captureToImage()
     private fun amount(): String = rule.onAllNodes(
         hasTestTag("SpendingTrendSummaryValue") or hasAnyAncestor(hasTestTag("SpendingTrendSummaryValue")),
@@ -114,6 +115,26 @@ class SpendingTrendTransitionTest {
         assertEquals(0, changedPixels(immediate, image()))
         mode(DailyChartMode.CUMULATIVE).performClick(); advance(32)
         assertEquals("$215.00", amount())
+    }
+
+    @Test fun nonDailySpendingStacksInGrayWithoutChangingCurveOrSummary() {
+        show(MotionLevel.MINIMAL)
+        val cumulative = image()
+        rule.runOnIdle { nonDailyAmount = 12000.0 }; advance(32)
+        assertEquals("Cumulative curve must ignore gray spending", 0, changedPixels(cumulative, image()))
+        assertEquals("$215.00", amount())
+        mode(DailyChartMode.DAILY).performClick(); advance(32)
+        assertEquals("$20.00", amount())
+        rule.onNodeWithTag("SpendingTrendNonDailyValue", useUnmergedTree = true).assertTextContains("$12,000.00", substring = true)
+        val pixels = image().toPixelMap()
+        val gray = pixels[pixels.width - 4, pixels.height / 4]
+        val background = pixels[pixels.width - 20, pixels.height / 4]
+        assertTrue("Gray stack should be visible above the green daily bar",
+            kotlin.math.abs(gray.red - background.red) + kotlin.math.abs(gray.green - background.green) > .1f)
+        assertTrue("Non-daily segment must stay neutral gray", kotlin.math.abs(gray.red - gray.green) < .08f)
+        mode(DailyChartMode.CUMULATIVE).performClick(); advance(32)
+        assertEquals("$215.00", amount())
+        assertEquals(0, changedPixels(cumulative, image()))
     }
 
     @Test fun emptyDataCanSwitchBothWays_withoutMovingOrResizingTheChart() {

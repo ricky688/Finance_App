@@ -127,7 +127,15 @@ fun Modifier.expressiveCardClickable(
     onClick: () -> Unit = {}
 ): Modifier = composed {
     val view = LocalView.current
-    val base = this.clip(pressState.shape)
+    val base = this
+        .clip(pressState.shape)
+        .expressiveHoverLayer(
+            interactionSource = pressState.interactionSource,
+            enabled = enabled,
+            shape = pressState.shape,
+            liftDp = 1.5.dp,
+            highlightRim = true
+        )
 
     if (onLongClick != null) {
         base.combinedClickable(

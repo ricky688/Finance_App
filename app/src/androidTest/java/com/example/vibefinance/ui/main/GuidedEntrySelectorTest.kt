@@ -30,10 +30,12 @@ class GuidedEntrySelectorTest {
     private val accounts = (1L..14L).map { AccountEntity(it, "Account $it", type = AccountType.BANK, balance = 1000.0, icon = "bank") }
     private var submitted: FinanceIntent.AddTransaction? = null
     private var submissions = 0
+    private lateinit var view: android.view.View
 
     private fun show(mode: TransactionMode = TransactionMode.EXPENSE, restoration: StateRestorationTester? = null,
         wideLarge: Boolean = false, empty: Boolean = false, prefill: Long? = null, single: Boolean = false) {
         val content: @Composable () -> Unit = {
+            view = androidx.compose.ui.platform.LocalView.current
             val original = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides if (wideLarge) Density(original.density * .5f, 1.7f) else original) {
                 MaterialTheme(colorScheme = if (wideLarge) darkColorScheme() else lightColorScheme(), motionScheme = MotionScheme.expressive()) {
@@ -109,6 +111,81 @@ class GuidedEntrySelectorTest {
         rule.onNodeWithTag("EntryAmount").performTextReplacement(amountVal)
         rule.onNodeWithTag("EntrySubmit").assertIsDisplayed().performClick()
         assertEquals(1, submissions)
+    }
+
+    private fun finishAmount(value: String = "12.50") {
+        rule.onNodeWithTag("EntryAmount").performScrollTo().performClick().performTextReplacement(value)
+        rule.waitUntil(8_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(view)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        rule.onNodeWithTag("EntryAmount").performImeAction()
+        if (value != "0") {
+            rule.waitUntil(8_000) {
+                androidx.core.view.ViewCompat.getRootWindowInsets(view)
+                    ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == false
+            }
+        }
+    }
+
+    private fun guidedCategoryThenAccount(category: String) {
+        finishAmount()
+        rule.onNodeWithTag("EntryCategory_cloud").assertIsDisplayed()
+        rule.waitUntil(5_000) {
+            val cloud = rule.onNodeWithTag("EntryCategory_cloud").getUnclippedBoundsInRoot()
+            val viewport = rule.onNodeWithTag("EntryScrollContent").getUnclippedBoundsInRoot()
+            val scrollRange = rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and hasAnyAncestor(hasTestTag("EntryScrollContent")))
+                .fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+            cloud.top >= viewport.top && cloud.bottom <= viewport.bottom &&
+                (scrollRange.value() > 0f || scrollRange.maxValue() == 0f)
+        }
+        rule.onNodeWithTag("EntryCategory_row_$category").assertIsDisplayed().performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("EntryAccount_row_1").fetchSemanticsNodes().isNotEmpty() }
+        chooseAccount(1)
+        rule.onNodeWithTag("EntrySubmit").assertIsEnabled()
+        assertNull("Guidance must never save automatically", submitted)
+        rule.onNodeWithTag("EntryAmount").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "12.50"))
+    }
+
+    @Test fun expenseKeyboardDone_revealsCategories_thenAutomaticallyOpensAssets() {
+        show()
+        guidedCategoryThenAccount("Utilities")
+    }
+
+    @Test fun incomeKeyboardDone_revealsCategories_thenAutomaticallyOpensAssets() {
+        show(TransactionMode.INCOME)
+        guidedCategoryThenAccount("Salary")
+    }
+
+    @Test fun transferKeyboardDone_opensSource_thenDestination_withoutSaving() {
+        show(TransactionMode.TRANSFER, prefill = 2)
+        finishAmount()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("EntryAccount_row_1").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("EntryAccount_row_2").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("EntryDestination_row_1").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("EntryDestination_row_2").assertDoesNotExist()
+        chooseDestination(1)
+        rule.onNodeWithTag("EntrySubmit").assertIsEnabled()
+        assertNull(submitted)
+    }
+
+    @Test fun zeroAmountDoesNotAdvance_andCancelledGuidanceDoesNotReopenOnModeChange() {
+        show()
+        finishAmount("0")
+        rule.onNodeWithTag("EntryAmount").assertIsFocused()
+        rule.onNodeWithTag("EntryCategory_cloud").assertDoesNotExist()
+        guidedCategoryThenAccount("Food")
+        rule.onNodeWithTag("TransactionMode_INCOME").performScrollTo().performClick()
+        noSheet()
+        rule.onNodeWithTag("EntryCategory_cloud").assertDoesNotExist()
+        finishAmount()
+        rule.onNodeWithTag("EntryCategory_row_Salary").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("EntryAccount_row_1").fetchSemanticsNodes().isNotEmpty() }
+        pressBack()
+        noSheet()
+        rule.onNodeWithTag("TransactionMode_TRANSFER").performScrollTo().performClick()
+        noSheet()
+        assertNull(submitted)
     }
 
     @Test fun expenseStartsWithCategory_thenScrollsToAsset_andReturnsToFixedKeypad() {

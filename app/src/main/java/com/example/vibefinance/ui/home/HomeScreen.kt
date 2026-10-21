@@ -38,6 +38,8 @@ import com.example.vibefinance.ui.common.expressiveCardClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -148,23 +150,29 @@ fun CategoryIcon(category: String, tint: Color, modifier: Modifier = Modifier) {
     val normalized = category.trim().replaceFirst(Regex("^[^\\p{L}\\p{N}]+"), "").lowercase(Locale.US).trim()
     val icon = when (normalized) {
         "food", "food & drink", "restaurant", "food & dining" -> Icons.Default.Restaurant
+        "coffee", "cafe" -> Icons.Default.LocalCafe
         "transport", "transit", "commute", "bus", "taxi" -> Icons.Default.Commute
+        "car", "driving", "fuel", "gas" -> Icons.Default.DirectionsCar
         "shopping", "clothing", "groceries", "supermarket" -> Icons.Default.ShoppingBag
-        "utilities", "electricity", "water", "bills", "electronics", "gadgets" -> Icons.Default.ElectricBolt
+        "bills" -> Icons.Default.ReceiptLong
+        "utilities", "electricity", "water", "bills", "electronics", "gadgets" -> Icons.Default.ReceiptLong
         "transfer" -> Icons.Default.SwapHoriz
-        "entertainment", "movie", "netflix", "premium", "subscription", "recurring" -> Icons.Default.AutoMode
+        "movies" -> Icons.Default.Movie
+        "entertainment", "movie", "netflix", "premium", "subscription", "recurring" -> Icons.Default.Movie
         "game", "games", "gaming" -> Icons.Default.SportsEsports
-        "education", "tuition" -> Icons.Default.School
-        "housing", "rent" -> Icons.Default.Home
+        "education", "tuition", "school" -> Icons.Default.School
+        "housing", "rent", "home" -> Icons.Default.Home
         "health", "medical", "health & medical" -> Icons.Default.LocalHospital
         "software / ai", "software", "ai" -> Icons.Default.Memory
         "fitness", "gym" -> Icons.Default.FitnessCenter
-        "travel", "holiday" -> Icons.Default.Flight
+        "travel", "holiday", "flight" -> Icons.Default.Flight
         "salary", "paycheck", "wages", "income" -> Icons.Default.Savings
         "bonus", "reward" -> Icons.Default.Add
         "investment", "dividend", "stocks" -> Icons.AutoMirrored.Filled.TrendingUp
-        "part-time", "freelance", "side hustle" -> Icons.Default.AccountBalance
+        "work" -> Icons.Default.Work
+        "part-time", "freelance", "side hustle" -> Icons.Default.Work
         "gift", "redpocket", "allowance", "petty cash" -> Icons.Default.CardGiftcard
+        "pets", "pet" -> Icons.Default.Pets
         "修改結餘" -> Icons.Default.Tune
         "借錢", "還錢" -> Icons.Default.SwapHoriz
         else -> Icons.Default.Category
@@ -500,40 +508,42 @@ fun HomeScreen(
                                         ) {
                                             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(IntrinsicSize.Min),
-                                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                com.example.vibefinance.ui.common.PageContentEntrance(
-                                                    "remaining", delayMillis = 80,
+                                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                                val daysSide = ((maxWidth - bentoSpacing) * 0.4f).coerceAtLeast(0.dp)
+                                                Row(
                                                     modifier = Modifier
-                                                        .weight(1.2f)
-                                                        .height(160.dp)
+                                                        .fillMaxWidth()
+                                                        .height(daysSide),
+                                                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                                    verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    RestAndSpentBudgetCard(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        remainingBudget = budgetInfo.monthlyRemaining,
-                                                        totalBudget = budgetInfo.totalMonthlyBudget,
-                                                        isDarkTheme = isDark
-                                                    )
-                                                }
-                                                val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
-                                                    calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
-                                                }
-                                                com.example.vibefinance.ui.common.PageContentEntrance(
-                                                    "days", delayMillis = 110,
-                                                    modifier = Modifier
-                                                        .weight(0.8f)
-                                                        .height(160.dp)
-                                                ) {
-                                                    DaysLeftCard(
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        daysLeft = budgetInfo.daysLeft,
-                                                        totalDays = totalPeriodDays
-                                                    )
+                                                    com.example.vibefinance.ui.common.PageContentEntrance(
+                                                        "remaining", delayMillis = 80,
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .fillMaxHeight()
+                                                    ) {
+                                                        RestAndSpentBudgetCard(
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            remainingBudget = budgetInfo.monthlyRemaining,
+                                                            totalBudget = budgetInfo.totalMonthlyBudget,
+                                                            isDarkTheme = isDark
+                                                        )
+                                                    }
+                                                    val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
+                                                        calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
+                                                    }
+                                                    com.example.vibefinance.ui.common.PageContentEntrance(
+                                                        "days", delayMillis = 110,
+                                                        modifier = Modifier
+                                                            .size(daysSide)
+                                                    ) {
+                                                        DaysLeftCard(
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            daysLeft = budgetInfo.daysLeft,
+                                                            totalDays = totalPeriodDays
+                                                        )
+                                                    }
                                                 }
                                             }
 

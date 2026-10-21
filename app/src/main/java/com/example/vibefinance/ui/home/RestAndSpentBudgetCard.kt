@@ -30,8 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
@@ -169,11 +167,7 @@ fun RestAndSpentBudgetCard(
         }
     }
 
-    val localDensity = LocalDensity.current
-    var heightDp by remember { mutableStateOf(0.dp) }
-    var widthDp by remember { mutableStateOf(0.dp) }
-
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .testTag("RemainingBudgetCard")
             .clip(shape = cardShape)
@@ -183,12 +177,11 @@ fun RestAndSpentBudgetCard(
             ) {
                 showSpentCard = !showSpentCard
             }
-            .onGloballyPositioned {
-                heightDp = with(localDensity) { it.size.height.toDp() }
-                widthDp = with(localDensity) { it.size.width.toDp() }
-            }
     ) {
-        val resolvedHeight = if (heightDp > 0.dp) heightDp else 160.dp
+        // Resolve typography before the first layout, including when a tab recreates the card.
+        val heightDp = if (constraints.hasBoundedHeight) maxHeight else 160.dp
+        val widthDp = maxWidth
+        val resolvedHeight = heightDp
 
         Card(
             modifier = Modifier.fillMaxWidth().height(resolvedHeight),

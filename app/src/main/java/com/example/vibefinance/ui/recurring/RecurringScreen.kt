@@ -171,6 +171,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -227,6 +228,8 @@ import com.example.vibefinance.data.entity.categoryChoices
 import com.example.vibefinance.data.entity.isSystemCategory
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.home.CategoryIcon
+import com.example.vibefinance.ui.components.AnimatedCategoryIcon
+import com.example.vibefinance.ui.components.AnimatedAddCategoryIcon
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -2576,7 +2579,7 @@ fun AddEditSubscriptionSheet(
     }
 
     // 0: Subscription, 1: Installment Plan (only switchable when adding new)
-    var selectedSheetTab by remember { mutableIntStateOf(0) }
+    var selectedSheetTab by rememberSaveable { mutableIntStateOf(0) }
 
     // Unified Expense Categories matching Daily Page Add Expense
     val initialExpenseCategories = remember(transactions, subscriptions, categoryLimits, categoryMergeRules) {
@@ -2598,8 +2601,8 @@ fun AddEditSubscriptionSheet(
     }
 
     // --- Subscription Form State ---
-    var nameText by remember { mutableStateOf(subscription?.name ?: initialPreset?.name ?: "") }
-    var amountText by remember {
+    var nameText by rememberSaveable { mutableStateOf(subscription?.name ?: initialPreset?.name ?: "") }
+    var amountText by rememberSaveable {
         val initialAmount = subscription?.amount ?: initialPreset?.defaultAmount
         mutableStateOf(
             initialAmount?.let {
@@ -2608,37 +2611,37 @@ fun AddEditSubscriptionSheet(
         )
     }
     val amountFocusRequester = remember { FocusRequester() }
-    var categoryText by remember {
+    var categoryText by rememberSaveable {
         mutableStateOf(subscription?.category ?: initialPreset?.category ?: defaultExpenseCategory)
     }
-    var frequencyText by remember {
+    var frequencyText by rememberSaveable {
         mutableStateOf(subscription?.frequency ?: initialPreset?.frequency ?: "Monthly")
     }
-    var accountIdText by remember {
+    var accountIdText by rememberSaveable {
         val defaultAcc = accounts.firstOrNull()?.id ?: 0L
         mutableStateOf(subscription?.accountId ?: defaultAcc)
     }
-    var nextPaymentDateState by remember {
+    var nextPaymentDateState by rememberSaveable {
         mutableStateOf(subscription?.nextPaymentDate ?: (System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L)))
     }
     var showDatePicker by remember { mutableStateOf(false) }
 
     // --- Installment Form State ---
-    var installmentNameText by remember { mutableStateOf("") }
-    var installmentTotalAmountText by remember { mutableStateOf("") }
+    var installmentNameText by rememberSaveable { mutableStateOf("") }
+    var installmentTotalAmountText by rememberSaveable { mutableStateOf("") }
     val installmentAmountFocusRequester = remember { FocusRequester() }
-    var installmentCategoryText by remember {
+    var installmentCategoryText by rememberSaveable {
         mutableStateOf(
             expenseCategories.firstOrNull { it.equals("Shopping", ignoreCase = true) }
                 ?: defaultExpenseCategory
         )
     }
-    var installmentMonths by remember { mutableIntStateOf(12) }
-    var installmentAccountId by remember {
+    var installmentMonths by rememberSaveable { mutableIntStateOf(12) }
+    var installmentAccountId by rememberSaveable {
         val defaultCc = accounts.firstOrNull { it.type == AccountType.CC }?.id ?: accounts.firstOrNull()?.id ?: 0L
         mutableLongStateOf(defaultCc)
     }
-    var installmentFirstDueDate by remember {
+    var installmentFirstDueDate by rememberSaveable {
         mutableLongStateOf(System.currentTimeMillis())
     }
     var showInstallmentDatePicker by remember { mutableStateOf(false) }
@@ -2870,7 +2873,7 @@ fun AddEditSubscriptionSheet(
                                         modifier = Modifier
                                             .width(IntrinsicSize.Min)
                                             .widthIn(min = 36.dp)
-                                            .focusRequester(amountFocusRequester)
+                                            .focusRequester(amountFocusRequester).testTag("SubscriptionAmount")
                                             .semantics { stateDescription = amountText },
                                         decorationBox = { innerTextField ->
                                             Box(contentAlignment = Alignment.CenterStart) {
@@ -2971,7 +2974,7 @@ fun AddEditSubscriptionSheet(
                                                 focusedBorderColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary,
                                                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                                             ),
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier.fillMaxWidth().testTag("SubscriptionName")
                                         )
 
                                         // Frequency Selector
@@ -3187,6 +3190,8 @@ fun AddEditSubscriptionSheet(
 
                                         // Category Tag Cloud / Single Row
                                         val subCategoryListState = rememberLazyListState()
+                                        val subCategoryClickTriggers = remember { mutableStateMapOf<String, Int>() }
+                                        var subAddCategoryClickTrigger by remember { mutableIntStateOf(0) }
                                         LaunchedEffect(categoryText, deduplicatedCategories.size) {
                                             val selectedIdx = deduplicatedCategories.indexOfFirst {
                                                 getCategoryDisplayNameFromResources(resources, it).equals(getCategoryDisplayNameFromResources(resources, categoryText), ignoreCase = true)
@@ -3229,11 +3234,14 @@ fun AddEditSubscriptionSheet(
                                                             selected = isSelected,
                                                             onClick = {
                                                                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                subCategoryClickTriggers[cat] = (subCategoryClickTriggers[cat] ?: 0) + 1
                                                                 categoryText = cat
                                                             },
                                                             leadingIcon = {
-                                                                CategoryIcon(
+                                                                AnimatedCategoryIcon(
                                                                     category = cat,
+                                                                    isSelected = isSelected,
+                                                                    trigger = subCategoryClickTriggers[cat] ?: 0,
                                                                     tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
@@ -3256,9 +3264,16 @@ fun AddEditSubscriptionSheet(
                                                             selected = showInlineAddCategory && selectedSheetTab == 0,
                                                             onClick = {
                                                                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                subAddCategoryClickTrigger++
                                                                 showInlineAddCategory = !showInlineAddCategory
                                                             },
-                                                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                            leadingIcon = {
+                                                                AnimatedAddCategoryIcon(
+                                                                    isExpanded = showInlineAddCategory && selectedSheetTab == 0,
+                                                                    trigger = subAddCategoryClickTrigger,
+                                                                    modifier = Modifier.size(14.dp)
+                                                                )
+                                                            },
                                                             label = { Text(stringResource(R.string.btn_add)) },
                                                             shape = RoundedCornerShape(12.dp),
                                                             modifier = Modifier.testTag("RecurringCategory_row_add")
@@ -3279,6 +3294,7 @@ fun AddEditSubscriptionSheet(
                                                             selected = isSelected,
                                                             onClick = {
                                                                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                subCategoryClickTriggers[cat] = (subCategoryClickTriggers[cat] ?: 0) + 1
                                                                 categoryText = cat
                                                                 isCategoryExpanded = false
                                                                 scope.launch {
@@ -3289,8 +3305,10 @@ fun AddEditSubscriptionSheet(
                                                                 }
                                                             },
                                                             leadingIcon = {
-                                                                CategoryIcon(
+                                                                AnimatedCategoryIcon(
                                                                     category = cat,
+                                                                    isSelected = isSelected,
+                                                                    trigger = subCategoryClickTriggers[cat] ?: 0,
                                                                     tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                                     modifier = Modifier.size(16.dp)
                                                                 )
@@ -3312,9 +3330,16 @@ fun AddEditSubscriptionSheet(
                                                         selected = showInlineAddCategory && selectedSheetTab == 0,
                                                         onClick = {
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            subAddCategoryClickTrigger++
                                                             showInlineAddCategory = !showInlineAddCategory
                                                         },
-                                                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) },
+                                                        leadingIcon = {
+                                                            AnimatedAddCategoryIcon(
+                                                                isExpanded = showInlineAddCategory && selectedSheetTab == 0,
+                                                                trigger = subAddCategoryClickTrigger,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        },
                                                         label = { Text(stringResource(R.string.btn_add)) },
                                                         shape = RoundedCornerShape(12.dp),
                                                         modifier = Modifier.testTag("RecurringCategory_row_add")
