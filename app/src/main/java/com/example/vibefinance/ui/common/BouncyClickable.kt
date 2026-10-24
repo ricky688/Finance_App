@@ -9,6 +9,10 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import com.example.vibefinance.ui.preferences.LocalExperience
 import com.example.vibefinance.ui.preferences.MotionLevel
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.HoverInteraction
+import androidx.compose.foundation.interaction.InteractionSource
+import kotlinx.coroutines.flow.filterNot
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -123,24 +127,26 @@ fun Modifier.expressiveCardClickable(
     pressState: ExpressiveCardPressState,
     rippleColor: Color = Color.Unspecified,
     enabled: Boolean = true,
+    hoverEnabled: Boolean = true,
     onLongClick: (() -> Unit)? = null,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit
 ): Modifier = composed {
     val view = LocalView.current
+    // Feedback-only cards keep press/focus indication without advertising navigation on hover.
+    val indicationSource = remember(pressState.interactionSource, hoverEnabled) {
+        if (hoverEnabled) pressState.interactionSource else object : InteractionSource {
+            override val interactions = pressState.interactionSource.interactions.filterNot { it is HoverInteraction }
+        }
+    }
+    val resolvedRippleColor = if (!hoverEnabled && rippleColor == Color.Unspecified) Color.Gray else rippleColor
     val base = this
         .clip(pressState.shape)
-        .expressiveHoverLayer(
-            interactionSource = pressState.interactionSource,
-            enabled = enabled,
-            shape = pressState.shape,
-            liftDp = 1.5.dp,
-            highlightRim = true
-        )
+        .indication(indicationSource, ripple(bounded = true, color = resolvedRippleColor))
 
     if (onLongClick != null) {
         base.combinedClickable(
             interactionSource = pressState.interactionSource,
-            indication = ripple(bounded = true, color = rippleColor),
+            indication = null,
             enabled = enabled,
             onLongClick = {
                 VibeHaptics.heavyLongPress(view)
@@ -154,7 +160,7 @@ fun Modifier.expressiveCardClickable(
     } else {
         base.clickable(
             interactionSource = pressState.interactionSource,
-            indication = ripple(bounded = true, color = rippleColor),
+            indication = null,
             enabled = enabled
         ) {
             VibeHaptics.selection(view)

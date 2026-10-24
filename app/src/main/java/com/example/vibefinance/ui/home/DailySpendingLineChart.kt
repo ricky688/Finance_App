@@ -2,10 +2,11 @@
 
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.common.expressiveCardClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+
 import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
-import com.example.vibefinance.ui.common.rememberExpressiveCardPress
-import com.example.vibefinance.ui.common.expressiveCardClickable
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -194,23 +195,18 @@ fun DailySpendingLineChart(
         }
     }
 
-    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
-        restingCorner = 28.dp,
-        pressedCorner = 16.dp
-    )
+    val pressState = rememberExpressiveCardPress()
+    val cardShape = pressState.shape
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         ),
-        shape = pressState.shape,
+        shape = cardShape,
         modifier = modifier
             .fillMaxWidth()
-            .expressiveCardClickable(
-                pressState = pressState,
-                rippleColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ) { /* Tactile press */ }
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
+            .expressiveCardClickable(pressState, hoverEnabled = false) {}
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), cardShape)
     ) {
         Column(
             modifier = Modifier

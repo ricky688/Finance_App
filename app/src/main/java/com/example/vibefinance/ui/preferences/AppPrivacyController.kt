@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.preferences
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
@@ -99,6 +101,6 @@ fun PrivacyLockScreen(controller: AppPrivacyController) {
         Text(controller.message ?: stringResource(R.string.privacy_lock_desc))
         Spacer(Modifier.height(24.dp))
         Button(onClick = controller::authenticate, enabled = !controller.authenticating,
-            modifier = Modifier.testTag("PrivacyUnlock")) { Text(stringResource(R.string.privacy_unlock)) }
+            modifier = Modifier.testTag("PrivacyUnlock"), elevation = AppButtonDefaults.elevation()) { Text(stringResource(R.string.privacy_unlock)) }
     }
 }

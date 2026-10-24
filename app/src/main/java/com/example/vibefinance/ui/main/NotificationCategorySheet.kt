@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -73,6 +75,7 @@ internal fun NotificationCategorySheet(
                     Modifier.fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .testTag("NotificationCategorySave"),
+                elevation = AppButtonDefaults.elevation(),
             ) {
                 if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 else Text(stringResource(R.string.btn_save))

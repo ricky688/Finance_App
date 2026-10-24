@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.common.expressiveCardClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -7,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -15,10 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.TransactionEntity
-import com.example.vibefinance.theme.BentoCardShape
-import com.example.vibefinance.ui.common.bouncyClickable
-import com.example.vibefinance.ui.common.rememberExpressiveCardPress
-import com.example.vibefinance.ui.common.expressiveCardClickable
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -31,7 +29,6 @@ fun MinMaxSpentCard(
     isMin: Boolean,
     spends: List<TransactionEntity>,
     isDarkTheme: Boolean = false,
-    onClick: () -> Unit = {},
 ) {
     val minSpent = remember(spends) { spends.minByOrNull { it.amount } }
     val maxSpent = remember(spends) { spends.maxByOrNull { it.amount } }
@@ -46,9 +43,6 @@ fun MinMaxSpentCard(
     }
 
     val isDark = isDarkTheme || MaterialTheme.colorScheme.background.luminance() < 0.5f
-
-    val colorMinMain = MaterialTheme.colorScheme.primary
-    val colorMaxMain = MaterialTheme.colorScheme.error
 
     val colors = if (isMin) {
         if (isDark) {
@@ -76,19 +70,9 @@ fun MinMaxSpentCard(
         }
     }
 
-    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
-        restingCorner = 28.dp,
-        pressedCorner = 16.dp
-    )
-    val rippleColor = if (isMin) colorMinMain else colorMaxMain
-
+    val pressState = rememberExpressiveCardPress()
     StatCard(
-        modifier = modifier
-            .expressiveCardClickable(
-                pressState = pressState,
-                rippleColor = rippleColor,
-                onClick = onClick
-            ),
+        modifier = modifier.expressiveCardClickable(pressState, hoverEnabled = false) {},
         shape = pressState.shape,
         value = amountText,
         label = label,
@@ -127,8 +111,8 @@ fun MinMaxSpentCard(
                     spends = spends,
                     markedTransaction = spent,
                     chartPadding = PaddingValues(vertical = 12.dp, horizontal = 12.dp),
-                    colorMin = colorMinMain,
-                    colorMax = colorMaxMain,
+                    colorMin = MaterialTheme.colorScheme.primary,
+                    colorMax = MaterialTheme.colorScheme.error,
                     showBeforeMarked = 4,
                     showAfterMarked = 1,
                 )

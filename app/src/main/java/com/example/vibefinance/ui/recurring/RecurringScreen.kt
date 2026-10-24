@@ -6,6 +6,8 @@
 
 package com.example.vibefinance.ui.recurring
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import com.example.vibefinance.ui.common.ContentEntranceViewport
 import com.example.vibefinance.ui.common.PageContentEntrance
@@ -626,7 +628,8 @@ fun RecurringScreen(
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    ),
+                                    elevation = AppButtonDefaults.elevation(),
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -2185,7 +2188,7 @@ fun EmptyRecurringCard(
 
 
             Spacer(modifier = Modifier.height(18.dp))
-            Button(onClick = onAddNew, shape = RoundedCornerShape(16.dp)) {
+            Button(onClick = onAddNew, shape = RoundedCornerShape(16.dp), elevation = AppButtonDefaults.elevation()) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.btn_add_subscription))
@@ -4808,7 +4811,8 @@ fun DeleteSubscriptionConfirmDialog(
                 Button(
                     onClick = { onConfirm(false) },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = AppButtonDefaults.elevation(),
                 ) {
                     Text(stringResource(R.string.delete_sub_confirm_single))
                 }

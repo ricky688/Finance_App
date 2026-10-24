@@ -19,7 +19,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
-import com.example.vibefinance.ui.common.expressiveHoverLayer
 
 /**
  * Global Material 3 Expressive Button Defaults and CompositionLocal.
@@ -29,6 +28,13 @@ import com.example.vibefinance.ui.common.expressiveHoverLayer
 object AppButtonDefaults {
     val RestingShape: Shape = CircleShape
     val PressedShape: Shape = RoundedCornerShape(percent = 32)
+
+    // Translucent surfaces expose the Android hover shadow's rectangular content cutout.
+    @Composable
+    fun elevation(): ButtonElevation = ButtonDefaults.buttonElevation(hoveredElevation = 0.dp)
+
+    @Composable
+    fun tonalElevation(): ButtonElevation = ButtonDefaults.filledTonalButtonElevation(hoveredElevation = 0.dp)
 
     @Composable
     fun shapes(
@@ -44,7 +50,7 @@ internal fun defaultButtonShapes(): ButtonShapes {
     return LocalAppButtonShapes.current ?: AppButtonDefaults.shapes()
 }
 
-/** Material buttons retain their actual interaction source; only shape timing is coordinated. */
+/** Material buttons own the single shape-clipped ripple/hover layer; only shape timing is coordinated. */
 @Composable
 internal fun CompletePressButton(
     onClick: () -> Unit,
@@ -52,7 +58,7 @@ internal fun CompletePressButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.elevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -63,13 +69,7 @@ internal fun CompletePressButton(
     val buttonShape = completePressShape(shapes.shape, shapes.pressedShape, progress)
     Button(
         onClick = onClick,
-        modifier = modifier.expressiveHoverLayer(
-            interactionSource = source,
-            enabled = enabled,
-            shape = buttonShape,
-            liftDp = 1.dp,
-            highlightRim = false
-        ),
+        modifier = modifier,
         enabled = enabled,
         shape = buttonShape,
         colors = colors,
@@ -88,7 +88,7 @@ internal fun CompletePressFilledTonalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.tonalElevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -99,13 +99,7 @@ internal fun CompletePressFilledTonalButton(
     val buttonShape = completePressShape(shapes.shape, shapes.pressedShape, progress)
     FilledTonalButton(
         onClick = onClick,
-        modifier = modifier.expressiveHoverLayer(
-            interactionSource = source,
-            enabled = enabled,
-            shape = buttonShape,
-            liftDp = 1.dp,
-            highlightRim = false
-        ),
+        modifier = modifier,
         enabled = enabled,
         shape = buttonShape,
         colors = colors,
@@ -135,13 +129,7 @@ internal fun CompletePressOutlinedButton(
     val buttonShape = completePressShape(shapes.shape, shapes.pressedShape, progress)
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.expressiveHoverLayer(
-            interactionSource = source,
-            enabled = enabled,
-            shape = buttonShape,
-            liftDp = 1.dp,
-            highlightRim = false
-        ),
+        modifier = modifier,
         enabled = enabled,
         shape = buttonShape,
         colors = colors,
@@ -171,13 +159,7 @@ internal fun CompletePressTextButton(
     val buttonShape = completePressShape(shapes.shape, shapes.pressedShape, progress)
     TextButton(
         onClick = onClick,
-        modifier = modifier.expressiveHoverLayer(
-            interactionSource = source,
-            enabled = enabled,
-            shape = buttonShape,
-            liftDp = 1.dp,
-            highlightRim = false
-        ),
+        modifier = modifier,
         enabled = enabled,
         shape = buttonShape,
         colors = colors,
@@ -195,7 +177,7 @@ fun AppButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.elevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -221,7 +203,7 @@ fun AppButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.buttonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.elevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -245,7 +227,7 @@ fun AppFilledTonalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.tonalElevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -271,7 +253,7 @@ fun AppFilledTonalButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.filledTonalButtonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.tonalElevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -397,7 +379,7 @@ internal fun CompletePressToggleButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
-    elevation: ButtonElevation? = ButtonDefaults.buttonElevation(),
+    elevation: ButtonElevation? = AppButtonDefaults.elevation(),
     border: BorderStroke? = null,
     contentPadding: PaddingValues = ToggleButtonDefaults.ContentPadding,
     interactionSource: MutableInteractionSource? = null,
@@ -415,13 +397,7 @@ internal fun CompletePressToggleButton(
     ToggleButton(
         checked = checked,
         onCheckedChange = onCheckedChange,
-        modifier = modifier.expressiveHoverLayer(
-            interactionSource = source,
-            enabled = enabled,
-            shape = shape,
-            liftDp = 1.dp,
-            highlightRim = false
-        ),
+        modifier = modifier,
         enabled = enabled,
         shapes = ToggleButtonShapes(shape, shape, shape),
         colors = colors,

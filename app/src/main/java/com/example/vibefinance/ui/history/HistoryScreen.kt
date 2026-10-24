@@ -985,7 +985,7 @@ fun HistoryScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 12.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                color = MaterialTheme.colorScheme.outlineVariant,
                                 thickness = 1.dp
                             )
                         }
@@ -1469,7 +1469,11 @@ internal fun HistoryCategoryDropdown(
         ) {
             sections.forEachIndexed { sectionIndex, (title, categories) ->
                 if (sectionIndex > 0) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                 }
                 Text(
                     text = stringResource(title),

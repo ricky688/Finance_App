@@ -3,6 +3,7 @@
 package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.ui.components.CompletePressButton
@@ -10,7 +11,6 @@ import com.example.vibefinance.ui.components.CompletePressTextButton
 
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -115,6 +115,7 @@ fun NewPeriodBudgetSheet(
     val secondaryTextColor = if (isDark) Color.White.copy(alpha = 0.65f) else Color(0xFF626673)
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismissSheet = rememberSheetDismissAction(sheetState)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -125,7 +126,6 @@ fun NewPeriodBudgetSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
                 .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
             LazyColumn(
@@ -461,7 +461,7 @@ fun NewPeriodBudgetSheet(
                         onClick = {
                             if (baseBudget > 0 && calculatedEndDateMillis > startDateMillis) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onConfirmNewPeriod(finalTotalBudget, startDateMillis, calculatedEndDateMillis)
+                                dismissSheet { onConfirmNewPeriod(finalTotalBudget, startDateMillis, calculatedEndDateMillis) }
                             }
                         },
                         enabled = baseBudget > 0,

@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.preferences
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import com.example.vibefinance.util.VibeHaptics
 import com.example.vibefinance.util.HapticStrength
 import kotlin.math.roundToInt
@@ -43,7 +45,7 @@ fun HapticStrengthSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> U
                 modifier = Modifier.testTag("HapticStrength").semantics { contentDescription = title; stateDescription = label })
             Text(stringResource(R.string.haptic_strength_desc), style = MaterialTheme.typography.bodySmall)
             FilledTonalButton(onClick = { VibeHaptics.selection(view) }, enabled = state.hapticFeedbackEnabled,
-                modifier = Modifier.testTag("HapticStrengthPreview")) {
+                modifier = Modifier.testTag("HapticStrengthPreview"), elevation = AppButtonDefaults.tonalElevation()) {
                 Text(stringResource(R.string.haptic_strength_preview))
             }
         }
@@ -79,7 +81,7 @@ fun MotionBlurSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit)
 fun PrivacySettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
     val setLock = LocalAppLockAction.current
     Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             PreferenceSwitch(stringResource(R.string.privacy_lock_title), stringResource(R.string.privacy_lock_desc),
                 state.appLockEnabled, "AppLockSwitch", setLock)
             PreferenceSwitch(stringResource(R.string.privacy_hide_amounts), stringResource(R.string.privacy_hide_desc),
@@ -91,7 +93,7 @@ fun PrivacySettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
 @Composable
 private fun PreferenceSwitch(title: String, description: String, checked: Boolean, tag: String, change: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.weight(1f)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(description, style = MaterialTheme.typography.bodySmall) }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(description, style = MaterialTheme.typography.bodySmall) }
         AppSwitch(checked, change, modifier = Modifier.testTag(tag).semantics { contentDescription = title })
     }
 }

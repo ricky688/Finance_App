@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import com.example.vibefinance.util.VibeHaptics
 import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.components.AppSwitch
@@ -143,7 +145,7 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
     }
     return {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton({ VibeHaptics.lightTick(view); viewModel.exportOptions() }, enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupOpen")) {
+            FilledTonalButton({ VibeHaptics.lightTick(view); viewModel.exportOptions() }, enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupOpen"), elevation = AppButtonDefaults.tonalElevation()) {
                 Text(stringResource(R.string.backup_title))
             }
             OutlinedButton(onClick = { VibeHaptics.lightTick(view); viewModel.awaitRestore(); open.launch(arrayOf("*/*")) },

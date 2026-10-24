@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.accounts
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -3181,6 +3183,7 @@ fun AssetEditorScreen(
                                 },
                                 enabled = newAliasInput.trim().isNotEmpty(),
                                 shape = RoundedCornerShape(12.dp),
+                                elevation = AppButtonDefaults.tonalElevation(),
                             ) {
                                 Text(
                                     stringResource(

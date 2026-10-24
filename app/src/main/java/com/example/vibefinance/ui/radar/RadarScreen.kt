@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.radar
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -255,7 +257,11 @@ fun RadarScreen(
                                     }
                                 )
 
-                                HorizontalDivider()
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
 
                                 Text(
                                     text = stringResource(R.string.ui_radar_preset_locations),
@@ -505,7 +511,8 @@ fun RadarScreen(
 
                             Button(
                                 onClick = { showAddShopSheet = true },
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                elevation = AppButtonDefaults.elevation(),
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null)
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -909,7 +916,8 @@ private fun DiscountShopCardItem(
                             onLogSpendClick(shop.name, shop.aspect, cardId)
                         },
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        elevation = AppButtonDefaults.elevation(),
                     ) {
                         Icon(Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))

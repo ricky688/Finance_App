@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import com.example.vibefinance.ui.components.CompletePressButton
 
 import androidx.compose.foundation.clickable
@@ -194,7 +196,8 @@ internal fun PendingPaymentChoiceDialog(
                 androidx.compose.material3.FilledTonalButton(
                     onClick = { showTaggingDialog = true },
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = AppButtonDefaults.tonalElevation(),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.AutoAwesome,

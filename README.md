@@ -6,6 +6,29 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 ## 🚀 Features
 
+### Neutral press ripples (1.2.102)
+- Informational card backgrounds use a neutral gray press ripple rather than inheriting a colored text/icon tint. Their tap haptics and corner morphs remain; pointer hover stays unhighlighted. Navigational controls retain their existing ripple colors.
+
+### Tactile cards without hover highlighting (1.2.101)
+- Informational Daily cards retain tap haptics, press ripple and corner morphing, while their backgrounds do not highlight on mouse hover. This applies to Spending Trend, Financial Rhythm/Spending Calendar, Category Analytics, min/max spending and forecast cards. Background taps do not navigate; child controls retain their actions.
+
+### Category Analytics pointer targets (1.2.100)
+- The Daily Category Analytics card background stays static. Its title and category rows retain their individual rounded hover feedback and navigation, without stacking a whole-card highlight underneath. The title is inactive when there is no category data.
+
+### Consistent pointer feedback (1.2.99)
+- Shared Material buttons and actionable cards use one native, shape-clipped hover/ripple layer instead of stacking a custom overlay. Flat buttons keep zero hover elevation so semi-transparent backgrounds do not reveal rectangular shadow cutouts. Existing press-shape animations remain.
+- Spending Trend, Financial Rhythm/Spending Calendar, min/max spending and forecast card backgrounds no longer pretend to be clickable. Their actual mode switches, dates and action controls remain interactive; the informational recalculation hint is also static.
+
+### Smoother Daily and color-scheme sheets (1.2.98)
+- Native sheets open with a bounded 320ms deceleration and close with a faster 220ms acceleration, with a coordinated scrim. System/app motion duration settings still apply and inner controls retain their existing motion scheme.
+- Daily budget setup/recalculation/info, calendar details and Color scheme wait for native exit before their button callbacks remove the sheet or open the next screen. Repeated close/confirm taps commit once; mandatory recalculation still requires a choice. Removed the extra bouncy size animation around new-period setup.
+
+### Roomier settings rows (1.2.96)
+- Appearance rows use at least 88dp height, 16dp vertical padding and 4dp title-to-description spacing, growing naturally for larger text. Expanded settings and privacy groups have more space beside dividers; privacy descriptions also have a 4dp gap below their titles. Existing horizontal content padding remains.
+
+### Inset settings dividers (1.2.97)
+- Settings and palette cards use 1dp `outlineVariant` separators inset 16dp from both card edges, including expanded headers and privacy/data groups. Text and buttons keep their spacing. History and menu group boundaries retain their existing layouts; dashboard cards retain their spacing.
+
 ### Bespoke Animated Category Illustrations (1.2.93)
 - Custom Canvas-rendered internal component animations for 15 primary categories matching user physical specifications:
   - **Food**: Knife and fork tilt and touch each other twice (clink! clink!) with contact spark flashes.
@@ -422,7 +445,7 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 - A dedicated top bar and large amount display sit above the scrolling form. The 4×4 calculator stays docked at the bottom in every mode, with 54dp keys and 24dp resting corners. Note hints match Expense, Income and Transfer. On short viewports or larger text, the amount can scroll with the form to keep fields reachable above the keypad.
 - Scrolling down collapses the Daily FAB to its plus icon; scrolling back up expands the Add label again.
 - Transaction buttons change shape on press without shrinking their contents or shifting neighboring buttons. Calculator corners morph from 24dp to 16dp with touch-down haptics, using the same 180ms press / 220ms return easing as the Assets connected buttons. Connected entry controls use 32dp outer/selected, 20dp inner and 14dp pressed corners. Category and account chips retain their animated selection widths and scroll fades.
-- Entry connected groups have rounder corners without changing their height. Standard bottom sheets ease into and out of their 360ms opening/closing slide, respecting motion settings.
+- Entry connected groups have rounder corners without changing their height. Standard bottom sheets use a 320ms decelerating entrance and a 220ms accelerating exit, respecting motion settings.
 - Amount/calculations, note, source account and currency stay in one saveable draft through mode changes and rotation. Each mode shows its applicable budget/category/destination controls; Transfer requires a different destination account.
 - Calendar Pay actions still open Transfer with the destination card prefilled and require confirmation.
 

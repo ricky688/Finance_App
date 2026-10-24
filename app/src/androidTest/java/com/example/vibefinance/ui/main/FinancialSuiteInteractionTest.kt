@@ -187,6 +187,7 @@ class FinancialSuiteInteractionTest {
         waitTag("CalendarReminder_2")
         compose.onNodeWithTag("CalendarReminder_2").assertIsDisplayed()
         compose.onNodeWithTag("CalendarPay_2").performScrollTo().performClick()
+        compose.waitUntil(5_000) { paid.get() == 2L }
         assertEquals(2L, paid.get())
         assertEquals(900.0, card.balance, 0.0)
     }

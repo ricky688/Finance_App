@@ -11,6 +11,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -21,15 +27,14 @@ import androidx.compose.ui.unit.Dp
  * Tween still respects the coroutine's Android/app MotionDurationScale.
  */
 private class SheetMotionScheme(private val parent: MotionScheme) : MotionScheme by parent {
-    private val easeInOut = CubicBezierEasing(0.4f, 0f, 0.6f, 1f)
     override fun <T> defaultSpatialSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 360, easing = easeInOut)
+        tween(durationMillis = 320, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))
 
     override fun <T> defaultEffectsSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 360, easing = easeInOut)
+        tween(durationMillis = 220, easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f))
 
     override fun <T> fastEffectsSpec(): FiniteAnimationSpec<T> =
-        tween(durationMillis = 360, easing = easeInOut)
+        tween(durationMillis = 220, easing = CubicBezierEasing(0.4f, 0f, 1f, 1f))
 }
 
 /** Keep native gestures, insets, accessibility and predictive Back; scope easing to the sheet. */
@@ -63,6 +68,29 @@ internal fun AppModalBottomSheet(
             val columnScope = this
             // Buttons, switches and nested content retain the app's own motion scheme.
             MaterialTheme(motionScheme = parentMotion) { content(columnScope) }
+        }
+    }
+}
+
+/** Keep button-triggered exits mounted until the native sheet is hidden; commit once. */
+@Composable
+internal fun rememberSheetDismissAction(sheetState: SheetState): (() -> Unit) -> Unit {
+    val scope = rememberCoroutineScope()
+    var closing by remember(sheetState) { mutableStateOf(false) }
+    return remember(sheetState, scope) {
+        { onHidden ->
+            if (!closing) {
+                closing = true
+                scope.launch {
+                    try {
+                        sheetState.hide()
+                        if (!sheetState.isVisible) onHidden() else closing = false
+                    } catch (cancelled: CancellationException) {
+                        closing = false
+                        throw cancelled
+                    }
+                }
+            }
         }
     }
 }

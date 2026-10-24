@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,6 +64,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -292,9 +294,11 @@ internal fun AppearancePickerSheet(
         )
     }
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val dismissSheet = rememberSheetDismissAction(sheetState)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
@@ -347,7 +351,8 @@ internal fun AppearancePickerSheet(
                             .clip(RoundedCornerShape(20.dp))
                             .testTag("PaletteStyleOpen")
                             .clickable { VibeHaptics.lightTick(view); showStyles = true }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .heightIn(min = 88.dp)
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -370,7 +375,7 @@ internal fun AppearancePickerSheet(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = paletteStyleLabel(state.paletteStyle),
                                 style = MaterialTheme.typography.bodySmall,
@@ -386,15 +391,17 @@ internal fun AppearancePickerSheet(
                     }
 
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     )
 
                     // Item 2: 顏色反轉 (Color Inversion)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .heightIn(min = 88.dp)
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -417,7 +424,7 @@ internal fun AppearancePickerSheet(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = stringResource(R.string.appearance_color_inversion_desc),
                                 style = MaterialTheme.typography.bodySmall,
@@ -431,15 +438,17 @@ internal fun AppearancePickerSheet(
                     }
 
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     )
 
                     // Item 3: 表情符號作為配色方案 (Emoji Palette)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .heightIn(min = 88.dp)
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -462,7 +471,7 @@ internal fun AppearancePickerSheet(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = stringResource(R.string.appearance_emoji_palette_desc),
                                 style = MaterialTheme.typography.bodySmall,
@@ -476,15 +485,16 @@ internal fun AppearancePickerSheet(
                     }
 
                     HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 1.dp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                     )
 
                     // Item 4: 對比 (Contrast with center detent tick slider)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
@@ -668,7 +678,7 @@ internal fun AppearancePickerSheet(
                 CompletePressButton(
                     onClick = {
                         VibeHaptics.lightTick(view)
-                        onDismiss()
+                        dismissSheet(onDismiss)
                     },
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),

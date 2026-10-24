@@ -1,5 +1,8 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.common.expressiveCardClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.animateColorAsState
@@ -32,7 +35,6 @@ import com.example.vibefinance.ai.ForecastStatus
 import com.example.vibefinance.ai.VibeForecastEngine
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.data.repository.DailyBudgetInfo
-import com.example.vibefinance.ui.common.bouncyClickable
 import java.util.Locale
 
 @Composable
@@ -62,13 +64,13 @@ fun VibeForecastCard(
     val cardBg = if (isDark) Color(0xFF1E222B) else Color(0xFFF4F6FB)
     val cardBorder = if (isDark) BorderStroke(1.dp, animatedAccent.copy(alpha = 0.3f)) else BorderStroke(1.dp, animatedAccent.copy(alpha = 0.25f))
 
+    val pressState = rememberExpressiveCardPress(restingCorner = 24.dp)
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .bouncyClickable(shape = RoundedCornerShape(24.dp)) { /* Info tap */ }
-            .border(cardBorder.width, cardBorder.brush, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
+            .expressiveCardClickable(pressState, hoverEnabled = false) {}
+            .border(cardBorder.width, cardBorder.brush, pressState.shape),
+        shape = pressState.shape,
         color = cardBg
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {

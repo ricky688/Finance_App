@@ -5,6 +5,8 @@
 
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -3634,7 +3636,8 @@ fun AddExpenseSheetContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
-                            .testTag("EntrySubmit")
+                            .testTag("EntrySubmit"),
+                        elevation = AppButtonDefaults.elevation(),
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))

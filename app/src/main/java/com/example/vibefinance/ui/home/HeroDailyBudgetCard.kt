@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 import com.example.vibefinance.ui.components.AppButton
 import com.example.vibefinance.ui.components.TapIconEffect
 import com.example.vibefinance.ui.components.rememberTapIconMotion
@@ -582,7 +583,10 @@ fun HeroDailyBudgetCard(
 
     // Modal Sheet 1: Buckwheat New Daily Budget Description
     if (showNewDayBudgetInfoSheet) {
+        val infoSheetState = rememberModalBottomSheetState()
+        val dismissInfo = rememberSheetDismissAction(infoSheetState)
         ModalBottomSheet(
+            sheetState = infoSheetState,
             onDismissRequest = { showNewDayBudgetInfoSheet = false },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -618,7 +622,7 @@ fun HeroDailyBudgetCard(
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 AppButton(
-                    onClick = { showNewDayBudgetInfoSheet = false },
+                    onClick = { dismissInfo { showNewDayBudgetInfoSheet = false } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -632,7 +636,10 @@ fun HeroDailyBudgetCard(
 
     // Modal Sheet 2: Buckwheat Budget Is Over Description
     if (showBudgetEndInfoSheet) {
+        val infoSheetState = rememberModalBottomSheetState()
+        val dismissInfo = rememberSheetDismissAction(infoSheetState)
         ModalBottomSheet(
+            sheetState = infoSheetState,
             onDismissRequest = { showBudgetEndInfoSheet = false },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -661,8 +668,10 @@ fun HeroDailyBudgetCard(
                 Spacer(modifier = Modifier.height(24.dp))
                 AppButton(
                     onClick = {
-                        showBudgetEndInfoSheet = false
-                        onOpenBudgetDialog()
+                        dismissInfo {
+                            showBudgetEndInfoSheet = false
+                            onOpenBudgetDialog()
+                        }
                     },
                     modifier = Modifier
                         .fillMaxWidth()

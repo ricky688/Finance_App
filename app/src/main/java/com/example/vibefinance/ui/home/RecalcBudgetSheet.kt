@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.home
 
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import android.graphics.PointF
 import androidx.compose.animation.core.animateFloatAsState
@@ -219,16 +220,19 @@ fun RecalcBudgetSheet(
         // Do nothing on mandatory popup - forces user to pick Option 1 or Option 2
     }
 
+    var selectionConfirmed by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { targetValue ->
-            if (isMandatory) {
+            if (isMandatory && !selectionConfirmed) {
                 targetValue != SheetValue.Hidden
             } else {
                 true
             }
         }
     )
+
+    val dismissSheet = rememberSheetDismissAction(sheetState)
 
     ModalBottomSheet(
         onDismissRequest = {
@@ -268,7 +272,7 @@ fun RecalcBudgetSheet(
                         horizontalArrangement = Arrangement.End
                     ) {
                         IconButton(
-                            onClick = onDismiss,
+                            onClick = { dismissSheet(onDismiss) },
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
@@ -323,7 +327,6 @@ fun RecalcBudgetSheet(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) { /* Info link */ }
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Icon(
@@ -390,8 +393,9 @@ fun RecalcBudgetSheet(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                            onSelectMode(RolloverMode.DISTRIBUTE_EVENLY, rememberChoice)
-                            onDismiss()
+                            val choice = rememberChoice
+                            selectionConfirmed = true
+                            dismissSheet { onSelectMode(RolloverMode.DISTRIBUTE_EVENLY, choice); onDismiss() }
                         }
                 ) {
                     Row(
@@ -434,8 +438,9 @@ fun RecalcBudgetSheet(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                            onSelectMode(RolloverMode.ADD_TO_NEXT_DAY, rememberChoice)
-                            onDismiss()
+                            val choice = rememberChoice
+                            selectionConfirmed = true
+                            dismissSheet { onSelectMode(RolloverMode.ADD_TO_NEXT_DAY, choice); onDismiss() }
                         }
                 ) {
                     Row(

@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.accounts
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import com.example.vibefinance.ui.common.ContentEntranceViewport
 import com.example.vibefinance.ui.common.PageContentEntrance
@@ -1381,7 +1383,8 @@ fun AccountsScreen(
                                         isAccountReorderMode = false
                                     },
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
+                                    modifier = Modifier.height(34.dp),
+                                    elevation = AppButtonDefaults.tonalElevation(),
                                 ) {
                                     Text(
                                         text = stringResource(R.string.loc_done),

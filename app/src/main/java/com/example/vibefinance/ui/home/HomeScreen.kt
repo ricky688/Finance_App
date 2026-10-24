@@ -1,5 +1,7 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
@@ -425,7 +427,8 @@ fun HomeScreen(
                                                 isEditMode = false
                                             },
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(34.dp)
+                                            modifier = Modifier.height(34.dp),
+                                            elevation = AppButtonDefaults.tonalElevation(),
                                         ) {
                                             Text(
                                                 text = stringResource(R.string.loc_done),
@@ -769,29 +772,20 @@ fun CategoryDonutChart(
         cat to (strokeState to alphaState)
     }
 
-    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
-        restingCorner = 28.dp,
-        pressedCorner = 16.dp
-    )
+    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress()
+    val cardShape = pressState.shape
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
-        shape = pressState.shape,
+        shape = cardShape,
         modifier = modifier
             .fillMaxWidth()
-            .expressiveCardClickable(
-                pressState = pressState,
-                rippleColor = MaterialTheme.colorScheme.primary
-            ) {
-                val target = selectedCategory ?: categorySpending.firstOrNull()?.first
-                if (target != null) {
-                    onCategoryClick(target)
-                }
-            }
+            .testTag("DailyCategoryAnalyticsCard")
+            .expressiveCardClickable(pressState, hoverEnabled = false) {}
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), cardShape)
     ) {
         Column(
             modifier = Modifier
@@ -806,7 +800,8 @@ fun CategoryDonutChart(
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable {
+                        .testTag("DailyCategoryAnalyticsTitle")
+                        .clickable(enabled = categorySpending.isNotEmpty()) {
                             val target = selectedCategory ?: categorySpending.firstOrNull()?.first
                             if (target != null) {
                                 onCategoryClick(target)
@@ -999,6 +994,7 @@ fun CategoryDonutChart(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
+                                    .testTag("DailyCategoryAnalyticsItem_$category")
                                     .clickable {
                                         selectedCategory = category
                                         onCategoryClick(category)

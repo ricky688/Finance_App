@@ -1,14 +1,16 @@
 package com.example.vibefinance.ui.home
 
+import com.example.vibefinance.ui.common.expressiveCardClickable
+import com.example.vibefinance.ui.common.rememberExpressiveCardPress
+
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.components.connectedSpatialMotion
 import com.example.vibefinance.ui.components.completePressShape
 import com.example.vibefinance.ui.components.AppButton
 import com.example.vibefinance.ui.components.AppTextButton
-import com.example.vibefinance.ui.common.rememberExpressiveCardPress
-import com.example.vibefinance.ui.common.expressiveCardClickable
 import com.example.vibefinance.theme.MotionTokens
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.unit.IntOffset
@@ -413,23 +415,18 @@ fun SpendsCalendar(
         0.3f
     )
 
-    val pressState = com.example.vibefinance.ui.common.rememberExpressiveCardPress(
-        restingCorner = 28.dp,
-        pressedCorner = 16.dp
-    )
+    val pressState = rememberExpressiveCardPress()
+    val cardShape = pressState.shape
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = cardBg
         ),
-        shape = pressState.shape,
+        shape = cardShape,
         modifier = modifier
             .fillMaxWidth()
-            .expressiveCardClickable(
-                pressState = pressState,
-                rippleColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ) { /* Tactile press */ }
-            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), pressState.shape)
+            .expressiveCardClickable(pressState, hoverEnabled = false) {}
+            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), cardShape)
     ) {
         Column(
             modifier = Modifier
@@ -638,6 +635,7 @@ fun SpendsCalendar(
         }
         val dateSpent = remember(dayTxList) { dayTxList.sumOf { it.amount } }
         val sheetState = rememberModalBottomSheetState()
+        val dismissDetails = rememberSheetDismissAction(sheetState)
 
         ModalBottomSheet(
             onDismissRequest = { showDetailSheet = false },
@@ -672,7 +670,7 @@ fun SpendsCalendar(
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    IconButton(onClick = { showDetailSheet = false }) {
+                    IconButton(onClick = { dismissDetails { showDetailSheet = false } }) {
                         Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(R.string.btn_close))
                     }
                 }
@@ -689,7 +687,7 @@ fun SpendsCalendar(
                             Text(stringResource(R.string.calendar_statement_period, cycle.start.toString(), cycle.closing.toString()))
                             Text(stringResource(R.string.calendar_statement_estimate, amount))
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                AppButton(onClick = { showDetailSheet = false; onPayCard(card.id) }, modifier = Modifier.testTag("CalendarPay_${card.id}")) { Text(stringResource(R.string.calendar_pay_now), maxLines = 1) }
+                                AppButton(onClick = { dismissDetails { showDetailSheet = false; onPayCard(card.id) } }, modifier = Modifier.testTag("CalendarPay_${card.id}")) { Text(stringResource(R.string.calendar_pay_now), maxLines = 1) }
                                 AppTextButton(onClick = { com.example.vibefinance.util.CalendarSyncHelper.addCardDeadlineToSystemCalendar(context, card, date) }) { Text(stringResource(R.string.calendar_add), maxLines = 1) }
                             }
                         }

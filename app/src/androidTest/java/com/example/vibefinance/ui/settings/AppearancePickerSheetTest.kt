@@ -25,6 +25,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 @RunWith(AndroidJUnit4::class)
 class AppearancePickerSheetTest {
     @get:Rule val rule = createComposeRule()
+    private var dismissals = 0
     private val intents = CopyOnWriteArrayList<FinanceIntent>()
     private var state by mutableStateOf(FinanceUiState(isLoading = false))
 
@@ -42,7 +43,7 @@ class AppearancePickerSheetTest {
                                 paletteSeeds = state.paletteSeeds + (intent.palette to intent.seed), dynamicColorEnabled = false)
                             else -> state
                         }
-                    }, onDismiss = {})
+                    }, onDismiss = { dismissals++ })
                 }
             }
         }
@@ -63,6 +64,22 @@ class AppearancePickerSheetTest {
     private fun edit(hex: String) {
         rule.onNodeWithTag("PaletteHex").performScrollTo().performTextReplacement(hex)
         rule.waitForIdle()
+    }
+
+    @Test fun closeButton_waitsForNativeExit_withoutChangingSettings() {
+        show()
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val close = rule.onNodeWithText(context.getString(com.example.vibefinance.R.string.btn_close))
+        close.performScrollTo()
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        close.performClick()
+        assertEquals(0, dismissals)
+        rule.mainClock.advanceTimeBy(64)
+        assertEquals(0, dismissals)
+        rule.mainClock.advanceTimeBy(300)
+        rule.runOnIdle { assertEquals(1, dismissals) }
+        assertTrue(intents.isEmpty())
     }
 
     @Test fun styleChooser_selectsEachStyleOnce_andShowsCurrentSelection() {

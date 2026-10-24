@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -253,7 +255,8 @@ fun VisualSlotTaggingDialog(
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.AMOUNT)
                                             selectedTokenIndex = null
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
                                         Text("💰 金額", style = MaterialTheme.typography.labelSmall)
                                     }
@@ -262,7 +265,8 @@ fun VisualSlotTaggingDialog(
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.MERCHANT)
                                             selectedTokenIndex = null
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
                                         Text("🏪 商戶", style = MaterialTheme.typography.labelSmall)
                                     }
@@ -271,7 +275,8 @@ fun VisualSlotTaggingDialog(
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.CARD_LAST4)
                                             selectedTokenIndex = null
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.weight(1f),
+                                        elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
                                         Text("💳 卡號", style = MaterialTheme.typography.labelSmall)
                                     }
@@ -383,7 +388,8 @@ fun VisualSlotTaggingDialog(
                         transactionType = transactionType
                     )
                     onSaveAndApply(template, previewResult)
-                }
+                },
+                elevation = AppButtonDefaults.elevation(),
             ) {
                 Text(stringResource(R.string.vst_save_and_apply), fontWeight = FontWeight.Bold)
             }

@@ -2,6 +2,8 @@
 
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.AppButtonDefaults
+
 import com.example.vibefinance.util.VibeHaptics
 import androidx.compose.ui.platform.LocalView
 import com.example.vibefinance.ui.common.ScrollBlurContainer
@@ -93,6 +95,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 import androidx.compose.material3.HorizontalDivider
 import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -130,6 +133,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -226,7 +230,8 @@ fun SettingsSheet(
         saveChanges(budgetAmountText, selectedEndDateMillis, budgetInfo, selectedRolloverMode, viewModel)
         onDismiss()
     }
-    val closeSettings = if (drawerState == null) ({ dismissAfterSave() })
+    val dismissSheet = rememberSheetDismissAction(sheetState)
+    val closeSettings = if (drawerState == null) ({ dismissSheet { dismissAfterSave() } })
         else rememberSettingsDrawerClose(drawerState) { dismissAfterSave() }
 
     // Intercepted apps flow
@@ -401,7 +406,7 @@ fun SettingsSheet(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
             } else {
             // The focused budget form retains its existing headline.
             Row(
@@ -505,7 +510,7 @@ fun SettingsSheet(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -528,7 +533,7 @@ fun SettingsSheet(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = stringResource(R.string.appearance_palette_desc),
                                             style = MaterialTheme.typography.bodySmall,
@@ -616,7 +621,7 @@ fun SettingsSheet(
                                     }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -639,7 +644,7 @@ fun SettingsSheet(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = stringResource(R.string.dynamic_color_desc),
                                             style = MaterialTheme.typography.bodySmall,
@@ -663,7 +668,7 @@ fun SettingsSheet(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -686,7 +691,7 @@ fun SettingsSheet(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(
                                             text = stringResource(R.string.appearance_pure_black_desc),
                                             style = MaterialTheme.typography.bodySmall,
@@ -706,7 +711,7 @@ fun SettingsSheet(
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth().testTag("LaunchAnimationSetting")
                             ) {
-                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         Modifier.size(42.dp).background(MaterialTheme.colorScheme.primaryContainer,
                                             rememberIconShape("settings.launch-animation")),
@@ -719,7 +724,7 @@ fun SettingsSheet(
                                     Column(Modifier.weight(1f)) {
                                         Text(stringResource(R.string.appearance_launch_animation_title),
                                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(stringResource(R.string.appearance_launch_animation_desc),
                                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
@@ -746,7 +751,7 @@ fun SettingsSheet(
                                     }
                                     .testTag("HapticFeedbackSetting")
                             ) {
-                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         Modifier.size(42.dp).background(MaterialTheme.colorScheme.primaryContainer,
                                             rememberIconShape("settings.haptic-feedback")),
@@ -759,7 +764,7 @@ fun SettingsSheet(
                                     Column(Modifier.weight(1f)) {
                                         Text(stringResource(R.string.appearance_haptic_feedback_title),
                                             style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         Text(stringResource(R.string.appearance_haptic_feedback_desc),
                                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
@@ -787,7 +792,7 @@ fun SettingsSheet(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(horizontal = 14.dp, vertical = 16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -810,7 +815,7 @@ fun SettingsSheet(
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(Modifier.height(2.dp))
+                                        Spacer(Modifier.height(4.dp))
                                         val isZh = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language.startsWith("zh")
                                         Text(
                                             text = "${state.iconShape.localizedTitle(isZh)} · ${stringResource(R.string.appearance_icon_shape_desc)}",
@@ -1291,7 +1296,8 @@ fun SettingsSheet(
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
+                                .height(52.dp),
+                            elevation = AppButtonDefaults.elevation(),
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DateRange,
@@ -1380,98 +1386,114 @@ fun SettingsSheet(
                     SettingsSectionContainer(
                         title = stringResource(R.string.settings_section_data_privacy),
                         icon = Icons.Filled.Security,
+                        contentHorizontalPadding = 0.dp,
                         expanded = expandedSection == SettingsGroup.PRIVACY.name,
                         onToggle = {
                             expandedSection = if (expandedSection == SettingsGroup.PRIVACY.name) null
                             else SettingsGroup.PRIVACY.name
                         }
                     ) {
-                        com.example.vibefinance.ui.preferences.PrivacySettings(state, viewModel::dispatch)
+                        Column(Modifier.padding(horizontal = 12.dp)) {
+                            com.example.vibefinance.ui.preferences.PrivacySettings(state, viewModel::dispatch)
 
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Security,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = stringResource(R.string.settings_privacy_badge),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+
+                        Column(Modifier.padding(horizontal = 12.dp)) {
+                            backupActions()
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            val importInteraction = remember { MutableInteractionSource() }
+                            CompletePressFilledTonalButton(
+                                onClick = {
+                                    VibeHaptics.lightTick(view)
+                                    filePickerLauncher.launch("*/*")
+                                },
+                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                interactionSource = importInteraction,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .pressBounce(interactionSource = importInteraction)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Security,
+                                    imageVector = Icons.Default.UploadFile,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = stringResource(R.string.settings_privacy_badge),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = stringResource(R.string.import_btn_select_file),
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
 
-                        backupActions()
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        val importInteraction = remember { MutableInteractionSource() }
-                        CompletePressFilledTonalButton(
-                            onClick = {
-                                VibeHaptics.lightTick(view)
-                                filePickerLauncher.launch("*/*")
-                            },
-                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ),
-                            interactionSource = importInteraction,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .pressBounce(interactionSource = importInteraction)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.UploadFile,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.import_btn_select_file),
-                                fontWeight = FontWeight.Bold
-                            )
+                        Column(Modifier.padding(horizontal = 12.dp)) {
+                            OutlinedButton(
+                                onClick = { VibeHaptics.warningAlert(view); showResetConfirmDialog = true },
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_btn_reset_mock),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedButton(
-                            onClick = { VibeHaptics.warningAlert(view); showResetConfirmDialog = true },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.settings_btn_reset_mock),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
 
                     // App Info & Version Footer
@@ -1497,7 +1519,7 @@ fun SettingsSheet(
         settingsContent()
     } else {
         ModalBottomSheet(
-            onDismissRequest = closeSettings,
+            onDismissRequest = { dismissAfterSave() },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -1553,6 +1575,7 @@ private fun SettingsSectionContainer(
     expanded: Boolean,
     onToggle: () -> Unit,
     showHeader: Boolean = true,
+    contentHorizontalPadding: Dp = 12.dp,
     content: @Composable () -> Unit
 ) {
     val view = LocalView.current
@@ -1644,8 +1667,15 @@ private fun SettingsSectionContainer(
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                 ) + fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
             ) {
-                Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp, top = if (showHeader) 0.dp else 16.dp)) {
-                    content()
+                Column(Modifier.padding(bottom = 16.dp, top = if (showHeader) 0.dp else 16.dp)) {
+                    if (showHeader) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
+                    Column(Modifier.padding(horizontal = contentHorizontalPadding)) { content() }
                 }
             }
         }
