@@ -92,14 +92,14 @@ fun StatCard(
                     .fillMaxWidth()
                     .padding(effectivePadding)
             ) {
-                Text(
-                    text = value,
-                    style = valueFontStyle,
-                    fontSize = effectiveValueFontSize,
-                    overflow = TextOverflow.Ellipsis,
-                    softWrap = false,
+                val displayValue = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                    com.example.vibefinance.ui.preferences.redactAmounts(value) else value
+                androidx.compose.foundation.text.BasicText(
+                    text = displayValue, modifier = Modifier.fillMaxWidth(),
+                    style = valueFontStyle.copy(color = textColor, lineHeight = TextUnit(1.2f, TextUnitType.Em)),
                     maxLines = 1,
-                    lineHeight = TextUnit(1.2f, TextUnitType.Em)
+                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
+                        minFontSize = 12.sp, maxFontSize = effectiveValueFontSize.value.coerceAtLeast(12f).sp)
                 )
                 Text(
                     text = label,

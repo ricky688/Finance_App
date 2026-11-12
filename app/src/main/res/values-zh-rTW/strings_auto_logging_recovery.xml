@@ -4,4 +4,15 @@
     <string name="auto_logging_recovery_body">未能擷取付款通知？請先關閉並重新開啟 VibeFinance。若問題持續，開啟「通知存取權」，將 VibeFinance 的權限關閉後再開啟，然後返回本頁，確認已啟用自動記帳並選取付款應用程式。</string>
     <string name="auto_logging_open_access">開啟通知存取權設定</string>
     <string name="auto_logging_access_unavailable">此裝置無法開啟通知存取權設定。</string>
+    <string name="battery_guideline_title">省電模式與後台記帳指南</string>
+    <string name="battery_guideline_desc">開啟省電模式時，系統或廠商最佳化可能延遲刷卡推播或凍結背景監聽服務。建議將 VibeFinance 設為不受電池最佳化限制，以確保記帳即時穩定。</string>
+    <string name="battery_status_unrestricted">背景不受限制 (推薦)</string>
+    <string name="battery_status_optimized">受電池最佳化限制</string>
+    <string name="battery_btn_unrestrict">解除電池限制</string>
+    <string name="battery_btn_app_settings">應用程式電池設定</string>
+    <string name="battery_btn_system_saver">系統省電設定</string>
+    <string name="battery_guideline_tip1">不受限制電池：確保在開啟省電模式時，系統不會凍結 VibeFinance 的通知監聽服務。</string>
+    <string name="battery_guideline_tip2">銀行背景數據：請確認您的發卡銀行及支付 App 允許背景數據傳輸，避免待機時無法即時收到刷卡通知。</string>
+    <string name="battery_guideline_tip3">避免極限省電：如 Samsung「限制應用程式與主螢幕」等極限省電會休眠所有第三方後台服務。</string>
+    <string name="battery_settings_unavailable">此裝置無法開啟電池設定。</string>
 </resources>

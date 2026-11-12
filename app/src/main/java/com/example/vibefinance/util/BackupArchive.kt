@@ -20,7 +20,7 @@ class BackupException(val reason: BackupError, cause: Throwable? = null) : IOExc
 /** Portable envelope: versioned ZIP, optionally authenticated and encrypted in its entirety. */
 internal object BackupArchive {
     // Version 2 preserves per-expense icons. Continue accepting backups made before icons existed.
-    const val VERSION = 2
+    const val VERSION = 4
     const val MAX_BYTES = 512L * 1024 * 1024
     const val MAX_ENTRY_BYTES = 128L * 1024 * 1024
     const val ITERATIONS = 1_300_000

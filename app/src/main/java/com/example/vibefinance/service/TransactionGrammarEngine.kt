@@ -38,8 +38,8 @@ object TransactionGrammarEngine {
         Regex("(?:^|[\\s，,。\\n]+)([^，,。\\n]+?)\\s*(?:已向|向)(?:你|您|閣下)(?:付款|轉[賬帳]|支付|匯款)", RegexOption.IGNORE_CASE),
         Regex("(?:轉出|轉帳|轉賬|轉交|匯出).*?給\\s*([^，,。\\n]+?)(?:[，,。\\n]|款項|$)", RegexOption.IGNORE_CASE),
         Regex("(?:給|轉給|轉至|轉到|轉賬給|轉帳給|轉賬至|轉帳至|匯給|匯至)\\s*([^，,。\\n]+?)(?:[，,。\\n]|款項已成功|款項|$)", RegexOption.IGNORE_CASE),
-        Regex("(?:在|於)\\s*([^，,。\\n]+?)\\s*(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡)", RegexOption.IGNORE_CASE),
-        Regex("(?:向|付款予|付款給|支付予|支付給)\\s*([^，,。\\n]+?)\\s*(?:付款|支付|轉帳|轉賬|完成|$)", RegexOption.IGNORE_CASE),
+        Regex("(?:在|於)\\s*([^，,。\\n]+?)\\s*(?:的)?(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡|簽[賬帳])", RegexOption.IGNORE_CASE),
+        Regex("(?:向|付款予|付款給|支付予|支付給)\\s*([^，,。\\n]+?)\\s*(?:直接付款|直接支付|直接扣款|直接轉帳|直接轉賬|付款|支付|轉帳|轉賬|完成|$)", RegexOption.IGNORE_CASE),
         Regex("(?:付款|支付|成功付款|成功支付)\\s*(?:予|給|到)\\s*([^，,。\\n]+?)(?:\\s+(?:完成|HKD|HK\\$|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?:商戶|特約商戶|交易商戶)[:：]\\s*([^，,。\\n]+?)(?:\\s+(?:消費金額|交易金額|金額|HK|\\$|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?:來自|由|轉帳自|轉賬自|收到來自)\\s*([^，,。\\n]+?)(?:\\s+(?:的轉入|的存入|的轉帳|的轉賬|的款項|轉入|存入|付款|轉帳|轉賬|完成)|的轉[帳賬]|[，,。\\n]|$)", RegexOption.IGNORE_CASE)
@@ -86,14 +86,14 @@ object TransactionGrammarEngine {
     )
 
     private val transferPatterns = listOf(
-        Regex("(?i)(?:\\b(?:transfer(?:red)?|top[- ]?up|reload|aavs)\\b|ocl\\*|octopus\\s*(?:aavs|top[- ]?up|reload|app))"),
+        Regex("(?i)(?:\\b(?:transfer(?:red)?|top[- ]?up|reload|aavs|edda|direct\\s*debit)\\b|ocl\\*|octopus\\s*(?:aavs|top[- ]?up|reload|app))"),
         Regex("八達通(?:自動)?(?:增值|充值|儲值)|(?:增值|充值|儲值)八達通|自動增值|轉[賬帳]至八達通|由銀行戶口轉[賬帳]|轉[賬帳]至|轉入八達通"),
-        Regex("轉出|轉入|轉[賬帳]|轉數快|經轉數快|轉給|轉至|轉到|轉交|匯出|匯入|匯給|匯至|付款人.*存入|查看轉[賬帳]詳情|款項已成功發送|發送給收款人")
+        Regex("轉出|轉入|轉[賬帳]|轉數快|經轉數快|轉給|轉至|轉到|轉交|匯出|匯入|匯給|匯至|直接付款|直接扣款|(?:你|您)已成功向.+?(?:直接)?(?:付款|支付|轉[賬帳])|付款人.*存入|查看轉[賬帳]詳情|款項已成功發送|發送給收款人")
     )
 
     private val expensePatterns = listOf(
         Regex("(?i)\\b(?:paid|spent|purchase|charged|debited)\\b"),
-        Regex("消費|支出|扣款|已扣款|付款|已完成付款|刷卡|成功扣除")
+        Regex("消費|支出|扣款|已扣款|付款|已完成付款|刷卡|成功扣除|簽[賬帳]|完成交易")
     )
 
     /**
@@ -194,7 +194,7 @@ object TransactionGrammarEngine {
     private fun cleanMerchantString(raw: String): String {
         return raw.replace(Regex("(?:HKD|HK\\$|HK|\\$|USD|TWD|NT\\$|RMB|￥|€|£|港元|港幣)\\s*[0-9.,]+|[0-9.,]+\\s*(?:HKD|HK\\$|HK|\\$|USD|TWD|NT\\$|RMB|￥|€|£|港元|港幣|元|圓)"), "")
             .replace(Regex("^(?:由|來自|向|於|在|成功|已)?(?:通[過过]|透[過过]|經由|经由)?\\s*"), "")
-            .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|付款|支付|扣款)$"), "")
+            .replace(Regex("\\s*(?:的轉[帳賬]|的款項|的存入|的轉入|轉入|存入|直接付款|直接支付|直接扣款|直接轉[帳賬]|付款|支付|扣款|直接)$"), "")
             .replace(Regex("^[\\s，,。：:\\-\\s>~·•\\p{So}\\p{Sk}\\p{Sm}\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]+|[，,。：:\\-\\s>~·•\\p{So}\\p{Sk}\\p{Sm}\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]+$"), "")
             .trim()
             .take(40)

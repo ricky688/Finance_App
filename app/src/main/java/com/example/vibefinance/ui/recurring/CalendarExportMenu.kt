@@ -45,7 +45,7 @@ internal fun CalendarExportMenu(state: FinanceUiState) {
                     expanded = false
                     if (state.subscriptions.isEmpty() && state.accounts.none { it.type == com.example.vibefinance.data.entity.AccountType.CC && com.example.vibefinance.util.CreditCardCycleCalculator().paymentDay(it) != null }) {
                         android.widget.Toast.makeText(context, context.appString(R.string.calendar_export_empty), android.widget.Toast.LENGTH_SHORT).show()
-                    } else if (state.subscriptions.any { !it.frequency.equals("Weekly", true) && java.time.Instant.ofEpochMilli(it.nextPaymentDate).atZone(java.time.ZoneId.systemDefault()).dayOfMonth > 28 }) confirm = true
+                    } else if (state.subscriptions.any { (it.frequency.equals("Monthly", true) || it.frequency.equals("Yearly", true) || it.frequency.equals("Annual", true)) && java.time.Instant.ofEpochMilli(it.nextPaymentDate).atZone(java.time.ZoneId.systemDefault()).dayOfMonth > 28 }) confirm = true
                     else performExport()
                 }, modifier = Modifier.testTag("RecurringCalendarExport"))
             }

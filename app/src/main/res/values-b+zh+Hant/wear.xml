@@ -1,0 +1,4 @@
+<resources>
+    <string name="wear_share_title">分享預算至 Wear OS</string>
+    <string name="wear_share_description">在手錶查看唯讀預算。隱藏金額或啟用 App 鎖會停止分享。離線金額最遲於 15 分鐘內或午夜失效。Google Play 服務可能透過 Google 伺服器中繼加密更新。</string>
+</resources>

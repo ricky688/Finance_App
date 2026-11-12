@@ -5,6 +5,10 @@
 
 package com.example.vibefinance.ui.main
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Sync
 import com.example.vibefinance.ui.components.AppButtonDefaults
 
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -18,6 +22,10 @@ import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.components.ExpressiveConnectedButtonGroup
 import com.example.vibefinance.ui.components.RollingNumberText
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.Image
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.graphics.vector.ImageVector
 import android.content.res.Resources
@@ -30,6 +38,7 @@ import com.example.vibefinance.ui.recurring.SubscriptionEntryHost
 import com.example.vibefinance.ui.recurring.rememberSubscriptionEditorState
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
 import com.example.vibefinance.ui.components.connectedSpatialMotion
@@ -53,6 +62,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.produceState
 import com.example.vibefinance.ui.home.RecalcBudgetSheet
 import android.widget.Toast
 import com.example.vibefinance.data.currency.ExchangeRateLoader
@@ -115,6 +125,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.ripple
 import com.example.vibefinance.ui.components.AppSwitch
+import androidx.compose.foundation.selection.toggleable
 import com.example.vibefinance.ui.components.rememberConnectedButtonColorMotion
 import com.example.vibefinance.ui.components.ConnectedButtonRipple
 import com.example.vibefinance.util.VibeHaptics
@@ -196,7 +207,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -204,13 +214,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DarkMode
@@ -298,7 +303,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import com.example.vibefinance.util.CurrencyEngine
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -398,6 +402,7 @@ internal fun ExpressiveCollapsingTopBar(
     modifier: Modifier = Modifier,
     canNavigateBack: Boolean = false,
     onNavigateBack: () -> Unit = {},
+    showBrandPill: Boolean = true,
     onAppIconEasterEggTrigger: () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
@@ -454,7 +459,7 @@ internal fun ExpressiveCollapsingTopBar(
                 IconButton(onClick = onNavigateBack) {
                     Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.nav_back))
                 }
-            } else {
+            } else if (showBrandPill) {
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -518,7 +523,9 @@ internal fun ExpressiveCollapsingTopBar(
 
             AnimatedContent(
                 targetState = if (isExpanded) null else selectedTab,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = if (showBrandPill || canNavigateBack) 0.dp else 16.dp),
                 contentAlignment = Alignment.CenterStart,
                 transitionSpec = {
                     val enter = fadeIn(animationSpec = springFloat) + slideInVertically(
@@ -545,14 +552,16 @@ internal fun ExpressiveCollapsingTopBar(
                 label = "topRowBrandToCompactTitle"
             ) { compactTab ->
                 if (compactTab == null) {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = colors.onSurface,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
+                    if (showBrandPill) {
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = colors.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
                 } else {
                     val page = topBarPageText(compactTab, state)
                     Column {
@@ -998,6 +1007,8 @@ fun MainScreen(
 
     val feedbackView = androidx.compose.ui.platform.LocalView.current
     val batchResult by viewModel.batchResult.collectAsState()
+    val reimbursementResult by viewModel.reimbursementResult.collectAsState()
+    val transactionEditResult by viewModel.transactionEditResult.collectAsState()
     // Event listener for MVI one-use toasts
     LaunchedEffect(Unit) {
         viewModel.uiEvents.collect { event ->
@@ -1030,7 +1041,16 @@ fun MainScreen(
     var showDatePickerModal by rememberSaveable(showBudgetDialog) { mutableStateOf(false) }
     LaunchedEffect(showBudgetDialog, budgetConfigurationOnly) {
         // Import/restore and opening the focused budget form can leave Settings directly.
-        if (!showBudgetDialog || budgetConfigurationOnly) settingsDrawerState.close()
+        if (!showBudgetDialog || budgetConfigurationOnly) {
+            if (settingsDrawerState.isOpen) settingsDrawerState.close()
+        } else {
+            if (settingsDrawerState.isClosed) settingsDrawerState.open()
+        }
+    }
+    LaunchedEffect(settingsDrawerState.isOpen) {
+        if (settingsDrawerState.isClosed && showBudgetDialog && !budgetConfigurationOnly) {
+            budgetSheetDestination = budgetSheetDestination.dismissSettings()
+        }
     }
     var flyingCashTriggerKey by remember { mutableLongStateOf(0L) }
     val assetEditorTransition = androidx.compose.animation.core.updateTransition(
@@ -1042,10 +1062,11 @@ fun MainScreen(
     val subscriptionEditorTransition = androidx.compose.animation.core.updateTransition(
         subscriptionEditorState.isOpen, label = "Subscription editor navigation"
     )
+    val isWideScreen = (LocalMainWindowWidth.current ?: LocalConfiguration.current.screenWidthDp.dp) >= 600.dp
     val fullScreenEditorTransition = androidx.compose.animation.core.updateTransition(
-        assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen, label = "Full-screen editor background"
+        !isWideScreen && (assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen), label = "Full-screen editor background"
     )
-    val shouldSlideBackground = (showAddDialog || subscriptionEditorState.isOpen) && !assetEditorState.isOpen
+    val shouldSlideBackground = !isWideScreen && (showAddDialog || subscriptionEditorState.isOpen) && !assetEditorState.isOpen
     Box(Modifier.fillMaxSize().assetEditorBackgroundMotion(fullScreenEditorTransition, enableSlide = shouldSlideBackground)
         .semantics { if (fullScreenEditorTransition.currentState || fullScreenEditorTransition.targetState) hideFromAccessibility() }) {
     com.example.vibefinance.ui.settings.SettingsDrawerHost(
@@ -1066,6 +1087,65 @@ fun MainScreen(
         }
     ) {
     ObsidianGradientBackground {
+        val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val driveAuthState by com.example.vibefinance.util.GoogleDriveSyncEngine.authState.collectAsStateWithLifecycle()
+        val driveSyncStatus by com.example.vibefinance.util.GoogleDriveSyncEngine.syncStatus.collectAsStateWithLifecycle()
+        val isSyncing = driveSyncStatus is com.example.vibefinance.util.GoogleDriveSyncStatus.Syncing
+        val localContext = androidx.compose.ui.platform.LocalContext.current
+        val syncScope = androidx.compose.runtime.rememberCoroutineScope()
+
+        AdaptiveMainFrame(
+            selectedTab = selectedTab,
+            onSelect = { tab ->
+                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                if (selectedTab != tab) {
+                    if (tab == TabItem.HISTORY) { historyAccountFilterId = null; historyCategoryFilter = null }
+                    selectedTab = tab
+                }
+            },
+            onAddTransaction = {
+                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                activeTransactionMode = TransactionMode.EXPENSE
+                showAddDialog = true
+            },
+            onAddSubscription = {
+                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                if (selectedTab != TabItem.RECURRING) {
+                    selectedTab = TabItem.RECURRING
+                }
+                subscriptionEditorState.open()
+            },
+            onAddAccount = {
+                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                if (selectedTab != TabItem.ACCOUNTS) {
+                    selectedTab = TabItem.ACCOUNTS
+                }
+                assetEditorState.open()
+            },
+            onSettings = {
+                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                budgetSheetDestination = BudgetSheetDestination.SETTINGS
+            },
+            onTogglePrivacy = {
+                viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts))
+            },
+            onToggleTheme = {
+                viewModel.dispatch(FinanceIntent.SetThemeMode(if (isDarkTheme) com.example.vibefinance.theme.ThemeMode.LIGHT else com.example.vibefinance.theme.ThemeMode.DARK))
+            },
+            onTriggerSync = if (driveAuthState.isAuthenticated) {
+                {
+                    if (!isSyncing) {
+                        syncScope.launch {
+                            com.example.vibefinance.util.GoogleDriveSyncEngine.sync(localContext, silent = false)
+                        }
+                    }
+                }
+            } else null,
+            isPrivacyHidden = state.hideAmounts,
+            isDarkTheme = isDarkTheme,
+            isSyncing = isSyncing
+        ) { useRail ->
+        Box(Modifier.fillMaxSize()) {
         Scaffold(
             modifier = modifier
                 .fillMaxSize()
@@ -1073,86 +1153,121 @@ fun MainScreen(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                ExpressiveCollapsingTopBar(
-                    selectedTab = selectedTab,
-                    state = state,
-                    isExpanded = topBarState.expanded,
-                    hazeState = hazeState,
-                    backgroundObscured = isBackgroundObscured,
-                    onAppIconEasterEggTrigger = { flyingCashTriggerKey = System.currentTimeMillis() },
-                    actions = {
-                        IconButton(onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
-                            modifier = Modifier.testTag("ToggleAmountPrivacy")) {
-                            Icon(if (state.hideAmounts) androidx.compose.material.icons.Icons.Default.VisibilityOff
-                                else androidx.compose.material.icons.Icons.Default.Visibility,
-                                contentDescription = stringResource(if (state.hideAmounts) R.string.privacy_show_amounts else R.string.privacy_hide_amounts))
-                        }
-                        val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-                        val iconRotation by animateFloatAsState(
-                            targetValue = if (isDarkTheme) 360f else 0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
-                            label = "themeIconRotation"
-                        )
-                        val iconTint by animateColorAsState(
-                            targetValue = if (isDarkTheme) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ),
-                            label = "themeIconTint"
-                        )
-                        IconButton(onClick = {
-                            val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
-                            viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
-                        }) {
-                            AnimatedContent(
-                                targetState = isDarkTheme,
-                                transitionSpec = {
-                                    (fadeIn(animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioNoBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )) + scaleIn(
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
+                if (!useRail) {
+                    ExpressiveCollapsingTopBar(
+                        selectedTab = selectedTab,
+                        state = state,
+                        isExpanded = topBarState.expanded,
+                        hazeState = hazeState,
+                        backgroundObscured = isBackgroundObscured,
+                        showBrandPill = true,
+                        onAppIconEasterEggTrigger = { flyingCashTriggerKey = System.currentTimeMillis() },
+                        actions = {
+                            val actionView = androidx.compose.ui.platform.LocalView.current
+                            if (driveAuthState.isAuthenticated) {
+                                IconButton(
+                                    onClick = {
+                                        if (!isSyncing) {
+                                            com.example.vibefinance.util.VibeHaptics.lightTick(actionView)
+                                            syncScope.launch {
+                                                com.example.vibefinance.util.GoogleDriveSyncEngine.sync(localContext, silent = false)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("GoogleDriveSyncTopBarBtn")
+                                ) {
+                                    if (isSyncing) {
+                                        androidx.compose.material3.CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.5.dp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                                         )
-                                    )).togetherWith(
-                                        fadeOut(animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMedium
-                                        )) + scaleOut(animationSpec = spring(
+                                    } else {
+                                        Icon(
+                                            imageVector = androidx.compose.material.icons.Icons.Default.CloudDone,
+                                            contentDescription = stringResource(R.string.google_drive_sync_title),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+
+                            IconButton(onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
+                                modifier = Modifier.testTag("ToggleAmountPrivacy")) {
+                                Icon(if (state.hideAmounts) androidx.compose.material.icons.Icons.Default.VisibilityOff
+                                    else androidx.compose.material.icons.Icons.Default.Visibility,
+                                    contentDescription = stringResource(if (state.hideAmounts) R.string.privacy_show_amounts else R.string.privacy_hide_amounts))
+                            }
+                            val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                            val iconRotation by animateFloatAsState(
+                                targetValue = if (isDarkTheme) 360f else 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "themeIconRotation"
+                            )
+                            val iconTint by animateColorAsState(
+                                targetValue = if (isDarkTheme) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                ),
+                                label = "themeIconTint"
+                            )
+                            IconButton(onClick = {
+                                val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
+                                viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
+                            }) {
+                                AnimatedContent(
+                                    targetState = isDarkTheme,
+                                    transitionSpec = {
+                                        (fadeIn(animationSpec = spring(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
-                                        ))
+                                        )) + scaleIn(
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            )
+                                        )).togetherWith(
+                                            fadeOut(animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                                stiffness = Spring.StiffnessMedium
+                                            )) + scaleOut(animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                                stiffness = Spring.StiffnessMediumLow
+                                            ))
+                                        )
+                                    },
+                                    label = "moonSunIconSwitch"
+                                ) { isDark ->
+                                    Icon(
+                                        imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                        contentDescription = stringResource(R.string.theme_mode_label),
+                                        tint = iconTint,
+                                        modifier = Modifier.graphicsLayer { rotationZ = iconRotation }
                                     )
-                                },
-                                label = "moonSunIconSwitch"
-                            ) { isDark ->
+                                }
+                            }
+                            IconButton(onClick = {
+                                VibeHaptics.lightTick(hapticView)
+                                budgetSheetDestination = BudgetSheetDestination.SETTINGS
+                            }) {
                                 Icon(
-                                    imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                    contentDescription = stringResource(R.string.theme_mode_label),
-                                    tint = iconTint,
-                                    modifier = Modifier.graphicsLayer { rotationZ = iconRotation }
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = stringResource(R.string.settings_title)
                                 )
                             }
                         }
-                        IconButton(onClick = {
-                            VibeHaptics.lightTick(hapticView)
-                            budgetSheetDestination = BudgetSheetDestination.SETTINGS
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = stringResource(R.string.settings_title)
-                            )
-                        }
-                    }
-                )
+                    )
+                }
             },
             floatingActionButton = {
                 val fabTab = when {
+                    useRail -> null
                     selectedTab == TabItem.HOME && !showAddDialog -> TabItem.HOME
                     selectedTab == TabItem.RECURRING && !showAddRecurringSheet && !subscriptionEditorState.isOpen -> TabItem.RECURRING
                     else -> null
@@ -1207,7 +1322,7 @@ fun MainScreen(
                                 showAddDialog = true
                             },
                             modifier = Modifier.testTag("DailyAddFab").graphicsLayer {
-                                translationY = with(density) { fabOffsetY.toPx() }
+                                translationY = if (useRail) 0f else with(density) { fabOffsetY.toPx() }
                             },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1226,7 +1341,7 @@ fun MainScreen(
                             text = { Text(stringResource(R.string.btn_add), fontWeight = FontWeight.Bold) },
                             modifier = Modifier.testTag("RecurringAddFab")
                                 .graphicsLayer {
-                                    translationY = with(density) { fabOffsetY.toPx() }
+                                    translationY = if (useRail) 0f else with(density) { fabOffsetY.toPx() }
                                 }
                                 .clip(RoundedCornerShape(16.dp)),
                             shape = RoundedCornerShape(16.dp),
@@ -1238,7 +1353,7 @@ fun MainScreen(
                 }
             },
             bottomBar = {
-                Box(
+                if (!useRail) Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coordinates ->
@@ -1395,6 +1510,8 @@ fun MainScreen(
                 // 1. Screen content (takes up whole screen, padded horizontally and top, bottom extends to screen edge)
                 Box(
                     modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .widthIn(max = 1200.dp)
                         .fillMaxSize()
                         .padding(
                             top = if (overlayTopBar) 0.dp else paddingValues.calculateTopPadding(),
@@ -1421,12 +1538,9 @@ fun MainScreen(
                             val enterTransition = fadeIn(
                                 animationSpec = MotionTokens.emphasizedEnter(210)
                             ) + scaleIn(
-                                initialScale = 0.94f,
+                                initialScale = 0.96f,
                                 transformOrigin = TransformOrigin.Center,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = MotionTokens.emphasizedEnter(210)
                             )
                             val exitTransition = fadeOut(
                                 animationSpec = MotionTokens.emphasizedExit(90)
@@ -1451,9 +1565,9 @@ fun MainScreen(
                                     topContentPadding = pageTopPadding,
                                     topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
                                     bottomVisibilityInsetProvider = { (
-                                        if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                        if (useRail) navBarInsetsBottom else if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                         else 100.dp
-                                    ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
+                                    ).minus(if (useRail) 0.dp else navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                     onViewAllClick = {
                                         historyAccountFilterId = null
                                         historyCategoryFilter = null
@@ -1477,7 +1591,8 @@ fun MainScreen(
                                             isRecalcSheetMandatory = false
                                             showRecalcSheet = true
                                         }
-                                    }
+                                    },
+                                    useRail = useRail
                                 )
                             }
                             TabItem.ACCOUNTS -> AccountsScreen(
@@ -1488,9 +1603,9 @@ fun MainScreen(
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
                                 bottomVisibilityInsetProvider = { (
-                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    if (useRail) navBarInsetsBottom else if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
+                                ).minus(if (useRail) 0.dp else navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 onViewAccountHistory = { accountId ->
                                     historyAccountFilterId = accountId
                                     historyCategoryFilter = null
@@ -1507,9 +1622,9 @@ fun MainScreen(
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
                                 bottomVisibilityInsetProvider = { (
-                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    if (useRail) navBarInsetsBottom else if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
+                                ).minus(if (useRail) 0.dp else navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 showAddSheet = showAddRecurringSheet,
                                 onDismissAddSheet = { showAddRecurringSheet = false },
                                 editorState = subscriptionEditorState,
@@ -1517,6 +1632,7 @@ fun MainScreen(
                             )
                             TabItem.HISTORY -> HistoryScreen(
                                 state = state,
+                                editResult = { transactionEditResult },
                                 batchResult = batchResult,
                                 onIntent = viewModel::dispatch,
                                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -1524,9 +1640,9 @@ fun MainScreen(
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
                                 bottomVisibilityInsetProvider = { (
-                                    if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
+                                    if (useRail) navBarInsetsBottom else if (measuredBottomBarHeightPx > 0f) with(density) { measuredBottomBarHeightPx.toDp() }
                                     else 100.dp
-                                ).minus(navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
+                                ).minus(if (useRail) 0.dp else navBarOffsetY).coerceAtLeast(navBarInsetsBottom) },
                                 accountFilterId = historyAccountFilterId,
                                 onClearAccountFilter = { historyAccountFilterId = null },
                                 categoryFilter = historyCategoryFilter,
@@ -1577,7 +1693,7 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.TopCenter)
                         .offset(y = paddingValues.calculateTopPadding())
                 )
-                SubtleGlassTransition(
+                if (!useRail) SubtleGlassTransition(
                     state = hazeState, top = false, obscured = isBackgroundObscured,
                     modifier = Modifier.align(Alignment.BottomCenter).offset {
                         val barHeight = if (measuredBottomBarHeightPx > 0f) measuredBottomBarHeightPx else 100.dp.toPx()
@@ -1591,31 +1707,49 @@ fun MainScreen(
                 )
             }
         }
+        if (useRail) {
+            TransactionEntryHost(
+                visible = showAddDialog, state = state, onIntent = viewModel::dispatch,
+                onDismiss = { showAddDialog = false; prefilledTransferCardId = null },
+                initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
+                accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
+                transition = transactionEditorTransition,
+                reimbursementResult = reimbursementResult,
+                useSideSheet = true
+            )
+        }
+    }
     }
 
     }
 
     }
 
-    TransactionEntryHost(
-        visible = showAddDialog, state = state, onIntent = viewModel::dispatch,
-        onDismiss = { showAddDialog = false; prefilledTransferCardId = null },
-        initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
-        accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
-        transition = transactionEditorTransition,
-    )
+    }
 
-    SubscriptionEntryHost(
-        visible = subscriptionEditorState.isOpen,
-        state = state,
-        editorState = subscriptionEditorState,
-        onIntent = viewModel::dispatch,
-        onDismiss = {
-            subscriptionEditorState.close()
-            showAddRecurringSheet = false
-        },
-        transition = subscriptionEditorTransition,
-    )
+    if (!isWideScreen) {
+        TransactionEntryHost(
+            visible = showAddDialog, state = state, onIntent = viewModel::dispatch,
+            onDismiss = { showAddDialog = false; prefilledTransferCardId = null },
+            initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
+            accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
+            transition = transactionEditorTransition,
+            reimbursementResult = reimbursementResult,
+            useSideSheet = false
+        )
+
+        SubscriptionEntryHost(
+            visible = subscriptionEditorState.isOpen,
+            state = state,
+            editorState = subscriptionEditorState,
+            onIntent = viewModel::dispatch,
+            onDismiss = {
+                subscriptionEditorState.close()
+                showAddRecurringSheet = false
+            },
+            transition = subscriptionEditorTransition,
+        )
+    }
 
     AssetEditorHost(
         state = state, editorState = assetEditorState, onIntent = viewModel::dispatch,
@@ -1897,12 +2031,13 @@ fun MainScreen(
     if (showNewPeriodSheet) {
         com.example.vibefinance.ui.home.NewPeriodBudgetSheet(
             budgetInfo = budgetInfo,
-            onConfirmNewPeriod = { amount, startDate, endDate ->
+            onConfirmNewPeriod = { amount, startDate, endDate, categoryBudgets ->
                 viewModel.dispatch(
                     FinanceIntent.SetCustomPeriodBudget(
                         amount = amount,
                         startDate = startDate,
                         endDate = endDate,
+                        categoryBudgets = categoryBudgets,
                         showToast = true
                     )
                 )
@@ -2183,17 +2318,18 @@ fun ExpressiveAddButton(
 }
 
 @Composable
-private fun ModeSwitcherAnimatedIcon(
+fun ModeSwitcherAnimatedIcon(
     mode: TransactionMode,
     tint: Color,
     isSelected: Boolean,
     clickTrigger: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconSize: androidx.compose.ui.unit.Dp = 18.dp
 ) {
     val reducedMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion != com.example.vibefinance.ui.preferences.MotionLevel.FULL
     val density = LocalDensity.current
     val densityFactor = density.density
-    val iconSizePx = with(density) { 18.dp.toPx() }
+    val iconSizePx = with(density) { iconSize.toPx() }
     val scale = iconSizePx / 24f
 
     // Kinetic active scale (Material 3 Expressive pop when selected)
@@ -2297,7 +2433,7 @@ private fun ModeSwitcherAnimatedIcon(
     }
 
     val drawSegment = remember { Path() }
-    val strokeWidthPx = with(density) { 2.1.dp.toPx() }
+    val strokeWidthPx = with(density) { (iconSize.value * 2.1f / 18f).dp.toPx() }
     val strokeStyle = remember(strokeWidthPx) {
         Stroke(
             width = strokeWidthPx,
@@ -2390,7 +2526,7 @@ private fun ModeSwitcherAnimatedIcon(
 
     Canvas(
         modifier = modifier
-            .size(18.dp)
+            .size(iconSize)
             .graphicsLayer {
                 scaleX = animScale.value
                 scaleY = animScale.value
@@ -2462,7 +2598,8 @@ fun AddExpenseSheetContent(
     modifier: Modifier = Modifier,
     exchangeRateLoader: ExchangeRateLoader? = null,
     prefilledDestinationAccountId: Long? = null,
-    selectorNavigationReady: Boolean = true
+    selectorNavigationReady: Boolean = true,
+    reimbursementResult: com.example.vibefinance.ui.BatchTransactionResult? = null
 ) {
     val context = LocalContext.current
     val localFocusManager = LocalFocusManager.current
@@ -2477,6 +2614,16 @@ fun AddExpenseSheetContent(
     var typedAmount by draft.amount
     var calculatorEvaluated by draft.evaluated
     var entrySubmitting by remember { mutableStateOf(false) }
+    var repaymentEnabled by rememberSaveable { mutableStateOf(false) }
+    var repaymentExpenseId by rememberSaveable { mutableLongStateOf(0L) }
+    val repaymentRequestId = rememberSaveable { java.util.UUID.randomUUID().toString() }
+    val repaymentOperation = reimbursementResult?.takeIf { it.requestId == repaymentRequestId }
+    LaunchedEffect(repaymentOperation) {
+        if (repaymentOperation != null) {
+            entrySubmitting = repaymentOperation.processing
+            if (!repaymentOperation.processing && repaymentOperation.success) onDismissAddDialog()
+        }
+    }
     val calculatorView = androidx.compose.ui.platform.LocalView.current
     val calculatorPress: (String) -> Unit = { key ->
         val next = com.example.vibefinance.util.KeypadCalculatorEngine.press(
@@ -2488,6 +2635,10 @@ fun AddExpenseSheetContent(
     var isDailyBudget by rememberSaveable { mutableStateOf(true) }
 
     val entryMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion
+    val repaymentEnter = if (entryMotion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) EnterTransition.None
+        else fadeIn(MotionTokens.emphasizedEnter(180)) + expandVertically(animationSpec = MotionTokens.emphasized(240))
+    val repaymentExit = if (entryMotion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) ExitTransition.None
+        else fadeOut(MotionTokens.emphasizedExit(120)) + shrinkVertically(animationSpec = MotionTokens.emphasized(240))
     fun AnimatedContentTransitionScope<TransactionMode>.entryModeTransform(): ContentTransform {
         val minimal = entryMotion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
         return (if (minimal) EnterTransition.None togetherWith ExitTransition.None
@@ -2497,6 +2648,10 @@ fun AddExpenseSheetContent(
             })
     }
     val transactionMode by draft.mode
+    val isRepaymentActive = transactionMode == TransactionMode.INCOME && repaymentEnabled
+    val repaymentExpense = state.transactions.firstOrNull { it.id == repaymentExpenseId &&
+        com.example.vibefinance.util.Reimbursements.isExpense(it) && it.timestamp <= System.currentTimeMillis() }
+    BackHandler(enabled = isRepaymentActive && entrySubmitting) { }
     val isTransfer = transactionMode == TransactionMode.TRANSFER
     var selectedCurrency by draft.currency
     val defaultRateLoader = remember(context.applicationContext) {
@@ -2527,6 +2682,7 @@ fun AddExpenseSheetContent(
         }
     }
     val convertedAmount = convertToHkd(rawAmount)
+    val repaymentAmount = convertedAmount?.let { java.math.BigDecimal.valueOf(it).setScale(2, java.math.RoundingMode.HALF_UP) }
     // A trailing operator keeps the completed expression's prediction while Apply stays disabled.
     val calculationPreview = com.example.vibefinance.util.KeypadCalculatorEngine.preview(typedAmount)
     val convertedPreviewAmount = convertToHkd(calculationPreview?.toDouble()?.takeIf { it.isFinite() && it >= 0 })
@@ -2553,9 +2709,37 @@ fun AddExpenseSheetContent(
             compareByDescending<String> { categoryFrequency[it] ?: 0 }
         )
     }
-    val sortedAccounts = remember(state.accounts, accountFrequency) {
+    val sortedAccounts = remember(state.accounts, accountFrequency, transactionMode) {
         state.accounts.sortedWith(
-            compareByDescending { accountFrequency[it.id] ?: 0 }
+            compareByDescending<AccountEntity> { (accountFrequency[it.id] ?: 0) > 0 }
+                .thenByDescending { accountFrequency[it.id] ?: 0 }
+                .thenBy { account ->
+                    when (transactionMode) {
+                        TransactionMode.EXPENSE -> when (account.type) {
+                            AccountType.CC -> 0
+                            AccountType.DEBIT -> 1
+                            AccountType.CASH -> 2
+                            AccountType.BANK -> 3
+                            AccountType.INVESTMENT -> 4
+                        }
+                        TransactionMode.INCOME -> when (account.type) {
+                            AccountType.BANK -> 0
+                            AccountType.CASH -> 1
+                            AccountType.DEBIT -> 2
+                            AccountType.CC -> 3
+                            AccountType.INVESTMENT -> 4
+                        }
+                        TransactionMode.TRANSFER -> when (account.type) {
+                            AccountType.BANK -> 0
+                            AccountType.CASH -> 1
+                            AccountType.DEBIT -> 2
+                            AccountType.CC -> 3
+                            AccountType.INVESTMENT -> 4
+                        }
+                    }
+                }
+                .thenByDescending { it.balance }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
         )
     }
 
@@ -2587,8 +2771,14 @@ fun AddExpenseSheetContent(
     var categoryCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var entryViewportCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     val accountReveal = remember { BringIntoViewRequester() }
+    val repaymentReveal = remember { BringIntoViewRequester() }
     val destinationReveal = remember { BringIntoViewRequester() }
     val amountKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    fun changeRepayment(value: Boolean) {
+        repaymentEnabled = value
+        guideStep = null
+        selectorOverlay.close()
+    }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     LaunchedEffect(guideStep, transactionMode, imeVisible) {
         // Wait for the keyboard to leave before revealing the next choice in the resized form.
@@ -2673,7 +2863,7 @@ fun AddExpenseSheetContent(
             // hero to scroll with the form. The navigation row and 54dp keypad stay fixed.
             val scrollHero = maxHeight < 520.dp || LocalDensity.current.fontScale > 1.5f
             Column(Modifier.fillMaxSize()) {
-                TransactionEntryTopBar(transactionMode, selectedCurrency, { selectedCurrency = it }, onDismissAddDialog)
+                TransactionEntryTopBar(transactionMode, selectedCurrency, { selectedCurrency = it }, { if (!entrySubmitting) onDismissAddDialog() })
                 ScrollBlurContainer(scrollState, Modifier.weight(1f).fillMaxWidth().testTag("EntryScrollContent")
                     .onGloballyPositioned { entryViewportCoordinates = it },
                     vertical = true, tagPrefix = "EntryScrollContent", blurActive = selectorOverlay.activeTag == null) { source ->
@@ -2756,64 +2946,24 @@ fun AddExpenseSheetContent(
                             Text(
                                 text = "$currencySymbol ",
                                 style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontSize = 32.sp,
+                                    fontSize = 40.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             )
-                            BasicTextField(
-                                value = if (typedAmount == "0") "" else typedAmount,
-                                onValueChange = { input ->
-                                    if (input.isEmpty()) {
-                                        typedAmount = "0"
-                                    } else if (input == ".") {
-                                        typedAmount = "0."
-                                    } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
-                                        typedAmount = input
-                                    }
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = {
+                            TransactionEntryAmount(
+                                amount = typedAmount, onAmountChange = { typedAmount = it },
+                                onDone = {
                                     if (!entrySubmitting && rawAmount != null && rawAmount > 0) {
                                         localFocusManager.clearFocus()
                                         amountKeyboard?.hide()
-                                        isCategoryExpanded = !isTransfer
-                                        guideStep = if (isTransfer) EntryGuideStep.SOURCE else EntryGuideStep.CATEGORY
+                                        isCategoryExpanded = !isTransfer && !isRepaymentActive
+                                        guideStep = if (isRepaymentActive) null else if (isTransfer) EntryGuideStep.SOURCE else EntryGuideStep.CATEGORY
+                                        if (isRepaymentActive) scope.launch { withFrameNanos { }; repaymentReveal.bringIntoView() }
                                     }
-                                }),
-                                singleLine = true,
-                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                textStyle = MaterialTheme.typography.displaySmall.copy(
-                                    fontSize = 42.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    textAlign = TextAlign.Start
-                                ),
-                                visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                else
-                                    androidx.compose.ui.text.input.VisualTransformation.None,
-                                modifier = Modifier
-                                    .width(IntrinsicSize.Min)
-                                    .widthIn(min = 32.dp)
-                                    .focusRequester(amountFocusRequester)
-                                    .testTag("EntryAmount")
-                                    .semantics { stateDescription = typedAmount },
-                                decorationBox = { innerTextField ->
-                                    Box(contentAlignment = Alignment.CenterStart) {
-                                        if (typedAmount == "0" || typedAmount.isEmpty()) {
-                                            Text(
-                                                text = "0",
-                                                style = MaterialTheme.typography.displaySmall.copy(
-                                                    fontSize = 42.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                                )
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
+                                },
+                                focusRequester = amountFocusRequester,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (typedAmount.isNotEmpty() && typedAmount != "0") {
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -2822,7 +2972,7 @@ fun AddExpenseSheetContent(
                                         typedAmount = "0"
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     },
-                                    modifier = Modifier.size(32.dp)
+                                    modifier = Modifier.size(48.dp).testTag("ClearButton48dp")
                                 ) {
                                     Icon(
                                         Icons.Default.Clear,
@@ -3115,6 +3265,47 @@ fun AddExpenseSheetContent(
                             ),
                             modifier = Modifier.fillMaxWidth().testTag("EntryDescription")
                         )
+                        AnimatedVisibility(visible = transactionMode == TransactionMode.INCOME,
+                            enter = repaymentEnter, exit = repaymentExit) {
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).toggleable(
+                                value = repaymentEnabled, enabled = !entrySubmitting,
+                                role = androidx.compose.ui.semantics.Role.Switch,
+                                onValueChange = {
+                                    changeRepayment(it)
+                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                }).padding(12.dp).testTag("IncomeReimbursement"),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(stringResource(R.string.reimbursement_title), style = MaterialTheme.typography.titleSmall)
+                                    Text(stringResource(R.string.income_reimbursement_hint), style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                AppSwitch(checked = repaymentEnabled, onCheckedChange = ::changeRepayment, enabled = !entrySubmitting,
+                                    modifier = Modifier.clearAndSetSemantics { })
+                            }
+                        }
+                    }
+                }
+
+                AnimatedVisibility(visible = isRepaymentActive, enter = repaymentEnter, exit = repaymentExit,
+                    modifier = Modifier.testTag("IncomeReimbursementExpansion")) {
+                    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).bringIntoViewRequester(repaymentReveal)
+                            .testTag("IncomeReimbursementOptions")) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ReimbursementExpenseSelector(state.transactions, repaymentExpenseId,
+                                enabled = !entrySubmitting, onClear = { repaymentExpenseId = 0L }, onSelect = { repaymentExpenseId = it.id })
+                            if (repaymentExpense?.isExcludedFromDailyBudget == true) {
+                                Text(stringResource(R.string.reimbursement_excluded_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (selectedAccount?.type == com.example.vibefinance.data.entity.AccountType.INVESTMENT) {
+                                Text(stringResource(R.string.reimbursement_payment_account_required), color = MaterialTheme.colorScheme.error)
+                            }
+                            repaymentOperation?.error?.let {
+                                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("ReimbursementError"))
+                            }
+                        }
                     }
                 }
 
@@ -3146,21 +3337,15 @@ fun AddExpenseSheetContent(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .padding(16.dp)
                     ) {
+                        // Keep the category gap inside the animated bounds so it cannot disappear a frame later.
                         AnimatedVisibility(
-                            visible = !isTransfer,
-                            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                expandFrom = Alignment.Top
-                            ),
-                            exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkVertically(
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                shrinkTowards = Alignment.Top
-                            )
+                            visible = !isTransfer && !isRepaymentActive,
+                            enter = repaymentEnter,
+                            exit = repaymentExit
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth().bringIntoViewRequester(categoryReveal)
+                            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp).bringIntoViewRequester(categoryReveal)
                                 .onGloballyPositioned { categoryCoordinates = it }.clipToBounds()) {
                                 // Header Row: Label + Expand/Collapse Toggle
                                 Row(
@@ -3307,39 +3492,13 @@ fun AddExpenseSheetContent(
 
                                     categoryExpansion.AnimatedContent(
                                         transitionSpec = {
-                                            if (targetState) {
-                                                (fadeIn(
-                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
-                                                ) + expandVertically(
-                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                                    expandFrom = Alignment.Top
-                                                )).togetherWith(
-                                                    fadeOut(
-                                                        animationSpec = tween(90, easing = LinearEasing)
-                                                    ) + shrinkVertically(
-                                                        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-                                                        shrinkTowards = Alignment.Top
-                                                    )
-                                                )
-                                            } else {
-                                                (fadeIn(
-                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
-                                                ) + expandVertically(
-                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
-                                                    expandFrom = Alignment.Top
-                                                )).togetherWith(
-                                                    fadeOut(
-                                                        animationSpec = tween(90, easing = LinearEasing)
-                                                    ) + shrinkVertically(
-                                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
-                                                        shrinkTowards = Alignment.Top
-                                                    )
-                                                )
-                                            }.using(
-                                                SizeTransform(clip = false) { _, _ ->
-                                                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
-                                                }
-                                            )
+                                            (if (entryMotion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL)
+                                                EnterTransition.None togetherWith ExitTransition.None
+                                            else fadeIn(MotionTokens.emphasized(160)) togetherWith fadeOut(MotionTokens.emphasized(100)))
+                                                .using(SizeTransform(clip = true) { _, _ ->
+                                                    if (entryMotion == com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL) snap()
+                                                    else MotionTokens.emphasized(240)
+                                                })
                                         },
                                         modifier = Modifier.fillMaxWidth()
                                     ) { expanded ->
@@ -3486,8 +3645,6 @@ fun AddExpenseSheetContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         if (transactionMode == TransactionMode.EXPENSE) {
                             com.example.vibefinance.ui.components.ExpenseIconChoice(
                                 value = expenseIcon, category = expenseCategoryText, onValueChange = { expenseIcon = it }
@@ -3566,7 +3723,10 @@ fun AddExpenseSheetContent(
                 val amt = rawAmount
                 val isApplyEnabled = !entrySubmitting && amt != null && amt > 0 && convertedAmount != null &&
                     (selectedCurrency == "HKD" || (!rateLoading && rateQuote != null)) &&
-                    draft.hasValidAccounts(selectedAccount?.id, selectedToAccount?.id)
+                    draft.hasValidAccounts(selectedAccount?.id, selectedToAccount?.id) &&
+                    (!isRepaymentActive || ((repaymentExpenseId == 0L || repaymentExpense != null) && repaymentAmount != null &&
+                        repaymentAmount > java.math.BigDecimal.ZERO &&
+                        selectedAccount?.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT))
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3581,7 +3741,7 @@ fun AddExpenseSheetContent(
                             val accId = selectedAccount?.id
                             if (isApplyEnabled && accId != null && amt != null && !entrySubmitting) {
                                 entrySubmitting = true
-                                com.example.vibefinance.util.VibeHaptics.successConfirm(calculatorView)
+                                if (!isRepaymentActive) com.example.vibefinance.util.VibeHaptics.successConfirm(calculatorView)
                                 val finalHkdAmt = convertedAmount
                                 val descWithFx = if (selectedCurrency != "HKD") {
                                     val origStr = com.example.vibefinance.util.CurrencyEngine.formatOriginal(amt, selectedCurrency)
@@ -3592,7 +3752,13 @@ fun AddExpenseSheetContent(
                                     descriptionText.ifEmpty { "Purchase" }
                                 }
 
-                                if (transactionMode == TransactionMode.TRANSFER && selectedToAccount != null) {
+                                val loc = com.example.vibefinance.util.GnssLocationManager.getInstantLocation(context)
+                                if (isRepaymentActive) {
+                                    onIntent(com.example.vibefinance.ui.FinanceIntent.RecordReimbursement(repaymentRequestId,
+                                        repaymentExpense, requireNotNull(repaymentAmount).toDouble(), accId,
+                                        if (selectedCurrency != "HKD") descWithFx else descriptionText,
+                                        latitude = loc?.latitude, longitude = loc?.longitude, locationName = loc?.locationName))
+                                } else if (transactionMode == TransactionMode.TRANSFER && selectedToAccount != null) {
                                     onIntent(
                                         com.example.vibefinance.ui.FinanceIntent.AddTransaction(
                                             amount = finalHkdAmt,
@@ -3600,7 +3766,10 @@ fun AddExpenseSheetContent(
                                             accountId = accId,
                                             toAccountId = selectedToAccount?.id,
                                             isExcludedFromDailyBudget = true,
-                                            description = if (selectedCurrency != "HKD") descWithFx else descriptionText.ifEmpty { "CC Payment Transfer" }
+                                            description = if (selectedCurrency != "HKD") descWithFx else descriptionText.ifEmpty { "CC Payment Transfer" },
+                                            latitude = loc?.latitude,
+                                            longitude = loc?.longitude,
+                                            locationName = loc?.locationName
                                         )
                                     )
                                 } else if (transactionMode == TransactionMode.INCOME) {
@@ -3609,7 +3778,10 @@ fun AddExpenseSheetContent(
                                             amount = -finalHkdAmt,
                                             category = incomeCategoryText.ifEmpty { "Income" },
                                             accountId = accId,
-                                            description = descWithFx
+                                            description = descWithFx,
+                                            latitude = loc?.latitude,
+                                            longitude = loc?.longitude,
+                                            locationName = loc?.locationName
                                         )
                                     )
                                 } else {
@@ -3620,11 +3792,14 @@ fun AddExpenseSheetContent(
                                             accountId = accId,
                                             description = descWithFx,
                                             isExcludedFromDailyBudget = !isDailyBudget,
-                                            customIcon = expenseIcon
+                                            customIcon = expenseIcon,
+                                            latitude = loc?.latitude,
+                                            longitude = loc?.longitude,
+                                            locationName = loc?.locationName
                                         )
                                     )
                                 }
-                                onDismissAddDialog()
+                                if (!isRepaymentActive) onDismissAddDialog()
                             }
                         },
                         enabled = isApplyEnabled,
@@ -3639,11 +3814,13 @@ fun AddExpenseSheetContent(
                             .testTag("EntrySubmit"),
                         elevation = AppButtonDefaults.elevation(),
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                        if (entrySubmitting && isRepaymentActive) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(
-                                when (transactionMode) {
+                                if (isRepaymentActive) R.string.btn_save_reimbursement else when (transactionMode) {
                                     TransactionMode.EXPENSE -> R.string.btn_save_expense
                                     TransactionMode.INCOME -> R.string.btn_save_income
                                     TransactionMode.TRANSFER -> R.string.btn_confirm_transfer
@@ -3660,11 +3837,10 @@ fun AddExpenseSheetContent(
     }
 
     if (showAccountPickerSheet) {
-        val selectableAccounts = remember(sortedAccounts, selectedAccountId, isPickingDestination) {
-            if (isPickingDestination) {
-                sortedAccounts.filter { it.id != selectedAccountId }
-            } else {
-                sortedAccounts
+        val selectableAccounts = remember(sortedAccounts, selectedAccountId, isPickingDestination, isRepaymentActive) {
+            sortedAccounts.filter {
+                (!isPickingDestination || it.id != selectedAccountId) &&
+                    (!isRepaymentActive || it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT)
             }
         }
         AppModalBottomSheet(
@@ -3686,7 +3862,7 @@ fun AddExpenseSheetContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp),
+                        .padding(bottom = 12.dp).testTag("AccountPickerHeader"),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -3704,116 +3880,180 @@ fun AddExpenseSheetContent(
                     }
                 }
 
-                // Account List (2 Columns Grid)
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp)
-                ) {
-                    items(selectableAccounts, key = { it.id }) { acc ->
-                        val isSelected = acc.id == (if (isPickingDestination) selectedToAccountId else selectedAccountId)
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
-                            border = BorderStroke(
-                                width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                    if (isPickingDestination) {
-                                        selectedToAccountId = acc.id
-                                    } else {
-                                        selectedAccountId = acc.id
-                                        if (isTransfer && selectedToAccountId == selectedAccountId) {
-                                            selectedToAccountId = null
-                                        }
-                                    }
-                                    val continueToDestination = guideStep == EntryGuideStep.SOURCE && isTransfer && !isPickingDestination
-                                    guideStep = if (continueToDestination) EntryGuideStep.DESTINATION else null
-                                    showAccountPickerSheet = continueToDestination
-                                    showInlineAddAccountInSheet = false
-                                }
-                                .testTag(if (isPickingDestination) "EntryDestination_row_${acc.id}" else "EntryAccount_row_${acc.id}")
-                        ) {
-                            Column(
+                var selectedAccountFilterType by rememberSaveable { mutableStateOf<AccountType?>(null) }
+                val availableTypes = remember(selectableAccounts) {
+                    selectableAccounts.map { it.type }.distinct()
+                }
+                if (availableTypes.size > 1) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = selectedAccountFilterType == null,
+                                onClick = {
+                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                    selectedAccountFilterType = null
+                                },
+                                label = { Text(stringResource(R.string.filter_all)) },
+                                shape = RoundedCornerShape(99.dp)
+                            )
+                        }
+                        items(availableTypes) { type ->
+                            FilterChip(
+                                selected = selectedAccountFilterType == type,
+                                onClick = {
+                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                    selectedAccountFilterType = if (selectedAccountFilterType == type) null else type
+                                },
+                                label = { Text(accountTypeLabel(type)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = getAccountIcon(type),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                },
+                                shape = RoundedCornerShape(99.dp)
+                            )
+                        }
+                    }
+                }
+
+                val displayedAccounts = remember(selectableAccounts, selectedAccountFilterType) {
+                    if (selectedAccountFilterType == null) selectableAccounts
+                    else selectableAccounts.filter { it.type == selectedAccountFilterType }
+                }
+
+                val pickerGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+                AccountPickerScrollEdges(pickerGridState, Modifier.fillMaxWidth().heightIn(max = 420.dp)) { source ->
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        state = pickerGridState,
+                        modifier = source.fillMaxWidth().testTag("AccountPickerGrid"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(displayedAccounts, key = { it.id }) { acc ->
+                            val isSelected = acc.id == (if (isPickingDestination) selectedToAccountId else selectedAccountId)
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                        if (isPickingDestination) {
+                                            selectedToAccountId = acc.id
+                                        } else {
+                                            selectedAccountId = acc.id
+                                            if (isTransfer && selectedToAccountId == selectedAccountId) {
+                                                selectedToAccountId = null
+                                            }
+                                        }
+                                        val continueToDestination = guideStep == EntryGuideStep.SOURCE && isTransfer && !isPickingDestination
+                                        guideStep = if (continueToDestination) EntryGuideStep.DESTINATION else null
+                                        showAccountPickerSheet = continueToDestination
+                                        showInlineAddAccountInSheet = false
+                                    }
+                                    .testTag(if (isPickingDestination) "EntryDestination_row_${acc.id}" else "EntryAccount_row_${acc.id}")
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp)
                                 ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                imageVector = getAccountIcon(acc.type),
-                                                contentDescription = null,
-                                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                        Box(
+                                            modifier = Modifier.size(34.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = accountTypeLabel(acc.type),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                            )
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                                modifier = Modifier.size(30.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = getAccountIcon(acc.type),
+                                                        contentDescription = null,
+                                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                }
+                                            }
+                                            acc.linkedAppPackage?.let { pkg ->
+                                                LinkedAppIconBadge(
+                                                    packageName = pkg,
+                                                    size = 14.dp,
+                                                    shapeRadius = 4.dp,
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomEnd)
+                                                        .shadow(1.5.dp, RoundedCornerShape(4.dp))
+                                                )
+                                            }
                                         }
-                                        if (isSelected) {
-                                            Icon(
-                                                Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                            ) {
+                                                Text(
+                                                    text = accountTypeLabel(acc.type),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
                                         }
                                     }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
+                                    val balanceLabel = if (acc.type == AccountType.CC)
+                                        stringResource(R.string.ui_recurring_account_owing, formattedBal)
+                                    else
+                                        stringResource(R.string.ui_recurring_account_balance, formattedBal)
+                                    Text(
+                                        text = balanceLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = acc.nickname?.takeIf { it.isNotBlank() } ?: acc.name,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                val formattedBal = CurrencyEngine.formatSignedCompact(acc.balance, prefix = "HK$")
-                                val balanceLabel = if (acc.type == AccountType.CC)
-                                    stringResource(R.string.ui_recurring_account_owing, formattedBal)
-                                else
-                                    stringResource(R.string.ui_recurring_account_balance, formattedBal)
-                                Text(
-                                    text = balanceLabel,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
                             }
                         }
                     }
@@ -3963,6 +4203,32 @@ fun AddExpenseSheetContent(
 }
 
 @Composable
+internal fun LinkedAppIconBadge(
+    packageName: String?,
+    size: Dp = 15.dp,
+    shapeRadius: Dp = 4.dp,
+    modifier: Modifier = Modifier
+) {
+    if (packageName.isNullOrBlank() || packageName.equals("none", ignoreCase = true)) return
+    val context = LocalContext.current
+    val appIcon by produceState<Bitmap?>(initialValue = null, key1 = context, key2 = packageName) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.example.vibefinance.util.LocalAppManager.getAppIcon(context, packageName)
+        }
+    }
+    appIcon?.let { bmp ->
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = null,
+            modifier = modifier
+                .size(size)
+                .clip(RoundedCornerShape(shapeRadius))
+                .border(1.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(shapeRadius))
+        )
+    }
+}
+
+@Composable
 internal fun SelectedAccountCard(
     account: AccountEntity?,
     isDestination: Boolean = false,
@@ -3984,17 +4250,32 @@ internal fun SelectedAccountCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(40.dp)
+            Box(
+                modifier = Modifier.size(42.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = getAccountIcon(account?.type),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp)
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = getAccountIcon(account?.type),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                account?.linkedAppPackage?.let { pkg ->
+                    LinkedAppIconBadge(
+                        packageName = pkg,
+                        size = 17.dp,
+                        shapeRadius = 5.dp,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .shadow(2.dp, RoundedCornerShape(5.dp))
                     )
                 }
             }

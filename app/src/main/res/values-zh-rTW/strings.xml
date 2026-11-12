@@ -10,6 +10,10 @@
 
     <!-- Greetings & Top Bar -->
     <string name="topbar_vibe_overview">財務總覽</string>
+    <string name="dual_column_left_title">財務總覽</string>
+    <string name="dual_column_left_subtitle">每日預算與收支 · 掌控花費節奏</string>
+    <string name="dual_column_right_title">分析與洞察</string>
+    <string name="dual_column_right_subtitle">支出趨勢與指標 · 數據總覽</string>
     <string name="topbar_daily_flow">每日收支</string>
     <string name="topbar_assets_cards">資產與卡片</string>
     <string name="topbar_activity_history">歷史紀錄</string>
@@ -69,6 +73,7 @@
     <string name="spending_breakdown">支出分析</string>
     <string name="highest_spending_day">最高消費日</string>
     <string name="lowest_spending_day">最低消費日</string>
+    <string name="not_enough_records">記錄不足</string>
     <string name="average_daily_spent">日均消費</string>
     <string name="ai_vibe_forecast">AI 財務洞察與預測</string>
     <string name="projected_savings">預期結餘</string>
@@ -345,10 +350,26 @@
     <!-- Common Actions & Labels -->
     <string name="btn_save">儲存</string>
     <string name="btn_cancel">取消</string>
+    <string name="btn_edit">編輯</string>
     <string name="btn_delete">刪除</string>
     <string name="btn_close">關閉</string>
     <string name="btn_confirm">確認</string>
     <string name="btn_change">變更</string>
+    <string name="tx_detail_title">交易明細</string>
+    <string name="tx_detail_location">消費地點</string>
+    <string name="tx_detail_open_in_map">在地圖中開啟</string>
+    <string name="tx_detail_no_location_title">未記錄消費地點</string>
+    <string name="tx_detail_no_location_hint">點擊即可標記當前所在位置</string>
+    <string name="tx_detail_tag_location">標記位置</string>
+    <string name="tx_detail_tag_gps">標記當前定位 (GPS)</string>
+    <string name="tx_detail_tag_preset">選擇商圈地點</string>
+    <string name="tx_detail_retag_location">更改</string>
+    <string name="tx_detail_remove_location">清除</string>
+    <string name="tx_detail_location_success">已成功標記消費地點</string>
+    <string name="tx_detail_location_failed">無法獲取即時 GPS 定位，請確認已開啟定位服務，或直接選擇下方商圈地點。</string>
+    <string name="tx_detail_select_district_title">選擇消費商圈 / 地點</string>
+    <string name="tx_detail_delete_confirm_title">刪除這筆交易？</string>
+    <string name="tx_detail_delete_confirm_desc">這將永久移除此筆紀錄並重新計算帳戶餘額。</string>
     <string name="label_date">日期</string>
     <string name="label_note">備註</string>
     <string name="label_amount">金額</string>
@@ -549,4 +570,94 @@
     <string name="live_income_total_label">總流動資產變動</string>
     <string name="live_income_boost_badge">+%s</string>
     <string name="chart_daily_budget_spend">每日預算</string>
+
+    <!-- Linked repayments and custom recurring intervals -->
+    <string name="reimbursement_title">還錢・收回墊款</string>
+    <string name="reimbursement_choose_expense">選擇原支出</string>
+    <string name="reimbursement_outstanding">未收回金額：HK$%1$,.2f</string>
+    <string name="reimbursement_empty">沒有合適支出，仍可不連結交易繼續。</string>
+    <string name="reimbursement_search">搜尋支出</string>
+    <string name="reimbursement_error">無法儲存。原支出、帳戶或可收回金額可能已變更，請重新選擇。</string>
+    <string name="subscription_daily">每日</string>
+    <string name="subscription_interval">每隔多少單位重複</string>
+    <string name="subscription_interval_hint">輸入 1–999，例如每 2 天或每 6 個月。</string>
+    <string name="subscription_every_days">每 %1$d 天</string>
+    <string name="subscription_every_weeks">每 %1$d 週</string>
+    <string name="subscription_every_months">每 %1$d 個月</string>
+    <string name="subscription_every_years">每 %1$d 年</string>
+    <string name="income_reimbursement_hint">回補預算而不計一般收入，可選擇是否連結原支出。</string>
+    <string name="btn_save_reimbursement">儲存還錢記錄</string>
+    <string name="reimbursement_payment_account_required">請選擇非投資的收款帳戶或卡片。</string>
+    <string name="reimbursement_excluded_hint">原支出不計入每日預算，此次還錢亦不會回補預算。</string>
+    <string name="history_reimbursement_date_hint">按這筆記錄的收款日期（%1$s）回補預算，請選擇當日或之前的原支出。</string>
+    <string name="reimbursement_not_received">只有已收款的記錄才能設為還錢。</string>
+    <string name="edit_transaction_error">無法儲存修改，請檢查交易、帳戶和可收回金額後重試。</string>
+    <string name="reimbursement_all_dates">全部日期</string>
+    <string name="reimbursement_clear_date">清除日期篩選</string>
+    <string name="reimbursement_no_matches">沒有符合的支出，請嘗試其他日期或搜尋文字。</string>
+
+    <!-- Subscription payment status -->
+    <string name="subscription_status_paid">已繳</string>
+    <string name="subscription_status_unpaid">待繳</string>
+    <string name="subscription_mark_paid">標記為已繳</string>
+    <string name="subscription_mark_unpaid">標記為待繳</string>
+    <string name="subscription_filter_unpaid">待繳</string>
+    <string name="subscription_filter_paid">已繳</string>
+    <string name="subscription_cycle_paid_label">本期繳費狀態</string>
+    <string name="subscription_paid_this_cycle">本期已繳</string>
+    <string name="subscription_paid_badge">已繳</string>
+    <string name="subscription_unpaid_badge">待繳</string>
+    <string name="subscription_paid_today">今日已繳</string>
+    <string name="subscription_paid_date">已於 %1$s 繳費</string>
+    <string name="feedback_subscription_marked_paid">已標記為已繳</string>
+    <string name="feedback_subscription_marked_unpaid">已標記為待繳</string>
+    <string name="subscription_deposit_mode_label">扣款／入帳方式</string>
+    <string name="subscription_deposit_mode_auto">自動扣款</string>
+    <string name="subscription_deposit_mode_manual">手動繳費</string>
+    <string name="subscription_deposit_mode_auto_desc">到期時自動記錄支出並扣除卡片／帳戶結餘</string>
+    <string name="subscription_deposit_mode_manual_desc">到期時僅作提醒，需手動點按「已繳」才會記錄支出</string>
+    <string name="subscription_badge_auto">自動</string>
+    <string name="subscription_badge_manual">手動</string>
+
+    <!-- Category Budgets -->
+    <string name="loc_category_budgets_title">分類預算配額</string>
+    <string name="loc_category_budgets_card">分類預算配額</string>
+    <string name="loc_category_budgets_allocation_summary">已分配 %1$s / %2$s（未分配：%3$s）</string>
+    <string name="loc_category_budgets_exceed_warning">⚠️ 配額總額超出本期總預算</string>
+    <string name="loc_category_budgets_add_btn">新增配額</string>
+    <string name="loc_category_budgets_empty_title">尚未設定類別配額</string>
+    <string name="loc_category_budgets_empty_hint">為餐飲、購物等重點類別規劃專屬配額，更精準掌握支出節奏。</string>
+    <string name="loc_category_budgets_empty_hint_short">尚未設定個別類別配額，點擊上方按鈕立即新增。</string>
+    <string name="loc_category_budgets_setup">立即設定</string>
+    <string name="loc_category_budgets_overspent">已超支 %s</string>
+    <string name="loc_category_budgets_remaining">剩餘 %s</string>
+    <string name="loc_category_budgets_spent_label">已花費</string>
+    <string name="loc_choose_category_symbol">選擇類別符號</string>
+    <string name="loc_choose_category_symbol_desc">選取欲設定預算配額的內建類別符號：</string>
+    <string name="loc_category_budgets_save">儲存配額設定</string>
+    <string name="loc_category_budgets_edit_sheet_title">自訂分類預算配額</string>
+    <string name="loc_category_budgets_edit_sheet_desc">在週期總預算內為特定類別分配專屬配額，更精準掌握支出進度。</string>
+    <string name="reimbursement_optional_hint">可不連結原支出。整筆金額均算還錢，即使超過原支出。</string>
+    <string name="reimbursement_unlink">不連結指定支出</string>
+    <!-- Google Drive Serverless Sync -->
+    <string name="google_drive_sync_title">Google 雲端同步</string>
+    <string name="google_drive_sync_desc">透過 Google Drive 私有空間自動在多台裝置間同步記帳資料，無自建伺服器，安全且完全屬於您。</string>
+    <string name="google_drive_sync_connect_btn">連結 Google 帳號</string>
+    <string name="google_drive_sync_connected">已連結帳號</string>
+    <string name="google_drive_sync_disconnect">中斷連結</string>
+    <string name="google_drive_sync_auto_open">開啟 App 時自動同步</string>
+    <string name="google_drive_sync_auto_open_desc">每次啟動或返回應用時於背景無感同步最新收支紀錄</string>
+    <string name="google_drive_sync_now_btn">立即同步</string>
+    <string name="google_drive_sync_status_syncing">正在同步中…</string>
+    <string name="google_drive_sync_status_synced">已同步</string>
+    <string name="google_drive_sync_last_synced">上次同步：%s</string>
+    <string name="google_drive_sync_just_now">剛才</string>
+    <string name="adaptive_choose_record">選擇項目查看詳情</string>
+    <string name="adaptive_back_to_list">返回清單</string>
+    <string name="adaptive_recent_transactions">帳戶交易</string>
+    <string name="rail_expand">展開導航選單</string>
+    <string name="rail_collapse">收合導航選單</string>
+    <string name="rail_dock_title">快捷控制</string>
+    <string name="transaction_map_unavailable">地圖暫時無法載入，請檢查網絡連線。</string>
+    <string name="transaction_map_retry">重試</string>
 </resources>

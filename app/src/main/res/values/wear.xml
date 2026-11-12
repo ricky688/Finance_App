@@ -1,0 +1,7 @@
+<resources>
+    <string-array name="android_wear_capabilities">
+        <item>vibefinance_budget_phone_v1</item>
+    </string-array>
+    <string name="wear_share_title">Share budget with Wear OS</string>
+    <string name="wear_share_description">Show a read-only budget on your watch. Hidden amounts or App lock disable sharing. Offline amounts expire within 15 minutes or at midnight. Google Play services may relay encrypted updates through Google servers.</string>
+</resources>

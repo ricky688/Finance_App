@@ -8,11 +8,7 @@ import android.content.Intent
 import android.os.Build
 import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.SubscriptionEntity
-import com.example.vibefinance.data.entity.TransactionEntity
 import kotlinx.coroutines.flow.Flow
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,59 +30,22 @@ class SubscriptionRepository @Inject constructor(
         InMemoryDatabase.deleteSubscription(sub)
     }
 
-    suspend fun checkAndTriggerAutoCharges(context: Context) {
+    fun setSubscriptionPaidStatus(subscriptionId: Long, isPaid: Boolean, recordExpense: Boolean = false): Boolean {
+        return InMemoryDatabase.setSubscriptionPaidStatus(subscriptionId, isPaid, recordExpense)
+    }
+
+    suspend fun checkAndTriggerAutoCharges(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val subs = InMemoryDatabase.subscriptions.value
         val now = System.currentTimeMillis()
 
         for (sub in subs) {
-            var currentNextDate = sub.nextPaymentDate
-            var subCopy = sub
-
-            // Process multiple cycles if the app wasn't opened for a long time
-            while (now >= currentNextDate) {
-                // Record the auto-charge transaction
-                val tx = TransactionEntity(
-                    amount = subCopy.amount,
-                    category = subCopy.category,
-                    timestamp = currentNextDate,
-                    accountId = subCopy.accountId,
-                    description = "Auto-charge: ${subCopy.name}"
-                )
-                transactionRepository.insertTransaction(tx)
-
-                // Get account name for notification
-                val accountName = InMemoryDatabase.accounts.value.find { it.id == subCopy.accountId }?.name ?: "Associated Card"
-                showLoggedNotification(context, subCopy.amount, subCopy.name, accountName)
-
-                // Advance next payment date
-                val advancedDate = advancePaymentDate(currentNextDate, subCopy.frequency)
-                
-                // Prevent infinite loop if calculation fails to advance
-                if (advancedDate <= currentNextDate) {
-                    break
-                }
-                
-                currentNextDate = advancedDate
-                subCopy = subCopy.copy(nextPaymentDate = currentNextDate)
+            while (true) {
+                val current = InMemoryDatabase.subscriptions.value.firstOrNull { it.id == sub.id } ?: break
+                if (!InMemoryDatabase.chargeSubscriptionIfDue(current, now)) break
+                val accountName = InMemoryDatabase.accounts.value.find { it.id == current.accountId }?.name ?: "Associated Card"
+                // A notification failure cannot replay an already committed occurrence.
+                runCatching { showLoggedNotification(context, current.amount, current.name, accountName) }
             }
-
-            if (subCopy.nextPaymentDate != sub.nextPaymentDate) {
-                InMemoryDatabase.updateSubscription(subCopy)
-            }
-        }
-    }
-
-    private fun advancePaymentDate(currentNextPaymentDate: Long, frequency: String): Long {
-        return try {
-            val localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(currentNextPaymentDate), ZoneId.systemDefault())
-            val advanced = if (frequency.lowercase() == "weekly") {
-                localDateTime.plusWeeks(1)
-            } else {
-                localDateTime.plusMonths(1)
-            }
-            advanced.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        } catch (e: Exception) {
-            currentNextPaymentDate + (30L * 24 * 60 * 60 * 1000) // Fallback 30 days
         }
     }
 

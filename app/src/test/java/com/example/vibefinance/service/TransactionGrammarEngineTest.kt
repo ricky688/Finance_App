@@ -181,4 +181,32 @@ class TransactionGrammarEngineTest {
         assertEquals("Mox Bank", result.assetHint)
         assertTrue(result.confidence >= 0.9f)
     }
+
+    @Test
+    fun parseMoxDirectPaymentTransferSample() {
+        val title = "直接付款成功"
+        val text = "👍 你已成功向POON T** C***直接付款HKD300.00。"
+        val result = TransactionGrammarEngine.parse(title, text, "com.mox.app")
+        assertNotNull("Expected parse result for Mox direct payment", result)
+        assertEquals("POON T** C***", result!!.merchant)
+        assertEquals(300.00, result.amount, 0.001)
+        assertNull(result.cardLast4)
+        assertEquals(ParsedTransactionType.TRANSFER, result.intent)
+        assertEquals("Mox Bank", result.assetHint)
+        assertTrue(result.confidence >= 0.9f)
+    }
+
+    @Test
+    fun parseMoxCardPurchaseWithCashbackSample() {
+        val title = "交易已完成並可賺取現金回贈！"
+        val text = "😍\n你已在GOOGLE消費HKD40.78，可獲1% CashBack！如懷疑電28888228"
+        val result = TransactionGrammarEngine.parse(title, text, "com.mox.app")
+        assertNotNull("Expected parse result for Mox card purchase with cashback", result)
+        assertEquals("GOOGLE", result!!.merchant)
+        assertEquals(40.78, result.amount, 0.001)
+        assertNull(result.cardLast4)
+        assertEquals(ParsedTransactionType.EXPENSE, result.intent)
+        assertEquals("Mox Bank", result.assetHint)
+        assertTrue(result.confidence >= 0.9f)
+    }
 }

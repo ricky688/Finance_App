@@ -363,4 +363,28 @@ class RecurringScreenBentoTest {
         assertTrue(categories.contains("Groceries"))
         assertFalse(categories.contains("Supermarket"))
     }
+
+    @Test
+    fun filterSubscriptions_unpaidAndPaid_filtersCorrectly() {
+        val today = LocalDate.of(2026, 10, 31)
+        val zone = ZoneId.systemDefault()
+        val nextWeek = today.plusDays(7).atStartOfDay(zone).toInstant().toEpochMilli()
+
+        val subUnpaid1 = SubscriptionEntity(id = 1, name = "Spotify", amount = 58.0, frequency = "Monthly", category = "Music", accountId = 1, nextPaymentDate = nextWeek, isPaid = false)
+        val subPaid = SubscriptionEntity(id = 2, name = "Netflix", amount = 98.0, frequency = "Monthly", category = "Entertainment", accountId = 1, nextPaymentDate = nextWeek, isPaid = true, lastPaidDate = System.currentTimeMillis())
+        val subUnpaid2 = SubscriptionEntity(id = 3, name = "Gym", amount = 300.0, frequency = "Monthly", category = "Fitness", accountId = 1, nextPaymentDate = nextWeek, isPaid = false)
+
+        val list = listOf(subUnpaid1, subPaid, subUnpaid2)
+
+        val unpaid = filterSubscriptions(list, RecurringFilter.UNPAID, today)
+        assertEquals(2, unpaid.size)
+        assertTrue(unpaid.any { it.id == 1L })
+        assertTrue(unpaid.any { it.id == 3L })
+        assertFalse(unpaid.any { it.id == 2L })
+
+        val paid = filterSubscriptions(list, RecurringFilter.PAID, today)
+        assertEquals(1, paid.size)
+        assertEquals(2L, paid.first().id)
+        assertTrue(paid.first().isPaid)
+    }
 }

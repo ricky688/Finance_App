@@ -31,3 +31,4 @@ plugins {
 
 rootProject.name = "VibeFinance"
 include(":app")
+include(":wear", ":wear-contract")

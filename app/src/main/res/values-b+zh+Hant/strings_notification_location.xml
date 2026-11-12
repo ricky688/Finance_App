@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_location_title">付款通知定位</string>
+    <string name="notification_location_body">如要在 App 關閉時為付款通知附上位置，請到「權限 → 位置 → 一律允許」。啟用精確位置可改善車站配對。僅在偵測到付款後請求位置，最長 5 秒，不會持續背景追蹤。你可以拒絕，記帳仍可使用，但不會附上位置。</string>
+    <string name="notification_location_settings">開啟定位設定</string>
+    <string name="notification_location_ready">已允許背景定位</string>
+    <string name="notification_location_off">裝置定位已關閉</string>
+    <string name="notification_location_missing">尚未允許定位</string>
+    <string name="notification_location_foreground">僅允許使用 App 時定位</string>
+</resources>

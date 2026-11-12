@@ -86,12 +86,13 @@ fun PrivacySettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
                 state.appLockEnabled, "AppLockSwitch", setLock)
             PreferenceSwitch(stringResource(R.string.privacy_hide_amounts), stringResource(R.string.privacy_hide_desc),
                 state.hideAmounts, "HideAmountsSwitch") { dispatch(FinanceIntent.SetHideAmounts(it)) }
+            com.example.vibefinance.wear.WearSharingPreference()
         }
     }
 }
 
 @Composable
-private fun PreferenceSwitch(title: String, description: String, checked: Boolean, tag: String, change: (Boolean) -> Unit) {
+internal fun PreferenceSwitch(title: String, description: String, checked: Boolean, tag: String, change: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, style = MaterialTheme.typography.titleMedium); Text(description, style = MaterialTheme.typography.bodySmall) }
         AppSwitch(checked, change, modifier = Modifier.testTag(tag).semantics { contentDescription = title })

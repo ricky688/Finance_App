@@ -27,7 +27,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -123,13 +122,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -190,6 +191,21 @@ fun SettingsSheet(
             onDismiss()
             val fileName = com.example.vibefinance.util.FinancialDataImportEngine.getFileNameFromUri(context, uri)
             viewModel.dispatch(FinanceIntent.AnalyzeImportFile(uri, fileName))
+        }
+    }
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = com.google.android.gms.auth.api.signin.GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
+            if (account != null) {
+                com.example.vibefinance.util.GoogleDriveSyncEngine.onSignInSuccess(context, account)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsSheet", "Google Sign In failed", e)
+            android.widget.Toast.makeText(context, e.localizedMessage ?: "登入失敗", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -504,9 +520,6 @@ fun SettingsSheet(
                             // Item 1: 色彩方案 (Color scheme) -> Opens AppearancePickerSheet
                             SettingsActionCard(
                                 onClick = { showPaletteSheet = true },
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -786,9 +799,6 @@ fun SettingsSheet(
                             // Item 4: 圖示形狀 (Icon shape)
                             SettingsActionCard(
                                 onClick = { showShapePickerDialog = true },
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1051,83 +1061,16 @@ fun SettingsSheet(
                                     )
                                     Spacer(modifier = Modifier.height(10.dp))
 
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .clickable { VibeHaptics.lightTick(view); showAppSelectionDialog = true }
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = stringResource(R.string.settings_manage_apps_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                text = if (selectedInstalledPackages.size == 1) {
-                                                    stringResource(R.string.settings_apps_enabled_one)
-                                                } else if (selectedInstalledPackages.isNotEmpty()) {
-                                                    stringResource(R.string.settings_apps_enabled_count, selectedInstalledPackages.size)
-                                                } else {
-                                                    stringResource(R.string.settings_apps_none_enabled)
-                                                },
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                            )
-                                        }
-
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            modifier = Modifier.horizontalScroll(rememberScrollState())
-                                        ) {
-                                            selectedInstalledPackages.take(5).forEach { packageName ->
-                                                val bitmap = remember(context, packageName) {
-                                                    LocalAppManager.getAppIcon(context, packageName)
-                                                }
-                                                bitmap?.let {
-                                                    Image(
-                                                        bitmap = it.asImageBitmap(),
-                                                        contentDescription = remember(context, packageName) {
-                                                            LocalAppManager.getAppLabel(context, packageName)
-                                                        },
-                                                        modifier = Modifier
-                                                            .size(28.dp)
-                                                            .clip(RoundedCornerShape(7.dp))
-                                                            .border(
-                                                                0.8.dp,
-                                                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
-                                                                RoundedCornerShape(7.dp)
-                                                            )
-                                                    )
-                                                }
-                                            }
-
-                                            Surface(
-                                                modifier = Modifier.size(28.dp),
-                                                shape = RoundedCornerShape(7.dp),
-                                                color = MaterialTheme.colorScheme.primaryContainer,
-                                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Add,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
+                                    AutoLoggingAppsSummary(selectedInstalledPackages) {
+                                        VibeHaptics.lightTick(view)
+                                        showAppSelectionDialog = true
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                NotificationLocationSettingsCard()
+                                Spacer(modifier = Modifier.height(14.dp))
+                                MtrTransitSettingsCard()
 
                                 // Custom Notification Templates
                                 val templates by InMemoryDatabase.notificationTemplates.collectAsStateWithLifecycle()
@@ -1430,6 +1373,15 @@ fun SettingsSheet(
                         )
 
                         Column(Modifier.padding(horizontal = 12.dp)) {
+                            GoogleDriveSyncCard(
+                                onLaunchSignIn = {
+                                    googleSignInLauncher.launch(
+                                        com.example.vibefinance.util.GoogleDriveSyncEngine.getSignInClient(context).signInIntent
+                                    )
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+
                             backupActions()
                             Spacer(modifier = Modifier.height(10.dp))
 
@@ -1561,6 +1513,7 @@ private fun saveChanges(
                     startDate = finalStart,
                     endDate = end,
                     rolloverMode = selectedRolloverMode,
+                    categoryBudgets = budgetInfo.categoryBudgets.associate { it.symbol.name to it.budgetAmount },
                     showToast = false
                 )
             )
@@ -1683,7 +1636,7 @@ private fun SettingsSectionContainer(
 }
 
 @Composable
-private fun ThemeOptionCard(
+internal fun ThemeOptionCard(
     title: String,
     icon: ImageVector,
     isSelected: Boolean,
@@ -1691,22 +1644,19 @@ private fun ThemeOptionCard(
     modifier: Modifier = Modifier
 ) {
     val corner by animateDpAsState(
-        targetValue = if (isSelected) 24.dp else 18.dp,
+        targetValue = if (isSelected) SettingsTokens.OptionCardCornerSelected else SettingsTokens.OptionCardCornerUnselected,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "themeOptionCorner"
     )
     SettingsActionCard(
         onClick = onClick,
         shape = RoundedCornerShape(corner),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-        border = BorderStroke(
-            if (isSelected) 1.5.dp else 1.dp,
-            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        ),
-        modifier = modifier
+        color = if (isSelected) SettingsTokens.cardSurfaceSelected else SettingsTokens.cardSurface,
+        border = if (isSelected) SettingsTokens.borderSelected() else SettingsTokens.borderUnselected(),
+        modifier = modifier.heightIn(min = SettingsTokens.MinTouchTarget)
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+            modifier = Modifier.padding(vertical = SettingsTokens.CardPaddingVertical, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -1716,7 +1666,7 @@ private fun ThemeOptionCard(
                 tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(SettingsTokens.VerticalIconToLabelGap))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
@@ -1730,7 +1680,7 @@ private fun ThemeOptionCard(
 }
 
 @Composable
-private fun LanguageOptionCard(
+internal fun LanguageOptionCard(
     title: String,
     subtitle: String,
     isSelected: Boolean,
@@ -1738,22 +1688,19 @@ private fun LanguageOptionCard(
     modifier: Modifier = Modifier
 ) {
     val corner by animateDpAsState(
-        targetValue = if (isSelected) 24.dp else 18.dp,
+        targetValue = if (isSelected) SettingsTokens.OptionCardCornerSelected else SettingsTokens.OptionCardCornerUnselected,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "languageOptionCorner"
     )
     SettingsActionCard(
         onClick = onClick,
         shape = RoundedCornerShape(corner),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-        border = BorderStroke(
-            if (isSelected) 1.5.dp else 1.dp,
-            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        ),
-        modifier = modifier
+        color = if (isSelected) SettingsTokens.cardSurfaceSelected else SettingsTokens.cardSurface,
+        border = if (isSelected) SettingsTokens.borderSelected() else SettingsTokens.borderUnselected(),
+        modifier = modifier.heightIn(min = SettingsTokens.MinTouchTarget)
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
+            modifier = Modifier.padding(vertical = SettingsTokens.CardPaddingVertical, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -1763,7 +1710,7 @@ private fun LanguageOptionCard(
                 fontWeight = FontWeight.Bold,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(SettingsTokens.LabelToSublabelGap))
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelMedium,
@@ -1777,25 +1724,26 @@ private fun LanguageOptionCard(
 }
 
 @Composable
-private fun RolloverOptionCard(
+internal fun RolloverOptionCard(
     title: String,
     desc: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val view = LocalView.current
     val interaction = remember { MutableInteractionSource() }
     SettingsActionCard(
         onClick = onClick,
         interactionSource = interaction,
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-        border = BorderStroke(
-            if (isSelected) 1.5.dp else 1.dp,
-            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-        ),
+        shape = RoundedCornerShape(SettingsTokens.OptionRowCorner),
+        color = if (isSelected) SettingsTokens.cardSurfaceSelected else SettingsTokens.cardSurface,
+        border = if (isSelected) SettingsTokens.borderSelected() else SettingsTokens.borderUnselected(),
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = SettingsTokens.MinTouchTarget)
+            .semantics {
+                role = Role.RadioButton
+                selected = isSelected
+            }
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -1803,21 +1751,22 @@ private fun RolloverOptionCard(
         ) {
             RadioButton(
                 selected = isSelected,
-                onClick = { VibeHaptics.selection(view); onClick() },
+                onClick = null,
                 interactionSource = interaction
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(SettingsTokens.HorizontalIconToTextGap))
             Column {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
+                Spacer(modifier = Modifier.height(SettingsTokens.TitleToDescriptionGap))
                 Text(
                     text = desc,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

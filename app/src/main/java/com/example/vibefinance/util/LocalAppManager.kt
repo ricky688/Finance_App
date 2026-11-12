@@ -169,7 +169,9 @@ object LocalAppManager {
     private fun isPaymentRelated(pkg: String, name: String): Boolean {
         val lower = "$pkg $name".lowercase(Locale.US)
         return lower.contains("pay") || lower.contains("wallet") || lower.contains("bank") ||
-               lower.contains("money") || lower.contains("finance") || lower.contains("card")
+               lower.contains("money") || lower.contains("finance") || lower.contains("card") ||
+               lower.contains("octopus") || lower.contains("八達通") || lower.contains("mox") ||
+               lower.contains("hsbc") || lower.contains("hangseng") || lower.contains("bochk")
     }
 
     fun drawableToBitmap(drawable: Drawable, width: Int = 96, height: Int = 96): Bitmap? {

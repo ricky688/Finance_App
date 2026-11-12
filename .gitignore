@@ -34,6 +34,7 @@ skill/
 .kotlin/
 *.apk
 *.aab
+*.zip
 *.xlsx
 *.xls
 play-service-account.json

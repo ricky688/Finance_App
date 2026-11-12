@@ -45,5 +45,15 @@ data class TransactionEntity(
     // type later must not reinterpret its earlier History entries or reversal amounts.
     val sourceWasCreditCard: Boolean? = null,
     val destinationWasCreditCard: Boolean? = null,
-    val customIcon: String? = null // Optional emoji or stable built-in symbol identifier
-)
+    val customIcon: String? = null, // Optional emoji or stable built-in symbol identifier
+    val reimbursementOf: Long? = null, // Optional original expense reference.
+    val isUnlinkedReimbursement: Boolean = false,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationName: String? = null,
+    val startLatitude: Double? = null,
+    val startLongitude: Double? = null,
+    val startLocationName: String? = null
+) {
+    val isReimbursement: Boolean get() = reimbursementOf != null || isUnlinkedReimbursement
+}

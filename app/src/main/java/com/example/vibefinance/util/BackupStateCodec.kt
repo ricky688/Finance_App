@@ -50,7 +50,7 @@ internal object BackupStateCodec {
                 "appearance_palette_seeds" to "string", "dynamic_color_enabled" to "boolean", "pure_black_dark_mode" to "boolean",
                 "launch_animation_enabled" to "boolean", "hide_amounts" to "boolean", "app_lock_enabled" to "boolean",
                 "motion_level" to "string", "blur_intensity" to "float",
-                "haptic_feedback_enabled" to "boolean", "haptic_strength" to "string"),
+                "haptic_feedback_enabled" to "boolean", "haptic_strength" to "string", "nfc_origin_enabled" to "boolean"),
             "vibefinance_prefs" to mapOf("last_daily_recalc_date" to "string", "auto_apply_recalc_choice" to "boolean"),
             "assets_display" to mapOf("compact_mode" to "boolean"),
             "cashback_rules_prefs" to mapOf("selected_intercept_apps" to "stringSet", "notification_logging_enabled" to "boolean"),
@@ -144,7 +144,23 @@ internal object BackupStateCodec {
                 require(tx.get("customIcon") is String && com.example.vibefinance.data.entity.ExpenseIcon.normalize(tx.getString("customIcon")) == tx.getString("customIcon"))
             }
             optional(tx, "groupId") { require(tx.get("groupId") is String) }
+            optional(tx, "latitude") { finite(tx, "latitude") }
+            optional(tx, "longitude") { finite(tx, "longitude") }
+            optional(tx, "locationName") { require(tx.get("locationName") is String) }
         }
+        com.example.vibefinance.util.Reimbursements.validate(transactions.map { tx ->
+            optional(tx, "reimbursementOf") { positiveId(tx, "reimbursementOf") }
+            optional(tx, "isUnlinkedReimbursement") { require(tx.get("isUnlinkedReimbursement") is Boolean) }
+            com.example.vibefinance.data.entity.TransactionEntity(
+                id = tx.getLong("id"), amount = tx.getDouble("amount"), category = tx.getString("category"),
+                timestamp = tx.getLong("timestamp"), accountId = tx.getLong("accountId"),
+                toAccountId = if (tx.isNull("toAccountId")) null else tx.getLong("toAccountId"),
+                isBalanceAdjustment = tx.optBoolean("isBalanceAdjustment"),
+                isExcludedFromDailyBudget = tx.optBoolean("isExcludedFromDailyBudget"),
+                isUnlinkedReimbursement = tx.optBoolean("isUnlinkedReimbursement", false),
+                reimbursementOf = if (tx.isNull("reimbursementOf")) null else tx.getLong("reimbursementOf")
+            )
+        })
         val budgets = records("budgets")
         require(budgets.map { it.getString("id") }.distinct().size == budgets.size)
         budgets.forEach { b -> finite(b, "totalBudgetAmount"); require(b.getString("id").isNotBlank()); RolloverMode.valueOf(b.getString("rolloverMode"))
@@ -155,6 +171,8 @@ internal object BackupStateCodec {
             require(positiveId(s, "accountId") in accountIds); finite(s, "amount")
             listOf("name", "category", "frequency").forEach { require(s.get(it) is String) }
             require(s.get("nextPaymentDate") is Number)
+            require(s.getString("frequency").lowercase(java.util.Locale.ROOT) in setOf("daily", "weekly", "monthly", "yearly", "annual"))
+            optional(s, "interval") { require(s.get("interval") is Number && s.getDouble("interval") == s.getInt("interval").toDouble() && s.getInt("interval") in 1..999) }
         }
         val shops = records("discountShops"); unique(shops)
         shops.forEach { s ->

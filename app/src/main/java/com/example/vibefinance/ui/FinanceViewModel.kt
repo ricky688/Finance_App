@@ -87,6 +87,7 @@ val DEFAULT_DAILY_CARD_ORDER = listOf(
     "daily-hero",
     "daily-period",
     "daily-bento",
+    "daily-category-budgets",
     "daily-transactions",
     "daily-spending-chart",
     "daily-category-chart",
@@ -101,7 +102,18 @@ sealed interface FinanceIntent {
         val startDate: Long,
         val endDate: Long,
         val rolloverMode: com.example.vibefinance.data.entity.RolloverMode = com.example.vibefinance.data.entity.RolloverMode.DISTRIBUTE_EVENLY,
+        val categoryBudgets: Map<String, Double> = emptyMap(),
         val showToast: Boolean = false
+    ) : FinanceIntent
+    data class RecordReimbursement(
+        val requestId: String,
+        val original: TransactionEntity?,
+        val amount: Double,
+        val accountId: Long,
+        val description: String,
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val locationName: String? = null
     ) : FinanceIntent
     data class AddTransaction(
         val amount: Double,
@@ -110,7 +122,10 @@ sealed interface FinanceIntent {
         val description: String,
         val toAccountId: Long? = null,
         val isExcludedFromDailyBudget: Boolean = false,
-        val customIcon: String? = null
+        val customIcon: String? = null,
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val locationName: String? = null
     ) : FinanceIntent
     data class AddInstallmentTransaction(
         val amount: Double,
@@ -123,7 +138,8 @@ sealed interface FinanceIntent {
     ) : FinanceIntent
     data class DeleteInstallmentGroup(val groupId: String, val accountId: Long) : FinanceIntent
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
-    data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity) : FinanceIntent
+    data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity,
+        val requestId: String? = null, val repaymentExpense: TransactionEntity? = null) : FinanceIntent
     data class RestoreTransaction(val tx: TransactionEntity) : FinanceIntent
     data class BatchTransactions(val requestId: String, val expected: List<TransactionEntity>,
         val operation: com.example.vibefinance.data.BatchTransactionOperation) : FinanceIntent
@@ -152,6 +168,7 @@ sealed interface FinanceIntent {
     data class SetIconShape(val shape: IconShapeMode) : FinanceIntent
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
+    data class SetSubscriptionPaidStatus(val subscriptionId: Long, val isPaid: Boolean, val recordExpense: Boolean = false) : FinanceIntent
     data class DeleteSubscription(val sub: SubscriptionEntity, val deletePastTransactions: Boolean = false) : FinanceIntent
     data class MergeCategories(val kind: CategoryKind, val sources: Set<String>, val target: String) : FinanceIntent
     data class SetCategoryLimit(val category: String, val limit: Double?) : FinanceIntent
@@ -200,7 +217,22 @@ class FinanceViewModel @Inject constructor(
             com.example.vibefinance.util.VibeHaptics.enabled = hapticEnabled
             val hapticStrength = HapticStrength.fromStored(prefs.getString("haptic_strength", null))
             com.example.vibefinance.util.VibeHaptics.strength = hapticStrength
-            val savedDailyOrder = prefs.getString("daily_card_order", null)?.split(",")?.filter { it.isNotBlank() } ?: DEFAULT_DAILY_CARD_ORDER
+            val rawDailyOrder = prefs.getString("daily_card_order", null)?.split(",")?.filter { it.isNotBlank() } ?: DEFAULT_DAILY_CARD_ORDER
+            val savedDailyOrder = if (rawDailyOrder.contains("daily-category-budgets") && rawDailyOrder.contains("daily-bento")) {
+                val catIndex = rawDailyOrder.indexOf("daily-category-budgets")
+                val bentoIndex = rawDailyOrder.indexOf("daily-bento")
+                if (catIndex < bentoIndex) {
+                    val list = rawDailyOrder.toMutableList()
+                    list.removeAt(catIndex)
+                    val newBentoIndex = list.indexOf("daily-bento")
+                    list.add(newBentoIndex + 1, "daily-category-budgets")
+                    list
+                } else {
+                    rawDailyOrder
+                }
+            } else {
+                rawDailyOrder
+            }
             val savedAccountOrder = prefs.getString("asset_account_order", null)?.split(",")?.mapNotNull { it.toLongOrNull() } ?: emptyList()
             FinanceUiState(
                 launchAnimationEnabled = prefs.getBoolean("launch_animation_enabled", true),
@@ -245,6 +277,10 @@ class FinanceViewModel @Inject constructor(
     private val batchRequests = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     private val _batchResult = MutableStateFlow<BatchTransactionResult?>(null)
     val batchResult: StateFlow<BatchTransactionResult?> = _batchResult.asStateFlow()
+    private val _reimbursementResult = MutableStateFlow<BatchTransactionResult?>(null)
+    val reimbursementResult = _reimbursementResult.asStateFlow()
+    private val _transactionEditResult = MutableStateFlow<BatchTransactionResult?>(null)
+    val transactionEditResult = _transactionEditResult.asStateFlow()
     private val _accountSaveResult = MutableStateFlow<AccountSaveResult?>(null)
     val accountSaveResult: StateFlow<AccountSaveResult?> = _accountSaveResult.asStateFlow()
 
@@ -359,7 +395,11 @@ class FinanceViewModel @Inject constructor(
 
                 // Run auto-charge trigger
                 viewModelScope.launch {
-                    subscriptionRepository.checkAndTriggerAutoCharges(application)
+                    try { subscriptionRepository.checkAndTriggerAutoCharges(application) }
+                    catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                    }
                 }
 
             } catch (e: Exception) {
@@ -390,7 +430,8 @@ class FinanceViewModel @Inject constructor(
                                 totalBudgetAmount = intent.amount,
                                 startDate = intent.startDate,
                                 endDate = intent.endDate,
-                                rolloverMode = intent.rolloverMode
+                                rolloverMode = intent.rolloverMode,
+                                categoryBudgetsJson = BudgetEntity.encodeCategoryBudgets(intent.categoryBudgets)
                             )
                         )
                         if (intent.showToast) {
@@ -398,6 +439,31 @@ class FinanceViewModel @Inject constructor(
                         }
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                    }
+                }
+                is FinanceIntent.RecordReimbursement -> {
+                    val previous = _reimbursementResult.value
+                    if (previous?.requestId == intent.requestId && (previous.processing || previous.success)) return@launch
+                    _reimbursementResult.value = BatchTransactionResult(intent.requestId, true)
+                    try {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            com.example.vibefinance.data.InMemoryDatabase.recordReimbursement(
+                                intent.original,
+                                intent.amount,
+                                intent.accountId,
+                                intent.description,
+                                intent.requestId,
+                                latitude = intent.latitude,
+                                longitude = intent.longitude,
+                                locationName = intent.locationName
+                            )
+                        }
+                        _reimbursementResult.value = BatchTransactionResult(intent.requestId, false, success = true)
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        _reimbursementResult.value = BatchTransactionResult(intent.requestId, false,
+                            error = application.appString(R.string.reimbursement_error))
                     }
                 }
                 is FinanceIntent.AddTransaction -> {
@@ -410,7 +476,10 @@ class FinanceViewModel @Inject constructor(
                             toAccountId = intent.toAccountId,
                             isExcludedFromDailyBudget = intent.isExcludedFromDailyBudget,
                             description = intent.description,
-                            customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(intent.customIcon)
+                            customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(intent.customIcon),
+                            latitude = intent.latitude,
+                            longitude = intent.longitude,
+                            locationName = intent.locationName
                         )
                         transactionRepository.insertTransaction(tx)
                         
@@ -495,11 +564,23 @@ class FinanceViewModel @Inject constructor(
                     }
                 }
                 is FinanceIntent.EditTransaction -> {
+                    val requestId = intent.requestId
+                    if (requestId != null && _transactionEditResult.value?.let {
+                        it.requestId == requestId && (it.processing || it.success) } == true) return@launch
+                    if (requestId != null) _transactionEditResult.value = BatchTransactionResult(requestId, true)
                     try {
-                        transactionRepository.updateTransaction(intent.newTx, intent.oldTx)
+                        withContext(Dispatchers.IO) {
+                            transactionRepository.updateTransaction(intent.newTx, intent.oldTx, intent.repaymentExpense)
+                        }
+                        if (requestId != null) _transactionEditResult.value = BatchTransactionResult(requestId, false, success = true)
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_transaction_updated)))
                     } catch (e: Exception) {
-                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        if (requestId != null) _transactionEditResult.value = BatchTransactionResult(requestId, false,
+                            error = application.appString(R.string.edit_transaction_error))
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(if (requestId != null) application.appString(R.string.edit_transaction_error)
+                            else application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
                 is FinanceIntent.SaveAccount -> {
@@ -690,6 +771,27 @@ class FinanceViewModel @Inject constructor(
                         }
                         // Re-trigger charges checking immediately in case due date is in the past
                         subscriptionRepository.checkAndTriggerAutoCharges(application)
+                    } catch (e: Exception) {
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                    }
+                }
+                is FinanceIntent.SetSubscriptionPaidStatus -> {
+                    try {
+                        val sub = _uiState.value.subscriptions.firstOrNull { it.id == intent.subscriptionId }
+                        val shouldRecord = intent.recordExpense || (sub != null && !sub.isAutoPaid)
+                        val success = subscriptionRepository.setSubscriptionPaidStatus(
+                            intent.subscriptionId,
+                            intent.isPaid,
+                            shouldRecord
+                        )
+                        if (success) {
+                            val msg = if (intent.isPaid) {
+                                application.appString(R.string.feedback_subscription_marked_paid)
+                            } else {
+                                application.appString(R.string.feedback_subscription_marked_unpaid)
+                            }
+                            _uiEvents.emit(FinanceUiEvent.ShowToast(msg))
+                        }
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }

@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.ui.components.completePressShape
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
@@ -19,10 +20,11 @@ import com.example.vibefinance.ui.components.rememberCompletePressProgress
 @Composable
 internal fun SettingsActionCard(
     onClick: () -> Unit,
-    shape: RoundedCornerShape,
-    color: Color,
+    shape: RoundedCornerShape = RoundedCornerShape(SettingsTokens.ActionCardCorner),
+    color: Color = SettingsTokens.cardSurface,
     modifier: Modifier = Modifier,
-    border: BorderStroke? = null,
+    border: BorderStroke? = SettingsTokens.borderUnselected(),
+    pressedCorner: Dp = SettingsTokens.ActionCardCornerPressed,
     interactionSource: MutableInteractionSource? = null,
     content: @Composable () -> Unit
 ) {
@@ -32,7 +34,7 @@ internal fun SettingsActionCard(
     Surface(
         onClick = { VibeHaptics.selection(view); onClick() },
         interactionSource = source,
-        shape = completePressShape(shape, RoundedCornerShape(10.dp), progress),
+        shape = completePressShape(shape, RoundedCornerShape(pressedCorner), progress),
         color = color,
         modifier = modifier,
         border = border,

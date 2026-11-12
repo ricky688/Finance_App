@@ -26,7 +26,13 @@ data class PendingPayment(
     val isTopUp: Boolean = false,
     val rawTitle: String = "",
     val rawText: String = "",
-    val transactionType: String = "EXPENSE"
+    val transactionType: String = "EXPENSE",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val locationName: String? = null,
+    val startLatitude: Double? = null,
+    val startLongitude: Double? = null,
+    val startLocationName: String? = null
 )
 
 /**
@@ -61,20 +67,38 @@ object PendingPaymentStore {
                 val amount = item.optDouble("amount", 0.0)
                 val id = item.optString("id")
                 if (id.isBlank() || !amount.isFinite() || amount <= 0.0) return@mapNotNull null
+                val rawTitle = item.optString("rawTitle", "")
+                val rawText = item.optString("rawText", "")
+                val rawMerchant = item.optString("merchant")
+                val rawTxType = item.optString("transactionType", "EXPENSE")
+                val isDirectDebitTransfer = rawTitle.contains("直接付款") || rawText.contains("直接付款") ||
+                    rawTitle.contains("直接扣款") || rawText.contains("直接扣款")
+                val repairedMerchant = if (isDirectDebitTransfer && rawMerchant.endsWith("直接")) {
+                    rawMerchant.removeSuffix("直接").trim()
+                } else rawMerchant
+                val repairedTxType = if (isDirectDebitTransfer && rawTxType == "EXPENSE") {
+                    "TRANSFER"
+                } else rawTxType
                 PendingPayment(
                     id = id,
                     fingerprint = item.optString("fingerprint", id),
                     sourcePackage = item.optString("sourcePackage"),
                     assetHint = item.optString("assetHint"),
-                    merchant = item.optString("merchant"),
+                    merchant = repairedMerchant,
                     amount = amount,
                     detectedAt = item.optLong("detectedAt", System.currentTimeMillis()),
                     cardLast4 = if (item.has("cardLast4") && !item.isNull("cardLast4")) item.getString("cardLast4") else null,
                     balanceRemaining = if (item.has("balanceRemaining") && !item.isNull("balanceRemaining")) item.getDouble("balanceRemaining") else null,
                     isTopUp = item.optBoolean("isTopUp", false),
-                    rawTitle = item.optString("rawTitle", ""),
-                    rawText = item.optString("rawText", ""),
-                    transactionType = item.optString("transactionType", "EXPENSE")
+                    rawTitle = rawTitle,
+                    rawText = rawText,
+                    transactionType = repairedTxType,
+                    latitude = if (item.has("latitude") && !item.isNull("latitude")) item.getDouble("latitude") else null,
+                    longitude = if (item.has("longitude") && !item.isNull("longitude")) item.getDouble("longitude") else null,
+                    locationName = if (item.has("locationName") && !item.isNull("locationName")) item.getString("locationName") else null,
+                    startLatitude = if (item.has("startLatitude") && !item.isNull("startLatitude")) item.getDouble("startLatitude") else null,
+                    startLongitude = if (item.has("startLongitude") && !item.isNull("startLongitude")) item.getDouble("startLongitude") else null,
+                    startLocationName = if (item.has("startLocationName") && !item.isNull("startLocationName")) item.getString("startLocationName") else null
                 )
             }
         }.getOrDefault(emptyList())
@@ -106,7 +130,13 @@ object PendingPaymentStore {
         isTopUp: Boolean = false,
         rawTitle: String = "",
         rawText: String = "",
-        transactionType: String = "EXPENSE"
+        transactionType: String = "EXPENSE",
+        latitude: Double? = null,
+        longitude: Double? = null,
+        locationName: String? = null,
+        startLatitude: Double? = null,
+        startLongitude: Double? = null,
+        startLocationName: String? = null
     ): PendingPayment? {
         initialize(context)
         if (!amount.isFinite() || amount <= 0.0 || sourcePackage.isBlank()) return null
@@ -133,9 +163,15 @@ object PendingPaymentStore {
         val isOctopusTopUpTx = isTopUp ||
             ((isOctopusHint(assetHint) || isOctopusHint(merchant) || isOctopusHint(rawTitle) || isOctopusHint(rawText)) && transactionType == "TRANSFER") ||
             merchant.contains("OCL*", ignoreCase = true) || merchant.contains("OCTOPUS", ignoreCase = true)
+        val isOutgoingBankTransferTx = !isOctopusTopUpTx && (
+            transactionType == "TRANSFER" ||
+                rawTitle.contains("直接付款") || rawText.contains("直接付款") ||
+                rawTitle.contains("轉賬") || rawText.contains("轉賬") ||
+                rawTitle.contains("轉帳") || rawText.contains("轉帳")
+            )
 
         if (isOctopusTopUpTx) {
-            // Deduplicate concurrent top-up notifications (e.g. Bank app + Samsung Wallet) within 90s
+            // 1. Deduplicate concurrent top-up notifications (e.g. Bank app + Samsung Wallet) within 90s
             val duplicateIndex = _pending.value.indexOfFirst {
                 (it.isTopUp || (it.transactionType == "TRANSFER" && (isOctopusHint(it.assetHint) || isOctopusHint(it.merchant))) || it.merchant.contains("OCL*", ignoreCase = true) || it.merchant.contains("OCTOPUS", ignoreCase = true)) &&
                     kotlin.math.abs(it.amount - amount) < 0.01 &&
@@ -161,6 +197,78 @@ object PendingPaymentStore {
                 return null
             }
 
+            // 2. Correlate with a concurrent outgoing bank transfer (e.g. Mox FPS eDDA "直接付款成功") within 90s:
+            // merge the bank's assetHint & sourcePackage into this Octopus top-up and replace the pending transfer!
+            val bankTransferIndex = _pending.value.indexOfFirst {
+                !it.isTopUp &&
+                    (it.transactionType == "TRANSFER" || it.rawTitle.contains("直接付款") || it.rawText.contains("直接付款")) &&
+                    !isOctopusHint(it.assetHint) &&
+                    kotlin.math.abs(it.amount - amount) < 0.01 &&
+                    kotlin.math.abs(it.detectedAt - detectedAt) <= 90_000L
+            }
+            if (bankTransferIndex >= 0) {
+                val bankTransfer = _pending.value[bankTransferIndex]
+                PaymentLoggingNotification.cancel(context, bankTransfer.id)
+                markSeen(bankTransfer)
+                val mergedAssetHint = if (assetHint.isBlank() || assetHint == "八達通" || isOctopusHint(assetHint)) {
+                    bankTransfer.assetHint.ifBlank { assetHint }
+                } else assetHint
+                val mergedSourcePackage = if (sourcePackage.contains("octopus", ignoreCase = true) && bankTransfer.sourcePackage.isNotBlank()) {
+                    bankTransfer.sourcePackage
+                } else sourcePackage
+                val id = MessageDigest.getInstance("SHA-256")
+                    .digest("$fingerprint|$detectedAt".toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                val mergedPayment = PendingPayment(
+                    id = id,
+                    fingerprint = fingerprint,
+                    sourcePackage = mergedSourcePackage,
+                    assetHint = mergedAssetHint,
+                    merchant = merchant,
+                    amount = amount,
+                    detectedAt = detectedAt,
+                    cardLast4 = bankTransfer.cardLast4 ?: cardLast4,
+                    balanceRemaining = balanceRemaining,
+                    isTopUp = true,
+                    rawTitle = rawTitle,
+                    rawText = rawText,
+                    transactionType = "TRANSFER"
+                )
+                val updatedList = _pending.value.toMutableList()
+                updatedList.removeAt(bankTransferIndex)
+                updatedList.add(mergedPayment)
+                _pending.value = updatedList
+                persist(context)
+                return mergedPayment
+            }
+
+            // 3. If the user already confirmed the bank transfer notification within 90s (logged as a 1-legged Transfer),
+            // atomically upgrade that transaction into a 2-legged Top-up to the Octopus account instead of dropping or double-deducting.
+            val recentUnlinkedTransfer = InMemoryDatabase.transactions.value.firstOrNull {
+                it.groupId?.startsWith("notification:") == true &&
+                    it.category == "Transfer" &&
+                    it.toAccountId == null &&
+                    it.amount > 0.0 &&
+                    kotlin.math.abs(it.amount - amount) < 0.01 &&
+                    kotlin.math.abs(it.timestamp - detectedAt) <= 90_000L
+            }
+            if (recentUnlinkedTransfer != null) {
+                val destinationOctopus = InMemoryDatabase.accounts.value.firstOrNull {
+                    it.id != recentUnlinkedTransfer.accountId && isOctopusAccount(it)
+                }
+                if (destinationOctopus != null) {
+                    InMemoryDatabase.upgradeNotificationTransferToTopUp(
+                        transactionId = recentUnlinkedTransfer.id,
+                        destinationOctopusId = destinationOctopus.id,
+                        description = merchant
+                    )
+                    seen[fingerprint] = System.currentTimeMillis()
+                    trimSeen()
+                    persist(context)
+                    return null
+                }
+            }
+
             val duplicateInTransactions = InMemoryDatabase.transactions.value.any {
                 (it.category == "Top-up" || it.toAccountId != null || it.description.contains("OCL*", ignoreCase = true) || it.description.contains("OCTOPUS", ignoreCase = true)) &&
                     kotlin.math.abs(kotlin.math.abs(it.amount) - amount) < 0.01 &&
@@ -168,6 +276,41 @@ object PendingPaymentStore {
             }
             if (duplicateInTransactions) {
                 return null
+            }
+        } else if (isOutgoingBankTransferTx) {
+            // If an Octopus top-up of the same amount was already logged within 90s, drop the companion bank transfer alert
+            val alreadyLoggedTopUp = InMemoryDatabase.transactions.value.any {
+                (it.category == "Top-up" || (it.toAccountId != null && InMemoryDatabase.accounts.value.any { acc -> acc.id == it.toAccountId && isOctopusAccount(acc) })) &&
+                    kotlin.math.abs(kotlin.math.abs(it.amount) - amount) < 0.01 &&
+                    kotlin.math.abs(it.timestamp - detectedAt) <= 90_000L
+            }
+            if (alreadyLoggedTopUp) {
+                seen[fingerprint] = System.currentTimeMillis()
+                trimSeen()
+                persist(context)
+                return null
+            }
+
+            // If an Octopus top-up of the same amount is currently pending (waiting for bank hint), enrich it and return it for auto-logging!
+            val pendingTopUpIndex = _pending.value.indexOfFirst {
+                it.isTopUp &&
+                    kotlin.math.abs(it.amount - amount) < 0.01 &&
+                    kotlin.math.abs(it.detectedAt - detectedAt) <= 90_000L
+            }
+            if (pendingTopUpIndex >= 0) {
+                val existingTopUp = _pending.value[pendingTopUpIndex]
+                val enrichedTopUp = existingTopUp.copy(
+                    sourcePackage = if (existingTopUp.sourcePackage.contains("octopus", ignoreCase = true)) sourcePackage else existingTopUp.sourcePackage,
+                    assetHint = if (existingTopUp.assetHint.isBlank() || existingTopUp.assetHint == "八達通" || isOctopusHint(existingTopUp.assetHint)) assetHint else existingTopUp.assetHint,
+                    cardLast4 = cardLast4 ?: existingTopUp.cardLast4
+                )
+                val updatedList = _pending.value.toMutableList()
+                updatedList[pendingTopUpIndex] = enrichedTopUp
+                _pending.value = updatedList
+                seen[fingerprint] = System.currentTimeMillis()
+                trimSeen()
+                persist(context)
+                return enrichedTopUp
             }
         }
         val id = MessageDigest.getInstance("SHA-256")
@@ -186,7 +329,13 @@ object PendingPaymentStore {
             isTopUp = isTopUp,
             rawTitle = rawTitle,
             rawText = rawText,
-            transactionType = transactionType
+            transactionType = transactionType,
+            latitude = latitude,
+            longitude = longitude,
+            locationName = locationName,
+            startLatitude = startLatitude,
+            startLongitude = startLongitude,
+            startLocationName = startLocationName
         )
         _pending.value = _pending.value + payment
         persist(context)
@@ -239,6 +388,16 @@ object PendingPaymentStore {
         return h.contains("octopus") || h.contains("八達通") || h.contains("八逹通")
     }
 
+    fun isBankTransferTopUp(payment: PendingPayment): Boolean {
+        val combined = "${payment.rawTitle} ${payment.rawText} ${payment.merchant}".lowercase(Locale.ROOT)
+        return payment.isTopUp && (
+            combined.contains("由銀行戶口轉賬") || combined.contains("由銀行戶口轉帳") ||
+            combined.contains("銀行戶口轉賬") || combined.contains("銀行戶口轉帳") ||
+            combined.contains("銀行轉賬") || combined.contains("銀行轉帳") ||
+            combined.contains("from bank account") || combined.contains("bank account transfer")
+        )
+    }
+
     fun isOctopusPayment(payment: PendingPayment): Boolean {
         val hint = payment.assetHint.lowercase(Locale.ROOT)
         val pkg = payment.sourcePackage.lowercase(Locale.ROOT)
@@ -275,6 +434,19 @@ object PendingPaymentStore {
         val nonOctopus = if (isTopUp) accounts.filter { !isOctopusAccount(it) } else emptyList()
         val hasNonOctopusFunding = isTopUp && nonOctopus.isNotEmpty()
         val searchPool = if (hasNonOctopusFunding) nonOctopus else accounts
+
+        // 0. User's designated Octopus account (if payment is from Octopus)
+        if (isOctopusPayment(payment) && !isTopUp) {
+            try {
+                val designatedId = com.example.vibefinance.transit.MtrTransitSettings.getOctopusAccountId(
+                    com.example.vibefinance.VibeFinanceApplication.appContext
+                )
+                if (designatedId != null) {
+                    val designatedAcc = accounts.firstOrNull { it.id.toString() == designatedId }
+                    if (designatedAcc != null) return designatedAcc
+                }
+            } catch (_: Throwable) {}
+        }
 
         // 0. User's explicit notification aliases / IDs (HIGHEST PRIORITY)
         for (acc in searchPool) {
@@ -335,6 +507,7 @@ object PendingPaymentStore {
 
         val hint = payment.assetHint.trim().lowercase(Locale.ROOT)
         val merch = payment.merchant.lowercase(Locale.ROOT)
+        val isTransferOrIncome = payment.isTopUp || payment.transactionType == "TRANSFER" || payment.transactionType == "INCOME"
 
         // 4. Dedicated Wallets & Bank matchers
         when {
@@ -346,21 +519,82 @@ object PendingPaymentStore {
                 searchPool.firstOrNull { it.name.contains("wechat", ignoreCase = true) || it.name.contains("微信") }?.let { return it }
             hint.contains("fps") || hint.contains("轉數快") || merch.contains("fps") || merch.contains("轉數快") ->
                 searchPool.firstOrNull { it.name.contains("fps", ignoreCase = true) || it.name.contains("轉數快") || it.name.contains("转数快") }?.let { return it }
-            hint.contains("hsbc") || hint.contains("匯豐") || merch.contains("hsbc") || merch.contains("匯豐") ->
+            hint.contains("hsbc") || hint.contains("匯豐") || merch.contains("hsbc") || merch.contains("匯豐") -> {
+                if (isTransferOrIncome || hint.contains("bank")) {
+                    searchPool.firstOrNull {
+                        (it.name.contains("hsbc", ignoreCase = true) || it.name.contains("匯豐") || it.name.contains("汇丰")) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
                 searchPool.firstOrNull { it.name.contains("hsbc", ignoreCase = true) || it.name.contains("匯豐") || it.name.contains("汇丰") }?.let { return it }
-            hint.contains("hang seng") || hint.contains("恒生") || merch.contains("hang seng") || merch.contains("恒生") || hint.contains("enjoy") ->
+            }
+            hint.contains("hang seng") || hint.contains("恒生") || merch.contains("hang seng") || merch.contains("恒生") || hint.contains("enjoy") -> {
+                if (isTransferOrIncome || hint.contains("bank")) {
+                    searchPool.firstOrNull {
+                        (it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true)) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
                 searchPool.firstOrNull { it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) }?.let { return it }
-            hint.contains("mox") || merch.contains("mox") ->
+            }
+            hint.contains("mox") || merch.contains("mox") || payment.sourcePackage.contains("mox") -> {
+                // If it is a transfer, income, top-up, prefer BANK / DEBIT account (e.g. Mox, Mox Bank)
+                if (isTransferOrIncome) {
+                    searchPool.firstOrNull {
+                        it.name.contains("mox", ignoreCase = true) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
+                // For expenses or card spending, prefer Credit Card (e.g. MOX card)
+                if (hint.contains("card") || hint.contains("credit") || !payment.cardLast4.isNullOrBlank() || !isTransferOrIncome) {
+                    searchPool.firstOrNull {
+                        it.name.contains("mox", ignoreCase = true) &&
+                            (it.type == AccountType.CC || it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
+                // If hint explicitly specifies bank
+                if (hint.contains("bank")) {
+                    searchPool.firstOrNull {
+                        it.name.contains("mox", ignoreCase = true) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
+                // Exact name match e.g. "Mox" or "Mox Bank"
+                searchPool.firstOrNull { it.name.equals("mox", ignoreCase = true) || it.name.equals("mox bank", ignoreCase = true) }?.let { return it }
+                // Fallback to any mox account
                 searchPool.firstOrNull { it.name.contains("mox", ignoreCase = true) }?.let { return it }
-            hint.contains("citi") || hint.contains("花旗") || merch.contains("citi") || merch.contains("花旗") ->
+            }
+            hint.contains("citi") || hint.contains("花旗") || merch.contains("citi") || merch.contains("花旗") -> {
+                if (isTransferOrIncome || hint.contains("bank")) {
+                    searchPool.firstOrNull {
+                        (it.name.contains("citi", ignoreCase = true) || it.name.contains("花旗")) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
                 searchPool.firstOrNull { it.name.contains("citi", ignoreCase = true) || it.name.contains("花旗") }?.let { return it }
+            }
         }
 
         // 5. Normalized string containment / matching
         fun norm(s: String) = s.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9\\u4e00-\\u9fa5]"), "")
         val normHint = norm(payment.assetHint)
         if (normHint.length >= 2) {
+            if (isTransferOrIncome) {
+                searchPool.firstOrNull {
+                    (norm(it.name) == normHint || (it.nickname?.let { nk -> norm(nk) == normHint } == true)) &&
+                        (it.type == AccountType.BANK || it.type == AccountType.DEBIT)
+                }?.let { return it }
+            }
             searchPool.firstOrNull { norm(it.name) == normHint || (it.nickname?.let { nk -> norm(nk) == normHint } == true) }?.let { return it }
+            if (isTransferOrIncome) {
+                searchPool.firstOrNull {
+                    val n = norm(it.name)
+                    val nk = it.nickname?.let(::norm).orEmpty()
+                    ((n.length >= 2 && normHint.contains(n)) || (nk.length >= 2 && normHint.contains(nk)) ||
+                        (n.length >= 2 && n.contains(normHint))) &&
+                        (it.type == AccountType.BANK || it.type == AccountType.DEBIT)
+                }?.let { return it }
+            }
             searchPool.firstOrNull {
                 val n = norm(it.name)
                 val nk = it.nickname?.let(::norm).orEmpty()
@@ -371,7 +605,21 @@ object PendingPaymentStore {
 
         // 6. Top-up funding source fallback: choose primary credit card, bank, or debit
         if (isTopUp) {
-            searchPool.firstOrNull { it.type == AccountType.CC || it.type == AccountType.BANK || it.type == AccountType.DEBIT }?.let { return it }
+            if (isBankTransferTopUp(payment)) {
+                // If notification indicates bank transfer top-up, strictly match bank or debit account, NEVER credit card!
+                remembered["octopus_topup_bank"]?.let { bankId ->
+                    searchPool.firstOrNull { it.id == bankId && (it.type == AccountType.BANK || it.type == AccountType.DEBIT) }?.let { return it }
+                }
+                remembered.entries.firstOrNull { (k, v) ->
+                    (k.endsWith("|八達通") || k.endsWith("|octopus") || k.endsWith("|smart octopus")) &&
+                        searchPool.any { it.id == v && (it.type == AccountType.BANK || it.type == AccountType.DEBIT) }
+                }?.let { entry ->
+                    searchPool.firstOrNull { it.id == entry.value }?.let { return it }
+                }
+                searchPool.firstOrNull { it.type == AccountType.BANK || it.type == AccountType.DEBIT }?.let { return it }
+            } else {
+                searchPool.firstOrNull { it.type == AccountType.CC || it.type == AccountType.BANK || it.type == AccountType.DEBIT }?.let { return it }
+            }
             if (!hasNonOctopusFunding) {
                 searchPool.firstOrNull()?.let { return it }
             }
@@ -385,6 +633,7 @@ object PendingPaymentStore {
         initialize(context)
         val pkg = payment.sourcePackage.lowercase(Locale.ROOT)
         val hint = payment.assetHint.trim().lowercase(Locale.ROOT)
+        val isTransferOrIncome = payment.isTopUp || payment.transactionType == "TRANSFER" || payment.transactionType == "INCOME"
         val accounts = InMemoryDatabase.accounts.value
 
         val explicitId = remembered[rememberKey(payment)]
@@ -392,18 +641,29 @@ object PendingPaymentStore {
             ?: remembered["$pkg|$hint"]
             ?: (!payment.cardLast4.isNullOrBlank()).let { if (it) remembered["card:${payment.cardLast4}"] else null }
             ?: remembered[hint]
+            ?: if (isBankTransferTopUp(payment)) {
+                remembered["octopus_topup_bank"]
+                    ?: remembered.entries.firstOrNull { (k, v) ->
+                        (k.endsWith("|八達通") || k.endsWith("|octopus") || k.endsWith("|smart octopus")) &&
+                            accounts.any { it.id == v && (it.type == AccountType.BANK || it.type == AccountType.DEBIT) }
+                    }?.value
+            } else null
 
         if (explicitId != null) {
             val account = accounts.firstOrNull { it.id == explicitId }
             if (account != null && canRememberChoice(payment, account)) {
-                return explicitId
+                if (!isTransferOrIncome || account.type != AccountType.CC || (payment.isTopUp && !isBankTransferTopUp(payment))) {
+                    return explicitId
+                }
             }
         }
 
         // Auto-match against user accounts when there is a deterministic/clear match
         val matched = findMatchingAccount(payment, accounts)
         if (matched != null && canRememberChoice(payment, matched)) {
-            return matched.id
+            if (!isTransferOrIncome || matched.type != AccountType.CC || (payment.isTopUp && !isBankTransferTopUp(payment))) {
+                return matched.id
+            }
         }
 
         return null
@@ -477,7 +737,16 @@ object PendingPaymentStore {
             return true
         }
 
-        val isTopUp = payment.isTopUp || payment.transactionType == "TRANSFER"
+        val isBankTopUp = isBankTransferTopUp(payment)
+        val isNonTopUpTransferOrIncome = (!payment.isTopUp && payment.transactionType == "TRANSFER") || payment.transactionType == "INCOME"
+
+        // Never auto-remember a credit card as the destination or funding source for a bank transfer, bank top-up, or income!
+        if ((isNonTopUpTransferOrIncome || isBankTopUp) && account.type == AccountType.CC) {
+            return false
+        }
+        if (hint.contains("bank") && (account.type == AccountType.CC || account.name.contains("card", ignoreCase = true))) {
+            return false
+        }
 
         // Dedicated Octopus matching: auto-logging without manual friction
         if (isOctopusPayment(payment)) {
@@ -488,12 +757,22 @@ object PendingPaymentStore {
             }
         }
 
-        if (isTopUp) {
+        if (payment.isTopUp) {
+            if (isBankTopUp) {
+                if (account.type == AccountType.BANK || account.type == AccountType.DEBIT) {
+                    if (hint.contains("mox") && accountName.contains("mox")) return true
+                    if (hint.contains("hang seng") || hint.contains("恒生")) return true
+                    if (hint.contains("hsbc") || hint.contains("匯豐")) return true
+                    if (hint.contains("boc") || hint.contains("中銀")) return true
+                    return true
+                }
+            }
             if (account.type == AccountType.CC || account.type == AccountType.BANK || account.type == AccountType.DEBIT) {
                 if (hint.contains("enjoy") && (accountName.contains("enjoy") || accountName.contains("hang seng"))) return true
                 if ((hint.contains("hang seng") || hint.contains("恒生")) && (accountName.contains("hang seng") || accountName.contains("恒生"))) return true
                 if ((hint.contains("hsbc") || hint.contains("匯豐")) && (accountName.contains("hsbc") || accountName.contains("匯豐"))) return true
                 if ((hint.contains("boc") || hint.contains("中銀")) && (accountName.contains("boc") || accountName.contains("中銀"))) return true
+                if ((hint.contains("mox") || hint.contains("za") || hint.contains("citi")) && (accountName.contains("mox") || accountName.contains("za") || accountName.contains("citi"))) return true
                 if (!isGenericHint(hint)) return true
             }
         }
@@ -626,7 +905,13 @@ object PendingPaymentStore {
                 toAccountId = toAccountId,
                 description = payment.merchant,
                 groupId = transactionKey,
-                isExcludedFromDailyBudget = isExcluded
+                isExcludedFromDailyBudget = isExcluded,
+                latitude = payment.latitude,
+                longitude = payment.longitude,
+                locationName = payment.locationName,
+                startLatitude = payment.startLatitude,
+                startLongitude = payment.startLongitude,
+                startLocationName = payment.startLocationName
             )
         )
         if (!inserted && InMemoryDatabase.transactions.value.none { it.groupId == transactionKey }) {
@@ -635,13 +920,20 @@ object PendingPaymentStore {
         // Auto-bind authentic intercepted card last 4 digits to the account if not already set
         var currentAcc = InMemoryDatabase.accounts.value.firstOrNull { it.id == accountId } ?: account
         var accChanged = false
-        if (currentAcc.cardLast4.isNullOrBlank() && !payment.cardLast4.isNullOrBlank()) {
+        val isFundingSourceInTopUp = isOctopusTopUpTx && !isDestinationOctopus
+        if (!isFundingSourceInTopUp && currentAcc.cardLast4.isNullOrBlank() && !payment.cardLast4.isNullOrBlank()) {
             currentAcc = currentAcc.copy(cardLast4 = payment.cardLast4)
             accChanged = true
         }
         if (payment.balanceRemaining != null && payment.balanceRemaining.isFinite()) {
             currentAcc = currentAcc.copy(balance = payment.balanceRemaining)
             accChanged = true
+        }
+        if (destinationOctopus != null && !payment.cardLast4.isNullOrBlank()) {
+            val freshDest = InMemoryDatabase.accounts.value.firstOrNull { it.id == destinationOctopus.id }
+            if (freshDest != null && freshDest.cardLast4.isNullOrBlank()) {
+                InMemoryDatabase.updateAccount(freshDest.copy(cardLast4 = payment.cardLast4))
+            }
         }
         if (rememberChoice && canRememberChoice(payment, currentAcc)) {
             val key = rememberKey(payment)
@@ -659,7 +951,13 @@ object PendingPaymentStore {
                 remembered["$pkg|octopus"] = currentAcc.id
                 remembered["$pkg|八達通"] = currentAcc.id
             }
-            if (!payment.cardLast4.isNullOrBlank()) {
+            if (isBankTransferTopUp(payment) && (currentAcc.type == AccountType.BANK || currentAcc.type == AccountType.DEBIT)) {
+                remembered["octopus_topup_bank"] = currentAcc.id
+                remembered["com.octopuscards.nfc_reader|八達通"] = currentAcc.id
+                remembered["com.octopuscards.nfc_reader|octopus"] = currentAcc.id
+                remembered["com.octopuscards.nfc_reader|smart octopus"] = currentAcc.id
+            }
+            if (!payment.cardLast4.isNullOrBlank() && !isFundingSourceInTopUp) {
                 remembered["$pkg|card:${payment.cardLast4}"] = currentAcc.id
                 remembered["card:${payment.cardLast4}"] = currentAcc.id
             }
@@ -686,6 +984,7 @@ object PendingPaymentStore {
         markSeen(payment)
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
+        PaymentLoggingNotification.cancel(context, paymentId)
         return true
     }
 
@@ -696,6 +995,7 @@ object PendingPaymentStore {
         markSeen(_pending.value.first { it.id == paymentId })
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
+        PaymentLoggingNotification.cancel(context, paymentId)
     }
 
     /** Keep the seen-alert ledger intact so notification updates cannot re-log an undone payment. */
@@ -717,6 +1017,39 @@ object PendingPaymentStore {
     @Synchronized
     fun updatePayment(paymentId: String, updated: PendingPayment) {
         _pending.value = _pending.value.map { if (it.id == paymentId) updated else it }
+    }
+
+    @Synchronized
+    fun updateLocation(
+        context: Context,
+        paymentId: String,
+        latitude: Double,
+        longitude: Double,
+        locationName: String?,
+        startLatitude: Double? = null,
+        startLongitude: Double? = null,
+        startLocationName: String? = null
+    ) {
+        initialize(context)
+        val item = _pending.value.firstOrNull { it.id == paymentId }
+        if (item != null) {
+            val updated = item.copy(
+                latitude = latitude,
+                longitude = longitude,
+                locationName = locationName,
+                startLatitude = startLatitude ?: item.startLatitude,
+                startLongitude = startLongitude ?: item.startLongitude,
+                startLocationName = startLocationName ?: item.startLocationName
+            )
+            _pending.value = _pending.value.map { if (it.id == paymentId) updated else it }
+            persist(context)
+        }
+        InMemoryDatabase.ensureInitialized(context)
+        InMemoryDatabase.updateTransactionLocationByGroupId(
+            "notification:$paymentId",
+            latitude, longitude, locationName,
+            startLatitude, startLongitude, startLocationName
+        )
     }
 
     private fun rememberKey(payment: PendingPayment): String {
@@ -780,6 +1113,12 @@ object PendingPaymentStore {
                     put("rawTitle", payment.rawTitle)
                     put("rawText", payment.rawText)
                     put("transactionType", payment.transactionType)
+                    payment.latitude?.let { put("latitude", it) }
+                    payment.longitude?.let { put("longitude", it) }
+                    payment.locationName?.let { put("locationName", it) }
+                    payment.startLatitude?.let { put("startLatitude", it) }
+                    payment.startLongitude?.let { put("startLongitude", it) }
+                    payment.startLocationName?.let { put("startLocationName", it) }
                 })
             }
         }

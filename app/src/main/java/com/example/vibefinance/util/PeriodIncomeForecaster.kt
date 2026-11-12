@@ -36,7 +36,7 @@ object PeriodIncomeForecaster {
             val fromMillis = from.atStartOfDay(zone).toInstant().toEpochMilli()
             val untilMillis = until.atStartOfDay(zone).toInstant().toEpochMilli()
             val income = history.asSequence().filter {
-                it.timestamp >= fromMillis && it.timestamp < untilMillis && it.toAccountId == null && it.amount < 0
+                it.timestamp >= fromMillis && it.timestamp < untilMillis && it.toAccountId == null && !it.isReimbursement && it.amount < 0
             }.fold(BigDecimal.ZERO) { sum, tx -> sum + BigDecimal.valueOf(-tx.amount) }
             val weight = 3L - index
             weightedIncome += income * BigDecimal.valueOf(weight)

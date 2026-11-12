@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -71,6 +72,9 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.AlertDialog
@@ -108,6 +112,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +135,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.data.entity.AccountEntity
@@ -146,6 +155,35 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+
+/**
+ * Constrains DaysLeftCard size between 120dp and 156dp for vertical stack mode.
+ */
+fun calculateStackedDaysSize(maxWidth: Dp): Dp {
+    return minOf(maxWidth * 0.45f, 156.dp).coerceAtLeast(120.dp)
+}
+
+/**
+ * Determines whether the daily bento layout should stack vertically:
+ * - Ultra-narrow widths (< 340dp)
+ * - Amount overflow at 12sp floor in side-by-side mode
+ * - High font scale (> 1.25) where available width is constrained
+ */
+fun shouldStackBento(
+    maxWidth: Dp,
+    bentoSpacing: Dp,
+    fontScale: Float,
+    isUltraNarrowThreshold: Dp = 340.dp,
+    remTextWidthAt12sp: Float = 0f,
+    spentTextWidthAt12sp: Float = 0f,
+    candidateAvailableWidthPx: Float = Float.MAX_VALUE,
+): Boolean {
+    if (maxWidth < isUltraNarrowThreshold) return true
+    val maxTextWidth = maxOf(remTextWidthAt12sp, spentTextWidthAt12sp)
+    if (maxTextWidth > candidateAvailableWidthPx) return true
+    if (fontScale > 1.25f && maxTextWidth > candidateAvailableWidthPx * 0.85f) return true
+    return false
+}
 
 @Composable
 fun CategoryIcon(category: String, tint: Color, modifier: Modifier = Modifier) {
@@ -261,6 +299,82 @@ fun getCategoryDisplayName(category: String): String {
     }
 }
 
+val LEFT_COLUMN_CARD_KEYS = setOf(
+    "daily-hero",
+    "daily-period",
+    "daily-transactions",
+    "daily-spending-chart"
+)
+
+val RIGHT_COLUMN_CARD_KEYS = setOf(
+    "daily-bento",
+    "daily-category-budgets",
+    "daily-category-chart",
+    "daily-calendar"
+)
+
+@Composable
+fun resolveDailyCardTitle(cardKey: String): String = when (cardKey) {
+    "daily-hero" -> stringResource(R.string.loc_daily_budget_hero)
+    "daily-period" -> stringResource(R.string.loc_whole_budget_card)
+    "daily-bento" -> stringResource(R.string.loc_bento_metrics)
+    "daily-category-budgets" -> stringResource(R.string.loc_category_budgets_card)
+    "daily-transactions" -> stringResource(R.string.loc_total_expenses)
+    "daily-spending-chart" -> stringResource(R.string.loc_spending_trend)
+    "daily-category-chart" -> stringResource(R.string.loc_category_analytics)
+    "daily-calendar" -> stringResource(R.string.loc_financial_rhythm)
+    else -> cardKey
+}
+
+@Composable
+fun DualColumnPaneHeader(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.3).sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            actions()
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
@@ -278,7 +392,8 @@ fun HomeScreen(
     onOpenRecalcSheet: () -> Unit = {},
     onPayCard: (Long) -> Unit = {},
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset }
+    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset },
+    useRail: Boolean = false
 ) {
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
         totalMonthlyBudget = 0.0,
@@ -366,255 +481,554 @@ fun HomeScreen(
             if (isLoading) {
                 com.example.vibefinance.ui.components.HomeScreenSkeleton()
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize()
-                        .testTag("DailyCardsList"),
-                    contentPadding = PaddingValues(top = topContentPadding),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    if (isEditMode) {
-                        item(key = "daily-edit-header") {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val availableWidth = com.example.vibefinance.ui.main.LocalMainWindowWidth.current ?: maxWidth
+                    val isDualColumn = availableWidth >= 600.dp
+
+                    val leftKeys = remember(effectiveCardOrder) {
+                        effectiveCardOrder.filter { it in LEFT_COLUMN_CARD_KEYS }
+                    }
+                    val rightKeys = remember(effectiveCardOrder) {
+                        effectiveCardOrder.filter { it !in LEFT_COLUMN_CARD_KEYS }
+                    }
+
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .widthIn(max = if (isDualColumn) 1240.dp else 680.dp)
+                                .fillMaxWidth()
+                                .testTag("DailyCardsList"),
+                            contentPadding = PaddingValues(top = topContentPadding),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            if (isEditMode) {
+                                item(key = "daily-edit-header") {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DashboardCustomize,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.loc_custom_bento_layout),
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TextButton(
-                                            onClick = {
-                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                                onIntent(com.example.vibefinance.ui.FinanceIntent.ResetDailyCardOrder)
-                                            }
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = stringResource(R.string.loc_reset),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                        }
-                                        FilledTonalButton(
-                                            onClick = {
-                                                com.example.vibefinance.util.VibeHaptics.successConfirm(hapticView)
-                                                isEditMode = false
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                                            modifier = Modifier.height(34.dp),
-                                            elevation = AppButtonDefaults.tonalElevation(),
-                                        ) {
-                                            Text(
-                                                text = stringResource(R.string.loc_done),
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    effectiveCardOrder.forEachIndexed { index, cardKey ->
-                        item(key = cardKey) {
-                            val cardTitle = when (cardKey) {
-                                "daily-hero" -> stringResource(R.string.loc_daily_budget_hero)
-                                "daily-period" -> stringResource(R.string.loc_whole_budget_card)
-                                "daily-bento" -> stringResource(R.string.loc_bento_metrics)
-                                "daily-transactions" -> stringResource(R.string.loc_total_expenses)
-                                "daily-spending-chart" -> stringResource(R.string.loc_spending_trend)
-                                "daily-category-chart" -> stringResource(R.string.loc_category_analytics)
-                                "daily-calendar" -> stringResource(R.string.loc_financial_rhythm)
-                                else -> cardKey
-                            }
-                            DailyBentoCardWrapper(
-                                title = cardTitle,
-                                index = index,
-                                totalCount = effectiveCardOrder.size,
-                                isEditMode = isEditMode,
-                                onLongPress = { isEditMode = true },
-                                onMoveUp = {
-                                    if (index > 0) {
-                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                        val newOrder = effectiveCardOrder.toMutableList()
-                                        java.util.Collections.swap(newOrder, index, index - 1)
-                                        onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
-                                    }
-                                },
-                                onMoveDown = {
-                                    if (index < effectiveCardOrder.size - 1) {
-                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                        val newOrder = effectiveCardOrder.toMutableList()
-                                        java.util.Collections.swap(newOrder, index, index + 1)
-                                        onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
-                                    }
-                                },
-                                modifier = Modifier.animateItem()
-                            ) {
-                                when (cardKey) {
-                                    "daily-hero" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("hero") {
-                                            HeroDailyBudgetCard(
-                                                budgetInfo = budgetInfo,
-                                                onOpenRecalcSheet = onOpenRecalcSheet,
-                                                onOpenBudgetDialog = onOpenBudgetDialog
-                                            )
-                                        }
-                                    }
-                                    "daily-period" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("period", delayMillis = 40) {
-                                            WholeBudgetCard(
-                                                budget = budgetInfo.totalMonthlyBudget,
-                                                startDate = budgetInfo.startDate,
-                                                endDate = budgetInfo.endDate,
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                                onClick = onOpenBudgetDialog
-                                            )
-                                        }
-                                    }
-                                    "daily-bento" -> {
-                                        val screenWidthDp = LocalConfiguration.current.screenWidthDp
-                                        val bentoSpacing = resolveBentoSpacing(screenWidthDp)
-
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(bentoSpacing),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-
-                                            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                                                val daysSide = ((maxWidth - bentoSpacing) * 0.4f).coerceAtLeast(0.dp)
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(daysSide),
-                                                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    com.example.vibefinance.ui.common.PageContentEntrance(
-                                                        "remaining", delayMillis = 80,
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .fillMaxHeight()
-                                                    ) {
-                                                        RestAndSpentBudgetCard(
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            remainingBudget = budgetInfo.monthlyRemaining,
-                                                            totalBudget = budgetInfo.totalMonthlyBudget,
-                                                            isDarkTheme = isDark
-                                                        )
-                                                    }
-                                                    val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
-                                                        calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
-                                                    }
-                                                    com.example.vibefinance.ui.common.PageContentEntrance(
-                                                        "days", delayMillis = 110,
-                                                        modifier = Modifier
-                                                            .size(daysSide)
-                                                    ) {
-                                                        DaysLeftCard(
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            daysLeft = budgetInfo.daysLeft,
-                                                            totalDays = totalPeriodDays
-                                                        )
-                                                    }
-                                                }
-                                            }
-
                                             Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .height(IntrinsicSize.Min),
-                                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                                                verticalAlignment = Alignment.CenterVertically
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                com.example.vibefinance.ui.common.PageContentEntrance(
-                                                    "lowest",
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(128.dp)
+                                                Icon(
+                                                    imageVector = Icons.Default.DashboardCustomize,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Text(
+                                                    text = stringResource(R.string.loc_custom_bento_layout),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                TextButton(
+                                                    onClick = {
+                                                        com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                        onIntent(com.example.vibefinance.ui.FinanceIntent.ResetDailyCardOrder)
+                                                    }
                                                 ) {
-                                                    MinMaxSpentCard(
-                                                        modifier = Modifier.fillMaxSize(), isMin = true,
-                                                        spends = periodExpenses, isDarkTheme = isDark
+                                                    Text(
+                                                        text = stringResource(R.string.loc_reset),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
                                                     )
                                                 }
-                                                com.example.vibefinance.ui.common.PageContentEntrance(
-                                                    "highest", delayMillis = 40,
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .height(128.dp)
+                                                FilledTonalButton(
+                                                    onClick = {
+                                                        com.example.vibefinance.util.VibeHaptics.successConfirm(hapticView)
+                                                        isEditMode = false
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(34.dp),
+                                                    elevation = AppButtonDefaults.tonalElevation(),
                                                 ) {
-                                                    MinMaxSpentCard(
-                                                        modifier = Modifier.fillMaxSize(), isMin = false,
-                                                        spends = periodExpenses, isDarkTheme = isDark
+                                                    Text(
+                                                        text = stringResource(R.string.loc_done),
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold
                                                     )
                                                 }
                                             }
                                         }
                                     }
-                                    "daily-transactions" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("transactions") {
-                                            TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+                                }
+                            }
+
+                            if (isDualColumn) {
+                                item(key = "daily-dual-column-body") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("DailyDualColumn"),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        // Left Column: Primary Budget & Action Pane (50%)
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag("DailyLeftColumn"),
+                                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            if (useRail) {
+                                                DualColumnPaneHeader(
+                                                    title = stringResource(R.string.dual_column_left_title),
+                                                    subtitle = stringResource(R.string.dual_column_left_subtitle),
+                                                    modifier = Modifier
+                                                        .padding(bottom = 2.dp)
+                                                        .testTag("DualColumnLeftHeader")
+                                                )
+                                            }
+
+                                            leftKeys.forEachIndexed { index, cardKey ->
+                                                DailyBentoCardWrapper(
+                                                    title = resolveDailyCardTitle(cardKey),
+                                                    index = index,
+                                                    totalCount = leftKeys.size,
+                                                    isEditMode = isEditMode,
+                                                    modifier = Modifier.testTag("DailyCard_$cardKey"),
+                                                    onLongPress = { isEditMode = true },
+                                                    onMoveUp = {
+                                                        if (index > 0) {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            val newLeft = leftKeys.toMutableList()
+                                                            java.util.Collections.swap(newLeft, index, index - 1)
+                                                            val newOrder = newLeft + rightKeys
+                                                            onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                        }
+                                                    },
+                                                    onMoveDown = {
+                                                        if (index < leftKeys.size - 1) {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            val newLeft = leftKeys.toMutableList()
+                                                            java.util.Collections.swap(newLeft, index, index + 1)
+                                                            val newOrder = newLeft + rightKeys
+                                                            onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                        }
+                                                    }
+                                                ) {
+                                                    DailyCardContent(
+                                                        cardKey = cardKey,
+                                                        budgetInfo = budgetInfo,
+                                                        state = state,
+                                                        periodExpenses = periodExpenses,
+                                                        isDark = isDark,
+                                                        onOpenRecalcSheet = onOpenRecalcSheet,
+                                                        onOpenBudgetDialog = onOpenBudgetDialog,
+                                                        onViewAllClick = onViewAllClick,
+                                                        onCategoryClick = onCategoryClick,
+                                                        onPayCard = onPayCard
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Right Column: Analytics & Bento Pane (50%)
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag("DailyRightColumn"),
+                                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            if (useRail) {
+                                                DualColumnPaneHeader(
+                                                    title = stringResource(R.string.dual_column_right_title),
+                                                    subtitle = stringResource(R.string.dual_column_right_subtitle),
+                                                    modifier = Modifier
+                                                        .padding(bottom = 2.dp)
+                                                        .testTag("DualColumnRightHeader"),
+                                                    actions = {
+                                                        // Custom Bento Layout Toggle
+                                                        FilledTonalIconButton(
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                isEditMode = !isEditMode
+                                                            },
+                                                            modifier = Modifier.size(36.dp).testTag("DualColumnCustomLayoutBtn"),
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = if (isEditMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                                                                contentColor = if (isEditMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.DashboardCustomize,
+                                                                contentDescription = stringResource(R.string.loc_custom_bento_layout),
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+
+                                                        // Recalculate Daily Budget
+                                                        FilledTonalIconButton(
+                                                            onClick = {
+                                                                com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                                onOpenRecalcSheet()
+                                                            },
+                                                            modifier = Modifier.size(36.dp).testTag("DualColumnRecalcBtn"),
+                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                                                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Refresh,
+                                                                contentDescription = stringResource(R.string.btn_recalculate_budget),
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                )
+                                            }
+
+                                            rightKeys.forEachIndexed { index, cardKey ->
+                                                DailyBentoCardWrapper(
+                                                    title = resolveDailyCardTitle(cardKey),
+                                                    index = index,
+                                                    totalCount = rightKeys.size,
+                                                    isEditMode = isEditMode,
+                                                    modifier = Modifier.testTag("DailyCard_$cardKey"),
+                                                    onLongPress = { isEditMode = true },
+                                                    onMoveUp = {
+                                                        if (index > 0) {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            val newRight = rightKeys.toMutableList()
+                                                            java.util.Collections.swap(newRight, index, index - 1)
+                                                            val newOrder = leftKeys + newRight
+                                                            onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                        }
+                                                    },
+                                                    onMoveDown = {
+                                                        if (index < rightKeys.size - 1) {
+                                                            com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                            val newRight = rightKeys.toMutableList()
+                                                            java.util.Collections.swap(newRight, index, index + 1)
+                                                            val newOrder = leftKeys + newRight
+                                                            onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                        }
+                                                    }
+                                                ) {
+                                                    DailyCardContent(
+                                                        cardKey = cardKey,
+                                                        budgetInfo = budgetInfo,
+                                                        state = state,
+                                                        periodExpenses = periodExpenses,
+                                                        isDark = isDark,
+                                                        onOpenRecalcSheet = onOpenRecalcSheet,
+                                                        onOpenBudgetDialog = onOpenBudgetDialog,
+                                                        onViewAllClick = onViewAllClick,
+                                                        onCategoryClick = onCategoryClick,
+                                                        onPayCard = onPayCard
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
-                                    "daily-spending-chart" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("spending-chart") {
-                                            DailySpendingLineChart(state = state)
-                                        }
+                                }
+                            } else {
+                                if (useRail) {
+                                    item(key = "daily-single-column-header") {
+                                        DualColumnPaneHeader(
+                                            title = stringResource(R.string.dual_column_left_title),
+                                            subtitle = stringResource(R.string.dual_column_left_subtitle),
+                                            modifier = Modifier
+                                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                                                .testTag("DailySingleColumnHeader")
+                                        )
                                     }
-                                    "daily-category-chart" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("category-chart") {
-                                            CategoryDonutChart(
+                                }
+                                effectiveCardOrder.forEachIndexed { index, cardKey ->
+                                    item(key = cardKey) {
+                                        DailyBentoCardWrapper(
+                                            title = resolveDailyCardTitle(cardKey),
+                                            index = index,
+                                            totalCount = effectiveCardOrder.size,
+                                            isEditMode = isEditMode,
+                                            onLongPress = { isEditMode = true },
+                                            onMoveUp = {
+                                                if (index > 0) {
+                                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                    val newOrder = effectiveCardOrder.toMutableList()
+                                                    java.util.Collections.swap(newOrder, index, index - 1)
+                                                    onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                }
+                                            },
+                                            onMoveDown = {
+                                                if (index < effectiveCardOrder.size - 1) {
+                                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                    val newOrder = effectiveCardOrder.toMutableList()
+                                                    java.util.Collections.swap(newOrder, index, index + 1)
+                                                    onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
+                                                }
+                                            },
+                                            modifier = Modifier.animateItem().testTag("DailyCard_$cardKey")
+                                        ) {
+                                            DailyCardContent(
+                                                cardKey = cardKey,
+                                                budgetInfo = budgetInfo,
                                                 state = state,
-                                                onCategoryClick = onCategoryClick
+                                                periodExpenses = periodExpenses,
+                                                isDark = isDark,
+                                                onOpenRecalcSheet = onOpenRecalcSheet,
+                                                onOpenBudgetDialog = onOpenBudgetDialog,
+                                                onViewAllClick = onViewAllClick,
+                                                onCategoryClick = onCategoryClick,
+                                                onPayCard = onPayCard
                                             )
-                                        }
-                                    }
-                                    "daily-calendar" -> {
-                                        com.example.vibefinance.ui.common.PageContentEntrance("calendar") {
-                                            SpendsCalendar(state = state, onPayCard = onPayCard)
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    // Bottom space
-                    item(key = "daily-bottom-space") {
-                        Spacer(modifier = Modifier.height(100.dp))
+                            // Bottom space
+                            item(key = "daily-bottom-space") {
+                                Spacer(modifier = Modifier.height(100.dp))
+                            }
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyCardContent(
+    cardKey: String,
+    budgetInfo: DailyBudgetInfo,
+    state: FinanceUiState,
+    periodExpenses: List<com.example.vibefinance.data.entity.TransactionEntity>,
+    isDark: Boolean,
+    onOpenRecalcSheet: () -> Unit,
+    onOpenBudgetDialog: () -> Unit,
+    onViewAllClick: () -> Unit,
+    onCategoryClick: (String) -> Unit,
+    onPayCard: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (cardKey) {
+        "daily-hero" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("hero", modifier = modifier) {
+                HeroDailyBudgetCard(
+                    budgetInfo = budgetInfo,
+                    onOpenRecalcSheet = onOpenRecalcSheet,
+                    onOpenBudgetDialog = onOpenBudgetDialog
+                )
+            }
+        }
+        "daily-period" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("period", delayMillis = 40, modifier = modifier) {
+                WholeBudgetCard(
+                    budget = budgetInfo.totalMonthlyBudget,
+                    startDate = budgetInfo.startDate,
+                    endDate = budgetInfo.endDate,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    onClick = onOpenBudgetDialog
+                )
+            }
+        }
+        "daily-category-budgets" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("category-budgets", delayMillis = 60, modifier = modifier) {
+                CategoryBudgetsCard(
+                    budgetInfo = budgetInfo,
+                    onOpenBudgetDialog = onOpenBudgetDialog
+                )
+            }
+        }
+        "daily-bento" -> {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val bentoSpacing = resolveBentoSpacing(screenWidthDp)
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(bentoSpacing),
+                modifier = modifier.fillMaxWidth()
+            ) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val bentoMaxWidth = maxWidth
+                    val daysSide = minOf(((bentoMaxWidth - bentoSpacing) * 0.4f), 156.dp).coerceAtLeast(110.dp)
+                    val candidateRestWidth = bentoMaxWidth - bentoSpacing - daysSide
+                    val candidateRestPadding = (candidateRestWidth * 0.12f).coerceIn(12.dp, 18.dp) * 2
+                    val candidateTextWidthPx = with(LocalDensity.current) { (candidateRestWidth - candidateRestPadding).toPx() }
+
+                    val measurer = rememberTextMeasurer()
+                    val measuringStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+
+                    val remText = formatBudgetCardAmount(budgetInfo.monthlyRemaining)
+                    val spentText = formatBudgetCardAmount((budgetInfo.totalMonthlyBudget - budgetInfo.monthlyRemaining).coerceAtLeast(0.0))
+
+                    val remWidthAt12 = measurer.measure(
+                        text = AnnotatedString(remText),
+                        style = measuringStyle.copy(fontSize = 12.sp),
+                        softWrap = false,
+                        maxLines = 1,
+                    ).size.width
+                    val spentWidthAt12 = measurer.measure(
+                        text = AnnotatedString(spentText),
+                        style = measuringStyle.copy(fontSize = 12.sp),
+                        softWrap = false,
+                        maxLines = 1,
+                    ).size.width
+
+                    var childReportedOverflow by remember { mutableStateOf(false) }
+
+                    val shouldStack = shouldStackBento(
+                        maxWidth = bentoMaxWidth,
+                        bentoSpacing = bentoSpacing,
+                        fontScale = LocalDensity.current.fontScale,
+                        remTextWidthAt12sp = remWidthAt12.toFloat(),
+                        spentTextWidthAt12sp = spentWidthAt12.toFloat(),
+                        candidateAvailableWidthPx = candidateTextWidthPx
+                    ) || childReportedOverflow
+
+                    val totalPeriodDays = remember(budgetInfo.startDate, budgetInfo.endDate) {
+                        calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
+                    }
+
+                    if (shouldStack) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(bentoSpacing),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "remaining", delayMillis = 80,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                RestAndSpentBudgetCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(144.dp),
+                                    remainingBudget = budgetInfo.monthlyRemaining,
+                                    totalBudget = budgetInfo.totalMonthlyBudget,
+                                    isDarkTheme = isDark,
+                                    onOverflowChanged = { childReportedOverflow = it }
+                                )
+                            }
+
+                            val stackedDaysSize = calculateStackedDaysSize(bentoMaxWidth)
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "days", delayMillis = 110,
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            ) {
+                                DaysLeftCard(
+                                    modifier = Modifier.size(stackedDaysSize),
+                                    daysLeft = budgetInfo.daysLeft,
+                                    totalDays = totalPeriodDays
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(daysSide),
+                            horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "remaining", delayMillis = 80,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                RestAndSpentBudgetCard(
+                                    modifier = Modifier.fillMaxSize(),
+                                    remainingBudget = budgetInfo.monthlyRemaining,
+                                    totalBudget = budgetInfo.totalMonthlyBudget,
+                                    isDarkTheme = isDark,
+                                    onOverflowChanged = { childReportedOverflow = it }
+                                )
+                            }
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "days", delayMillis = 110,
+                                modifier = Modifier.size(daysSide)
+                            ) {
+                                DaysLeftCard(
+                                    modifier = Modifier.fillMaxSize(),
+                                    daysLeft = budgetInfo.daysLeft,
+                                    totalDays = totalPeriodDays
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    com.example.vibefinance.ui.common.PageContentEntrance(
+                        "lowest",
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(128.dp)
+                    ) {
+                        MinMaxSpentCard(
+                            modifier = Modifier.fillMaxSize(), isMin = true,
+                            spends = periodExpenses, isDarkTheme = isDark
+                        )
+                    }
+                    com.example.vibefinance.ui.common.PageContentEntrance(
+                        "highest", delayMillis = 40,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(128.dp)
+                    ) {
+                        MinMaxSpentCard(
+                            modifier = Modifier.fillMaxSize(), isMin = false,
+                            spends = periodExpenses, isDarkTheme = isDark
+                        )
+                    }
+                }
+            }
+        }
+        "daily-transactions" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("transactions", modifier = modifier) {
+                TotalExpensesRow(state = state, onViewAllClick = onViewAllClick)
+            }
+        }
+        "daily-spending-chart" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("spending-chart", modifier = modifier) {
+                DailySpendingLineChart(state = state)
+            }
+        }
+        "daily-category-chart" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("category-chart", modifier = modifier) {
+                CategoryDonutChart(
+                    state = state,
+                    onCategoryClick = onCategoryClick
+                )
+            }
+        }
+        "daily-calendar" -> {
+            com.example.vibefinance.ui.common.PageContentEntrance("calendar", modifier = modifier) {
+                SpendsCalendar(state = state, onPayCard = onPayCard)
             }
         }
     }
@@ -1065,3 +1479,123 @@ data class VibeInsight(
     val color: Color,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
+
+@Preview(name = "Daily Bento Standard Side-by-Side Light (380dp)", showBackground = true, widthDp = 380)
+@Composable
+fun PreviewDailyBentoSideBySide() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            val bentoSpacing = 16.dp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
+                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RestAndSpentBudgetCard(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    remainingBudget = 2439.5,
+                    totalBudget = 2500.0,
+                    isDarkTheme = false
+                )
+                DaysLeftCard(
+                    modifier = Modifier.size(140.dp),
+                    daysLeft = 18,
+                    totalDays = 30
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Daily Bento Narrow Stacked (320dp)", showBackground = true, widthDp = 320)
+@Composable
+fun PreviewDailyBentoNarrowStacked() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        Box(modifier = Modifier.padding(12.dp)) {
+            val bentoSpacing = 12.dp
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(bentoSpacing),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                RestAndSpentBudgetCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(144.dp),
+                    remainingBudget = -12345.67,
+                    totalBudget = 3000.0,
+                    isDarkTheme = false
+                )
+                DaysLeftCard(
+                    modifier = Modifier.size(140.dp),
+                    daysLeft = 5,
+                    totalDays = 30
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Daily Bento High Font Scale (1.5x) Stacked", showBackground = true, widthDp = 360, fontScale = 1.5f)
+@Composable
+fun PreviewDailyBentoHighFontScaleStacked() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        Box(modifier = Modifier.padding(12.dp)) {
+            val bentoSpacing = 12.dp
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(bentoSpacing),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                RestAndSpentBudgetCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(144.dp),
+                    remainingBudget = -1234567.89,
+                    totalBudget = 5000.0,
+                    isDarkTheme = false
+                )
+                DaysLeftCard(
+                    modifier = Modifier.size(140.dp),
+                    daysLeft = 12,
+                    totalDays = 30
+                )
+            }
+        }
+    }
+}
+
+@Preview(name = "Daily Bento Dark Theme Side-by-Side", showBackground = true, widthDp = 380)
+@Composable
+fun PreviewDailyBentoDark() {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        Box(modifier = Modifier.padding(16.dp)) {
+            val bentoSpacing = 16.dp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
+                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RestAndSpentBudgetCard(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    remainingBudget = 1800.0,
+                    totalBudget = 2500.0,
+                    isDarkTheme = true
+                )
+                DaysLeftCard(
+                    modifier = Modifier.size(140.dp),
+                    daysLeft = 20,
+                    totalDays = 30
+                )
+            }
+        }
+    }
+}

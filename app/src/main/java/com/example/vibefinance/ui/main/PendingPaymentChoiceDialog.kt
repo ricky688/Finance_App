@@ -80,10 +80,17 @@ internal fun PendingPaymentChoiceDialog(
     var currentPayment by remember(payment.id) { mutableStateOf(payment) }
     var showTaggingDialog by remember(payment.id) { mutableStateOf(false) }
     val isTopUp = currentPayment.isTopUp || currentPayment.transactionType == "TRANSFER"
-    val sortedAccounts = remember(accounts, isTopUp) {
+    val isTransferOrIncome = isTopUp || currentPayment.transactionType == "INCOME"
+    val sortedAccounts = remember(accounts, isTopUp, isTransferOrIncome) {
         accounts.sortedWith(compareBy<AccountEntity>({
             if (isTopUp && PendingPaymentStore.isOctopusAccount(it)) 99
-            else when (it.type) {
+            else if (isTransferOrIncome) when (it.type) {
+                AccountType.BANK -> 0
+                AccountType.DEBIT -> 1
+                AccountType.CASH -> 2
+                AccountType.CC -> 3
+                AccountType.INVESTMENT -> 4
+            } else when (it.type) {
                 AccountType.CC -> 0
                 AccountType.INVESTMENT -> 4
                 AccountType.BANK -> 1

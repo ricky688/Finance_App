@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nfc_origin_title">NFC-assisted origin estimate</string>
+    <string name="nfc_origin_body">Optional, Android 16+. Phone taps trigger up to five seconds of location acquisition; physical-card taps alone cannot be detected. Requires notification access, precise and background location. Recognized payment notifications exclude nearby tap candidates. Candidates are private, used for at most two hours and cleared on the next access after expiry or when disabled. Ambiguous origins stay unconfirmed. No card content or wallet role is accessed.</string>
+    <string name="nfc_origin_off">Off</string>
+    <string name="nfc_origin_unsupported">Requires Android 16+ and compatible NFC hardware</string>
+    <string name="nfc_origin_logging_off">Turn on automatic transaction logging</string>
+    <string name="nfc_origin_disconnected">Notification listener disconnected; reopen notification access</string>
+    <string name="nfc_origin_permission">Allow precise location and Allow all the time</string>
+    <string name="nfc_origin_nfc_off">Turn on device NFC</string>
+    <string name="nfc_origin_waiting">Registered; waiting for a phone tap</string>
+    <string name="nfc_origin_contact">NFC contact received; acquiring location</string>
+    <string name="nfc_origin_no_location">Location was not retained; origin stays unconfirmed</string>
+    <string name="nfc_origin_error">NFC or local storage unavailable; origin stays unconfirmed</string>
+    <string name="mtr_origin_unconfirmed">Origin unconfirmed ➔ %1$s</string>
+    <string name="nfc_origin_saved">Location candidate saved; origin still needs matching</string>
+</resources>

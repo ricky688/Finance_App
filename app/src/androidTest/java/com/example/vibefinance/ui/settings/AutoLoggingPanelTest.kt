@@ -4,6 +4,8 @@ package com.example.vibefinance.ui.settings
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +46,7 @@ class AutoLoggingPanelTest {
                 LocalDensity provides Density(density.density, if (chineseLargeDark) 1.5f else density.fontScale)) {
                 MaterialTheme(colorScheme = if (chineseLargeDark) darkColorScheme() else lightColorScheme(),
                     motionScheme = MotionScheme.expressive()) {
-                    Column(Modifier.width(300.dp).background(MaterialTheme.colorScheme.background)) {
+                    Column(Modifier.width(300.dp).background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
                         AppSwitch(enabled, { enabled = it }, Modifier.testTag("LoggingSwitchFixture"))
                         AutoLoggingPanel(enabled, { accessRequests++ }) {
                             Box(Modifier.fillMaxWidth().height(180.dp).background(Color.Red)
@@ -106,10 +108,74 @@ class AutoLoggingPanelTest {
 
     @Test fun traditionalChineseGuideFitsLargerFontsAndDarkTheme_withoutEnablingLogging() {
         show(chineseLargeDark = true)
+        rule.mainClock.autoAdvance = true
         rule.onNodeWithText("自動記帳疑難排解").assertIsDisplayed()
-        rule.onNodeWithTag("AutoLoggingNotificationAccess").assertIsDisplayed().performClick()
+        rule.onNodeWithTag("AutoLoggingNotificationAccess").performScrollTo().assertIsDisplayed().performClick()
         assertEquals(1, accessRequests)
         assertFalse(enabled)
         rule.onNodeWithTag("LoggingSwitchFixture").assertIsOff()
     }
+
+    private var manageRequests = 0
+    private fun showApps(count: Int, width: Int = 220, chineseLargeDark: Boolean = false) {
+        rule.setContent {
+            val density = LocalDensity.current
+            val configuration = Configuration(LocalConfiguration.current).apply {
+                setLocale(Locale.forLanguageTag(if (chineseLargeDark) "zh-Hant-HK" else "en"))
+            }
+            val context = LocalContext.current.createConfigurationContext(configuration)
+            CompositionLocalProvider(LocalConfiguration provides configuration, LocalContext provides context,
+                LocalDensity provides Density(density.density, if (chineseLargeDark) 1.5f else density.fontScale)) {
+                MaterialTheme(colorScheme = if (chineseLargeDark) darkColorScheme() else lightColorScheme()) {
+                    Box(Modifier.width(width.dp)) {
+                        AutoLoggingAppsSummary(List(count) { context.packageName }) { manageRequests++ }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test fun enabledAppTextUsesFullWidthAboveIconsInChineseLargeDarkDrawer() {
+        showApps(8, chineseLargeDark = true)
+        val title = rule.onNodeWithTag("AutoLoggingAppsLabel", useUnmergedTree = true)
+        val description = rule.onNodeWithTag("AutoLoggingAppsDescription", useUnmergedTree = true)
+        val icons = rule.onNodeWithTag("AutoLoggingAppsIcons", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        title.assertIsDisplayed()
+        description.assertIsDisplayed().assertTextContains("8", substring = true)
+        for (text in listOf(title, description)) {
+            val bounds = text.getUnclippedBoundsInRoot()
+            assertEquals(icons.left, bounds.left)
+            assertEquals(icons.right, bounds.right)
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            text.performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue("Text must use a readable number of lines", layouts.single().lineCount <= 2)
+            assertFalse(layouts.single().didOverflowWidth)
+        }
+        assertTrue(icons.top > description.getUnclippedBoundsInRoot().bottom)
+    }
+
+    @Test fun narrowIconStripScrollsToManageWithoutStealingTheLabelWidth() {
+        showApps(8, width = 160)
+        val title = rule.onNodeWithTag("AutoLoggingAppsLabel", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        rule.onNodeWithTag("AutoLoggingApps").performClick()
+        assertEquals(1, manageRequests)
+        rule.onNodeWithTag("AutoLoggingAppsManage", useUnmergedTree = true)
+            .performScrollTo().assertIsDisplayed().performTouchInput { click() }
+        assertEquals(2, manageRequests)
+        assertEquals(title, rule.onNodeWithTag("AutoLoggingAppsLabel", useUnmergedTree = true).getUnclippedBoundsInRoot())
+    }
+
+    @Test fun emptyAppSelectionStillOffersManageWithoutChangingSavedSettings() {
+        showApps(0)
+        val target = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val context = target.createConfigurationContext(Configuration(target.resources.configuration).apply {
+            setLocale(Locale.ENGLISH)
+        })
+        rule.onNodeWithTag("AutoLoggingAppsDescription", useUnmergedTree = true)
+            .assertTextContains(context.getString(R.string.settings_apps_none_enabled))
+        rule.onNodeWithTag("AutoLoggingAppsManage", useUnmergedTree = true)
+            .assertIsDisplayed().performTouchInput { click() }
+        assertEquals(1, manageRequests)
+    }
+
 }

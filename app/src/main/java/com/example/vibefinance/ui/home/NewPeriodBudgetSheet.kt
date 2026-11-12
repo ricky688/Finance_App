@@ -9,6 +9,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.example.vibefinance.ui.components.CompletePressButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import com.example.vibefinance.data.entity.ExpenseSymbol
+import com.example.vibefinance.ui.components.label
+import com.example.vibefinance.ui.components.vector
 import com.example.vibefinance.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.Spring
@@ -61,7 +68,7 @@ import java.util.Locale
 @Composable
 fun NewPeriodBudgetSheet(
     budgetInfo: DailyBudgetInfo?,
-    onConfirmNewPeriod: (amount: Double, startDate: Long, endDate: Long) -> Unit,
+    onConfirmNewPeriod: (amount: Double, startDate: Long, endDate: Long, categoryBudgets: Map<String, Double>) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -80,6 +87,13 @@ fun NewPeriodBudgetSheet(
     var selectedDaysPreset by remember { mutableStateOf(30) }
     var customEndDateMillis by remember { mutableStateOf<Long?>(null) }
     var isRolloverEnabled by remember { mutableStateOf(leftoverAmount > 0) }
+
+    // Category Budgets state (Mode A: Allocated within Total Period Budget)
+    var categoryBudgets by remember {
+        val initial = budgetInfo?.categoryBudgets?.associate { it.symbol.name to it.budgetAmount } ?: emptyMap()
+        mutableStateOf(initial)
+    }
+    var showAddCategoryModal by remember { mutableStateOf(false) }
 
     var showDatePickerModal by remember { mutableStateOf(false) }
 
@@ -326,6 +340,156 @@ fun NewPeriodBudgetSheet(
                     }
                 }
 
+                // 5. Category Budget Allocations (Mode A: Allocated within Total Period Budget)
+                item {
+                    val totalAllocated = categoryBudgets.values.sum()
+                    val unallocated = (finalTotalBudget - totalAllocated).coerceAtLeast(0.0)
+                    val isExceeded = totalAllocated > finalTotalBudget
+
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = cardContainerColor,
+                        border = cardBorder,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // Section Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.loc_category_budgets_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = primaryTextColor
+                                    )
+                                    Text(
+                                        text = if (isExceeded) {
+                                            stringResource(R.string.loc_category_budgets_exceed_warning)
+                                        } else {
+                                            stringResource(
+                                                R.string.loc_category_budgets_allocation_summary,
+                                                String.format(Locale.US, "HK$ %,.0f", totalAllocated),
+                                                String.format(Locale.US, "HK$ %,.0f", finalTotalBudget),
+                                                String.format(Locale.US, "HK$ %,.0f", unallocated)
+                                            )
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isExceeded) MaterialTheme.colorScheme.error else secondaryTextColor
+                                    )
+                                }
+
+                                TextButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        showAddCategoryModal = true
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(stringResource(R.string.loc_category_budgets_add_btn))
+                                }
+                            }
+
+                            // Configured Categories List
+                            if (categoryBudgets.isEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (isDark) Color(0xFF1E2026) else Color(0xFFE8EAF0),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.loc_category_budgets_empty_hint_short),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = secondaryTextColor,
+                                        modifier = Modifier.padding(14.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    categoryBudgets.forEach { (symbolName, allocatedAmt) ->
+                                        val symbol = runCatching { ExpenseSymbol.valueOf(symbolName) }.getOrNull()
+                                        if (symbol != null) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                // Built-in Icon & Label
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                                    modifier = Modifier.size(38.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = symbol.vector(),
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                Text(
+                                                    text = stringResource(symbol.label()),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = primaryTextColor,
+                                                    modifier = Modifier.width(55.dp),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+
+                                                // Amount Input Field
+                                                OutlinedTextField(
+                                                    value = if (allocatedAmt > 0) String.format(Locale.US, "%.0f", allocatedAmt) else "",
+                                                    onValueChange = { newText ->
+                                                        val newAmt = newText.toDoubleOrNull() ?: 0.0
+                                                        categoryBudgets = categoryBudgets + (symbolName to newAmt)
+                                                    },
+                                                    placeholder = { Text("0") },
+                                                    prefix = { Text("HK$ ") },
+                                                    singleLine = true,
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                // Delete Icon
+                                                IconButton(
+                                                    onClick = {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        categoryBudgets = categoryBudgets - symbolName
+                                                    },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 5. Buckwheat Rollover Options
                 if (leftoverAmount > 0) {
                     item {
@@ -461,7 +625,14 @@ fun NewPeriodBudgetSheet(
                         onClick = {
                             if (baseBudget > 0 && calculatedEndDateMillis > startDateMillis) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                dismissSheet { onConfirmNewPeriod(finalTotalBudget, startDateMillis, calculatedEndDateMillis) }
+                                dismissSheet {
+                                    onConfirmNewPeriod(
+                                        finalTotalBudget,
+                                        startDateMillis,
+                                        calculatedEndDateMillis,
+                                        categoryBudgets.filterValues { it > 0.0 }
+                                    )
+                                }
                             }
                         },
                         enabled = baseBudget > 0,
@@ -529,5 +700,96 @@ fun NewPeriodBudgetSheet(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    // Material 3 Built-in Category Symbols Modal (16 Built-in Icons Grid)
+    if (showAddCategoryModal) {
+        AlertDialog(
+            onDismissRequest = { showAddCategoryModal = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.loc_choose_category_symbol),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.loc_choose_category_symbol_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryTextColor
+                    )
+
+                    val columns = 4
+                    ExpenseSymbol.entries.chunked(columns).forEach { rowSymbols ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowSymbols.forEach { symbol ->
+                                val isAlreadyAdded = categoryBudgets.containsKey(symbol.name)
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        if (!isAlreadyAdded) {
+                                            categoryBudgets = categoryBudgets + (symbol.name to 500.0)
+                                        }
+                                        showAddCategoryModal = false
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isAlreadyAdded) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                    } else {
+                                        cardContainerColor
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isAlreadyAdded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(72.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = symbol.vector(),
+                                            contentDescription = null,
+                                            tint = if (isAlreadyAdded) MaterialTheme.colorScheme.primary else primaryTextColor,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = stringResource(symbol.label()),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isAlreadyAdded) MaterialTheme.colorScheme.primary else primaryTextColor,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            repeat(columns - rowSymbols.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAddCategoryModal = false }) {
+                    Text(stringResource(R.string.btn_close))
+                }
+            }
+        )
     }
 }

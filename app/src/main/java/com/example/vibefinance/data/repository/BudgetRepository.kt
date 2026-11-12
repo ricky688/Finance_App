@@ -51,7 +51,7 @@ class BudgetRepository @Inject constructor() {
                 it.toAccountId == null && 
                 !it.isExcludedFromDailyBudget && 
                 !it.isBalanceAdjustment &&
-                it.amount > 0 &&
+                (it.amount > 0 || it.isReimbursement) &&
                 it.timestamp >= budget.startDate &&
                 it.timestamp < endExclusive
             }
@@ -101,6 +101,34 @@ class BudgetRepository @Inject constructor() {
 
             val incomeForecast = com.example.vibefinance.util.PeriodIncomeForecaster.estimate(
                 budget.startDate, budget.endDate, transactions, today)
+
+            val budgetCategoryMap = budget.categoryBudgetsMap()
+            val categoryProgressList = if (budgetCategoryMap.isEmpty()) {
+                emptyList()
+            } else {
+                budgetCategoryMap.mapNotNull { (symbolName, allocatedBudget) ->
+                    val symbol = runCatching { com.example.vibefinance.data.entity.ExpenseSymbol.valueOf(symbolName) }.getOrNull()
+                        ?: return@mapNotNull null
+                    if (allocatedBudget <= 0.0) return@mapNotNull null
+
+                    val spentInPeriod = periodExpenses.filter { tx ->
+                        com.example.vibefinance.data.entity.ExpenseIcon.matchExpenseSymbol(tx.category, tx.customIcon) == symbol
+                    }.sumOf { it.amount }
+
+                    val remaining = allocatedBudget - spentInPeriod
+                    val ratio = if (allocatedBudget > 0.0) (spentInPeriod / allocatedBudget).toFloat() else 0f
+
+                    CategoryBudgetProgress(
+                        symbol = symbol,
+                        budgetAmount = allocatedBudget,
+                        spentAmount = spentInPeriod,
+                        remainingAmount = remaining,
+                        progressRatio = ratio.coerceAtLeast(0f),
+                        isOverspent = spentInPeriod > allocatedBudget
+                    )
+                }.sortedByDescending { it.budgetAmount }
+            }
+
             DailyBudgetInfo(
                 totalMonthlyBudget = budget.totalBudgetAmount,
                 totalSpentThisMonth = totalSpent,
@@ -115,11 +143,21 @@ class BudgetRepository @Inject constructor() {
                 tomorrowAllowance = tomorrowAllowance,
                 estimatedIncome = incomeForecast?.amount,
                 incomeEstimatePeriods = incomeForecast?.periodsUsed ?: 0,
-                incomeEstimatePartialHistory = incomeForecast?.partialHistory ?: false
+                incomeEstimatePartialHistory = incomeForecast?.partialHistory ?: false,
+                categoryBudgets = categoryProgressList
             )
         }
     }
 }
+
+data class CategoryBudgetProgress(
+    val symbol: com.example.vibefinance.data.entity.ExpenseSymbol,
+    val budgetAmount: Double,
+    val spentAmount: Double,
+    val remainingAmount: Double,
+    val progressRatio: Float,
+    val isOverspent: Boolean
+)
 
 data class DailyBudgetInfo(
     val totalMonthlyBudget: Double,
@@ -135,5 +173,6 @@ data class DailyBudgetInfo(
     val tomorrowAllowance: Double = 0.0,
     val estimatedIncome: Double? = null,
     val incomeEstimatePeriods: Int = 0,
-    val incomeEstimatePartialHistory: Boolean = false
+    val incomeEstimatePartialHistory: Boolean = false,
+    val categoryBudgets: List<CategoryBudgetProgress> = emptyList()
 )

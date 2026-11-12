@@ -107,6 +107,7 @@ enum class InterceptableApp(
         id = "mox_bank",
         defaultEnabled = true,
         packageKeywords = listOf(
+            "com.mox.app",
             "com.mox.bank"
         )
     ),

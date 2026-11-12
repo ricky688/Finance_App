@@ -74,6 +74,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -290,7 +292,7 @@ private fun accountBalanceLabel(account: AccountEntity): String = stringResource
 
 private fun accountBalanceText(account: AccountEntity): String {
     val balance = if (account.type == AccountType.CC) kotlin.math.abs(account.balance) else account.balance
-    return com.example.vibefinance.util.CurrencyEngine.formatSignedAmount(balance, prefix = "HK$")
+    return "$" + String.format(Locale.US, "%,.2f", balance)
 }
 
 @Composable
@@ -867,7 +869,7 @@ fun AccountsScreen(
     }
     var balanceAccount by remember { mutableStateOf<AccountEntity?>(null) }
     var accountForAppPicker by remember { mutableStateOf<AccountEntity?>(null) }
-    var selectedAssetFilter by remember { mutableStateOf(AssetFilter.ALL) }
+    var selectedAssetFilter by rememberSaveable { mutableStateOf(AssetFilter.ALL) }
     val context = LocalContext.current
     val displayPreferences = remember(context) {
         com.example.vibefinance.util.CoordinatedPreferences.get(context, "assets_display")
@@ -916,8 +918,15 @@ fun AccountsScreen(
         }
     }
 
+    val useInspector = (com.example.vibefinance.ui.main.LocalMainWindowWidth.current
+        ?: LocalConfiguration.current.screenWidthDp.dp) >= 600.dp
+    var inspectedAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
+    LaunchedEffect(filteredAccounts, state.isLoading) {
+        if (!state.isLoading && filteredAccounts.none { it.id == inspectedAccountId }) inspectedAccountId = null
+    }
+    val accountList: @Composable () -> Unit = {
     ContentEntranceViewport(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         topVisibilityInset = topVisibilityInset,
         bottomVisibilityInset = bottomVisibilityInset,
         bottomVisibilityInsetProvider = bottomVisibilityInsetProvider,
@@ -992,12 +1001,13 @@ fun AccountsScreen(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
                                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.weight(1f)
                                     ) {
                                         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                                             Text(
@@ -1019,7 +1029,8 @@ fun AccountsScreen(
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
                                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                                        modifier = Modifier.weight(1f)
                                     ) {
                                         Column(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1587,7 +1598,9 @@ fun AccountsScreen(
                                 ) { compact ->
                                     PageContentEntrance("account:${account.id}") {
                                         val isCardHidden = (editorState.isOpen || editorState.isTransitionActive) && editorState.accountId == account.id
-                                        val cardItemModifier = Modifier.graphicsLayer { alpha = if (isCardHidden) 0f else 1f }
+                                        val cardItemModifier = Modifier.then(
+                                            if (useInspector && inspectedAccountId == account.id) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp)) else Modifier
+                                        ).graphicsLayer { alpha = if (isCardHidden) 0f else 1f }
 
                                         if (compact) {
                                             CompactAccountRow(
@@ -1599,7 +1612,7 @@ fun AccountsScreen(
                                                     editorState.open(accountId = account.id)
                                                 },
                                                 onEditWithBounds = { bounds ->
-                                                    editorState.open(accountId = account.id, sourceBounds = bounds)
+                                                    if (useInspector) inspectedAccountId = account.id else editorState.open(accountId = account.id, sourceBounds = bounds)
                                                 },
                                                 onBalanceClick = { balanceAccount = account },
                                                 onHistoryClick = { onViewAccountHistory(account.id) },
@@ -1614,7 +1627,7 @@ fun AccountsScreen(
                                                     editorState.open(accountId = account.id)
                                                 },
                                                 onEditWithBounds = { bounds ->
-                                                    editorState.open(accountId = account.id, sourceBounds = bounds)
+                                                    if (useInspector) inspectedAccountId = account.id else editorState.open(accountId = account.id, sourceBounds = bounds)
                                                 },
                                                 onBalanceClick = { balanceAccount = account },
                                                 onHistoryClick = { onViewAccountHistory(account.id) },
@@ -1638,6 +1651,25 @@ fun AccountsScreen(
     }
     }
 
+
+}
+    }
+    if (useInspector) {
+        com.example.vibefinance.ui.main.AdaptiveRecordScene(inspectedAccountId,
+            { inspectedAccountId = null }, modifier, accountList) { id ->
+            state.accounts.firstOrNull { it.id == id }?.let { account ->
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(top = topContentPadding, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ExpressiveAccountListItem(account, state.transactions,
+                        onEditClick = { editorState.open(accountId = id) },
+                        onBalanceClick = { balanceAccount = account },
+                        onHistoryClick = { onViewAccountHistory(id) },
+                        onPickApp = { accountForAppPicker = it })
+                    AccountTransactionInspection(account.id, state.transactions, state.hideAmounts)
+                }
+            }
+        }
+    } else Box(modifier) { accountList() }
     accountForAppPicker?.let { targetAccount ->
         AppPickerDialog(
             currentPackage = targetAccount.linkedAppPackage,
@@ -1742,7 +1774,7 @@ fun AccountsScreen(
     if (renderEditor) {
         AssetEditorHost(state, editorState, onIntent, saveResult, onAccountCreated, onDismissCreate)
     }
-}
+
 
 }
 

@@ -7,7 +7,7 @@ import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
 
-enum class HistoryKind { ALL, EXPENSE, INCOME, TRANSFER, ADJUSTMENT }
+enum class HistoryKind { ALL, EXPENSE, INCOME, TRANSFER, ADJUSTMENT, REIMBURSEMENT }
 data class HistoryQuery(
     val text: String = "", val account: Long? = null, val category: String? = null,
     val kind: HistoryKind = HistoryKind.ALL, val from: String = "", val through: String = "",
@@ -33,7 +33,8 @@ data class HistoryQuery(
                 HistoryKind.ADJUSTMENT -> tx.isBalanceAdjustment
                 HistoryKind.TRANSFER -> tx.toAccountId != null && !tx.isBalanceAdjustment
                 HistoryKind.EXPENSE -> tx.toAccountId == null && !tx.isBalanceAdjustment && tx.amount > 0
-                HistoryKind.INCOME -> tx.toAccountId == null && !tx.isBalanceAdjustment && tx.amount < 0
+                HistoryKind.REIMBURSEMENT -> tx.isReimbursement
+                HistoryKind.INCOME -> !tx.isReimbursement && tx.toAccountId == null && !tx.isBalanceAdjustment && tx.amount < 0
             }
             val amount = abs(if (tx.isBalanceAdjustment) tx.balanceAdjustmentDelta ?: tx.amount else tx.amount)
             val search = listOf(tx.description, tx.category, byId[tx.accountId]?.name.orEmpty(),

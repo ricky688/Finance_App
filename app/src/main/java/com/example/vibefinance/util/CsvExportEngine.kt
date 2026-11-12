@@ -32,6 +32,7 @@ object CsvExportEngine {
                 tx.isBalanceAdjustment -> "Balance adjustment"
                 tx.toAccountId != null -> "Transfer"
                 tx.installmentNumber != null -> "Installment (${tx.installmentNumber}/${tx.totalInstallments})"
+                tx.isReimbursement -> "Reimbursement"
                 tx.amount < 0 -> "Income"
                 else -> "Expense"
             }

@@ -26,6 +26,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -36,6 +37,8 @@ import com.example.vibefinance.ui.main.ExpressiveSegmentedButtonGroup
 import com.example.vibefinance.ui.main.ConnectedButtonCorners
 import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.main.SelectedAccountCard
+import com.example.vibefinance.ui.main.LinkedAppIconBadge
+import androidx.compose.ui.draw.shadow
 import com.example.vibefinance.ui.main.getAccountIcon
 import com.example.vibefinance.ui.main.getCategoryDisplayNameFromResources
 import com.example.vibefinance.ui.main.accountTypeLabel
@@ -132,6 +135,13 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewTimeline
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.runtime.mutableLongStateOf
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -264,6 +274,8 @@ val POPULAR_SUBSCRIPTION_PRESETS = listOf(
 
 enum class RecurringFilter(val label: String) {
     ALL("All"),
+    UNPAID("⏳ Unpaid"),
+    PAID("✓ Paid"),
     DUE_SOON("⚡ Due Soon"),
     MONTHLY("Monthly"),
     INSTALLMENTS("Installments"),
@@ -331,11 +343,7 @@ fun calculateRecurringCommitment(
     installments: List<InstallmentPlan> = emptyList()
 ): RecurringCommitment {
     val subMonthly = subscriptions.sumOf { sub ->
-        when (sub.frequency.lowercase(Locale.US)) {
-            "weekly" -> sub.amount * 4.333
-            "yearly", "annual" -> sub.amount / 12.0
-            else -> sub.amount
-        }
+        com.example.vibefinance.util.SubscriptionSchedule.monthlyAmount(sub)
     }
     val instMonthly = installments.filter { !it.isCompleted }.sumOf { it.monthlyAmount }
     val totalMonthly = subMonthly + instMonthly
@@ -360,6 +368,8 @@ fun filterSubscriptions(
 
         when (filter) {
             RecurringFilter.ALL -> true
+            RecurringFilter.UNPAID -> !sub.isPaid
+            RecurringFilter.PAID -> sub.isPaid
             RecurringFilter.DUE_SOON -> daysUntil in -30..7
             RecurringFilter.MONTHLY -> sub.frequency.equals("Monthly", ignoreCase = true)
             RecurringFilter.YEARLY -> sub.frequency.equals("Yearly", ignoreCase = true) || sub.frequency.equals("Annual", ignoreCase = true)
@@ -376,6 +386,8 @@ fun filterInstallments(
 ): List<InstallmentPlan> {
     return when (filter) {
         RecurringFilter.ALL -> installments.filter { !it.isCompleted }
+        RecurringFilter.UNPAID -> installments.filter { !it.isCompleted }
+        RecurringFilter.PAID -> installments.filter { it.isCompleted }
         RecurringFilter.INSTALLMENTS -> installments
         RecurringFilter.DUE_SOON -> installments.filter { plan ->
             if (plan.isCompleted || plan.nextDueDate == null) false
@@ -416,8 +428,8 @@ fun RecurringScreen(
         }
     }
 
-    var selectedFilter by remember { mutableStateOf(RecurringFilter.ALL) }
-    var isTimelineView by remember { mutableStateOf(false) }
+    var selectedFilter by rememberSaveable { mutableStateOf(RecurringFilter.ALL) }
+    var isTimelineView by rememberSaveable { mutableStateOf(false) }
 
     var activeSwipeId by remember { mutableStateOf<Long?>(null) }
     var activeSwipeOffset by remember { mutableStateOf(0f) }
@@ -464,24 +476,15 @@ fun RecurringScreen(
         tagPrefix = "RecurringArrival"
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val isWideScreen = maxWidth >= 600.dp
+            val isWideScreen = (com.example.vibefinance.ui.main.LocalMainWindowWidth.current ?: maxWidth) >= 600.dp
 
-            if (!isWideScreen) {
-                // Compact Single Column Layout (< 600dp)
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp)
-                        .testTag("RecurringList"),
-                    contentPadding = PaddingValues(top = topContentPadding),
-                    verticalArrangement = Arrangement.Top
-                ) {
+            val recurringItems: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+
                     // 1. Bento Hero Summary Card
                     item {
                         PageContentEntrance("summary") {
                             RecurringHeroSummaryCard(
-                                headerActions = { CalendarExportMenu(state) },
+                                headerActions = { if (!isWideScreen) CalendarExportMenu(state) },
                                 totalMonthly = totalMonthlyRecurring,
                                 totalAnnual = totalAnnualRecurring,
                                 dailyImpact = dailyImpact,
@@ -557,6 +560,9 @@ fun RecurringScreen(
                         onDeleteInstallment = { groupId, accountId ->
                             onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
                         },
+                        onTogglePaid = { sub, isPaid ->
+                            onIntent(FinanceIntent.SetSubscriptionPaidStatus(sub.id, isPaid))
+                        },
                         onAddNew = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             editorState.open()
@@ -566,140 +572,131 @@ fun RecurringScreen(
                     item {
                         Spacer(modifier = Modifier.height(100.dp))
                     }
-                }
-            } else {
-                // Wide Dual-Pane Layout (>= 600dp)
-                Column(
+                            }
+            if (!isWideScreen) {
+                // Compact Single Column Layout (< 600dp)
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(start = 24.dp, end = 24.dp, top = topContentPadding)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
+                        .padding(horizontal = 16.dp)
+                        .testTag("RecurringList"),
+                    contentPadding = PaddingValues(top = topContentPadding),
+                    verticalArrangement = Arrangement.Top
+                ) { recurringItems() }
+                        } else {
+                val timelineContent: @Composable () -> Unit = {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(end = 16.dp).testTag("RecurringRenewalTimeline"),
+                        contentPadding = PaddingValues(top = topContentPadding, bottom = 100.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Left Pane: Sticky / Scrollable Analytics Column (weight 0.45f)
-                        ContentEntranceViewport(modifier = Modifier.weight(0.45f).fillMaxHeight()) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(bottom = 100.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                PageContentEntrance("summary") {
-                                    RecurringHeroSummaryCard(
-                                        headerActions = { CalendarExportMenu(state) },
-                                        totalMonthly = totalMonthlyRecurring,
-                                        totalAnnual = totalAnnualRecurring,
-                                        dailyImpact = dailyImpact,
-                                        subscriptionCount = state.subscriptions.size + activeInstallments.size,
-                                        earliestUpcoming = earliestUpcoming,
-                                        subscriptions = state.subscriptions,
-                                        onAddClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            editorState.open()
-                                        }
-                                    )
-                                }
-
-                                PageContentEntrance("income-estimate") {
-                                    com.example.vibefinance.ui.components.PeriodIncomeEstimateCard(state)
-                                }
-
-                                PageContentEntrance("category-chart") {
-                                    RecurringCategoryDonutChart(
-                                        subscriptions = state.subscriptions,
-                                        installments = activeInstallments
-                                    )
-                                }
-
-                                Button(
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        editorState.open()
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(50.dp),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ),
-                                    elevation = AppButtonDefaults.elevation(),
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(stringResource(R.string.btn_add_subscription), fontWeight = FontWeight.Bold)
+                        item(key = "calendar-export-status") {
+                            Card(shape = RoundedCornerShape(24.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(stringResource(R.string.calendar_export), style = MaterialTheme.typography.titleMedium)
+                                    CalendarExportMenu(state)
+                                    Text(stringResource(R.string.calendar_export_note), style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
-
-                        // Right Pane: Filter & Timeline/List (weight 0.55f)
-                        Column(
-                            modifier = Modifier
-                                .weight(0.55f)
-                                .fillMaxHeight()
-                        ) {
-                            PageContentEntrance("controls") {
-                                FilterAndControlsRow(
-                                    selectedFilter = selectedFilter,
-                                    onFilterSelected = { selectedFilter = it },
-                                    isTimelineView = isTimelineView,
-                                    onToggleTimeline = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        isTimelineView = !isTimelineView
-                                    },
-                                    subscriptions = state.subscriptions,
-                                    installments = installmentPlans,
-                                    today = today,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
+                        subscriptionItemsSection(
+                            filteredSubscriptions = filteredSubscriptions.filter { it.nextPaymentDate >= today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() },
+                            filteredInstallments = filteredInstallments,
+                            accounts = state.accounts,
+                            isTimelineView = true,
+                            today = today,
+                            activeSwipeId = activeSwipeId,
+                            activeSwipeOffset = activeSwipeOffset,
+                            onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
+                            activeSwipeGroupId = activeSwipeInstallmentId,
+                            activeSwipeGroupOffset = activeSwipeInstallmentOffset,
+                            onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
+                            onEdit = { sub ->
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                editorState.open(sub = sub)
+                            },
+                            onDelete = { sub ->
+                                pendingDeleteSub = sub
+                            },
+                            onDeleteInstallment = { groupId, accountId ->
+                                onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
+                            },
+                            onTogglePaid = { sub, isPaid ->
+                                onIntent(FinanceIntent.SetSubscriptionPaidStatus(sub.id, isPaid))
+                            },
+                            onAddNew = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                editorState.open()
                             }
-
-                            ContentEntranceViewport(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .testTag("RecurringList"),
-                                    contentPadding = PaddingValues(bottom = 100.dp),
-                                    verticalArrangement = Arrangement.Top
-                                ) {
-                                    subscriptionItemsSection(
-                                        filteredSubscriptions = filteredSubscriptions,
-                                        filteredInstallments = filteredInstallments,
-                                        accounts = state.accounts,
-                                        isTimelineView = isTimelineView,
-                                        today = today,
-                                        activeSwipeId = activeSwipeId,
-                                        activeSwipeOffset = activeSwipeOffset,
-                                        onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
-                                        activeSwipeGroupId = activeSwipeInstallmentId,
-                                        activeSwipeGroupOffset = activeSwipeInstallmentOffset,
-                                        onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
-                                        onEdit = { sub ->
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            editorState.open(sub = sub)
-                                        },
-                                        onDelete = { sub ->
-                                            pendingDeleteSub = sub
-                                        },
-                                        onDeleteInstallment = { groupId, accountId ->
-                                            onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
-                                        },
-                                        onAddNew = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            editorState.open()
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        )
                     }
                 }
+
+                AdaptiveRecurringScene(
+                    selectedId = editorState.subscriptionId,
+                    isEditing = editorState.isOpen,
+                    onClose = { editorState.close() },
+                    modifier = Modifier.fillMaxSize().testTag("RecurringDualColumn"),
+                    listContent = {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).testTag("RecurringList"),
+                            contentPadding = PaddingValues(top = topContentPadding, bottom = 100.dp)
+                        ) { recurringItems() }
+                    },
+                    hasActiveDialog = pendingDeleteSub != null,
+                    placeholderContent = timelineContent,
+                    detailContent = { id ->
+                        if (editorState.isOpen) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(end = 16.dp, top = topContentPadding, bottom = 100.dp)
+                                    .testTag("RecurringEmbeddedEditor"),
+                                shape = RoundedCornerShape(28.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                            ) {
+                                Box(Modifier.fillMaxSize().imePadding()) {
+                                    val activeSub = editorState.subscription
+                                        ?: id?.let { subId -> state.subscriptions.firstOrNull { it.id == subId } }
+                                    AddEditSubscriptionSheet(
+                                        subscription = activeSub,
+                                        initialPreset = editorState.initialPreset,
+                                        accounts = state.accounts,
+                                        transactions = state.transactions,
+                                        subscriptions = state.subscriptions,
+                                        categoryLimits = state.categoryLimits,
+                                        categoryMergeRules = state.categoryMergeRules,
+                                        exchangeRateLoader = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onDismiss = { editorState.close() },
+                                        onSave = { savedSub ->
+                                            onIntent(FinanceIntent.SaveSubscription(savedSub))
+                                            editorState.close()
+                                        },
+                                        onDelete = { delSub ->
+                                            pendingDeleteSub = delSub
+                                        },
+                                        onSaveInstallment = { totalAmt, cat, accId, desc, count, firstDate ->
+                                            onIntent(
+                                                FinanceIntent.AddInstallmentTransaction(
+                                                    amount = totalAmt, category = cat, accountId = accId,
+                                                    description = desc, installments = count, firstDueDate = firstDate
+                                                )
+                                            )
+                                            editorState.close()
+                                        },
+                                        onAddNewAccount = { onIntent(FinanceIntent.SaveAccount(it)) }
+                                    )
+                                }
+                            }
+                        } else {
+                            timelineContent()
+                        }
+                    }
+                )
             }
         }
     }
@@ -741,7 +738,12 @@ internal fun recurringDateLabel(date: LocalDate, full: Boolean = false): String 
 }
 
 @Composable
-private fun recurringFrequencySuffix(frequency: String): String = when (frequency.lowercase(Locale.ROOT)) {
+private fun recurringFrequencySuffix(frequency: String, interval: Int = 1): String = if (interval != 1 || frequency.equals("Daily", true)) stringResource(when (frequency.lowercase(Locale.ROOT)) {
+    "daily" -> R.string.subscription_every_days
+    "weekly" -> R.string.subscription_every_weeks
+    "yearly", "annual" -> R.string.subscription_every_years
+    else -> R.string.subscription_every_months
+}, interval) else when (frequency.lowercase(Locale.ROOT)) {
     "monthly" -> stringResource(R.string.ui_recurring_per_month)
     "yearly", "annual" -> stringResource(R.string.ui_recurring_per_year)
     "weekly" -> stringResource(R.string.ui_recurring_per_week)
@@ -751,6 +753,8 @@ private fun recurringFrequencySuffix(frequency: String): String = when (frequenc
 @Composable
 private fun recurringFilterLabel(filter: RecurringFilter): String = stringResource(when (filter) {
     RecurringFilter.ALL -> R.string.filter_all
+    RecurringFilter.UNPAID -> R.string.subscription_filter_unpaid
+    RecurringFilter.PAID -> R.string.subscription_filter_paid
     RecurringFilter.DUE_SOON -> R.string.filter_due_soon
     RecurringFilter.MONTHLY -> R.string.filter_monthly
     RecurringFilter.INSTALLMENTS -> R.string.filter_installments
@@ -788,6 +792,8 @@ fun FilterAndControlsRow(
     ) {
         val connectedFilters = listOf(
             RecurringFilter.ALL,
+            RecurringFilter.UNPAID,
+            RecurringFilter.PAID,
             RecurringFilter.DUE_SOON,
             RecurringFilter.MONTHLY,
             RecurringFilter.INSTALLMENTS
@@ -795,48 +801,60 @@ fun FilterAndControlsRow(
         val selectedIndex = connectedFilters.indexOf(selectedFilter).let { if (it >= 0) it else 0 }
 
         val strAll = stringResource(R.string.filter_all)
+        val strUnpaid = stringResource(R.string.subscription_filter_unpaid)
+        val strPaid = stringResource(R.string.subscription_filter_paid)
         val strDueSoon = stringResource(R.string.filter_due_soon)
         val strMonthly = stringResource(R.string.filter_monthly)
         val strInstallments = stringResource(R.string.filter_installments)
 
-        ConnectedButtonGroup(
-            items = connectedFilters,
-            selectedIndex = selectedIndex,
-            onItemSelected = { index ->
-                onFilterSelected(connectedFilters[index])
-            },
-            modifier = Modifier.weight(1f),
-            labelProvider = { filter ->
-                val count = when (filter) {
-                    RecurringFilter.ALL -> subscriptions.size + installments.count { !it.isCompleted }
-                    RecurringFilter.DUE_SOON -> {
-                        val subDue = subscriptions.count {
-                            val due = Instant.ofEpochMilli(it.nextPaymentDate).atZone(ZoneId.systemDefault()).toLocalDate()
-                            ChronoUnit.DAYS.between(today, due) in -30..7
-                        }
-                        val instDue = installments.count { plan ->
-                            if (plan.isCompleted || plan.nextDueDate == null) false
-                            else {
-                                val due = Instant.ofEpochMilli(plan.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+        ) {
+            ConnectedButtonGroup(
+                items = connectedFilters,
+                selectedIndex = selectedIndex,
+                onItemSelected = { index ->
+                    onFilterSelected(connectedFilters[index])
+                },
+                modifier = Modifier.widthIn(min = 540.dp),
+                labelProvider = { filter ->
+                    val count = when (filter) {
+                        RecurringFilter.ALL -> subscriptions.size + installments.count { !it.isCompleted }
+                        RecurringFilter.UNPAID -> subscriptions.count { !it.isPaid } + installments.count { !it.isCompleted }
+                        RecurringFilter.PAID -> subscriptions.count { it.isPaid } + installments.count { it.isCompleted }
+                        RecurringFilter.DUE_SOON -> {
+                            val subDue = subscriptions.count {
+                                val due = Instant.ofEpochMilli(it.nextPaymentDate).atZone(ZoneId.systemDefault()).toLocalDate()
                                 ChronoUnit.DAYS.between(today, due) in -30..7
                             }
+                            val instDue = installments.count { plan ->
+                                if (plan.isCompleted || plan.nextDueDate == null) false
+                                else {
+                                    val due = Instant.ofEpochMilli(plan.nextDueDate).atZone(ZoneId.systemDefault()).toLocalDate()
+                                    ChronoUnit.DAYS.between(today, due) in -30..7
+                                }
+                            }
+                            subDue + instDue
                         }
-                        subDue + instDue
+                        RecurringFilter.MONTHLY -> subscriptions.count { it.frequency.equals("Monthly", true) }
+                        RecurringFilter.INSTALLMENTS -> installments.size
+                        RecurringFilter.YEARLY -> subscriptions.count { it.frequency.equals("Yearly", true) || it.frequency.equals("Annual", true) }
+                        RecurringFilter.WEEKLY -> subscriptions.count { it.frequency.equals("Weekly", true) }
                     }
-                    RecurringFilter.MONTHLY -> subscriptions.count { it.frequency.equals("Monthly", true) }
-                    RecurringFilter.INSTALLMENTS -> installments.size
-                    RecurringFilter.YEARLY -> subscriptions.count { it.frequency.equals("Yearly", true) || it.frequency.equals("Annual", true) }
-                    RecurringFilter.WEEKLY -> subscriptions.count { it.frequency.equals("Weekly", true) }
+                    when (filter) {
+                        RecurringFilter.ALL -> "$strAll ($count)"
+                        RecurringFilter.UNPAID -> "$strUnpaid ($count)"
+                        RecurringFilter.PAID -> "$strPaid ($count)"
+                        RecurringFilter.DUE_SOON -> "$strDueSoon ($count)"
+                        RecurringFilter.MONTHLY -> "$strMonthly ($count)"
+                        RecurringFilter.INSTALLMENTS -> "$strInstallments ($count)"
+                        else -> "${recurringFilterLabel(filter)} ($count)"
+                    }
                 }
-                when (filter) {
-                    RecurringFilter.ALL -> "$strAll ($count)"
-                    RecurringFilter.DUE_SOON -> "$strDueSoon ($count)"
-                    RecurringFilter.MONTHLY -> "$strMonthly ($count)"
-                    RecurringFilter.INSTALLMENTS -> "$strInstallments ($count)"
-                    else -> "${recurringFilterLabel(filter)} ($count)"
-                }
-            }
-        )
+            )
+        }
 
         Spacer(modifier = Modifier.width(8.dp))
 
@@ -884,6 +902,7 @@ fun LazyListScope.subscriptionItemsSection(
     onEdit: (SubscriptionEntity) -> Unit,
     onDelete: (SubscriptionEntity) -> Unit,
     onDeleteInstallment: (String, Long) -> Unit = { _, _ -> },
+    onTogglePaid: (SubscriptionEntity, Boolean) -> Unit = { _, _ -> },
     onAddNew: () -> Unit
 ) {
     if (filteredSubscriptions.isEmpty() && filteredInstallments.isEmpty()) {
@@ -943,7 +962,8 @@ fun LazyListScope.subscriptionItemsSection(
                     activeSwipeOffset = activeSwipeOffset,
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
-                    onDelete = { onDelete(sub) }
+                    onDelete = { onDelete(sub) },
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
                 )
             }
             itemsIndexed(dueNext7DaysInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -986,7 +1006,8 @@ fun LazyListScope.subscriptionItemsSection(
                     activeSwipeOffset = activeSwipeOffset,
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
-                    onDelete = { onDelete(sub) }
+                    onDelete = { onDelete(sub) },
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
                 )
             }
             itemsIndexed(dueLaterThisMonthInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -1029,7 +1050,8 @@ fun LazyListScope.subscriptionItemsSection(
                     activeSwipeOffset = activeSwipeOffset,
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
-                    onDelete = { onDelete(sub) }
+                    onDelete = { onDelete(sub) },
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
                 )
             }
             itemsIndexed(dueLaterInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -1073,7 +1095,8 @@ fun LazyListScope.subscriptionItemsSection(
                     activeSwipeOffset = activeSwipeOffset,
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
-                    onDelete = { onDelete(sub) }
+                    onDelete = { onDelete(sub) },
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
                 )
             }
             item {
@@ -1297,11 +1320,7 @@ fun RecurringCategoryDonutChart(
     val categorySpending = remember(subscriptions, installments) {
         val map = mutableMapOf<String, Double>()
         subscriptions.forEach { sub ->
-            val monthlyAmt = when (sub.frequency.lowercase(Locale.US)) {
-                "weekly" -> sub.amount * 4.333
-                "yearly", "annual" -> sub.amount / 12.0
-                else -> sub.amount
-            }
+            val monthlyAmt = com.example.vibefinance.util.SubscriptionSchedule.monthlyAmount(sub)
             if (monthlyAmt > 0) {
                 map[sub.category] = (map[sub.category] ?: 0.0) + monthlyAmt
             }
@@ -1680,6 +1699,192 @@ fun SubscriptionGroupFooter(
     }
 }
 
+/**
+ * Three.quarks / VFX Particle Burst Celebration.
+ * Radiates vibrant sparkles and star particles outward upon marking a subscription as paid.
+ * Zero-CPU idle overhead when inactive.
+ */
+@Composable
+fun PaymentSparkleBurst(
+    trigger: Long,
+    modifier: Modifier = Modifier
+) {
+    if (trigger <= 0L) return
+    val progress = remember(trigger) { Animatable(0f) }
+    LaunchedEffect(trigger) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 550, easing = FastOutSlowInEasing)
+        )
+    }
+    if (progress.value in 0.001f..0.999f) {
+        Canvas(modifier = modifier) {
+            val p = progress.value
+            val center = center
+            val particleCount = 14
+            val colors = listOf(
+                Color(0xFF10B981), // Emerald
+                Color(0xFF14B8A6), // Teal
+                Color(0xFFF59E0B), // Amber Gold
+                Color(0xFF34D399), // Mint
+                Color(0xFFFBBF24)  // Sunshine
+            )
+            for (i in 0 until particleCount) {
+                val angleDeg = (i * (360f / particleCount) + (i * 13f)) % 360f
+                val rad = Math.toRadians(angleDeg.toDouble())
+                val speed = 26.dp.toPx() + ((i * 7) % 16).dp.toPx()
+                val dist = p * speed
+                val gravityDrop = p * p * 10.dp.toPx()
+                val x = center.x + (cos(rad).toFloat() * dist)
+                val y = center.y + (sin(rad).toFloat() * dist) + gravityDrop
+                val alpha = (1f - p).coerceIn(0f, 1f)
+                val color = colors[i % colors.size].copy(alpha = alpha)
+                val radius = (3.dp.toPx() * (1f - p * 0.45f)).coerceAtLeast(0.5f)
+
+                if (i % 2 == 0) {
+                    val path = Path().apply {
+                        moveTo(x, y - radius * 1.4f)
+                        lineTo(x + radius, y)
+                        lineTo(x, y + radius * 1.4f)
+                        lineTo(x - radius, y)
+                        close()
+                    }
+                    drawPath(path, color)
+                } else {
+                    drawCircle(color, radius = radius, center = Offset(x, y))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Interactive Subscription Payment Status Chip with:
+ * - Three GPU Pathtracer Specular Rim Lighting
+ * - Jolt Physics tactile downscale and bounce kinetics
+ * - Motion / Anime.js timeline spring transitions
+ * - Three.quarks Particle celebration burst
+ */
+@Composable
+fun SubscriptionPaymentStatusChip(
+    isPaid: Boolean,
+    lastPaidDate: Long? = null,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = rememberVibeHapticFeedback()
+    val isDark = isSystemInDarkTheme()
+    var burstTrigger by remember { mutableLongStateOf(0L) }
+
+    val paidRimBorder = remember(isDark) {
+        Brush.horizontalGradient(
+            listOf(
+                Color(0xFF34D399),
+                Color(0xFF10B981),
+                Color(0xFF047857),
+                Color(0xFF34D399)
+            )
+        )
+    }
+
+    val containerBg by animateColorAsState(
+        targetValue = if (isPaid) {
+            if (isDark) Color(0xFF064E3B).copy(alpha = 0.65f) else Color(0xFFE8F5E9)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "PaymentChipBg"
+    )
+
+    val contentColor by animateColorAsState(
+        targetValue = if (isPaid) {
+            if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "PaymentChipFg"
+    )
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(99.dp),
+            color = containerBg,
+            border = if (isPaid) {
+                BorderStroke(1.2.dp, paidRimBorder)
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            },
+            modifier = Modifier
+                .clip(RoundedCornerShape(99.dp))
+                .bouncyClickable(shape = RoundedCornerShape(99.dp)) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    if (!isPaid) {
+                        burstTrigger = System.currentTimeMillis()
+                    }
+                    onToggle()
+                }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                AnimatedContent(
+                    targetState = isPaid,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(180)) + scaleIn(initialScale = 0.7f))
+                            .togetherWith(fadeOut(animationSpec = tween(120)) + scaleOut(targetScale = 0.7f))
+                    },
+                    label = "PaymentIconMorph"
+                ) { paid ->
+                    if (paid) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = contentColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            tint = contentColor.copy(alpha = 0.6f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = if (isPaid) {
+                        stringResource(R.string.subscription_paid_badge)
+                    } else {
+                        stringResource(R.string.subscription_status_unpaid)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor,
+                    fontWeight = if (isPaid) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        PaymentSparkleBurst(
+            trigger = burstTrigger,
+            modifier = Modifier
+                .size(60.dp)
+                .align(Alignment.Center)
+        )
+    }
+}
+
 // -------------------------------------------------------------
 // SUBSCRIPTION ROW ITEM COMPONENT (UNIFIED WITH HISTORY)
 // -------------------------------------------------------------
@@ -1694,6 +1899,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
     onSwipeChange: (Long?, Float) -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit,
+    onTogglePaid: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val today = remember { LocalDate.now() }
@@ -1824,20 +2030,63 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                // Status Tag Pill
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 2.dp)
-                                        .clip(RoundedCornerShape(99.dp))
-                                        .background(badgeBg)
-                                        .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                // Status Tag Pill & Payment Chip Row
+                                Row(
+                                    modifier = Modifier.padding(top = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = countdownText,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = badgeFg,
-                                        fontWeight = FontWeight.Bold
+                                    // Status Tag Pill
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(99.dp))
+                                            .background(badgeBg)
+                                            .border(1.dp, badgeFg.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = countdownText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = badgeFg,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+
+                                    // Deposit Mode Badge (⚡ 自動 / ✍️ 手動)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(99.dp))
+                                            .background(
+                                                if (subscription.isAutoPaid) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                                else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (subscription.isAutoPaid) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                                else MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f),
+                                                RoundedCornerShape(99.dp)
+                                            )
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (subscription.isAutoPaid) stringResource(R.string.subscription_badge_auto)
+                                            else stringResource(R.string.subscription_badge_manual),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (subscription.isAutoPaid) MaterialTheme.colorScheme.onPrimaryContainer
+                                            else MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+
+                                    // Interactive Payment Status Chip (Paid / Unpaid)
+                                    SubscriptionPaymentStatusChip(
+                                        isPaid = subscription.isPaid,
+                                        lastPaidDate = subscription.lastPaidDate,
+                                        onToggle = { onTogglePaid(!subscription.isPaid) }
                                     )
                                 }
                             }
@@ -1859,7 +2108,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
-                                        text = recurringFrequencySuffix(subscription.frequency),
+                                        text = recurringFrequencySuffix(subscription.frequency, subscription.interval),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     )
@@ -2520,6 +2769,259 @@ fun resolveRecurringExpenseCategories(
     )
 }
 
+/**
+ * Expressive segmented toggle for subscription payment status (Paid vs Unpaid).
+ * Includes Three GPU Pathtracer specular rim gradient, spring kinetics, and celebration VFX.
+ */
+@Composable
+fun SubscriptionPaymentToggle(
+    isPaid: Boolean,
+    onPaidChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = rememberVibeHapticFeedback()
+    val isDark = isSystemInDarkTheme()
+    var burstTrigger by remember { mutableLongStateOf(0L) }
+
+    val paidRimBorder = remember(isDark) {
+        Brush.horizontalGradient(
+            listOf(
+                Color(0xFF34D399),
+                Color(0xFF10B981),
+                Color(0xFF047857),
+                Color(0xFF34D399)
+            )
+        )
+    }
+
+    Box(modifier = modifier.fillMaxWidth()) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Option 1: Unpaid (待繳)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (!isPaid) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    border = if (!isPaid) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)) else null,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onPaidChange(false)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            tint = if (!isPaid) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.subscription_status_unpaid),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (!isPaid) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isPaid) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // Option 2: Paid (已繳)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isPaid) {
+                        if (isDark) Color(0xFF064E3B).copy(alpha = 0.7f) else Color(0xFFE8F5E9)
+                    } else Color.Transparent,
+                    border = if (isPaid) BorderStroke(1.2.dp, paidRimBorder) else null,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (!isPaid) {
+                                burstTrigger = System.currentTimeMillis()
+                            }
+                            onPaidChange(true)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = if (isPaid) {
+                                if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857)
+                            } else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.subscription_status_paid),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isPaid) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isPaid) {
+                                if (isDark) Color(0xFF6EE7B7) else Color(0xFF047857)
+                            } else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+
+        PaymentSparkleBurst(
+            trigger = burstTrigger,
+            modifier = Modifier
+                .size(100.dp)
+                .align(Alignment.CenterEnd)
+                .padding(end = 40.dp)
+        )
+    }
+}
+
+/**
+ * Expressive segmented toggle for subscription payment / deposit mode:
+ * Auto-Debit (自動扣款) vs Manual Pay (手動繳費).
+ */
+@Composable
+fun SubscriptionDepositModeToggle(
+    isAutoPaid: Boolean,
+    onModeChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = rememberVibeHapticFeedback()
+    val isDark = isSystemInDarkTheme()
+
+    val autoRimBorder = remember(isDark) {
+        Brush.horizontalGradient(
+            listOf(
+                Color(0xFF60A5FA),
+                Color(0xFF3B82F6),
+                Color(0xFF2563EB),
+                Color(0xFF60A5FA)
+            )
+        )
+    }
+
+    val manualRimBorder = remember(isDark) {
+        Brush.horizontalGradient(
+            listOf(
+                Color(0xFFFBBF24),
+                Color(0xFFF59E0B),
+                Color(0xFFD97706),
+                Color(0xFFFBBF24)
+            )
+        )
+    }
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Option 1: Auto (⚡ 自動扣款)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isAutoPaid) {
+                        if (isDark) Color(0xFF1E3A8A).copy(alpha = 0.65f) else Color(0xFFEFF6FF)
+                    } else Color.Transparent,
+                    border = if (isAutoPaid) BorderStroke(1.2.dp, autoRimBorder) else null,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onModeChange(true)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.subscription_deposit_mode_auto),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isAutoPaid) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isAutoPaid) {
+                                if (isDark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+                            } else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+
+                // Option 2: Manual (✍️ 手動繳費)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (!isAutoPaid) {
+                        if (isDark) Color(0xFF78350F).copy(alpha = 0.65f) else Color(0xFFFFFBEB)
+                    } else Color.Transparent,
+                    border = if (!isAutoPaid) BorderStroke(1.2.dp, manualRimBorder) else null,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .bouncyClickable(shape = RoundedCornerShape(12.dp)) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onModeChange(false)
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.subscription_deposit_mode_manual),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (!isAutoPaid) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isAutoPaid) {
+                                if (isDark) Color(0xFFFDE68A) else Color(0xFFB45309)
+                            } else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Helper explanation text
+        Text(
+            text = if (isAutoPaid) {
+                stringResource(R.string.subscription_deposit_mode_auto_desc)
+            } else {
+                stringResource(R.string.subscription_deposit_mode_manual_desc)
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditSubscriptionSheet(
@@ -2617,6 +3119,7 @@ fun AddEditSubscriptionSheet(
     var categoryText by rememberSaveable {
         mutableStateOf(subscription?.category ?: initialPreset?.category ?: defaultExpenseCategory)
     }
+    var intervalText by rememberSaveable { mutableStateOf((subscription?.interval ?: 1).toString()) }
     var frequencyText by rememberSaveable {
         mutableStateOf(subscription?.frequency ?: initialPreset?.frequency ?: "Monthly")
     }
@@ -2626,6 +3129,12 @@ fun AddEditSubscriptionSheet(
     }
     var nextPaymentDateState by rememberSaveable {
         mutableStateOf(subscription?.nextPaymentDate ?: (System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L)))
+    }
+    var isPaidState by rememberSaveable {
+        mutableStateOf(subscription?.isPaid ?: false)
+    }
+    var isAutoPaidState by rememberSaveable {
+        mutableStateOf(subscription?.isAutoPaid ?: true)
     }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -2676,7 +3185,7 @@ fun AddEditSubscriptionSheet(
         }
     }
 
-    val frequenciesList = listOf("Monthly", "Yearly", "Weekly")
+    val frequenciesList = com.example.vibefinance.util.SubscriptionSchedule.frequencies
     val installmentMonthPresets = listOf(3, 6, 12, 24, 36)
 
     val currentPreset = remember(nameText) {
@@ -2698,7 +3207,7 @@ fun AddEditSubscriptionSheet(
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
     val convertedSubscriptionAmount = convertToHkd(parsedAmount.takeIf { it > 0.0 })
     val isSubscriptionRateReady = selectedCurrency == "HKD" || rateQuote != null
-    val canSaveSubscription = nameText.isNotBlank() && parsedAmount > 0.0 && accountIdText != 0L && isSubscriptionRateReady
+    val canSaveSubscription = intervalText.toIntOrNull() in 1..999 && nameText.isNotBlank() && parsedAmount > 0.0 && accountIdText != 0L && isSubscriptionRateReady
 
     val parsedInstallmentTotal = installmentTotalAmountText.toDoubleOrNull() ?: 0.0
     val convertedInstallmentTotal = convertToHkd(parsedInstallmentTotal.takeIf { it > 0.0 })
@@ -3006,11 +3515,24 @@ fun AddEditSubscriptionSheet(
                                                         "monthly" -> monthlyStr
                                                         "yearly", "annual" -> yearlyStr
                                                         "weekly" -> weeklyStr
+                                                        "daily" -> stringResource(R.string.subscription_daily)
                                                         else -> freq
                                                     }
                                                 }
                                             )
                                         }
+
+                                        OutlinedTextField(
+                                            value = intervalText,
+                                            onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) intervalText = it },
+                                            label = { Text(stringResource(R.string.subscription_interval)) },
+                                            supportingText = { Text(stringResource(R.string.subscription_interval_hint)) },
+                                            isError = intervalText.toIntOrNull() !in 1..999,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.fillMaxWidth().testTag("SubscriptionInterval")
+                                        )
 
                                         // Next Payment Date
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -3064,6 +3586,34 @@ fun AddEditSubscriptionSheet(
                                                     )
                                                 }
                                             }
+                                        }
+
+                                        // Cycle Payment Status (Paid / Unpaid)
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.subscription_cycle_paid_label),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            SubscriptionPaymentToggle(
+                                                isPaid = isPaidState,
+                                                onPaidChange = { isPaidState = it }
+                                            )
+                                        }
+
+                                        // Deposit / Charge Mode (Auto vs Manual)
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(
+                                                text = stringResource(R.string.subscription_deposit_mode_label),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            SubscriptionDepositModeToggle(
+                                                isAutoPaid = isAutoPaidState,
+                                                onModeChange = { isAutoPaidState = it }
+                                            )
                                         }
                                     }
                                 }
@@ -4052,8 +4602,12 @@ fun AddEditSubscriptionSheet(
                                             amount = finalAmount,
                                             category = categoryText,
                                             frequency = frequencyText,
+                                            interval = requireNotNull(intervalText.toIntOrNull()),
                                             nextPaymentDate = nextPaymentDateState,
-                                            accountId = accountIdText
+                                            accountId = accountIdText,
+                                            isPaid = isPaidState,
+                                            isAutoPaid = isAutoPaidState,
+                                            lastPaidDate = if (isPaidState) (subscription?.lastPaidDate ?: System.currentTimeMillis()) else null
                                         )
                                         onSave(sub)
                                     }
@@ -4234,17 +4788,32 @@ fun AddEditSubscriptionSheet(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                            modifier = Modifier.size(32.dp)
+                                        Box(
+                                            modifier = Modifier.size(34.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = getAccountIcon(acc.type),
-                                                    contentDescription = null,
-                                                    tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(16.dp)
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                                modifier = Modifier.size(30.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = getAccountIcon(acc.type),
+                                                        contentDescription = null,
+                                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                }
+                                            }
+                                            acc.linkedAppPackage?.let { pkg ->
+                                                LinkedAppIconBadge(
+                                                    packageName = pkg,
+                                                    size = 14.dp,
+                                                    shapeRadius = 4.dp,
+                                                    modifier = Modifier
+                                                        .align(Alignment.BottomEnd)
+                                                        .shadow(1.5.dp, RoundedCornerShape(4.dp))
                                                 )
                                             }
                                         }
@@ -4636,7 +5205,7 @@ fun DeleteSubscriptionConfirmDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = subscription.frequency,
+                                text = recurringFrequencySuffix(subscription.frequency, subscription.interval),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

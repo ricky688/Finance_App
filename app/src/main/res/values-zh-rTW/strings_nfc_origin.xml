@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nfc_origin_title">NFC 輔助辨識起點</string>
+    <string name="nfc_origin_body">選用功能，需 Android 16 或以上。手機拍卡後最多定位五秒；只拍實體卡無法偵測。需要通知存取、精確及背景定位。辨識到付款通知時會排除附近對應候選。候選僅存本機、最多供兩小時內使用，過期後下次讀取或停用時清除。不確定的起點保持未確認，不讀取卡片內容或更改錢包。</string>
+    <string name="nfc_origin_off">已關閉</string>
+    <string name="nfc_origin_unsupported">需要 Android 16 或以上及相容 NFC</string>
+    <string name="nfc_origin_logging_off">請開啟自動交易記帳</string>
+    <string name="nfc_origin_disconnected">通知監聽未連線；請檢查通知存取權</string>
+    <string name="nfc_origin_permission">請允許精確定位及「一律允許」</string>
+    <string name="nfc_origin_nfc_off">請開啟手機 NFC</string>
+    <string name="nfc_origin_waiting">已註冊，等待手機拍卡</string>
+    <string name="nfc_origin_contact">已收到 NFC 接觸，正在取得位置</string>
+    <string name="nfc_origin_no_location">位置未保留，起點保持未確認</string>
+    <string name="nfc_origin_error">NFC 或本機儲存無法使用，起點保持未確認</string>
+    <string name="mtr_origin_unconfirmed">起點未確認 ➔ %1$s</string>
+    <string name="nfc_origin_saved">已取得位置候選，起點仍需配對</string>
+</resources>

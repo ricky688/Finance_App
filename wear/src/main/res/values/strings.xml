@@ -1,0 +1,22 @@
+<resources>
+    <string name="budget_title">Budget</string>
+    <string name="daily_title">Available today</string>
+    <string name="period_title">Remaining this period</string>
+    <string name="days_left">%1$d days left</string>
+    <string name="updated">Updated %1$s</string>
+    <string name="refresh">Refresh</string>
+    <string name="refreshing">Updating…</string>
+    <string name="refresh_failed">Unable to reach phone. Try again.</string>
+    <string name="waiting">Open VibeFinance on your phone and enable budget sharing.</string>
+    <string name="hidden">Budget sharing is off or amounts are hidden.</string>
+    <string name="no_budget">Set up an active budget on your phone.</string>
+    <string name="expired">Budget expired. Connect to your phone to refresh.</string>
+    <string name="open_amount">View amount</string>
+    <string name="invalid">Unable to read this budget. Update both apps.</string>
+    <string name="swipe_amount">Swipe horizontally to read the full amount</string>
+    <string name="tile_expired">Expired · tap to refresh</string>
+    <string name="tile_hidden">Amounts hidden</string>
+    <string name="tile_no_budget">Set budget on phone</string>
+    <string name="tile_open_phone">Enable sharing on phone</string>
+    <string name="cached_offline">Phone offline · showing last update</string>
+</resources>

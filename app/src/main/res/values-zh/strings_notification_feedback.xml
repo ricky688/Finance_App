@@ -10,4 +10,10 @@
     <string name="nf_logged_expense_message">已將於 %2$s 消費的 $%1$.2f 記入 %3$s%4$s</string>
     <string name="nf_logged_topup_title">已自动记录充值</string>
     <string name="nf_logged_topup_message">已将 %2$s 的 +$%1$.2f 计入 %3$s%4$s</string>
+    <string name="nf_decision_transfer_title">转账确认</string>
+    <string name="nf_decision_content_with_account">%1$s $%2$,.2f • 建议账户：%3$s</string>
+    <string name="nf_decision_content_no_account">%1$s $%2$,.2f • 点击选择转出/入账账户</string>
+    <string name="nf_action_confirm">确认（%1$s）</string>
+    <string name="nf_action_decide">选择账户</string>
+    <string name="nf_action_ignore">忽略</string>
 </resources>

@@ -62,29 +62,27 @@ object CalendarSyncHelper {
         }
         subscriptions.forEach { sub ->
             var next = Instant.ofEpochMilli(sub.nextPaymentDate).atZone(zone).toLocalDate()
-            val weekly = sub.frequency.equals("Weekly", ignoreCase = true)
-            // Advance exactly as the app does; no persisted monthly anchor or schedule mutation.
-            val monthEnd = !weekly && next.dayOfMonth > 28
-            fun advance(date: LocalDate) = if (weekly) date.plusWeeks(1) else date.plusMonths(1)
-            if (next < today) {
-                // Jump near today before stepping; preserve monthly clamping over the skipped interval.
-                if (weekly) next = next.plusWeeks((java.time.temporal.ChronoUnit.DAYS.between(next, today) / 7).coerceAtLeast(0))
-                else {
-                    val months = java.time.temporal.ChronoUnit.MONTHS.between(YearMonth.from(next), YearMonth.from(today))
-                    if (months > 24) {
-                        repeat(24) { next = advance(next) }
-                        next = next.plusMonths(months - 24)
-                    }
-                }
-                while (next < today) next = advance(next)
+            SubscriptionSchedule.validate(sub)
+            val unit = when (sub.frequency.lowercase(java.util.Locale.ROOT)) {
+                "daily" -> "DAILY"
+                "weekly" -> "WEEKLY"
+                "yearly", "annual" -> "YEARLY"
+                else -> "MONTHLY"
             }
-            if (monthEnd && next >= today.plusMonths(12)) return@forEach
+            val monthEnd = unit in setOf("MONTHLY", "YEARLY") && next.dayOfMonth > 28
+            fun advance(date: LocalDate) = SubscriptionSchedule.advance(date, sub.frequency, sub.interval)
+            if (next < today && unit in setOf("DAILY", "WEEKLY")) {
+                val step = sub.interval.toLong() * if (unit == "WEEKLY") 7 else 1
+                next = next.plusDays(java.time.temporal.ChronoUnit.DAYS.between(next, today) / step * step)
+            }
+            while (next < today) next = advance(next)
             val recurrence = if (monthEnd) {
                 val dates = mutableListOf<LocalDate>()
                 var occurrence = advance(next)
-                while (occurrence < today.plusMonths(12)) { dates += occurrence; occurrence = advance(occurrence) }
+                val horizon = maxOf(today.plusMonths(12), next.plusDays(1))
+                while (occurrence < horizon) { dates += occurrence; occurrence = advance(occurrence) }
                 if (dates.isEmpty()) emptyList() else listOf("RDATE:" + dates.joinToString(",") { localTime.format(it.atTime(9, 0)) })
-            } else listOf("RRULE:FREQ=${if (weekly) "WEEKLY" else "MONTHLY"}")
+            } else listOf("RRULE:FREQ=$unit" + if (sub.interval == 1) "" else ";INTERVAL=${sub.interval}")
             event("subscription-${sub.id}", next, context.appString(R.string.calendar_subscription_title, sub.name),
                 context.appString(R.string.calendar_subscription_description, sub.amount), recurrence, false)
         }

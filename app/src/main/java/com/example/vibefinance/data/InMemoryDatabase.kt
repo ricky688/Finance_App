@@ -75,7 +75,7 @@ object InMemoryDatabase {
         isNotificationLoggingEnabled = sharedPrefs?.getBoolean("notification_logging_enabled", true) ?: true
         val rulesMap = mutableMapOf<String, Double>()
         sharedPrefs?.all?.forEach { (key, value) ->
-            if (key == "selected_intercept_apps") {
+            if (key == "selected_intercept_apps" || key == "notification_logging_enabled" || key == "default_intercept_apps_backfilled_v1") {
                 // Handled separately
             } else {
                 val doubleVal = when (value) {
@@ -96,7 +96,18 @@ object InMemoryDatabase {
         val savedAppSet = sharedPrefs?.getStringSet("selected_intercept_apps", null)
         val initialSelection = savedAppSet ?: InterceptableApp.defaultEnabledApps()
         val installedPackages = LocalAppManager.getInstalledPackageNames(context)
-        val selectedPackages = migrateInterceptAppSelections(initialSelection, installedPackages)
+        val migratedSelection = migrateInterceptAppSelections(initialSelection, installedPackages)
+        val backfilledDefaults = sharedPrefs?.getBoolean("default_intercept_apps_backfilled_v1", false) == true
+        val selectedPackages = if (!backfilledDefaults && savedAppSet != null && savedAppSet.isNotEmpty()) {
+            val defaultInstalled = migrateInterceptAppSelections(InterceptableApp.defaultEnabledApps(), installedPackages)
+            sharedPrefs?.edit()?.putBoolean("default_intercept_apps_backfilled_v1", true)?.apply()
+            migratedSelection + defaultInstalled
+        } else {
+            if (!backfilledDefaults) {
+                sharedPrefs?.edit()?.putBoolean("default_intercept_apps_backfilled_v1", true)?.apply()
+            }
+            migratedSelection
+        }
         selectedInterceptApps.value = selectedPackages
         if (savedAppSet != selectedPackages) {
             sharedPrefs?.edit()?.putStringSet("selected_intercept_apps", selectedPackages)?.apply()
@@ -266,7 +277,41 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
+    /** Charge and advance one occurrence in one durable snapshot, including missed custom intervals. */
+    fun chargeSubscriptionIfDue(expected: SubscriptionEntity, now: Long): Boolean = synchronized(diskIoLock) {
+        val stored = subscriptions.value.firstOrNull { it.id == expected.id }
+        if (stored != expected || expected.nextPaymentDate > now) return@synchronized false
+        com.example.vibefinance.util.SubscriptionSchedule.validate(expected)
+        val account = accounts.value.firstOrNull { it.id == expected.accountId } ?: return@synchronized false
+        val advanced = com.example.vibefinance.util.SubscriptionSchedule.advance(expected)
+        require(advanced > expected.nextPaymentDate)
+
+        if (!expected.isAutoPaid) {
+            // Manual deposit / manual payment:
+            // If already marked as paid by user for this cycle, advance to next cycle and reset isPaid = false
+            if (expected.isPaid) {
+                val nextSubscriptions = subscriptions.value.map {
+                    if (it.id == expected.id) it.copy(nextPaymentDate = advanced, isPaid = false) else it
+                }
+                subscriptions.value = nextSubscriptions
+                persistToDisk()
+                return@synchronized true
+            }
+            // If still unpaid, do not auto-charge or deduct balance; keep it due
+            return@synchronized false
+        }
+
+        val charge = TransactionEntity(id = nextTransactionId, amount = expected.amount, category = expected.category,
+            timestamp = expected.nextPaymentDate, accountId = expected.accountId,
+            description = "Auto-charge: ${expected.name}", groupId = "subscription:${expected.id}:${expected.nextPaymentDate}",
+            sourceWasCreditCard = account.type == AccountType.CC)
+        val nextSubscriptions = subscriptions.value.map { if (it.id == expected.id) it.copy(nextPaymentDate = advanced, isPaid = false, lastPaidDate = now) else it }
+        publishTransactionBatch(emptyList(), listOf(charge), transactions.value + charge, now, nextTransactionId + 1, nextSubscriptions)
+        true
+    }
+
     fun insertSubscription(sub: SubscriptionEntity): Long = synchronized(diskIoLock) {
+        com.example.vibefinance.util.SubscriptionSchedule.validate(sub)
         val id = nextSubscriptionId++
         val newSub = categoryMergeRules.value.normalize(sub.copy(id = id))
         subscriptions.update { it + newSub }
@@ -275,6 +320,7 @@ object InMemoryDatabase {
     }
 
     fun updateSubscription(sub: SubscriptionEntity) = synchronized(diskIoLock) {
+        com.example.vibefinance.util.SubscriptionSchedule.validate(sub)
         val normalized = categoryMergeRules.value.normalize(sub)
         subscriptions.update { list ->
             list.map { if (it.id == sub.id) normalized else it }
@@ -287,6 +333,73 @@ object InMemoryDatabase {
             list.filter { it.id != sub.id }
         }
         persistToDisk()
+    }
+
+    /** Sets the paid status of a subscription for the current cycle. Optionally creates or reverts a matching expense. */
+    fun setSubscriptionPaidStatus(
+        subscriptionId: Long,
+        isPaid: Boolean,
+        recordExpense: Boolean = false,
+        now: Long = System.currentTimeMillis()
+    ): Boolean = synchronized(diskIoLock) {
+        val current = subscriptions.value.firstOrNull { it.id == subscriptionId } ?: return@synchronized false
+        val updatedSub = current.copy(
+            isPaid = isPaid,
+            lastPaidDate = if (isPaid) (current.lastPaidDate ?: now) else null
+        )
+        val nextSubscriptions = subscriptions.value.map { if (it.id == subscriptionId) updatedSub else it }
+
+        var nextTxs = transactions.value
+        var nextTxId = nextTransactionId
+        var nextAccounts = accounts.value
+
+        val manualTxKey = "subscription_manual:${current.id}:${current.nextPaymentDate}"
+        if (isPaid && recordExpense) {
+            val account = accounts.value.firstOrNull { it.id == current.accountId }
+            if (account != null && transactions.value.none { it.groupId == manualTxKey }) {
+                val charge = TransactionEntity(
+                    id = nextTxId,
+                    amount = current.amount,
+                    category = current.category,
+                    timestamp = now,
+                    accountId = current.accountId,
+                    description = "Subscription: ${current.name}",
+                    groupId = manualTxKey,
+                    sourceWasCreditCard = account.type == AccountType.CC
+                )
+                nextTxId++
+                nextTxs = nextTxs + withAccountTypeSnapshot(charge)
+                val delta = if (account.type == AccountType.CC) current.amount else -current.amount
+                nextAccounts = nextAccounts.map {
+                    if (it.id == account.id) it.copy(balance = it.balance + delta) else it
+                }
+            }
+        } else if (!isPaid) {
+            val existingTx = transactions.value.firstOrNull { it.groupId == manualTxKey }
+            if (existingTx != null) {
+                val account = accounts.value.firstOrNull { it.id == existingTx.accountId }
+                if (account != null) {
+                    val delta = if (account.type == AccountType.CC) -existingTx.amount else existingTx.amount
+                    nextAccounts = nextAccounts.map {
+                        if (it.id == account.id) it.copy(balance = it.balance + delta) else it
+                    }
+                }
+                nextTxs = nextTxs.filterNot { it.id == existingTx.id }
+            }
+        }
+
+        persistToDisk(
+            accountsSnapshot = nextAccounts,
+            transactionsSnapshot = nextTxs,
+            nextTransactionIdSnapshot = nextTxId,
+            subscriptionsSnapshot = nextSubscriptions,
+            throwOnFailure = true
+        )
+        accounts.value = nextAccounts
+        transactions.value = nextTxs
+        nextTransactionId = nextTxId
+        subscriptions.value = nextSubscriptions
+        true
     }
 
     fun insertAccount(account: AccountEntity, requireDurable: Boolean = false): Long = synchronized(diskIoLock) {
@@ -451,9 +564,11 @@ object InMemoryDatabase {
                 }
                 survivingAccountDeltas[otherId] = (survivingAccountDeltas[otherId] ?: 0.0) + reversal
             }
-            transactions.value = transactions.value.filterNot {
+            val survivingTransactions = transactions.value.filterNot {
                 it.accountId == account.id || it.toAccountId == account.id
             }
+            com.example.vibefinance.util.Reimbursements.validate(survivingTransactions)
+            transactions.value = survivingTransactions
             accounts.value = accounts.value.filter { it.id != account.id }.map { existing ->
                 existing.copy(balance = existing.balance + (survivingAccountDeltas[existing.id] ?: 0.0))
             }
@@ -469,6 +584,37 @@ object InMemoryDatabase {
         if (deleted) {
             appContext?.let { com.example.vibefinance.service.PendingPaymentStore.clearRememberedChoices(it) }
         }
+    }
+
+    fun recordReimbursement(original: TransactionEntity?, amount: Double, accountId: Long,
+        description: String, requestId: String, receivedAt: Long = System.currentTimeMillis(),
+        latitude: Double? = null, longitude: Double? = null, locationName: String? = null): Long = synchronized(diskIoLock) {
+        require(requestId.isNotBlank() && requestId.length <= 100)
+        val key = "reimbursement:$requestId"
+        transactions.value.firstOrNull { it.groupId == key }?.let {
+            require(it.isReimbursement && it.reimbursementOf == original?.id && it.amount == -amount && it.accountId == accountId)
+            return@synchronized it.id
+        }
+        if (original != null) {
+        require(transactions.value.firstOrNull { it.id == original.id } == original) { "Expense changed; select it again" }
+        require(com.example.vibefinance.util.Reimbursements.isExpense(original))
+        }
+        require(amount.isFinite() && amount > 0 && java.math.BigDecimal.valueOf(amount).stripTrailingZeros().scale() <= 2)
+        require(receivedAt in 0..System.currentTimeMillis())
+        require(original == null || (original.timestamp <= System.currentTimeMillis() &&
+            com.example.vibefinance.util.Reimbursements.expenseOnOrBeforeDay(original.timestamp, receivedAt)))
+        val account = requireNotNull(accounts.value.firstOrNull { it.id == accountId })
+        require(account.type != AccountType.INVESTMENT) { "Choose a payment account" }
+        val credit = TransactionEntity(id = nextTransactionId, amount = -amount, category = original?.category ?: "Reimbursement",
+            timestamp = receivedAt, accountId = accountId, description = description.trim(),
+            isExcludedFromDailyBudget = original?.isExcludedFromDailyBudget ?: false, reimbursementOf = original?.id,
+            isUnlinkedReimbursement = original == null,
+            groupId = key, sourceWasCreditCard = account.type == AccountType.CC,
+            latitude = latitude, longitude = longitude, locationName = locationName)
+        val updated = transactions.value + credit
+        com.example.vibefinance.util.Reimbursements.validate(updated)
+        publishTransactionBatch(emptyList(), listOf(credit), updated, receivedAt, nextTransactionId + 1)
+        credit.id
     }
 
     fun insertTransaction(transaction: TransactionEntity): Long = synchronized(diskIoLock) {
@@ -524,6 +670,42 @@ object InMemoryDatabase {
             throwOnFailure = true
         )
         nextTransactionId = id + 1L
+        accounts.value = updatedAccounts
+        transactions.value = updatedTransactions
+        true
+    }
+
+    /** Upgrade a recently logged outgoing bank transfer into an atomic Octopus Top-Up transfer. */
+    fun upgradeNotificationTransferToTopUp(
+        transactionId: Long,
+        destinationOctopusId: Long,
+        description: String
+    ): Boolean = synchronized(diskIoLock) {
+        val existing = transactions.value.firstOrNull { it.id == transactionId } ?: return@synchronized false
+        if (existing.toAccountId != null || existing.amount <= 0.0) return@synchronized false
+        val destination = accounts.value.firstOrNull { it.id == destinationOctopusId } ?: return@synchronized false
+        if (destination.id == existing.accountId) return@synchronized false
+
+        val toBalanceDelta = if (destination.type == AccountType.CC) -existing.amount else existing.amount
+        require((destination.balance + toBalanceDelta).isFinite()) { "Resulting destination balance must be finite" }
+
+        val updatedTx = withAccountTypeSnapshot(
+            existing.copy(
+                toAccountId = destination.id,
+                category = "Top-up",
+                description = description.ifBlank { existing.description },
+                isExcludedFromDailyBudget = true
+            )
+        )
+        val updatedTransactions = transactions.value.map { if (it.id == existing.id) updatedTx else it }
+        val updatedAccounts = accounts.value.map { current ->
+            if (current.id == destination.id) current.copy(balance = current.balance + toBalanceDelta) else current
+        }
+        persistToDisk(
+            accountsSnapshot = updatedAccounts,
+            transactionsSnapshot = updatedTransactions,
+            throwOnFailure = true
+        )
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
         true
@@ -724,6 +906,7 @@ object InMemoryDatabase {
             account.copy(balance = balance)
         }
         val updatedTransactions = transactions.value.filterNot(matches)
+        com.example.vibefinance.util.Reimbursements.validate(updatedTransactions)
         persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions, throwOnFailure = true)
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
@@ -741,15 +924,51 @@ object InMemoryDatabase {
         true
     }
 
+    /** Updates the location coordinates and address name of a transaction by its notification groupId. */
+    fun updateTransactionLocationByGroupId(
+        groupId: String,
+        latitude: Double,
+        longitude: Double,
+        locationName: String?,
+        startLatitude: Double? = null,
+        startLongitude: Double? = null,
+        startLocationName: String? = null
+    ): Boolean = synchronized(diskIoLock) {
+        val stored = transactions.value.firstOrNull { it.groupId == groupId } ?: return@synchronized false
+        val updated = stored.copy(
+            latitude = latitude,
+            longitude = longitude,
+            locationName = locationName,
+            startLatitude = startLatitude ?: stored.startLatitude,
+            startLongitude = startLongitude ?: stored.startLongitude,
+            startLocationName = startLocationName ?: stored.startLocationName
+        )
+        val updatedTransactions = transactions.value.map { if (it.id == stored.id) updated else it }
+        persistToDisk(transactionsSnapshot = updatedTransactions, throwOnFailure = true)
+        transactions.value = updatedTransactions
+        true
+    }
+
     /** Persist an edit and both account effects together; publish only after the write succeeds. */
-    fun updateTransactionWithBalances(newTx: TransactionEntity, oldTx: TransactionEntity) = synchronized(diskIoLock) {
+    fun updateTransactionWithBalances(newTx: TransactionEntity, oldTx: TransactionEntity,
+        repaymentExpense: TransactionEntity? = null) = synchronized(diskIoLock) {
         val stored = transactions.value.firstOrNull { it.id == oldTx.id }
             ?: throw IllegalArgumentException("Transaction no longer exists")
         require(stored == oldTx) { "Transaction changed while editing; reopen it" }
+        if (newTx.reimbursementOf != null) {
+            val original = requireNotNull(transactions.value.firstOrNull { it.id == newTx.reimbursementOf })
+            require(repaymentExpense == null || original == repaymentExpense) { "Original expense changed; select it again" }
+            require(newTx.reimbursementOf == oldTx.reimbursementOf || repaymentExpense != null) { "Select the original expense" }
+            require(newTx.timestamp <= System.currentTimeMillis() && original.timestamp <= System.currentTimeMillis()) { "A repayment and its expense must have been posted" }
+        }
+        require(!newTx.isReimbursement || newTx.timestamp <= System.currentTimeMillis())
         require(newTx.id == oldTx.id) { "An edit must keep the transaction ID" }
         require(newTx.amount.isFinite() && newTx.amount != 0.0) { "Amount must be finite and nonzero" }
         val currentAccounts = accounts.value.associateBy { it.id }
         require(newTx.accountId in currentAccounts) { "Source account no longer exists" }
+        require(!newTx.isReimbursement || currentAccounts.getValue(newTx.accountId).type != AccountType.INVESTMENT) {
+            "Choose a payment account"
+        }
         if (newTx.toAccountId != null) {
             require(newTx.accountId != newTx.toAccountId && newTx.toAccountId in currentAccounts) {
                 "A transfer needs two different existing accounts"
@@ -783,6 +1002,7 @@ object InMemoryDatabase {
             account.copy(balance = balance)
         }
         val updatedTransactions = transactions.value.map { if (it.id == updated.id) updated else it }
+        com.example.vibefinance.util.Reimbursements.validate(updatedTransactions)
         persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions, throwOnFailure = true)
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
@@ -832,8 +1052,10 @@ object InMemoryDatabase {
 
     private fun publishTransactionBatch(
         removed: List<TransactionEntity>, added: List<TransactionEntity>, updatedTransactions: List<TransactionEntity>,
-        appliedThrough: Long, nextId: Long = nextTransactionId
+        appliedThrough: Long, nextId: Long = nextTransactionId,
+        subscriptionUpdates: List<SubscriptionEntity>? = null
     ) {
+        com.example.vibefinance.util.Reimbursements.validate(updatedTransactions)
         val byId = accounts.value.associateBy { it.id }
         val deltas = mutableMapOf<Long, Double>()
         fun delta(id: Long, value: Double) { deltas[id] = (deltas[id] ?: 0.0) + value }
@@ -861,32 +1083,40 @@ object InMemoryDatabase {
             it.copy(balance = balance)
         }
         persistToDisk(accountsSnapshot = updatedAccounts, transactionsSnapshot = updatedTransactions,
-            nextTransactionIdSnapshot = nextId, throwOnFailure = true)
+            nextTransactionIdSnapshot = nextId, subscriptionsSnapshot = subscriptionUpdates, throwOnFailure = true)
         nextTransactionId = nextId
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
+        subscriptionUpdates?.let { subscriptions.value = it }
     }
 
     fun updateTransaction(transaction: TransactionEntity) = synchronized(diskIoLock) {
         val normalized = categoryMergeRules.value.normalize(transaction)
-        transactions.update { list ->
-            list.map { if (it.id == transaction.id) normalized else it }
-        }
+        val updated = transactions.value.map { if (it.id == transaction.id) normalized else it }
+        com.example.vibefinance.util.Reimbursements.validate(updated)
+        transactions.value = updated
         persistToDisk()
     }
 
     fun deleteTransactionsByGroupId(groupId: String) = synchronized(diskIoLock) {
-        transactions.update { list ->
-            list.filter { it.groupId != groupId }
-        }
+        val updated = transactions.value.filter { it.groupId != groupId }
+        com.example.vibefinance.util.Reimbursements.validate(updated)
+        transactions.value = updated
         persistToDisk()
     }
 
     fun insertBudget(budget: BudgetEntity) = synchronized(diskIoLock) {
         budgets.update { list ->
             val existing = list.find { it.id == budget.id }
-            val replacement = if (budget.estimatedIncome == null && existing != null && existing.startDate == budget.startDate && existing.endDate == budget.endDate) {
-                budget.copy(estimatedIncome = existing.estimatedIncome)
+            val replacement = if (existing != null && existing.startDate == budget.startDate && existing.endDate == budget.endDate) {
+                var b = budget
+                if (budget.estimatedIncome == null && existing.estimatedIncome != null) {
+                    b = b.copy(estimatedIncome = existing.estimatedIncome)
+                }
+                if (budget.categoryBudgetsJson == "{}" && existing.categoryBudgetsJson != "{}") {
+                    b = b.copy(categoryBudgetsJson = existing.categoryBudgetsJson)
+                }
+                b
             } else budget
             if (existing != null) {
                 list.map { if (it.id == budget.id) replacement else it }
@@ -993,6 +1223,8 @@ object InMemoryDatabase {
                 val obj = JSONObject()
                 obj.put("id", tx.id)
                 obj.put("amount", tx.amount)
+                tx.reimbursementOf?.let { obj.put("reimbursementOf", it) }
+                obj.put("isUnlinkedReimbursement", tx.isUnlinkedReimbursement)
                 obj.put("category", tx.category)
                 obj.put("timestamp", tx.timestamp)
                 obj.put("accountId", tx.accountId)
@@ -1007,6 +1239,12 @@ object InMemoryDatabase {
                 tx.installmentNumber?.let { obj.put("installmentNumber", it) }
                 tx.totalInstallments?.let { obj.put("totalInstallments", it) }
                 tx.groupId?.let { obj.put("groupId", it) }
+                tx.latitude?.let { obj.put("latitude", it) }
+                tx.longitude?.let { obj.put("longitude", it) }
+                tx.locationName?.let { obj.put("locationName", it) }
+                tx.startLatitude?.let { obj.put("startLatitude", it) }
+                tx.startLongitude?.let { obj.put("startLongitude", it) }
+                tx.startLocationName?.let { obj.put("startLocationName", it) }
                 txArr.put(obj)
             }
             root.put("transactions", txArr)
@@ -1021,6 +1259,9 @@ object InMemoryDatabase {
                 obj.put("endDate", b.endDate)
                 obj.put("rolloverMode", b.rolloverMode.name)
                 b.estimatedIncome?.let { obj.put("estimatedIncome", it) }
+                if (b.categoryBudgetsJson != "{}") {
+                    obj.put("categoryBudgetsJson", b.categoryBudgetsJson)
+                }
                 budgetsArr.put(obj)
             }
             root.put("budgets", budgetsArr)
@@ -1034,8 +1275,12 @@ object InMemoryDatabase {
                 obj.put("amount", s.amount)
                 obj.put("category", s.category)
                 obj.put("frequency", s.frequency)
+                obj.put("interval", s.interval)
                 obj.put("nextPaymentDate", s.nextPaymentDate)
                 obj.put("accountId", s.accountId)
+                obj.put("isPaid", s.isPaid)
+                obj.put("isAutoPaid", s.isAutoPaid)
+                s.lastPaidDate?.let { obj.put("lastPaidDate", it) }
                 subsArr.put(obj)
             }
             root.put("subscriptions", subsArr)
@@ -1129,6 +1374,27 @@ object InMemoryDatabase {
         initialize(context)
     }
 
+    internal fun applySyncedData(context: android.content.Context, newJson: JSONObject) = synchronized(diskIoLock) {
+        // A sync must never rerun the historical balance migration on already corrected accounts.
+        require(newJson.optBoolean("creditCardSourceTransfersReconciled", false)) {
+            "Sync snapshot is missing its balance migration marker"
+        }
+        val file = File(context.filesDir, DATA_FILE_NAME)
+        val atomicFile = android.util.AtomicFile(file)
+        var fos: FileOutputStream? = null
+        try {
+            fos = atomicFile.startWrite()
+            fos.write(newJson.toString().toByteArray(Charsets.UTF_8))
+            atomicFile.finishWrite(fos)
+        } catch (e: Exception) {
+            if (fos != null) {
+                atomicFile.failWrite(fos)
+            }
+            throw e
+        }
+        reloadAfterFullRestore(context)
+    }
+
     private fun loadFromDisk(context: android.content.Context) {
         val file = File(context.filesDir, DATA_FILE_NAME)
         if (!file.exists()) return
@@ -1201,6 +1467,8 @@ object InMemoryDatabase {
                         TransactionEntity(
                             id = obj.getLong("id"),
                             amount = obj.getDouble("amount"),
+                            isUnlinkedReimbursement = obj.optBoolean("isUnlinkedReimbursement", false),
+                            reimbursementOf = if (obj.has("reimbursementOf") && !obj.isNull("reimbursementOf")) obj.getLong("reimbursementOf") else null,
                             category = obj.getString("category"),
                             timestamp = obj.getLong("timestamp"),
                             accountId = obj.getLong("accountId"),
@@ -1214,7 +1482,13 @@ object InMemoryDatabase {
                             customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(obj.optString("customIcon").takeIf { it.isNotBlank() }),
                             installmentNumber = if (obj.has("installmentNumber") && !obj.isNull("installmentNumber")) obj.getInt("installmentNumber") else null,
                             totalInstallments = if (obj.has("totalInstallments") && !obj.isNull("totalInstallments")) obj.getInt("totalInstallments") else null,
-                            groupId = if (obj.has("groupId") && !obj.isNull("groupId")) obj.getString("groupId") else null
+                            groupId = if (obj.has("groupId") && !obj.isNull("groupId")) obj.getString("groupId") else null,
+                            latitude = if (obj.has("latitude") && !obj.isNull("latitude")) obj.getDouble("latitude") else null,
+                            longitude = if (obj.has("longitude") && !obj.isNull("longitude")) obj.getDouble("longitude") else null,
+                            locationName = if (obj.has("locationName") && !obj.isNull("locationName")) obj.getString("locationName") else null,
+                            startLatitude = if (obj.has("startLatitude") && !obj.isNull("startLatitude")) obj.getDouble("startLatitude") else null,
+                            startLongitude = if (obj.has("startLongitude") && !obj.isNull("startLongitude")) obj.getDouble("startLongitude") else null,
+                            startLocationName = if (obj.has("startLocationName") && !obj.isNull("startLocationName")) obj.getString("startLocationName") else null
                         )
                     )
                 }
@@ -1240,7 +1514,8 @@ object InMemoryDatabase {
                             startDate = obj.getLong("startDate"),
                             endDate = obj.getLong("endDate"),
                             rolloverMode = rollover,
-                            estimatedIncome = obj.optDouble("estimatedIncome", Double.NaN).takeIf { it.isFinite() && it >= 0.0 }
+                            estimatedIncome = obj.optDouble("estimatedIncome", Double.NaN).takeIf { it.isFinite() && it >= 0.0 },
+                            categoryBudgetsJson = obj.optString("categoryBudgetsJson", "{}")
                         )
                     )
                 }
@@ -1260,8 +1535,12 @@ object InMemoryDatabase {
                             amount = obj.getDouble("amount"),
                             category = obj.getString("category"),
                             frequency = obj.optString("frequency", "Monthly"),
+                            interval = obj.optInt("interval", 1),
                             nextPaymentDate = obj.getLong("nextPaymentDate"),
-                            accountId = obj.getLong("accountId")
+                            accountId = obj.getLong("accountId"),
+                            isPaid = obj.optBoolean("isPaid", false),
+                            lastPaidDate = if (obj.has("lastPaidDate") && !obj.isNull("lastPaidDate")) obj.getLong("lastPaidDate") else null,
+                            isAutoPaid = obj.optBoolean("isAutoPaid", true)
                         )
                     )
                 }

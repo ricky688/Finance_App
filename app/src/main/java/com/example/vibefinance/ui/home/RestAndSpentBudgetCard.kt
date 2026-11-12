@@ -39,6 +39,13 @@ import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.ui.preferences.LocalExperience
 import com.example.vibefinance.ui.preferences.MotionLevel
 import java.util.Locale
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
 
 data class HarmonizedColorPalette(
     val main: Color,
@@ -47,12 +54,86 @@ data class HarmonizedColorPalette(
     val onContainer: Color,
 )
 
+/**
+ * Formats a monetary amount into standard signed currency format:
+ * - Positive/zero: "$12,345.67"
+ * - Negative: "-$12,345.67" (negative sign, currency symbol, and digits in a single text flow)
+ */
+fun formatBudgetCardAmount(amount: Double, prefix: String = "$"): String {
+    val isNeg = amount < 0.0
+    val absVal = kotlin.math.abs(amount)
+    val formatted = String.format(Locale.US, "%,.2f", absVal)
+    return if (isNeg) "-$prefix$formatted" else "$prefix$formatted"
+}
+
+/**
+ * Adaptively scales down the font size for a single-line monetary string
+ * using TextMeasurer, with a minimum legibility floor (12sp).
+ */
+fun calculateAdaptiveAmountFontSize(
+    text: String,
+    availableWidthPx: Float,
+    baseFontSize: TextUnit,
+    minFontSize: TextUnit = 12.sp,
+    measurer: TextMeasurer,
+    style: TextStyle,
+): TextUnit {
+    if (availableWidthPx <= 0f) return baseFontSize
+    val maxSp = baseFontSize.value
+    val minSp = minFontSize.value
+
+    fun fits(sp: Float): Boolean {
+        val result = measurer.measure(
+            text = AnnotatedString(text),
+            style = style.copy(fontSize = sp.sp),
+            softWrap = false,
+            maxLines = 1,
+        )
+        return result.size.width <= availableWidthPx
+    }
+
+    if (fits(maxSp)) return maxSp.sp
+
+    var low = minSp
+    var high = maxSp
+    repeat(8) {
+        val mid = (low + high) / 2f
+        if (fits(mid)) {
+            low = mid
+        } else {
+            high = mid
+        }
+    }
+    return low.coerceAtLeast(minSp).sp
+}
+
+/**
+ * Checks whether the given text fits within availableWidthPx at minFontSize (12sp floor).
+ */
+fun textFitsAtFloor(
+    text: String,
+    availableWidthPx: Float,
+    minFontSize: TextUnit = 12.sp,
+    measurer: TextMeasurer,
+    style: TextStyle,
+): Boolean {
+    if (availableWidthPx <= 0f) return true
+    val result = measurer.measure(
+        text = AnnotatedString(text),
+        style = style.copy(fontSize = minFontSize),
+        softWrap = false,
+        maxLines = 1,
+    )
+    return result.size.width <= availableWidthPx
+}
+
 @Composable
 fun RestAndSpentBudgetCard(
     modifier: Modifier = Modifier,
     remainingBudget: Double,
     totalBudget: Double,
     isDarkTheme: Boolean = false,
+    onOverflowChanged: ((Boolean) -> Unit)? = null,
 ) {
     var showSpentCard by remember { mutableStateOf(false) }
     val motion = LocalExperience.current.motion
@@ -213,8 +294,28 @@ fun RestAndSpentBudgetCard(
                     )
                 }
 
+                val measurer = rememberTextMeasurer()
+                val localStyle = LocalTextStyle.current
+                val measuringStyle = remember(localStyle) {
+                    localStyle.copy(fontWeight = FontWeight.Bold)
+                }
+
                 val verticalPadding = if (heightDp > 0.dp) (heightDp * 0.1f).coerceIn(8.dp, 16.dp) else 14.dp
                 val horizontalPadding = if (widthDp > 0.dp) (widthDp * 0.12f).coerceIn(12.dp, 18.dp) else 14.dp
+                val availableWidthPx = with(LocalDensity.current) {
+                    (widthDp - horizontalPadding * 2).toPx().coerceAtLeast(0f)
+                }
+
+                val activeAmount = if (showSpentCard) (totalBudget - remainingBudget).coerceAtLeast(0.0) else remainingBudget
+                val activeFormattedAmount = formatBudgetCardAmount(activeAmount)
+                val isOverflowingAtFloor = remember(activeFormattedAmount, availableWidthPx) {
+                    if (availableWidthPx <= 0f) false
+                    else !textFitsAtFloor(activeFormattedAmount, availableWidthPx, 12.sp, measurer, measuringStyle)
+                }
+
+                LaunchedEffect(isOverflowingAtFloor) {
+                    onOverflowChanged?.invoke(isOverflowingAtFloor)
+                }
 
                 val baseAmountFontSize = if (heightDp > 0.dp) (heightDp.value * 0.15f).coerceIn(16f, 26f).sp else 24.sp
                 val labelFontSize = if (heightDp > 0.dp) (heightDp.value * 0.075f).coerceIn(10f, 14f).sp else 12.sp
@@ -244,12 +345,15 @@ fun RestAndSpentBudgetCard(
                         contentAlignment = Alignment.CenterStart,
                     ) { spent ->
                         val amount = if (spent) (totalBudget - remainingBudget).coerceAtLeast(0.0) else remainingBudget
-                        val formattedAmount = String.format(Locale.US, "$%,.2f", amount)
-                        val amountFontSize = when {
-                            formattedAmount.length >= 12 -> (baseAmountFontSize.value * 0.75f).sp
-                            formattedAmount.length >= 10 -> (baseAmountFontSize.value * 0.85f).sp
-                            else -> baseAmountFontSize
-                        }
+                        val formattedAmount = formatBudgetCardAmount(amount)
+                        val amountFontSize = calculateAdaptiveAmountFontSize(
+                            text = formattedAmount,
+                            availableWidthPx = availableWidthPx,
+                            baseFontSize = baseAmountFontSize,
+                            minFontSize = 12.sp,
+                            measurer = measurer,
+                            style = measuringStyle,
+                        )
                         // Keep each exact amount paired with its label throughout the transition.
                         Column(Modifier.fillMaxWidth()
                             .testTag(if (spent) "BudgetMode_SPENT" else "BudgetMode_REMAINING")
@@ -259,7 +363,9 @@ fun RestAndSpentBudgetCard(
                                 fontSize = amountFontSize,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.onContainer,
+                                softWrap = false,
                                 maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
                             )
                             Text(
                                 text = if (spent) labelSpent else labelRemaining,
@@ -305,5 +411,31 @@ fun RestAndSpentBudgetCard(
                     )
             )
         }
+    }
+}
+
+@Preview(name = "RestAndSpent Positive Standard (380dp)", showBackground = true, widthDp = 240, heightDp = 150)
+@Composable
+fun PreviewRestAndSpentPositive() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        RestAndSpentBudgetCard(
+            modifier = Modifier.fillMaxSize(),
+            remainingBudget = 2439.5,
+            totalBudget = 2500.0,
+            isDarkTheme = false
+        )
+    }
+}
+
+@Preview(name = "RestAndSpent Large Negative Single Line", showBackground = true, widthDp = 240, heightDp = 150)
+@Composable
+fun PreviewRestAndSpentNegative() {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        RestAndSpentBudgetCard(
+            modifier = Modifier.fillMaxSize(),
+            remainingBudget = -12345.67,
+            totalBudget = 3000.0,
+            isDarkTheme = true
+        )
     }
 }

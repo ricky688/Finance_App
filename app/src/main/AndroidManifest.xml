@@ -7,7 +7,11 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <queries>
         <intent>
@@ -38,6 +42,7 @@
         <package android:name="com.hangseng.rbmobile" />
         <package android:name="com.bankofchina.bochk.mobileapplication" />
         <package android:name="com.boc.bank" />
+        <package android:name="com.mox.app" />
         <package android:name="com.mox.bank" />
         <package android:name="com.citibank.mobile.hk" />
         <package android:name="com.citi.citimobile" />
@@ -53,6 +58,12 @@
         android:windowSoftInputMode="adjustResize"
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.VibeFinance">
+        <service android:name=".wear.PhoneBudgetService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:path="/vibefinance/budget/refresh/v1" />
+            </intent-filter>
+        </service>
         
         <meta-data
             android:name="com.google.android.geo.API_KEY"

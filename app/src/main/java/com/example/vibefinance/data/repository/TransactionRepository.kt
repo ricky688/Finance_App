@@ -117,8 +117,8 @@ class TransactionRepository @Inject constructor() {
         InMemoryDatabase.deleteTransactionWithBalances(transaction.id)
     }
 
-    suspend fun updateTransaction(newTx: TransactionEntity, oldTx: TransactionEntity) {
-        InMemoryDatabase.updateTransactionWithBalances(newTx, oldTx)
+    suspend fun updateTransaction(newTx: TransactionEntity, oldTx: TransactionEntity, repaymentExpense: TransactionEntity? = null) {
+        InMemoryDatabase.updateTransactionWithBalances(newTx, oldTx, repaymentExpense)
     }
 
     suspend fun deleteInstallmentGroup(groupId: String, accountId: Long) {

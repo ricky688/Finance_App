@@ -3,6 +3,7 @@ package com.example.vibefinance.ui.components
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -62,6 +63,15 @@ internal fun ExpenseSymbol.label() = when (this) {
 
 @Composable
 fun ExpenseEventIcon(customIcon: String?, category: String, tint: Color, modifier: Modifier = Modifier.size(24.dp)) {
+    if (customIcon == "icon:reimbursement" || customIcon == "reimbursement" || customIcon == "emoji:↩️") {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardReturn,
+            contentDescription = stringResource(R.string.reimbursement_title),
+            modifier = modifier,
+            tint = tint
+        )
+        return
+    }
     val icon = ExpenseIcon.normalize(customIcon)
     when {
         icon?.startsWith("symbol:") == true -> {

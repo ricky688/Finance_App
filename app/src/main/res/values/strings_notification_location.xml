@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_location_title">Payment notification location</string>
+    <string name="notification_location_body">To attach a location when a payment notification arrives while the app is closed, open Permissions → Location → Allow all the time. Enable precise location for better station matching. Location is requested only after a detected payment, for up to 5 seconds; there is no continuous background tracking. You can decline and keep logging without locations.</string>
+    <string name="notification_location_settings">Open location settings</string>
+    <string name="notification_location_ready">Background location allowed</string>
+    <string name="notification_location_off">Device location is off</string>
+    <string name="notification_location_missing">Location permission not granted</string>
+    <string name="notification_location_foreground">Only allowed while using the app</string>
+</resources>

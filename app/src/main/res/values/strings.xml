@@ -10,6 +10,10 @@
 
     <!-- Greetings & Top Bar -->
     <string name="topbar_vibe_overview">Vibe Overview</string>
+    <string name="dual_column_left_title">Financial Overview</string>
+    <string name="dual_column_left_subtitle">Daily Budget &amp; Flow · Pace your spending</string>
+    <string name="dual_column_right_title">Analytics &amp; Insights</string>
+    <string name="dual_column_right_subtitle">Trends &amp; Metrics · Visual overview</string>
     <string name="topbar_daily_flow">Daily Flow</string>
     <string name="topbar_assets_cards">Assets &amp; Cards</string>
     <string name="topbar_activity_history">Activity History</string>
@@ -69,6 +73,7 @@
     <string name="spending_breakdown">Spending Breakdown</string>
     <string name="highest_spending_day">Highest Day</string>
     <string name="lowest_spending_day">Lowest Day</string>
+    <string name="not_enough_records">Not enough records</string>
     <string name="average_daily_spent">Daily Average</string>
     <string name="ai_vibe_forecast">AI VIBE FORECAST</string>
     <string name="projected_savings">Projected Savings</string>
@@ -345,10 +350,26 @@
     <!-- Common Actions & Labels -->
     <string name="btn_save">Save</string>
     <string name="btn_cancel">Cancel</string>
+    <string name="btn_edit">Edit</string>
     <string name="btn_delete">Delete</string>
     <string name="btn_close">Close</string>
     <string name="btn_confirm">Confirm</string>
     <string name="btn_change">Change</string>
+    <string name="tx_detail_title">Transaction Details</string>
+    <string name="tx_detail_location">Expense Location</string>
+    <string name="tx_detail_open_in_map">Open in Maps</string>
+    <string name="tx_detail_no_location_title">No location recorded</string>
+    <string name="tx_detail_no_location_hint">Tap to tag current location</string>
+    <string name="tx_detail_tag_location">Tag Location</string>
+    <string name="tx_detail_tag_gps">Tag Current GPS</string>
+    <string name="tx_detail_tag_preset">Select District</string>
+    <string name="tx_detail_retag_location">Change</string>
+    <string name="tx_detail_remove_location">Clear</string>
+    <string name="tx_detail_location_success">Location tagged successfully</string>
+    <string name="tx_detail_location_failed">Unable to acquire live GPS fix. Please ensure location is enabled, or select a district.</string>
+    <string name="tx_detail_select_district_title">Select Spending District</string>
+    <string name="tx_detail_delete_confirm_title">Delete Transaction?</string>
+    <string name="tx_detail_delete_confirm_desc">This will permanently remove this record and recalculate your balance.</string>
     <string name="label_date">Date</string>
     <string name="label_note">Note</string>
     <string name="label_amount">Amount</string>
@@ -551,4 +572,94 @@
     <string name="live_income_total_label">Total Liquid Assets</string>
     <string name="live_income_boost_badge">+%s</string>
     <string name="chart_daily_budget_spend">Daily budget</string>
+
+    <!-- Linked repayments and custom recurring intervals -->
+    <string name="reimbursement_title">Money back · Repayments</string>
+    <string name="reimbursement_choose_expense">Choose the original expense</string>
+    <string name="reimbursement_outstanding">Unrecovered amount: HK$%1$,.2f</string>
+    <string name="reimbursement_empty">No eligible expenses. You can continue without linking one.</string>
+    <string name="reimbursement_search">Search expenses</string>
+    <string name="reimbursement_error">Could not save. The expense, account or recoverable amount may have changed. Please select again.</string>
+    <string name="subscription_daily">Daily</string>
+    <string name="subscription_interval">Repeat every</string>
+    <string name="subscription_interval_hint">Enter 1–999 units, for example every 2 days or 6 months.</string>
+    <string name="subscription_every_days">Every %1$d day(s)</string>
+    <string name="subscription_every_weeks">Every %1$d week(s)</string>
+    <string name="subscription_every_months">Every %1$d month(s)</string>
+    <string name="subscription_every_years">Every %1$d year(s)</string>
+    <string name="income_reimbursement_hint">Restore your budget without recording income. Linking an expense is optional.</string>
+    <string name="btn_save_reimbursement">Save repayment</string>
+    <string name="reimbursement_payment_account_required">Choose a receiving account or card other than Investment.</string>
+    <string name="reimbursement_excluded_hint">The original expense is outside the daily budget, so this repayment will not restore the budget.</string>
+    <string name="history_reimbursement_date_hint">Uses the date of this record (%1$s). Choose an expense on or before that date.</string>
+    <string name="reimbursement_not_received">Only already-received records can be marked as money back.</string>
+    <string name="edit_transaction_error">Unable to save changes. Review the record, accounts and repayment limit, then try again.</string>
+    <string name="reimbursement_all_dates">All dates</string>
+    <string name="reimbursement_clear_date">Clear date filter</string>
+    <string name="reimbursement_no_matches">No matching expenses. Try another date or search.</string>
+
+    <!-- Subscription payment status -->
+    <string name="subscription_status_paid">Paid</string>
+    <string name="subscription_status_unpaid">Unpaid</string>
+    <string name="subscription_mark_paid">Mark as paid</string>
+    <string name="subscription_mark_unpaid">Mark as unpaid</string>
+    <string name="subscription_filter_unpaid">Unpaid</string>
+    <string name="subscription_filter_paid">Paid</string>
+    <string name="subscription_cycle_paid_label">Cycle payment status</string>
+    <string name="subscription_paid_this_cycle">Paid for this cycle</string>
+    <string name="subscription_paid_badge">Paid</string>
+    <string name="subscription_unpaid_badge">Due</string>
+    <string name="subscription_paid_today">Paid today</string>
+    <string name="subscription_paid_date">Paid on %1$s</string>
+    <string name="feedback_subscription_marked_paid">Marked subscription as paid</string>
+    <string name="feedback_subscription_marked_unpaid">Marked subscription as unpaid</string>
+    <string name="subscription_deposit_mode_label">Payment / Deposit mode</string>
+    <string name="subscription_deposit_mode_auto">Auto-debit</string>
+    <string name="subscription_deposit_mode_manual">Manual deposit</string>
+    <string name="subscription_deposit_mode_auto_desc">Automatically logs expense and deducts balance on due date</string>
+    <string name="subscription_deposit_mode_manual_desc">Reminder only on due date; mark as paid to record expense</string>
+    <string name="subscription_badge_auto">Auto</string>
+    <string name="subscription_badge_manual">Manual</string>
+
+    <!-- Category Budgets -->
+    <string name="loc_category_budgets_title">Category Budgets</string>
+    <string name="loc_category_budgets_card">Category Budgets</string>
+    <string name="loc_category_budgets_allocation_summary">Allocated %1$s of %2$s (Unallocated: %3$s)</string>
+    <string name="loc_category_budgets_exceed_warning">⚠️ Allocations exceed total period budget</string>
+    <string name="loc_category_budgets_add_btn">Add Category</string>
+    <string name="loc_category_budgets_empty_title">No category budgets set</string>
+    <string name="loc_category_budgets_empty_hint">Allocate budget caps for categories like Dining and Shopping to keep spending in check.</string>
+    <string name="loc_category_budgets_empty_hint_short">No category budgets yet. Tap above to add.</string>
+    <string name="loc_category_budgets_setup">Setup</string>
+    <string name="loc_category_budgets_overspent">Overspent %s</string>
+    <string name="loc_category_budgets_remaining">Left %s</string>
+    <string name="loc_category_budgets_spent_label">Spent</string>
+    <string name="loc_choose_category_symbol">Choose Category Symbol</string>
+    <string name="loc_choose_category_symbol_desc">Select a built-in symbol to allocate a budget cap:</string>
+    <string name="loc_category_budgets_save">Save Allocation</string>
+    <string name="loc_category_budgets_edit_sheet_title">Customize Category Budgets</string>
+    <string name="loc_category_budgets_edit_sheet_desc">Allocate separate budget caps for specific categories within your total period budget.</string>
+    <string name="reimbursement_optional_hint">Linking an expense is optional. The full amount counts as money back, even when it exceeds the expense.</string>
+    <string name="reimbursement_unlink">Continue without a linked expense</string>
+    <!-- Google Drive Serverless Sync -->
+    <string name="google_drive_sync_title">Google Drive Sync</string>
+    <string name="google_drive_sync_desc">Sync your financial data across devices via your private Google Drive app storage. Completely serverless, private, and automatic.</string>
+    <string name="google_drive_sync_connect_btn">Connect Google Account</string>
+    <string name="google_drive_sync_connected">Connected Account</string>
+    <string name="google_drive_sync_disconnect">Disconnect</string>
+    <string name="google_drive_sync_auto_open">Auto-sync on app open</string>
+    <string name="google_drive_sync_auto_open_desc">Silently merge and sync latest records in background when app opens</string>
+    <string name="google_drive_sync_now_btn">Sync Now</string>
+    <string name="google_drive_sync_status_syncing">Syncing with Google Drive…</string>
+    <string name="google_drive_sync_status_synced">Synced</string>
+    <string name="google_drive_sync_last_synced">Last synced: %s</string>
+    <string name="google_drive_sync_just_now">Just now</string>
+    <string name="adaptive_choose_record">Choose an item to inspect</string>
+    <string name="adaptive_back_to_list">Back to list</string>
+    <string name="adaptive_recent_transactions">Account transactions</string>
+    <string name="rail_expand">Expand navigation menu</string>
+    <string name="rail_collapse">Collapse navigation menu</string>
+    <string name="rail_dock_title">Quick Controls</string>
+    <string name="transaction_map_unavailable">Map unavailable. Please check your connection.</string>
+    <string name="transaction_map_retry">Retry</string>
 </resources>

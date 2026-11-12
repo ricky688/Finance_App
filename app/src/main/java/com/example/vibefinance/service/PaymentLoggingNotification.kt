@@ -13,6 +13,7 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.example.vibefinance.MainActivity
 import com.example.vibefinance.R
+import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.util.appString
 import java.util.Locale
 
@@ -126,6 +127,137 @@ object PaymentLoggingNotification {
                 )
         }
         return builder.build()
+    }
+
+    internal fun buildDecisionNotification(
+        context: Context,
+        payment: PendingPayment,
+        suggestedAccount: AccountEntity?,
+    ): Notification {
+        require(isValidPaymentId(payment.id))
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    context.appString(R.string.nf_live_log_channel),
+                    NotificationManager.IMPORTANCE_HIGH,
+                )
+            )
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+        val decideActivityIntent = Intent(context, MainActivity::class.java).apply {
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            action = NotificationActionReceiver.ACTION_DECIDE_TRANSFER
+            data = Uri.Builder()
+                .scheme("vibefinance")
+                .authority("payment")
+                .appendPath(payment.id)
+                .appendPath("decide")
+                .build()
+            putExtra(NotificationActionReceiver.EXTRA_DECIDE_PAYMENT, payment.id)
+        }
+        val contentIntent = PendingIntent.getActivity(context, 0, decideActivityIntent, flags)
+        val decideIntent = PendingIntent.getActivity(context, 1, decideActivityIntent, flags)
+
+        val ignoreIntent = PendingIntent.getBroadcast(
+            context,
+            2,
+            Intent(context, NotificationActionReceiver::class.java).apply {
+                action = NotificationActionReceiver.ACTION_IGNORE_TRANSFER
+                data = Uri.Builder()
+                    .scheme("vibefinance")
+                    .authority("payment")
+                    .appendPath(payment.id)
+                    .appendPath("ignore")
+                    .build()
+                putExtra(NotificationActionReceiver.EXTRA_PAYMENT_ID, payment.id)
+            },
+            flags
+        )
+
+        val title = context.appString(R.string.nf_decision_transfer_title)
+        val content = if (suggestedAccount != null) {
+            context.appString(R.string.nf_decision_content_with_account, payment.merchant, payment.amount, suggestedAccount.name)
+        } else {
+            context.appString(R.string.nf_decision_content_no_account, payment.merchant, payment.amount)
+        }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_payment_notification)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
+            .setContentIntent(contentIntent)
+            .setOngoing(true)
+            .setTimeoutAfter(TIMEOUT_MS)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+
+        if (suggestedAccount != null) {
+            val confirmIntent = PendingIntent.getBroadcast(
+                context,
+                3,
+                Intent(context, NotificationActionReceiver::class.java).apply {
+                    action = NotificationActionReceiver.ACTION_CONFIRM_TRANSFER
+                    data = Uri.Builder()
+                        .scheme("vibefinance")
+                        .authority("payment")
+                        .appendPath(payment.id)
+                        .appendPath("confirm")
+                        .build()
+                    putExtra(NotificationActionReceiver.EXTRA_PAYMENT_ID, payment.id)
+                    putExtra(NotificationActionReceiver.EXTRA_ACCOUNT_ID, suggestedAccount.id)
+                },
+                flags
+            )
+            builder.addAction(
+                android.R.drawable.ic_menu_save,
+                context.appString(R.string.nf_action_confirm, suggestedAccount.name),
+                confirmIntent
+            )
+        }
+
+        builder.addAction(
+            android.R.drawable.ic_menu_edit,
+            context.appString(R.string.nf_action_decide),
+            decideIntent
+        )
+
+        builder.addAction(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            context.appString(R.string.nf_action_ignore),
+            ignoreIntent
+        )
+
+        if (Build.VERSION.SDK_INT >= 36) {
+            builder
+                .setRequestPromotedOngoing(true)
+                .setShortCriticalText(
+                    String.format(Locale.ROOT, "$%.2f", payment.amount).takeIf { it.length <= 7 }
+                )
+        }
+        return builder.build()
+    }
+
+    fun showDecision(
+        context: Context,
+        payment: PendingPayment,
+        suggestedAccount: AccountEntity?
+    ) {
+        val notification = buildDecisionNotification(context, payment, suggestedAccount)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        try {
+            manager.notify(payment.id, notificationId(payment.id), notification)
+            if (Build.VERSION.SDK_INT < 26) {
+                Handler(Looper.getMainLooper())
+                    .postDelayed({ cancel(context, payment.id) }, TIMEOUT_MS)
+            }
+        } catch (_: SecurityException) {
+        }
     }
 
     fun show(context: Context, paymentId: String, title: String, content: String, amount: Double) {

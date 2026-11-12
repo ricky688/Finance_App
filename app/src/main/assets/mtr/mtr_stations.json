@@ -1,0 +1,1122 @@
+[
+  {
+    "id": 56,
+    "code": "AWE",
+    "nameZh": "博覽館",
+    "nameEn": "AsiaWorld-Expo",
+    "lines": [
+      "AEL"
+    ],
+    "lat": 22.3219,
+    "lon": 113.9423
+  },
+  {
+    "id": 47,
+    "code": "AIR",
+    "nameZh": "機場",
+    "nameEn": "Airport",
+    "lines": [
+      "AEL"
+    ],
+    "lat": 22.3159,
+    "lon": 113.9365
+  },
+  {
+    "id": 46,
+    "code": "TSY",
+    "nameZh": "青衣",
+    "nameEn": "Tsing Yi",
+    "lines": [
+      "AEL"
+    ],
+    "lat": 22.3585,
+    "lon": 114.107494
+  },
+  {
+    "id": 45,
+    "code": "KOW",
+    "nameZh": "九龍",
+    "nameEn": "Kowloon",
+    "lines": [
+      "AEL"
+    ],
+    "lat": 22.3049,
+    "lon": 114.161389
+  },
+  {
+    "id": 44,
+    "code": "HOK",
+    "nameZh": "香港",
+    "nameEn": "Hong Kong",
+    "lines": [
+      "AEL"
+    ],
+    "lat": 22.284764,
+    "lon": 114.158017
+  },
+  {
+    "id": 54,
+    "code": "SUN",
+    "nameZh": "欣澳",
+    "nameEn": "Sunny Bay",
+    "lines": [
+      "DRL",
+      "TCL"
+    ],
+    "lat": 22.3321,
+    "lon": 114.028881
+  },
+  {
+    "id": 55,
+    "code": "DIS",
+    "nameZh": "迪士尼",
+    "nameEn": "Disneyland Resort",
+    "lines": [
+      "DRL"
+    ],
+    "lat": 22.3155,
+    "lon": 114.045106
+  },
+  {
+    "id": 76,
+    "code": "LOW",
+    "nameZh": "羅湖",
+    "nameEn": "Lo Wu",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.529,
+    "lon": 114.113031
+  },
+  {
+    "id": 75,
+    "code": "SHS",
+    "nameZh": "上水",
+    "nameEn": "Sheung Shui",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.501319,
+    "lon": 114.128361
+  },
+  {
+    "id": 74,
+    "code": "FAN",
+    "nameZh": "粉嶺",
+    "nameEn": "Fanling",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.492064,
+    "lon": 114.138733
+  },
+  {
+    "id": 73,
+    "code": "TWO",
+    "nameZh": "太和",
+    "nameEn": "Tai Wo",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.451019,
+    "lon": 114.161169
+  },
+  {
+    "id": 72,
+    "code": "TAP",
+    "nameZh": "大埔墟",
+    "nameEn": "Tai Po Market",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.444633,
+    "lon": 114.170592
+  },
+  {
+    "id": 71,
+    "code": "UNI",
+    "nameZh": "大學",
+    "nameEn": "University",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.413353,
+    "lon": 114.210172
+  },
+  {
+    "id": 69,
+    "code": "FOT",
+    "nameZh": "火炭",
+    "nameEn": "Fo Tan",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.394847,
+    "lon": 114.197892
+  },
+  {
+    "id": 68,
+    "code": "SHT",
+    "nameZh": "沙田",
+    "nameEn": "Sha Tin",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.382222,
+    "lon": 114.187222
+  },
+  {
+    "id": 67,
+    "code": "TAW",
+    "nameZh": "大圍",
+    "nameEn": "Tai Wai",
+    "lines": [
+      "EAL",
+      "TML"
+    ],
+    "lat": 22.373025,
+    "lon": 114.17845
+  },
+  {
+    "id": 8,
+    "code": "KOT",
+    "nameZh": "九龍塘",
+    "nameEn": "Kowloon Tong",
+    "lines": [
+      "EAL",
+      "KTL"
+    ],
+    "lat": 22.3375,
+    "lon": 114.1754
+  },
+  {
+    "id": 65,
+    "code": "MKK",
+    "nameZh": "旺角東",
+    "nameEn": "Mong Kok East",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.3219,
+    "lon": 114.1725
+  },
+  {
+    "id": 64,
+    "code": "HUH",
+    "nameZh": "紅磡",
+    "nameEn": "Hung Hom",
+    "lines": [
+      "EAL",
+      "TML"
+    ],
+    "lat": 22.302583,
+    "lon": 114.182167
+  },
+  {
+    "id": 94,
+    "code": "EXC",
+    "nameZh": "會展",
+    "nameEn": "Exhibition Centre",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.281667,
+    "lon": 114.175278
+  },
+  {
+    "id": 2,
+    "code": "ADM",
+    "nameZh": "金鐘",
+    "nameEn": "Admiralty",
+    "lines": [
+      "EAL",
+      "ISL",
+      "TWL",
+      "SIL"
+    ],
+    "lat": 22.278817,
+    "lon": 114.164586
+  },
+  {
+    "id": 78,
+    "code": "LMC",
+    "nameZh": "落馬洲",
+    "nameEn": "Lok Ma Chau",
+    "lines": [
+      "EAL"
+    ],
+    "lat": 22.514558,
+    "lon": 114.065783
+  },
+  {
+    "id": 37,
+    "code": "CHW",
+    "nameZh": "柴灣",
+    "nameEn": "Chai Wan",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.276856,
+    "lon": 114.239778
+  },
+  {
+    "id": 36,
+    "code": "HFC",
+    "nameZh": "杏花邨",
+    "nameEn": "Heng Fa Chuen",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.276856,
+    "lon": 114.239778
+  },
+  {
+    "id": 35,
+    "code": "SKW",
+    "nameZh": "筲箕灣",
+    "nameEn": "Shau Kei Wan",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.2792,
+    "lon": 114.228889
+  },
+  {
+    "id": 34,
+    "code": "SWH",
+    "nameZh": "西灣河",
+    "nameEn": "Sai Wan Ho",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.282375,
+    "lon": 114.221917
+  },
+  {
+    "id": 33,
+    "code": "TAK",
+    "nameZh": "太古",
+    "nameEn": "Tai Koo",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.284589,
+    "lon": 114.216119
+  },
+  {
+    "id": 32,
+    "code": "QUB",
+    "nameZh": "鰂魚涌",
+    "nameEn": "Quarry Bay",
+    "lines": [
+      "ISL",
+      "TKL"
+    ],
+    "lat": 22.288194,
+    "lon": 114.208861
+  },
+  {
+    "id": 31,
+    "code": "NOP",
+    "nameZh": "北角",
+    "nameEn": "North Point",
+    "lines": [
+      "ISL",
+      "TKL"
+    ],
+    "lat": 22.290944,
+    "lon": 114.200056
+  },
+  {
+    "id": 30,
+    "code": "FOH",
+    "nameZh": "炮台山",
+    "nameEn": "Fortress Hill",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.288144,
+    "lon": 114.193636
+  },
+  {
+    "id": 29,
+    "code": "TIH",
+    "nameZh": "天后",
+    "nameEn": "Tin Hau",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.282656,
+    "lon": 114.191667
+  },
+  {
+    "id": 28,
+    "code": "CAB",
+    "nameZh": "銅鑼灣",
+    "nameEn": "Causeway Bay",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.280289,
+    "lon": 114.183964
+  },
+  {
+    "id": 27,
+    "code": "WAC",
+    "nameZh": "灣仔",
+    "nameEn": "Wan Chai",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.277256,
+    "lon": 114.172847
+  },
+  {
+    "id": 1,
+    "code": "CEN",
+    "nameZh": "中環",
+    "nameEn": "Central",
+    "lines": [
+      "ISL",
+      "TWL"
+    ],
+    "lat": 22.2816,
+    "lon": 114.159
+  },
+  {
+    "id": 26,
+    "code": "SHW",
+    "nameZh": "上環",
+    "nameEn": "Sheung Wan",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.286172,
+    "lon": 114.151764
+  },
+  {
+    "id": 81,
+    "code": "SYP",
+    "nameZh": "西營盤",
+    "nameEn": "Sai Ying Pun",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.285556,
+    "lon": 114.142778
+  },
+  {
+    "id": 82,
+    "code": "HKU",
+    "nameZh": "香港大學",
+    "nameEn": "HKU",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.284167,
+    "lon": 114.135556
+  },
+  {
+    "id": 83,
+    "code": "KET",
+    "nameZh": "堅尼地城",
+    "nameEn": "Kennedy Town",
+    "lines": [
+      "ISL"
+    ],
+    "lat": 22.281214,
+    "lon": 114.128642
+  },
+  {
+    "id": 49,
+    "code": "TIK",
+    "nameZh": "調景嶺",
+    "nameEn": "Tiu Keng Leng",
+    "lines": [
+      "KTL",
+      "TKL"
+    ],
+    "lat": 22.3042,
+    "lon": 114.2522
+  },
+  {
+    "id": 48,
+    "code": "YAT",
+    "nameZh": "油塘",
+    "nameEn": "Yau Tong",
+    "lines": [
+      "KTL",
+      "TKL"
+    ],
+    "lat": 22.2979,
+    "lon": 114.237083
+  },
+  {
+    "id": 38,
+    "code": "LAT",
+    "nameZh": "藍田",
+    "nameEn": "Lam Tin",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.306861,
+    "lon": 114.232861
+  },
+  {
+    "id": 15,
+    "code": "KWT",
+    "nameZh": "觀塘",
+    "nameEn": "Kwun Tong",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.312225,
+    "lon": 114.226444
+  },
+  {
+    "id": 14,
+    "code": "NTK",
+    "nameZh": "牛頭角",
+    "nameEn": "Ngau Tau Kok",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.315444,
+    "lon": 114.218944
+  },
+  {
+    "id": 13,
+    "code": "KOB",
+    "nameZh": "九龍灣",
+    "nameEn": "Kowloon Bay",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.3233,
+    "lon": 114.214
+  },
+  {
+    "id": 12,
+    "code": "CHH",
+    "nameZh": "彩虹",
+    "nameEn": "Choi Hung",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.3349,
+    "lon": 114.208694
+  },
+  {
+    "id": 11,
+    "code": "DIH",
+    "nameZh": "鑽石山",
+    "nameEn": "Diamond Hill",
+    "lines": [
+      "KTL",
+      "TML"
+    ],
+    "lat": 22.340025,
+    "lon": 114.201675
+  },
+  {
+    "id": 10,
+    "code": "WTS",
+    "nameZh": "黃大仙",
+    "nameEn": "Wong Tai Sin",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.3415,
+    "lon": 114.194278
+  },
+  {
+    "id": 9,
+    "code": "LOF",
+    "nameZh": "樂富",
+    "nameEn": "Lok Fu",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.337861,
+    "lon": 114.187444
+  },
+  {
+    "id": 7,
+    "code": "SKM",
+    "nameZh": "石硤尾",
+    "nameEn": "Shek Kip Mei",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.332025,
+    "lon": 114.168889
+  },
+  {
+    "id": 16,
+    "code": "PRE",
+    "nameZh": "太子",
+    "nameEn": "Prince Edward",
+    "lines": [
+      "KTL",
+      "TWL"
+    ],
+    "lat": 22.3245,
+    "lon": 114.168
+  },
+  {
+    "id": 6,
+    "code": "MOK",
+    "nameZh": "旺角",
+    "nameEn": "Mong Kok",
+    "lines": [
+      "KTL",
+      "TWL"
+    ],
+    "lat": 22.31925,
+    "lon": 114.169361
+  },
+  {
+    "id": 5,
+    "code": "YMT",
+    "nameZh": "油麻地",
+    "nameEn": "Yau Ma Tei",
+    "lines": [
+      "KTL",
+      "TWL"
+    ],
+    "lat": 22.3128,
+    "lon": 114.170694
+  },
+  {
+    "id": 84,
+    "code": "HOM",
+    "nameZh": "何文田",
+    "nameEn": "Ho Man Tin",
+    "lines": [
+      "KTL",
+      "TML"
+    ],
+    "lat": 22.309406,
+    "lon": 114.182678
+  },
+  {
+    "id": 85,
+    "code": "WHA",
+    "nameZh": "黃埔",
+    "nameEn": "Whampoa",
+    "lines": [
+      "KTL"
+    ],
+    "lat": 22.305064,
+    "lon": 114.189492
+  },
+  {
+    "id": 103,
+    "code": "WKS",
+    "nameZh": "烏溪沙",
+    "nameEn": "Wu Kai Sha",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.429167,
+    "lon": 114.243917
+  },
+  {
+    "id": 102,
+    "code": "MOS",
+    "nameZh": "馬鞍山",
+    "nameEn": "Ma On Shan",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.4249,
+    "lon": 114.232
+  },
+  {
+    "id": 101,
+    "code": "HEO",
+    "nameZh": "恆安",
+    "nameEn": "Heng On",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.417861,
+    "lon": 114.225861
+  },
+  {
+    "id": 100,
+    "code": "TSH",
+    "nameZh": "大水坑",
+    "nameEn": "Tai Shui Hang",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.408278,
+    "lon": 114.222667
+  },
+  {
+    "id": 99,
+    "code": "SHM",
+    "nameZh": "石門",
+    "nameEn": "Shek Mun",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.387861,
+    "lon": 114.208472
+  },
+  {
+    "id": 98,
+    "code": "CIO",
+    "nameZh": "第一城",
+    "nameEn": "City One",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.383,
+    "lon": 114.203639
+  },
+  {
+    "id": 97,
+    "code": "STW",
+    "nameZh": "沙田圍",
+    "nameEn": "Sha Tin Wai",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.376944,
+    "lon": 114.194833
+  },
+  {
+    "id": 96,
+    "code": "CKT",
+    "nameZh": "車公廟",
+    "nameEn": "Che Kung Temple",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.374806,
+    "lon": 114.186417
+  },
+  {
+    "id": 90,
+    "code": "HIK",
+    "nameZh": "顯徑",
+    "nameEn": "Hin Keng",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.363889,
+    "lon": 114.170833
+  },
+  {
+    "id": 91,
+    "code": "KAT",
+    "nameZh": "啟德",
+    "nameEn": "Kai Tak",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.330278,
+    "lon": 114.199444
+  },
+  {
+    "id": 92,
+    "code": "SUW",
+    "nameZh": "宋皇臺",
+    "nameEn": "Sung Wong Toi",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.3258,
+    "lon": 114.1914
+  },
+  {
+    "id": 93,
+    "code": "TKW",
+    "nameZh": "土瓜灣",
+    "nameEn": "To Kwa Wan",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.317222,
+    "lon": 114.1875
+  },
+  {
+    "id": 80,
+    "code": "ETS",
+    "nameZh": "尖東",
+    "nameEn": "East Tsim Sha Tsui",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.2953,
+    "lon": 114.1742
+  },
+  {
+    "id": 111,
+    "code": "AUS",
+    "nameZh": "柯士甸",
+    "nameEn": "Austin",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.303625,
+    "lon": 114.166767
+  },
+  {
+    "id": 53,
+    "code": "NAC",
+    "nameZh": "南昌",
+    "nameEn": "Nam Cheong",
+    "lines": [
+      "TML",
+      "TCL"
+    ],
+    "lat": 22.326497,
+    "lon": 114.153089
+  },
+  {
+    "id": 20,
+    "code": "MEF",
+    "nameZh": "美孚",
+    "nameEn": "Mei Foo",
+    "lines": [
+      "TML",
+      "TWL"
+    ],
+    "lat": 22.338,
+    "lon": 114.139028
+  },
+  {
+    "id": 114,
+    "code": "TWW",
+    "nameZh": "荃灣西",
+    "nameEn": "Tsuen Wan West",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.3682,
+    "lon": 114.1098
+  },
+  {
+    "id": 115,
+    "code": "KSR",
+    "nameZh": "錦上路",
+    "nameEn": "Kam Sheung Road",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.434789,
+    "lon": 114.0635
+  },
+  {
+    "id": 116,
+    "code": "YUL",
+    "nameZh": "元朗",
+    "nameEn": "Yuen Long",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.4462,
+    "lon": 114.0355
+  },
+  {
+    "id": 117,
+    "code": "LOP",
+    "nameZh": "朗屏",
+    "nameEn": "Long Ping",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.447594,
+    "lon": 114.0256
+  },
+  {
+    "id": 118,
+    "code": "TIS",
+    "nameZh": "天水圍",
+    "nameEn": "Tin Shui Wai",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.4481,
+    "lon": 114.0048
+  },
+  {
+    "id": 119,
+    "code": "SIH",
+    "nameZh": "兆康",
+    "nameEn": "Siu Hong",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.412414,
+    "lon": 113.978611
+  },
+  {
+    "id": 120,
+    "code": "TUM",
+    "nameZh": "屯門",
+    "nameEn": "Tuen Mun",
+    "lines": [
+      "TML"
+    ],
+    "lat": 22.3941,
+    "lon": 113.973194
+  },
+  {
+    "id": 43,
+    "code": "TUC",
+    "nameZh": "東涌",
+    "nameEn": "Tung Chung",
+    "lines": [
+      "TCL"
+    ],
+    "lat": 22.2894,
+    "lon": 113.9415
+  },
+  {
+    "id": 42,
+    "code": "TSY",
+    "nameZh": "青衣",
+    "nameEn": "Tsing Yi",
+    "lines": [
+      "TCL"
+    ],
+    "lat": 22.3585,
+    "lon": 114.107494
+  },
+  {
+    "id": 21,
+    "code": "LAK",
+    "nameZh": "茘景",
+    "nameEn": "Lai King",
+    "lines": [
+      "TCL",
+      "TWL"
+    ],
+    "lat": 22.348258,
+    "lon": 114.12615
+  },
+  {
+    "id": 41,
+    "code": "OLY",
+    "nameZh": "奧運",
+    "nameEn": "Olympic",
+    "lines": [
+      "TCL"
+    ],
+    "lat": 22.317806,
+    "lon": 114.160222
+  },
+  {
+    "id": 40,
+    "code": "KOW",
+    "nameZh": "九龍",
+    "nameEn": "Kowloon",
+    "lines": [
+      "TCL"
+    ],
+    "lat": 22.3049,
+    "lon": 114.161389
+  },
+  {
+    "id": 39,
+    "code": "HOK",
+    "nameZh": "香港",
+    "nameEn": "Hong Kong",
+    "lines": [
+      "TCL"
+    ],
+    "lat": 22.284764,
+    "lon": 114.158017
+  },
+  {
+    "id": 52,
+    "code": "POA",
+    "nameZh": "寶琳",
+    "nameEn": "Po Lam",
+    "lines": [
+      "TKL"
+    ],
+    "lat": 22.322769,
+    "lon": 114.257694
+  },
+  {
+    "id": 51,
+    "code": "HAH",
+    "nameZh": "坑口",
+    "nameEn": "Hang Hau",
+    "lines": [
+      "TKL"
+    ],
+    "lat": 22.3156,
+    "lon": 114.264278
+  },
+  {
+    "id": 50,
+    "code": "TKO",
+    "nameZh": "將軍澳",
+    "nameEn": "Tseung Kwan O",
+    "lines": [
+      "TKL"
+    ],
+    "lat": 22.30745,
+    "lon": 114.259953
+  },
+  {
+    "id": 57,
+    "code": "LHP",
+    "nameZh": "康城",
+    "nameEn": "LOHAS Park",
+    "lines": [
+      "TKL"
+    ],
+    "lat": 22.296389,
+    "lon": 114.2697
+  },
+  {
+    "id": 25,
+    "code": "TSW",
+    "nameZh": "荃灣",
+    "nameEn": "Tsuen Wan",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.373611,
+    "lon": 114.117806
+  },
+  {
+    "id": 24,
+    "code": "TWH",
+    "nameZh": "大窩口",
+    "nameEn": "Tai Wo Hau",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.370611,
+    "lon": 114.125028
+  },
+  {
+    "id": 23,
+    "code": "KWH",
+    "nameZh": "葵興",
+    "nameEn": "Kwai Hing",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.363133,
+    "lon": 114.131261
+  },
+  {
+    "id": 22,
+    "code": "KWF",
+    "nameZh": "葵芳",
+    "nameEn": "Kwai Fong",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.356853,
+    "lon": 114.127872
+  },
+  {
+    "id": 19,
+    "code": "LCK",
+    "nameZh": "茘枝角",
+    "nameEn": "Lai Chi Kok",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.3374,
+    "lon": 114.148
+  },
+  {
+    "id": 18,
+    "code": "CSW",
+    "nameZh": "長沙灣",
+    "nameEn": "Cheung Sha Wan",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.335619,
+    "lon": 114.156
+  },
+  {
+    "id": 17,
+    "code": "SSP",
+    "nameZh": "深水埗",
+    "nameEn": "Sham Shui Po",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.331306,
+    "lon": 114.163556
+  },
+  {
+    "id": 4,
+    "code": "JOR",
+    "nameZh": "佐敦",
+    "nameEn": "Jordan",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.304306,
+    "lon": 114.171694
+  },
+  {
+    "id": 3,
+    "code": "TST",
+    "nameZh": "尖沙咀",
+    "nameEn": "Tsim Sha Tsui",
+    "lines": [
+      "TWL"
+    ],
+    "lat": 22.2975,
+    "lon": 114.172
+  },
+  {
+    "id": 86,
+    "code": "OCP",
+    "nameZh": "海洋公園",
+    "nameEn": "Ocean Park",
+    "lines": [
+      "SIL"
+    ],
+    "lat": 22.248706,
+    "lon": 114.174317
+  },
+  {
+    "id": 87,
+    "code": "WCH",
+    "nameZh": "黃竹坑",
+    "nameEn": "Wong Chuk Hang",
+    "lines": [
+      "SIL"
+    ],
+    "lat": 22.247925,
+    "lon": 114.167647
+  },
+  {
+    "id": 88,
+    "code": "LET",
+    "nameZh": "利東",
+    "nameEn": "Lei Tung",
+    "lines": [
+      "SIL"
+    ],
+    "lat": 22.241992,
+    "lon": 114.156044
+  },
+  {
+    "id": 89,
+    "code": "SOH",
+    "nameZh": "海怡半島",
+    "nameEn": "South Horizons",
+    "lines": [
+      "SIL"
+    ],
+    "lat": 22.242308,
+    "lon": 114.149297
+  }
+]

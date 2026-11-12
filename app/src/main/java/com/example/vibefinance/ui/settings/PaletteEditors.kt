@@ -43,14 +43,20 @@ internal fun PaletteStyleDialog(selected: PaletteStyle, onSelect: (PaletteStyle)
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 PaletteStyle.entries.forEach { style ->
                     SettingsActionCard(
-                        onClick = { onSelect(style) }, shape = RoundedCornerShape(16.dp),
-                        color = if (style == selected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier.fillMaxWidth().testTag("PaletteStyle_${style.name}")
+                        onClick = { onSelect(style) },
+                        shape = RoundedCornerShape(SettingsTokens.ActionCardCorner),
+                        color = if (style == selected) SettingsTokens.cardSurfaceSelected
+                            else SettingsTokens.cardSurface,
+                        border = if (style == selected) SettingsTokens.borderSelected()
+                            else SettingsTokens.borderUnselected(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = SettingsTokens.MinTouchTarget)
+                            .testTag("PaletteStyle_${style.name}")
                     ) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = style == selected, onClick = null)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(SettingsTokens.HorizontalIconToTextGap))
                             Text(paletteStyleLabel(style), style = MaterialTheme.typography.bodyLarge)
                         }
                     }

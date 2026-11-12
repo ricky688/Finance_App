@@ -1,10 +1,100 @@
 # VibeFinance 📊✨
 
-VibeFinance is a modern, high-fidelity personal finance and daily budgeting Android application. Built using Jetpack Compose and Kotlin, it delivers a state-of-the-art visual experience with interactive animations, custom card layouts, and local data persistence. The design is highly inspired by the daily budgeting philosophy of **[Buckwheat](https://github.com/bndkt/buckwheat)** and the refined Material 3 UI/UX architecture of **[ImageToolbox](https://github.com/T8RIN/ImageToolbox)**.
+VibeFinance is a modern, high-fidelity personal finance and daily budgeting Android application. Built using Jetpack Compose and Kotlin, it delivers a state-of-the-art visual experience with interactive animations, custom card layouts, and local data persistence. The design is highly inspired by the daily budgeting philosophy of **[Buckwheat](https://github.com/danilkinkin/buckwheat)** and the refined Material 3 UI/UX architecture of **[ImageToolbox](https://github.com/T8RIN/ImageToolbox)**.
 
 ---
 
+## Wear OS reading update (1.4.3)
+
+The Wear companion emphasizes today's allowance, groups period details, simplifies its Tile, and retains valid cached amounts with a quiet offline notice. Its signed release now enables R8 and resource shrinking. API 36+ remains supported; see [Wear setup and validation](docs/wear-os.md).
+
 ## 🚀 Features
+
+### Wear OS API 36+ support (1.4.2)
+- The watch companion now supports Android 16 / API 36 and newer while targeting Android 17 / API 37. Existing read-only budgets, opt-in sharing and privacy expiry remain unchanged. See [Wear OS setup and validation](docs/wear-os.md).
+
+### Wear OS 7 budget companion (1.4.0)
+- Optional read-only watch app and Budget Tile for Android 17 / Wear OS 7 (API 37+). Phone sharing is off by default; cached amounts have a maximum 15-minute validity period. No watch transaction entry or financial database changes.
+- See [Wear OS setup, privacy and verification](docs/wear-os.md) for installation, test commands and runtime-validation limitations.
+
+### Cloud-sync balance migration protection (1.3.44)
+- Sync retains the local snapshot's migration marker, saved custom fields, notification templates and ID counters. Loading a sync snapshot without the completed balance-migration marker is rejected before writing, preventing historical credit-card transfers from increasing debt again.
+- Existing balances, including manual corrections, are retained; this update does not automatically reverse past corruption or restore an old backup. Broader transaction-conflict, deletion and balance reconciliation behavior of cloud sync is unchanged.
+
+### NFC-assisted transit origins (1.3.43)
+- Optional, off by default: Settings → Smart logging & notifications → MTR transit → NFC-assisted origin estimate. Requires Android16+, compatible NFC hardware, connected notification access, automatic logging, precise location and background location. It observes the phone near a reader; a physical Octopus used while the phone stays in a pocket cannot be detected. No wallet-role/routing/Reader Mode changes or card-content access.
+- First RF ON requests a location for up to five seconds, coalescing250ms RF gaps and sharing requests for10s. Positions must be fresh (15s) and accurate (100m) to become evidence. Recognized payment receipts exclude tap candidates within a30s association window; ambiguous associations stay unusable. This timing heuristic may exclude an unrelated near-simultaneous payment, and missing receipts do not prove entry.
+- At MTR exit, fare-matching origins require clear position evidence when multiple stations share a fare. Ties/weak evidence show “Origin unconfirmed” instead of choosing the first station. Existing incorrect records are not rewritten. Origin candidates are bounded to32, private and excluded from backups; they are unusable after two hours and pruned on next access, or cleared when disabled. The opt-in setting itself uses the existing typed backup store.
+- NFC callbacks depend on the notification-listener process remaining connected/alive; “Registered” is not a guarantee of reception. Underground fixes, delayed notifications and locked-screen behavior need real-device validation of the integrated feature. The separate diagnostic probe remains independent.
+
+### Familiar street-map colors (1.3.42)
+- OSM transaction maps use a Google Maps-inspired street palette: pale blue water, soft green parks, white local roads, pale yellow highways and restrained gray buildings. Dark mode uses charcoal land, navy water and muted green parks. Vector geometry, Chinese labels, attribution, map providers and payment-location permissions are unchanged; no Google tiles or API key are introduced.
+
+### On-demand payment location permissions (1.3.41)
+- Settings → Smart logging now shows system location/background-permission status and a shortcut to Android settings. Background payment locations require the user's optional **Allow all the time** permission on Android 10+, with precise location recommended for station matching. Declining keeps financial logging available without background locations.
+- Payment notifications use cancellable parallel current-location requests with a shared five-second acquisition window, including API24 compatibility. They no longer start continuous tracking. Cached positions retain their original timestamps and expire after three minutes. Indoor fixes and Android background throttling can still prevent a location; no position is fabricated. Saved maps use the OSM vector renderer below.
+
+### Sharp OSM vector maps in transaction details (1.3.40)
+- Transaction locations now use MapLibre Native with OpenFreeMap's OSM-derived vector tiles, light/dark styles and local CJK glyph rendering. Existing start/end coordinates and straight route overlays remain; this is not a rail-track routing engine. Chinese name labels prefer available Chinese/local names. No Google tile endpoints, API key, billing account or location permission is needed to view a saved location. Existing Radar maps and GNSS/fare logic are unchanged.
+- Native attribution links are retained. A loading indicator, retry action and 30-second loading timeout handle network failures. The public map service is donation-supported and has no SLA; current provider details: https://openfreemap.org/ and https://openfreemap.org/quick_start/.
+
+### Expandable navigation and framed content (1.3.28)
+- Rail layouts have a Menu toggle, native Expressive collapsed/expanded labels, and a 28dp rounded content surface with a subtle outline and 8dp spacing. Expansion overlays content below 1200dp; wider windows expand inline. Compact bottom navigation remains. Selection, Add and Settings dismiss the overlay before opening their destination. Rail state survives recreation and follows motion preferences.
+
+### Four-screen adaptive workspace (1.3.27)
+- Windows 600dp and wider use a scrollable navigation rail with transaction creation above destinations and Settings below. Daily rearranges existing cards into two columns; Accounts and History add native Navigation3 inspection scenes, switching panels when space is tight. Recurring keeps its overview/list beside renewals and calendar-export status. Content stays centered within 1200dp. Narrow columns adapt monetary text and card grouping for larger fonts. Original financial flows and compact-phone behavior remain.
+
+### Keep browsing choices when the window changes (1.3.25)
+- Asset filters, Recurring filters/timeline view and History analytics period/month use saveable state so Activity recreation during rotation or resizing retains these choices. Existing account/transaction editors, persistence and navigation behavior are otherwise unchanged.
+
+### Multi-device layout & Bento optimization (1.3.23)
+- Clamped daily Bento proportions (`[110.dp, 156.dp]`) so cards scale naturally across compact phones without blowing up on tablets and landscape screens. Compact edit headers protect control buttons with ellipsis truncation on narrow displays. Responsive category symbol picker adapts column count (3 or 4 cols) to modal width. Harmonized asset balances and balanced NAV asset/debt distributions across screen sizes.
+
+### Adaptive navigation (1.3.22)
+- Compact windows retain bottom navigation. Medium/expanded windows use a labeled scrollable navigation rail, and the four main feeds stay centered within840dp. Actual window constraints drive the layout, including split-screen resizing; editors continue to cover the full window.
+
+### Flexible money back (1.3.21)
+- Income → Money back supports optional original-expense links. The full received amount restores the receiving-period budget even when it exceeds the expense; standalone repayments are excluded from ordinary income too. History can link, unlink or convert these records. Backup format4 preserves standalone repayments and accepts older backups; older apps reject new backups.
+
+### Asset scroll work off the UI thread (1.3.12)
+- Account thumbnails and linked-app icons load on an IO dispatcher instead of blocking lazy-list composition. Linked-app availability uses the same asynchronous icon lookup. Real-device tracing identified expensive card precomposition; release performance improvement still needs a controlled before/after measurement.
+
+### Same-day repayment links and floating close (1.3.11)
+- Original expenses on the repayment’s local calendar day are selectable even when their recorded time is later. Picker, History editing and durable validation use the same day-based rule; unposted future expenses and excessive repayments remain blocked. Original receipt IDs/times are preserved. The expense-search dialog now has a floating Close action and safe list-bottom spacing instead of a dedicated footer.
+
+### Repayment expense date/search filters (1.3.10)
+- In Add Income or History repayment editing, search original expenses by description/category and select a calendar day (for example the 26th); clear the date to show all eligible days. Dates use local calendar days, independently of the record’s time. The bounded search-results viewport shares overflow-aware fade/blur with the account picker and respects the global blur preference. Results fade/reposition smoothly, with Reduced/Minimal motion support.
+
+### Account-picker edge blur (1.3.9)
+- The account-selection bottom sheet shared by Expense, Income and Transfer fades and progressively blurs overflowing list edges. Header/close/add controls stay sharp; reached edges clear automatically. The app blur preference is respected, with an alpha-fade fallback below Android 12. Expandable category/account panels retain their existing treatment.
+
+### Readable auto-logging app summary (1.3.8)
+- Settings → Smart logging gives the allowed-app title and enabled count their full width. App previews and the manage action sit on a separate horizontally scrollable row, keeping long labels readable in narrow drawers.
+
+### Buckwheat-inspired amount hierarchy (1.3.7)
+- Short transaction amounts use an expressive 80sp maximum with a smaller currency label. Long values adapt to the available width while a fixed input height keeps the following cards stable during focus changes. Native editing and Roboto Flex focus motion remain. See `docs/fonts/RobotoFlex.md` for the source reference and sizing details.
+
+### Taller focused amounts (1.3.6)
+- Focused transaction amounts use a slightly taller Roboto Flex figure-height endpoint (YTFI 788, previously 760). Resting figures, digit widths, field bounds and the currency label stay unchanged. Existing focus/blur motion and Reduced/Minimal preferences are preserved.
+
+### Edit repayments in History (1.3.5)
+- History → edit an Income record → Money back links that existing record to an original expense. Existing repayment rows now open the same editor for amount, receiving account, note or source changes. Turn Money back off to convert it to ordinary income. Saves update the same ID/date atomically, reverse old account effects and apply the replacement once; failed saves keep the draft open. The limit excludes the repayment being edited, and source expenses must be no later than the received date.
+
+### Roboto Flex amount emphasis (1.3.4)
+- Transaction entry uses bundled, offline Roboto Flex digits. Focusing the amount smoothly raises the figures and slightly strengthens their grade; Done/blur returns them to rest. Tabular advances and a fixed line box keep surrounding content stable, including the currency label. Reduced/Minimal motion is respected; Android 24/25 use a static Roboto Flex fallback. Font provenance and license are recorded in `docs/fonts/RobotoFlex.md`.
+
+### Stable entry transitions (1.3.3)
+- Money back is available through the Add Income switch; its separate Daily button and sheet were removed. Category visibility and repayment options now share bounded layout timing, with spacing included in the animated region. Category row/grid changes crossfade inside one clipped size transition, keeping the asset selector stable when animations finish.
+
+### Inline repayment switch (1.3.2)
+- In Add Income, turn on Money back in the amount/note panel. Linked expense selection and its remaining recoverable amount expand underneath with the app's motion settings. Use the same amount, receiving account, note and Save button; ordinary income categories are hidden while repayment is enabled. Turning it off keeps the draft and restores normal income entry. The separate Daily repayment shortcut remains available.
+
+### Repayments from Add Income (1.3.1)
+- Daily → Add → Income → Money back opens the linked repayment flow with the current amount (converted to HKD when available), receiving account and note. Cancel returns to the untouched income draft; successful repayment closes the entry page without creating ordinary income. The original Daily Money back shortcut remains available.
+
+### Money back and flexible subscriptions (1.3.0)
+- Daily → Money back links a partial/full repayment to its original expense, credits the receiving account/card and restores the budget on the received date. These records are distinct from income and retain their links in History and full backups. Expenses excluded from the daily budget remain excluded. Delete repayment records first before removing/changing the type of their original expense.
+- Subscriptions repeat every 1–999 days, weeks, months or years. Monthly estimates and calendar exports use the same interval as automatic charging; legacy subscriptions keep interval 1. Month-end advances clamp naturally, and calendar snapshots retain the existing re-export notice for explicit month-end occurrences.
 
 ### Neutral press ripples (1.2.102)
 - Informational card backgrounds use a neutral gray press ripple rather than inheriting a colored text/icon tint. Their tap haptics and corner morphs remain; pointer hover stays unhighlighted. Navigational controls retain their existing ripple colors.
@@ -508,7 +598,7 @@ VibeFinance is a modern, high-fidelity personal finance and daily budgeting Andr
 
 VibeFinance's interface and user experience are deeply influenced by two standout open-source projects:
 
-- **[Buckwheat](https://github.com/bndkt/buckwheat)**: The core personal budgeting philosophy—tracking daily spending limits, the dynamic period spend heatmap calendar, days-left indicators, and fluid bento-grid budget metrics—is heavily inspired by Buckwheat's thoughtful, stress-free approach to daily finances.
+- **[Buckwheat](https://github.com/danilkinkin/buckwheat)**: The core personal budgeting philosophy—tracking daily spending limits, the dynamic period spend heatmap calendar, days-left indicators, and fluid bento-grid budget metrics—is heavily inspired by Buckwheat's thoughtful, stress-free approach to daily finances.
 - **[ImageToolbox](https://github.com/T8RIN/ImageToolbox)**: The expressive Material 3 styling—including compact grouped settings cards with 10dp margins and 6dp gaps, right-docked navigation drawer, dynamic tonal color scheme palettes, and tactile rounded ripple animations—draws direct inspiration from ImageToolbox's modern Android design patterns.
 
 ---

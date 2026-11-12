@@ -134,6 +134,7 @@ private fun HistoryFilterControls(query: HistoryQuery, accounts: List<AccountEnt
                     FilterChip(query.kind == kind, { onChange(query.copy(kind = kind)) }, label = {
                         Text(stringResource(when (kind) {
                             HistoryKind.ALL -> R.string.history_filter_all; HistoryKind.EXPENSE -> R.string.history_kind_expense
+                            HistoryKind.REIMBURSEMENT -> R.string.reimbursement_title
                             HistoryKind.INCOME -> R.string.history_kind_income; HistoryKind.TRANSFER -> R.string.history_kind_transfer
                             HistoryKind.ADJUSTMENT -> R.string.history_kind_adjustment
                         }), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)

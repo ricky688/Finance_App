@@ -55,7 +55,14 @@ class MainActivity : ComponentActivity() {
     private val animationObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) { motionScale.update(this@MainActivity) }
     }
-    override fun onStop() { privacy.onBackground(); super.onStop() }
+    override fun onStart() {
+        super.onStart()
+        com.example.vibefinance.util.GoogleDriveSyncEngine.triggerAutoSync(this)
+    }
+    override fun onStop() {
+        privacy.onBackground()
+        super.onStop()
+    }
     override fun onDestroy() {
         privacy.destroy()
         com.example.vibefinance.util.CoordinatedPreferences.get(this, "vibe_finance_prefs")
@@ -90,12 +97,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         com.example.vibefinance.data.InMemoryDatabase.initialize(this)
+        com.example.vibefinance.util.GoogleDriveSyncEngine.initialize(this)
 
-        // Request POST_NOTIFICATIONS runtime permission on Android 13+ (API 33+)
+        // Request POST_NOTIFICATIONS and Location runtime permissions if not granted
+        val neededPermissions = mutableListOf<String>()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+                neededPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            neededPermissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            neededPermissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (neededPermissions.isNotEmpty()) {
+            requestPermissions(neededPermissions.toTypedArray(), 101)
         }
 
         // Schedule CC payment deadlines background checks every 24 hours
@@ -228,6 +245,11 @@ class MainActivity : ComponentActivity() {
             viewModel.requestPaymentCategory(requireNotNull(paymentId))
             com.example.vibefinance.service.PaymentLoggingNotification.cancel(this, paymentId)
             intent?.removeExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_EDIT_PAYMENT)
+        }
+        val decidePaymentId = intent?.getStringExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_DECIDE_PAYMENT)
+        if (com.example.vibefinance.service.PaymentLoggingNotification.isValidPaymentId(decidePaymentId.orEmpty())) {
+            com.example.vibefinance.service.PaymentLoggingNotification.cancel(this, decidePaymentId!!)
+            intent?.removeExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_DECIDE_PAYMENT)
         }
         val targetTabStr = intent?.getStringExtra("navigate_tab")
         if (targetTabStr != null) {

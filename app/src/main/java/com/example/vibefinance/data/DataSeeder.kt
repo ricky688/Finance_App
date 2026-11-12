@@ -86,11 +86,14 @@ class DataSeeder @Inject constructor(
         // Tx 1: Starbucks Coffee (Expense on Cash)
         transactionRepository.insertTransaction(
             TransactionEntity(
-                amount = 6.50,
+                amount = 45.00,
                 category = "Food & Drink",
                 timestamp = nowMilli - (2 * 60 * 60 * 1000L), // 2 hours ago
                 accountId = cashId,
-                description = "Starbucks Coffee"
+                description = "Starbucks Coffee (Central)",
+                latitude = 22.2819,
+                longitude = 114.1582,
+                locationName = "Starbucks, Central, Hong Kong"
             )
         )
 
@@ -112,7 +115,10 @@ class DataSeeder @Inject constructor(
                 category = "Groceries",
                 timestamp = twoDaysAgoMilli,
                 accountId = ccId,
-                description = "Target Supercenter"
+                description = "Don Don Donki (Mong Kok)",
+                latitude = 22.3193,
+                longitude = 114.1694,
+                locationName = "Mong Kok, Kowloon"
             )
         )
 

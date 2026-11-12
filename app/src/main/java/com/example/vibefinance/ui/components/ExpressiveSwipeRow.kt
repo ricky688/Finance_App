@@ -59,6 +59,7 @@ fun ExpressiveSwipeRow(
     modifier: Modifier = Modifier,
     selectionMode: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -215,7 +216,7 @@ fun ExpressiveSwipeRow(
                     indication = null,
                     hapticFeedbackEnabled = false,
                     onLongClick = onLongClick,
-                    onClick = { onEdit() }
+                    onClick = { (onClick ?: onEdit)() }
                 ),
             shape = shape,
             color = MaterialTheme.colorScheme.surfaceContainer,

@@ -22,8 +22,8 @@ android {
         applicationId = "com.ricky688.vibefinance"
         minSdk = 24
         targetSdk = 36
-        versionCode = 140
-        versionName = "1.2.102"
+        versionCode = 193
+        versionName = "1.4.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
@@ -87,6 +87,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":wear-contract"))
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
@@ -105,6 +108,8 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.compose.material3)
+  implementation("androidx.compose.material3.adaptive:adaptive-navigation3:1.3.0-alpha05")
+  implementation("androidx.compose.material3:material3-window-size-class")
   implementation("com.google.android.material:material:1.10.0") // Material color utilities for seed palettes
   implementation("dev.chrisbanes.haze:haze:1.7.2")
   // Tooling
@@ -150,6 +155,9 @@ dependencies {
 
   // Google Maps SDK & Compose
   implementation("com.google.android.gms:play-services-maps:19.0.0")
+  implementation("com.google.android.gms:play-services-auth:21.3.0")
   implementation("com.google.maps.android:maps-compose:4.4.1")
 
+  // OpenStreetMap (OSM)
+  implementation("org.maplibre.gl:android-sdk:13.7.1")
 }

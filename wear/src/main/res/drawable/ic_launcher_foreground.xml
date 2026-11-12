@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ambient Shadow under emblem -->
+    <path
+        android:pathData="M 33,37 L 43,37 L 54,67 L 65,37 L 75,37 L 54,79 Z"
+        android:fillColor="#33000000" />
+
+    <!-- Stylized Geometric 'V' Lettermark -->
+    <path
+        android:pathData="M 32,35 L 41,35 L 54,65 L 67,35 L 76,35 L 54,77 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="32"
+                android:startY="35"
+                android:endX="76"
+                android:endY="77"
+                android:type="linear">
+                <item android:color="#FF34D399" android:offset="0.0" />
+                <item android:color="#FF059669" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Upward Growth Sparkline Overlay -->
+    <path
+        android:pathData="M 30,59 L 43,45 L 51,53 L 65,37"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="30"
+                android:startY="59"
+                android:endX="65"
+                android:endY="37"
+                android:type="linear">
+                <item android:color="#FF6EE7B7" android:offset="0.0" />
+                <item android:color="#FF10B981" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Glowing Coin / Capital Node -->
+    <path
+        android:pathData="M 69,33 A 7.5,7.5 0 1,1 68.9,33 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="61.5"
+                android:startY="25.5"
+                android:endX="76.5"
+                android:endY="40.5"
+                android:type="linear">
+                <item android:color="#FFA7F3D0" android:offset="0.0" />
+                <item android:color="#FF10B981" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M 69,33 A 3.5,3.5 0 1,1 68.9,33 Z"
+        android:fillColor="#FF064E3B" />
+</vector>

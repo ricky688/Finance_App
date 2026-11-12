@@ -4,6 +4,56 @@ This document details all recent features, architectural changes, modified files
 
 ---
 
+### 2026-11-12 — v1.4.3 (193): Official Google Play App Bundle (AAB), Release Notes & GitHub Release
+- **Release Build Artifacts**:
+  - Generated and signed official Google Play Store App Bundle: [`VibeFinance-1.4.3-193-release.aab`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.3-193-release.aab) (29,471,122 bytes, SHA-256: `22bdce1ab16912f4d6c63dd13ddf65fc3ae6c71ea436f463170dac646cd70d10`).
+  - Generated R8 de-obfuscation and crash reporting mapping archive: [`VibeFinance-1.4.3-193-release-mapping.zip`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.3-193-release-mapping.zip) (17.4 MiB).
+  - Authored Google Play Store release notes ([`releases/VibeFinance-1.4.3-193-play-store-notes.txt`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.3-193-play-store-notes.txt)) in English (`en-US`), Traditional Chinese (`zh-HK`), and Traditional Chinese (`zh-TW`), adhering to the Play Console 500-character per language quota.
+  - Updated comprehensive release notes in [`releases/VibeFinance-1.4.3-193-notes.md`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.3-193-notes.md).
+- **Core Release Features (v1.4.3 / 193)**:
+  - DaysLeftCard 1% Notch Guarantee for 100% days left countdown.
+  - Material 3 Expressive Adaptive Architecture: 88dp Navigation Rail Hub, 420dp Modal Side Sheet for Add Expense on large screens, List-Detail dual-pane navigation for Subscriptions, and Context-Aware FAB.
+  - Mox Bank & virtual card cashback/rebate transaction notification interception without false rejection.
+  - Hard Overrides R1–R5: 1:1 DaysLeftCard aspect ratio, -$... single text flow with TextMeasurer scaling, 724dp dynamic threshold with FoldingFeature hinge avoidance, 48dp touch targets, and protected back navigation.
+  - Wear OS companion module (`:wear`, `:wear-contract`) synchronization support.
+- **Git & GitHub Integration**:
+  - Tagged `v1.4.3` and pushed commits and tags to GitHub repository `git@github.com:ricky688/Finance_App.git`.
+
+---
+
+### 2026-11-09 — Mox Bank Cashback & Rebate Notification Interception Fix (修復 Mox 信用卡現金回贈交易通知攔截)
+- **Problem Solved**:
+  - Addressed user feedback regarding Mox Bank transaction notification interception failure:
+    - Notification Title: `交易已完成並可賺取現金回贈！`
+    - Notification Body: `😍\n你已在GOOGLE消費HKD40.78，可獲1% CashBack！如懷疑電28888228`
+    - Target: Correctly extract merchant `GOOGLE`, amount `HKD 40.78` (`EXPENSE`), assign category `Entertainment`, attribute to `MOX card` / `Mox Bank`, and prompt notification decision/logging.
+- **Root Cause Analysis**:
+  1. **Strict Reversal Veto over Cashback Mentions**: In [`PaymentNotificationListener.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/service/PaymentNotificationListener.kt), `nonExpenseEnglish` and `nonExpenseChinese` unconditionally matched `"cashback"`, `"rebate"`, `"回贈"`, and `"返現"`. Virtual banks and cards (Mox, ZA Bank, HSBC Red, Hang Seng enJoy) almost always append reward perk clauses (e.g., `可獲1% CashBack`, `可賺取現金回贈`), causing valid expense transactions to be unconditionally rejected.
+  2. **Eager Multi-Amount Check**: In `parseNotification()`, an eager check (`amounts.size > 1`) was rejecting notifications containing secondary numbers (such as customer service hotline `28888228` or reward percentage `1%`) before `TransactionGrammarEngine.parse()` could resolve the spending context.
+  3. **Account Matching Disambiguation**: In [`PendingPaymentStore.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/service/PendingPaymentStore.kt), when matching Mox accounts for expenses (`!isTransferOrIncome`), credit cards (e.g. `MOX card`) were not preferentially selected over deposit accounts.
+  4. **Decision Notification Prompt**: In `queuePayment()`, when `rememberedAccount == null`, the interactive decision notification was not being presented.
+- **Architectural Enhancements**:
+  1. **Contextual Cashback Detection (`PaymentNotificationListener.kt`)**:
+     - Separated true reversals (`nonExpenseReversalEnglish`, `nonExpenseReversalChinese`) from `cashbackKeywords` (`"cashback"`, `"rebate"`, `"回贈"`, `"回赠"`, `"返現"`, `"返现"`).
+     - If cashback keywords are present, evaluated active spending verbs (`消費`, `支出`, `扣款`, `交易已完成`, `完成交易`, `付款`, `支付`, `簽賬`, or `TransactionGrammarEngine` intent `EXPENSE`). Active spending transactions are permitted, while standalone reward payouts without spending (e.g., `現金回贈已存入`, `CashBack credited`) continue to be excluded from being recorded as expenses.
+     - Added `交易已完成`, `完成交易`, `交易成功`, `成功完成交易`, `簽賬`, `簽帳` to positive spend indicators.
+  2. **Grammar Engine Precedence (`PaymentNotificationListener.kt`, `TransactionGrammarEngine.kt`)**:
+     - Evaluated `TransactionGrammarEngine.parse()` before the multi-amount rejection guard and included `isGrammarIdentified` in `spendIdentified`, ensuring semantic preposition matches (`在...消費`) are never discarded by hotlines or percentages.
+     - Added `(?:在|於)\s*([^，,。\n]+?)\s*(?:的)?(?:消費|支出|付款|扣款|成功支付|完成交易|刷卡|簽[賬帳])` to Chinese anchor patterns.
+     - Added `簽[賬帳]`, `完成交易` to `expensePatterns`.
+  3. **Mox Card Account Selection (`PendingPaymentStore.kt`)**:
+     - Configured `findMatchingAccount` for Mox accounts to prioritize `AccountType.CC` or accounts named `*card*` (such as `MOX card`) for expense transactions.
+  4. **Immediate Decision Notification (`PaymentNotificationListener.kt`)**:
+     - Dispatched `PaymentLoggingNotification.showDecision(context, queued, matchedAccount)` for unremembered expenses, allowing one-tap logging directly from the notification shade.
+- **Verification & Test Coverage**:
+  - Unit tests added and passed 100%:
+    - `PaymentNotificationListenerTest`: `moxCardPurchaseWithCashbackPerkParsesCorrectly`, `purchaseAlertsWithCashbackAndRebateAreNotRejected`, `standaloneCashbackDepositsWithoutSpendingAreNotExpenses`.
+    - `TransactionGrammarEngineTest`: `parseMoxCardPurchaseWithCashbackSample`, `parseMoxDirectPaymentTransferSample`.
+  - Full suite `./gradlew :app:testDebugUnitTest --rerun-tasks` executed and passed 100% (30/30 tasks green).
+  - Graphify knowledge graph updated via `graphify update .`.
+
+---
+
 ### 2026-10-22 — v1.2.102 (140): Neutral gray press ripples
 - Informational cards using expressiveCardClickable with hoverEnabled=false now default to Color.Gray for their bounded native press ripple instead of inheriting LocalContentColor. Explicit ripple overrides and navigational card colors remain unchanged. Haptics, shape morphs, cancellation/focus feedback and no-hover filtering remain intact; no layout, data or preference changes.
 - ARTEMIS observed the selected Waydroid before authoring light/dark pixel fixtures. Fixtures deliberately provide red content color and compare rendered held-press RGB against a plain native gray ripple on light/dark surfaces. Native control calibrated Waydroid's very faint (sometimes one 8-bit step) ripple output without inventing a stronger opacity; red-tinted or absent feedback fails the checks. Existing hover comparisons now allow one channel quantization step after native ripple blending, while still waiting for release to settle. **392 unit tests remain passing** with zero failures/errors/skips; debug and AndroidTest builds passed. All **21 Waydroid regressions passed** (25.97s): two native-calibrated gray-ripple tests, six Daily card interaction tests, two mouse/button tests and eleven press-shape variants. Installed **1.2.102 / 140** debug in place with data retained. Physical Samsung/DeX ripple appearance and vibration strength remain unchecked. README/code graph refreshed and final diff checked. No release artifact or device scaling changes.

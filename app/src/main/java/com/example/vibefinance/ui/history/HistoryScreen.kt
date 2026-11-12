@@ -29,6 +29,10 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.selected
 import com.example.vibefinance.ui.common.verticalFadingEdge
 import com.example.vibefinance.ui.preferences.LocalExperience
@@ -129,6 +133,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,7 +182,8 @@ fun HistoryScreen(
     onAddTransaction: (() -> Unit)? = null,
     batchResult: com.example.vibefinance.ui.BatchTransactionResult? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset }
+    bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset },
+    editResult: (() -> com.example.vibefinance.ui.BatchTransactionResult?)? = null
 ) {
     var multiSelect by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val motion = LocalExperience.current.motion
@@ -272,14 +279,17 @@ fun HistoryScreen(
         Instant.ofEpochMilli(activePeriodEnd).atZone(zone).toLocalDate()
             .plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
     } else 0L
-    var analyticsPeriodMode by remember(activePeriodStart, activePeriodEnd) {
+    var analyticsPeriodMode by androidx.compose.runtime.saveable.rememberSaveable(activePeriodStart, activePeriodEnd) {
         mutableStateOf(
             if (categoryFilter != null) CategoryAnalyticsPeriodMode.ALL_TIME
             else if (hasBudgetPeriod) CategoryAnalyticsPeriodMode.BUDGET_PERIOD
             else CategoryAnalyticsPeriodMode.MONTH
         )
     }
-    var analyticsMonth by remember { mutableStateOf(YearMonth.now(zone)) }
+    var analyticsMonth by androidx.compose.runtime.saveable.rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.Saver<YearMonth, String>(
+            save = { it.toString() }, restore = { YearMonth.parse(it) })
+    ) { mutableStateOf(YearMonth.now(zone)) }
     val effectiveAnalyticsMode = if (!hasBudgetPeriod && analyticsPeriodMode == CategoryAnalyticsPeriodMode.BUDGET_PERIOD) {
         CategoryAnalyticsPeriodMode.MONTH
     } else analyticsPeriodMode
@@ -419,6 +429,7 @@ fun HistoryScreen(
     }
 
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+    var viewingDetailTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var viewingAdjustment by remember { mutableStateOf<TransactionEntity?>(null) }
     var editAmountText by remember { mutableStateOf("") }
     var editCategoryText by remember { mutableStateOf("") }
@@ -428,19 +439,32 @@ fun HistoryScreen(
     var editSourceAccountId by remember { mutableStateOf<Long?>(null) }
     var editDestinationAccountId by remember { mutableStateOf<Long?>(null) }
     var editIsDailyBudget by remember { mutableStateOf(true) }
+    var editRepayment by remember { mutableStateOf(false) }
+    var editRepaymentExpenseId by remember { mutableLongStateOf(0L) }
+    var editRequestId by remember { mutableStateOf("") }
+    var editSubmitting by remember { mutableStateOf(false) }
+    val editOperation = editResult?.invoke()?.takeIf { it.requestId == editRequestId }
+    val editBusy = editSubmitting || editOperation?.processing == true
+    LaunchedEffect(editOperation) {
+        if (editOperation != null) {
+            editSubmitting = editOperation.processing
+            if (!editOperation.processing && editOperation.success) editingTransaction = null
+        }
+    }
 
     // Predictive back for editing transaction modal
-    androidx.activity.compose.PredictiveBackHandler(enabled = editingTransaction != null || viewingAdjustment != null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = editingTransaction != null || viewingAdjustment != null || viewingDetailTransaction != null) { progressFlow ->
         try {
             progressFlow.collect { }
-            editingTransaction = null
+            if (!editBusy) editingTransaction = null
             viewingAdjustment = null
+            viewingDetailTransaction = null
         } catch (e: kotlinx.coroutines.CancellationException) {
         }
     }
 
     // Predictive back for active category filter
-    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && selectedCategoryFilter != null && editingTransaction == null && viewingAdjustment == null && viewingDetailTransaction == null) { progressFlow ->
         try {
             progressFlow.collect { }
             selectedCategoryFilter = null
@@ -449,7 +473,7 @@ fun HistoryScreen(
         }
     }
 
-    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && !showSearch && !showFilters && accountFilterId != null && selectedCategoryFilter == null && editingTransaction == null && viewingAdjustment == null && viewingDetailTransaction == null) { progressFlow ->
         try {
             progressFlow.collect { }
             onClearAccountFilter()
@@ -458,13 +482,13 @@ fun HistoryScreen(
     }
 
 
-    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && showSearch && !showFilters && editingTransaction == null && viewingAdjustment == null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = !multiSelect && showSearch && !showFilters && editingTransaction == null && viewingAdjustment == null && viewingDetailTransaction == null) { progressFlow ->
         try { progressFlow.collect { }; focusManager.clearFocus(); keyboard?.hide(); showSearch = false }
         catch (_: kotlinx.coroutines.CancellationException) { }
     }
 
     val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-    androidx.activity.compose.PredictiveBackHandler(enabled = multiSelect && batchPicker == null && editingTransaction == null && viewingAdjustment == null && !showFilters && !imeOpen) { flow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = multiSelect && batchPicker == null && editingTransaction == null && viewingAdjustment == null && viewingDetailTransaction == null && !showFilters && !imeOpen) { flow ->
         try { flow.collect { }; if (!batchBusy) { multiSelect = false; selectionArray = longArrayOf() } }
         catch (_: kotlinx.coroutines.CancellationException) { }
     }
@@ -483,8 +507,39 @@ fun HistoryScreen(
     LaunchedEffect(visibleIds, multiSelect) {
         if (multiSelect && !batchBusy) selectionArray = selectedIds.intersect(visibleIds).toLongArray()
     }
+    val useInspector = (com.example.vibefinance.ui.main.LocalMainWindowWidth.current
+        ?: LocalConfiguration.current.screenWidthDp.dp) >= 600.dp
+    var inspectedTransactionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
+    var inspectDelete by remember { mutableStateOf<TransactionEntity?>(null) }
+    LaunchedEffect(transactionsList, state.isLoading) {
+        if (!state.isLoading && transactionsList.none { it.id == inspectedTransactionId }) inspectedTransactionId = null
+    }
+    fun beginTransactionEdit(tx: TransactionEntity) {
+                                            if (tx.isBalanceAdjustment) {
+                                                viewingAdjustment = tx
+                                            } else {
+                                                editingTransaction = tx
+                                                editRequestId = java.util.UUID.randomUUID().toString()
+                                                editSubmitting = false
+                                                editRepayment = tx.isReimbursement
+                                                editRepaymentExpenseId = tx.reimbursementOf ?: 0L
+                                                editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
+                                                editCategoryText = tx.category
+                                                editDescriptionText = tx.description
+                                                editCustomIcon = tx.customIcon
+                                                editType = when {
+                                                    tx.toAccountId != null -> HistoryTransactionType.Transfer
+                                                    tx.amount < 0 -> HistoryTransactionType.Income
+                                                    else -> HistoryTransactionType.Expense
+                                                }
+                                                editSourceAccountId = tx.accountId
+                                                editDestinationAccountId = tx.toAccountId
+                                                editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
+                                            }
+    }
+    val historyList: @Composable () -> Unit = {
     ContentEntranceViewport(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         topVisibilityInset = topVisibilityInset,
         bottomVisibilityInset = bottomVisibilityInset,
         bottomVisibilityInsetProvider = bottomVisibilityInsetProvider,
@@ -504,7 +559,7 @@ fun HistoryScreen(
                     Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp).testTag("HistorySelectionDock")) {
                     if (batchPicker == null && batchError != null) Text(batchError, color = MaterialTheme.colorScheme.error)
                     val records = transactionsList.filter { it.id in selectedIds }
-                    val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment }
+                    val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment && !it.isReimbursement }
                     HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy || !multiSelect,
                         canCategory = ordinary && (records.all { it.amount > 0 } || records.all { it.amount < 0 }), canAccount = ordinary,
                         onClose = { multiSelect = false; selectionArray = longArrayOf() },
@@ -758,29 +813,27 @@ fun HistoryScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .testTag("TransactionRow_${tx.id}")
-                                            .semantics { if (multiSelect) selected = tx.id in selectedIds },
+                                            .semantics { if (multiSelect) selected = tx.id in selectedIds else if (useInspector) selected = inspectedTransactionId == tx.id }
+                                            .background(if (useInspector && inspectedTransactionId == tx.id) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, itemShape),
                                         shape = itemShape,
                                         selectionMode = multiSelect,
                                         onLongClick = { if (!batchBusy) { multiSelect = true; selectionArray = (selectedIds + tx.id).toLongArray(); com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) } },
                                         onEdit = edit@{
                                             if (multiSelect) { toggleSelected(tx.id); return@edit }
                                             com.example.vibefinance.util.VibeHaptics.selection(view)
-                                            if (tx.isBalanceAdjustment) {
-                                                viewingAdjustment = tx
+                                            if (useInspector) inspectedTransactionId = tx.id else beginTransactionEdit(tx)
+                                        },
+                                        onClick = {
+                                            if (multiSelect) { toggleSelected(tx.id); return@ExpressiveSwipeRow }
+                                            com.example.vibefinance.util.VibeHaptics.selection(view)
+                                            if (useInspector) {
+                                                inspectedTransactionId = tx.id
                                             } else {
-                                                editingTransaction = tx
-                                                editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
-                                                editCategoryText = tx.category
-                                                editDescriptionText = tx.description
-                                                editCustomIcon = tx.customIcon
-                                                editType = when {
-                                                    tx.toAccountId != null -> HistoryTransactionType.Transfer
-                                                    tx.amount < 0 -> HistoryTransactionType.Income
-                                                    else -> HistoryTransactionType.Expense
+                                                if (tx.isBalanceAdjustment) {
+                                                    viewingAdjustment = tx
+                                                } else {
+                                                    viewingDetailTransaction = tx
                                                 }
-                                                editSourceAccountId = tx.accountId
-                                                editDestinationAccountId = tx.toAccountId
-                                                editIsDailyBudget = tx.amount < 0 || !tx.isExcludedFromDailyBudget
                                             }
                                         },
                                         onDelete = { transitionState.targetState = false }
@@ -826,7 +879,7 @@ fun HistoryScreen(
                                                             )
                                                         } else {
                                                             com.example.vibefinance.ui.components.ExpenseEventIcon(
-                                                                customIcon = tx.customIcon.takeIf { tx.amount > 0 && tx.toAccountId == null },
+                                                                customIcon = if (tx.isReimbursement) "icon:reimbursement" else tx.customIcon.takeIf { tx.amount > 0 && tx.toAccountId == null },
                                                                 category = tx.category,
                                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                                                 modifier = Modifier.size(22.dp)
@@ -843,6 +896,7 @@ fun HistoryScreen(
                                                     val titleText = when {
                                                         tx.isBalanceAdjustment -> strBalanceAdjustment
                                                         tx.description.isNotBlank() -> tx.description
+                                                        tx.isReimbursement -> stringResource(R.string.reimbursement_title)
                                                         else -> com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                                     }
                                                     Row(
@@ -876,7 +930,7 @@ fun HistoryScreen(
                                                     }
 
                                                     val cardName = sourceAccount?.displayLabel() ?: strFallbackCash
-                                                    val categoryName = com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
+                                                    val categoryName = (if (tx.isReimbursement) stringResource(R.string.reimbursement_title) + " · " else "") + com.example.vibefinance.ui.home.getCategoryDisplayName(tx.category)
                                                     val cardSubtitle = when {
                                                         tx.isBalanceAdjustment -> cardName
                                                         isTransfer -> "${sourceAccount?.displayLabel() ?: strFallbackAccount} ➔ ${destAccount?.displayLabel() ?: strFallbackAccount}"
@@ -1002,6 +1056,27 @@ fun HistoryScreen(
         }
         }
     }
+    }
+    if (useInspector) {
+        com.example.vibefinance.ui.main.AdaptiveRecordScene(inspectedTransactionId,
+            { inspectedTransactionId = null }, modifier, historyList) { id ->
+            state.transactions.firstOrNull { it.id == id }?.let { tx ->
+                TransactionInspection(tx, state.hideAmounts, topContentPadding,
+                    onEdit = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx) },
+                    onMoneyBack = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true },
+                    onUnlink = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true; editRepaymentExpenseId = 0L },
+                    onDelete = { com.example.vibefinance.util.VibeHaptics.warningAlert(view); inspectDelete = tx })
+            }
+        }
+    } else Box(modifier) { historyList() }
+    inspectDelete?.let { tx ->
+        AlertDialog(onDismissRequest = { inspectDelete = null },
+            title = { Text(stringResource(R.string.btn_delete)) },
+            text = { Text(tx.description.ifBlank { tx.category }) },
+            confirmButton = { TextButton(onClick = { onIntent(FinanceIntent.DeleteTransaction(tx)); inspectDelete = null }) { Text(stringResource(R.string.btn_delete)) } },
+            dismissButton = { TextButton(onClick = { inspectDelete = null }) { Text(stringResource(R.string.btn_cancel)) } })
+    }
+
 
     if (showFilters) {
         HistoryFilterSheet(searchQuery, state.accounts, state.transactions.map { it.category }.distinct().sorted(),
@@ -1024,6 +1099,21 @@ fun HistoryScreen(
         val canChangeType = !tx.isBalanceAdjustment
         val editIsIncome = editType == HistoryTransactionType.Income
         val editIsTransfer = editType == HistoryTransactionType.Transfer
+        val editIsRepayment = editIsIncome && editRepayment
+        val repaymentRecords = remember(state.transactions, tx.id) { state.transactions.filterNot { it.id == tx.id } }
+        val repaymentExpense = repaymentRecords.firstOrNull { it.id == editRepaymentExpenseId &&
+            com.example.vibefinance.util.Reimbursements.isExpense(it) && it.timestamp <= System.currentTimeMillis() &&
+            com.example.vibefinance.util.Reimbursements.expenseOnOrBeforeDay(it.timestamp, tx.timestamp) }
+        val repaymentAmount = editAmountText.toBigDecimalOrNull()?.stripTrailingZeros()
+        val validRepayment = !editIsRepayment || (tx.timestamp <= System.currentTimeMillis() && (editRepaymentExpenseId == 0L || repaymentExpense != null) &&
+            repaymentAmount != null && repaymentAmount > java.math.BigDecimal.ZERO && repaymentAmount.scale() <= 2 &&
+            state.accounts.any { it.id == (editSourceAccountId ?: tx.accountId) && it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT })
+        val repaymentEnter = if (motion == MotionLevel.MINIMAL) EnterTransition.None else
+            androidx.compose.animation.fadeIn(com.example.vibefinance.theme.MotionTokens.emphasized(160)) +
+                expandVertically(animationSpec = com.example.vibefinance.theme.MotionTokens.emphasized(240))
+        val repaymentExit = if (motion == MotionLevel.MINIMAL) ExitTransition.None else
+            androidx.compose.animation.fadeOut(com.example.vibefinance.theme.MotionTokens.emphasized(100)) +
+                androidx.compose.animation.shrinkVertically(animationSpec = com.example.vibefinance.theme.MotionTokens.emphasized(240))
         val validAccounts = if (editIsTransfer) {
             state.accounts.any { it.id == editSourceAccountId } &&
                 state.accounts.any { it.id == editDestinationAccountId } &&
@@ -1040,7 +1130,7 @@ fun HistoryScreen(
         )
 
         AlertDialog(
-            onDismissRequest = { editingTransaction = null },
+            onDismissRequest = { if (!editBusy) editingTransaction = null },
             title = {
                 Text(
                     text = stringResource(R.string.edit_transaction_title),
@@ -1062,6 +1152,7 @@ fun HistoryScreen(
                         )
                         HistoryTransactionTypeSelector(
                             type = editType,
+                            enabled = !editBusy,
                             onTypeSelected = { selectedType ->
                                 if (editType == HistoryTransactionType.Transfer &&
                                     selectedType != HistoryTransactionType.Transfer && editCategoryText == "Transfer") {
@@ -1076,6 +1167,7 @@ fun HistoryScreen(
                             androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
 
                         value = editAmountText,
+                        enabled = !editBusy,
                         onValueChange = { editAmountText = it },
                         label = { Text(stringResource(R.string.edit_amount_label) + " (HK$)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -1087,6 +1179,7 @@ fun HistoryScreen(
                         HistoryAccountDropdown(
                             accountId = editSourceAccountId,
                             accounts = state.accounts,
+                            enabled = !editBusy,
                             label = stringResource(R.string.transfer_from),
                             tag = "EditTransactionSource",
                             onAccountSelected = {
@@ -1097,6 +1190,7 @@ fun HistoryScreen(
                         HistoryAccountDropdown(
                             accountId = editDestinationAccountId,
                             accounts = state.accounts.filter { it.id != editSourceAccountId },
+                            enabled = !editBusy,
                             label = stringResource(R.string.transfer_to),
                             tag = "EditTransactionDestination",
                             onAccountSelected = { editDestinationAccountId = it }
@@ -1111,7 +1205,8 @@ fun HistoryScreen(
                     } else {
                         HistoryAccountDropdown(
                             accountId = editSourceAccountId,
-                            accounts = state.accounts,
+                            accounts = state.accounts.filter { !editIsRepayment || it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT },
+                            enabled = !editBusy,
                             label = stringResource(
                                 if (editIsIncome) R.string.edit_account_income_label
                                 else R.string.edit_account_expense_label
@@ -1119,23 +1214,59 @@ fun HistoryScreen(
                             tag = "EditTransactionAccount",
                             onAccountSelected = { editSourceAccountId = it }
                         )
-                        if (canChangeType) {
-                            HistoryCategoryDropdown(
-                                category = editCategoryText,
-                                isIncome = editIsIncome,
-                                transactions = state.transactions,
-                                categoryMergeRules = state.categoryMergeRules,
-                                onCategorySelected = { editCategoryText = it }
-                            )
-                        } else {
-                            OutlinedTextField(
-                                value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text(stringResource(R.string.edit_category_label)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("EditTransactionCategory")
-                            )
+                        Column(Modifier.fillMaxWidth()) {
+                            if (editIsIncome) {
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                                    .toggleable(value = editRepayment, enabled = !editBusy,
+                                        role = androidx.compose.ui.semantics.Role.Switch,
+                                        onValueChange = {
+                                            editRepayment = it
+                                            if (!it && tx.isReimbursement && editCategoryText == tx.category) editCategoryText = "Salary"
+                                            com.example.vibefinance.util.VibeHaptics.selection(view)
+                                        }).padding(12.dp).testTag("EditTransactionReimbursement"),
+                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(stringResource(R.string.reimbursement_title), style = MaterialTheme.typography.titleSmall)
+                                        Text(stringResource(R.string.income_reimbursement_hint), style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    AppSwitch(checked = editRepayment, enabled = !editBusy,
+                                        onCheckedChange = {
+                                            editRepayment = it
+                                            if (!it && tx.isReimbursement && editCategoryText == tx.category) editCategoryText = "Salary"
+                                        }, modifier = Modifier.clearAndSetSemantics { })
+                                }
+                                AnimatedVisibility(visible = editIsRepayment, enter = repaymentEnter, exit = repaymentExit) {
+                                    Column(Modifier.fillMaxWidth().padding(top = 12.dp).testTag("EditTransactionReimbursementOptions"),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        com.example.vibefinance.ui.main.ReimbursementExpenseSelector(repaymentRecords, editRepaymentExpenseId,
+                                            enabled = !editBusy, latestExpenseTimestamp = tx.timestamp,
+                                            onClear = { editRepaymentExpenseId = 0L }, onSelect = { editRepaymentExpenseId = it.id })
+                                        Text(stringResource(R.string.history_reimbursement_date_hint,
+                                            java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM,
+                                                LocalContext.current.resources.configuration.locales[0]).format(java.util.Date(tx.timestamp))),
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        if (tx.timestamp > System.currentTimeMillis()) Text(stringResource(R.string.reimbursement_not_received),
+                                            color = MaterialTheme.colorScheme.error)
+                                        if (repaymentExpense?.isExcludedFromDailyBudget == true) Text(stringResource(R.string.reimbursement_excluded_hint))
+                                    }
+                                }
+                            }
+                            AnimatedVisibility(visible = !editIsRepayment, enter = repaymentEnter, exit = repaymentExit) {
+                                Column(Modifier.fillMaxWidth().padding(top = if (editIsIncome) 12.dp else 0.dp)) {
+                                    if (canChangeType) {
+                                        HistoryCategoryDropdown(
+                                            category = editCategoryText, isIncome = editIsIncome,
+                                            transactions = state.transactions, categoryMergeRules = state.categoryMergeRules,
+                                            onCategorySelected = { if (!editBusy) editCategoryText = it }
+                                        )
+                                    } else {
+                                        OutlinedTextField(value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
+                                            onValueChange = {}, readOnly = true, label = { Text(stringResource(R.string.edit_category_label)) },
+                                            singleLine = true, modifier = Modifier.fillMaxWidth().testTag("EditTransactionCategory"))
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -1147,10 +1278,14 @@ fun HistoryScreen(
 
                     OutlinedTextField(
                         value = editDescriptionText,
+                        enabled = !editBusy,
                         onValueChange = { editDescriptionText = it },
                         label = { Text(stringResource(R.string.edit_description_label)) },
                         modifier = Modifier.fillMaxWidth().testTag("EditTransactionDescription")
                     )
+
+                    editOperation?.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.testTag("EditTransactionError")) }
 
                     // Daily Budget Toggle for Expenses
                     if (canChangeType && editType == HistoryTransactionType.Expense) {
@@ -1158,7 +1293,7 @@ fun HistoryScreen(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
+                                .clickable(enabled = !editBusy) {
                                     editIsDailyBudget = !editIsDailyBudget
                                     editHaptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 },
@@ -1193,6 +1328,7 @@ fun HistoryScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 AppSwitch(
                                     checked = editIsDailyBudget,
+                                    enabled = !editBusy,
                                     onCheckedChange = { editIsDailyBudget = it },
                                     modifier = Modifier.testTag("EditTransactionDailyBudget")
                                 )
@@ -1208,7 +1344,7 @@ fun HistoryScreen(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         val amount = editedMagnitude
-                        if (amount != null && validAccounts) {
+                        if (amount != null && validAccounts && validRepayment && !editBusy) {
                             val newTx = tx.withHistoryEdit(
                                 magnitude = amount,
                                 isIncome = editIsIncome,
@@ -1222,26 +1358,32 @@ fun HistoryScreen(
                                 } else {
                                     editSourceAccountId ?: tx.accountId
                                 },
-                                destinationAccountId = if (editIsTransfer) editDestinationAccountId else null
+                                destinationAccountId = if (editIsTransfer) editDestinationAccountId else null,
+                                repaymentExpense = if (editIsRepayment) repaymentExpense else null,
+                                unlinkedRepayment = editIsRepayment && repaymentExpense == null
                             )
-                            onIntent(FinanceIntent.EditTransaction(tx, newTx))
-                            editingTransaction = null
+                            editSubmitting = editResult != null
+                            onIntent(FinanceIntent.EditTransaction(tx, newTx, editRequestId,
+                                if (editIsRepayment) repaymentExpense else null))
+                            if (editResult == null) editingTransaction = null
                         }
                     },
-                    enabled = editedMagnitude != null && validAccounts,
+                    enabled = !editBusy && editedMagnitude != null && validAccounts && validRepayment,
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     interactionSource = confirmInteraction,
                     modifier = Modifier
                         .testTag("EditTransactionSave")
                         .pressBounce(interactionSource = confirmInteraction)
                 ) {
-                    Text(stringResource(R.string.btn_save))
+                    if (editBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text(stringResource(R.string.btn_save))
                 }
             },
             dismissButton = {
                 val dismissInteraction = remember { MutableInteractionSource() }
                 val haptic = rememberVibeHapticFeedback()
                 CompletePressTextButton(
+                    enabled = !editBusy,
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         editingTransaction = null
@@ -1283,6 +1425,27 @@ fun HistoryScreen(
             }
         )
     }
+
+    viewingDetailTransaction?.let { tx ->
+        TransactionDetailDialog(
+            transaction = tx,
+            accounts = state.accounts,
+            onDismissRequest = { viewingDetailTransaction = null },
+            onEdit = {
+                viewingDetailTransaction = null
+                beginTransactionEdit(it)
+            },
+            onDelete = {
+                viewingDetailTransaction = null
+                onIntent(FinanceIntent.DeleteTransaction(it))
+            },
+            onUpdateTransaction = { updated ->
+                val old = viewingDetailTransaction ?: tx
+                viewingDetailTransaction = updated
+                onIntent(FinanceIntent.EditTransaction(old, updated))
+            }
+        )
+    }
 }
 
 private enum class HistoryTransactionType { Expense, Income, Transfer }
@@ -1290,7 +1453,8 @@ private enum class HistoryTransactionType { Expense, Income, Transfer }
 @Composable
 private fun HistoryTransactionTypeSelector(
     type: HistoryTransactionType,
-    onTypeSelected: (HistoryTransactionType) -> Unit
+    onTypeSelected: (HistoryTransactionType) -> Unit,
+    enabled: Boolean = true
 ) {
     val colors = MaterialTheme.colorScheme
     val haptic = rememberVibeHapticFeedback()
@@ -1313,6 +1477,7 @@ private fun HistoryTransactionTypeSelector(
             ConnectedButtonRipple(isSelected = isSelected) {
                 CompletePressToggleButton(
                     checked = isSelected,
+                    enabled = enabled,
                     onCheckedChange = {
                         onTypeSelected(option)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1375,18 +1540,20 @@ private fun HistoryAccountDropdown(
     accounts: List<AccountEntity>,
     label: String,
     tag: String,
-    onAccountSelected: (Long) -> Unit
+    onAccountSelected: (Long) -> Unit,
+    enabled: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { if (accounts.isNotEmpty()) expanded = !expanded },
+        onExpandedChange = { if (enabled && accounts.isNotEmpty()) expanded = !expanded },
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
             value = accounts.firstOrNull { it.id == accountId }?.displayLabel().orEmpty(),
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             singleLine = true,
@@ -1425,7 +1592,7 @@ internal fun HistoryCategoryDropdown(
         .map { categoryMergeRules.resolve(it, kind) }.distinct()
     val categoryFrequency = remember(transactions, isIncome) {
         transactions.filter {
-            it.toAccountId == null && !it.isBalanceAdjustment && (it.amount < 0.0) == isIncome
+            it.toAccountId == null && !it.isBalanceAdjustment && !it.isReimbursement && (it.amount < 0.0) == isIncome
         }.map { it.category }.filter { it.isNotBlank() }.groupingBy { it }.eachCount()
     }
     val defaults = remember(defaultCategories, categoryFrequency) {
@@ -1528,14 +1695,23 @@ internal fun TransactionEntity.withHistoryEdit(
     customIcon: String? = this.customIcon,
     isTransfer: Boolean = toAccountId != null,
     sourceAccountId: Long = accountId,
-    destinationAccountId: Long? = toAccountId
+    destinationAccountId: Long? = toAccountId,
+    repaymentExpense: TransactionEntity? = null,
+    unlinkedRepayment: Boolean = false
 ): TransactionEntity {
     require(magnitude.isFinite() && magnitude > 0.0) { "Amount must be positive and finite" }
     require(!isBalanceAdjustment) { "Balance adjustments are read only" }
+    require(repaymentExpense == null || (isIncome && !isTransfer && repaymentExpense.id != id &&
+        com.example.vibefinance.util.Reimbursements.isExpense(repaymentExpense) &&
+        com.example.vibefinance.util.Reimbursements.expenseOnOrBeforeDay(repaymentExpense.timestamp, timestamp))) {
+        "Choose an original expense on or before the repayment day"
+    }
     require(!isTransfer || (destinationAccountId != null && sourceAccountId != destinationAccountId)) {
         "A transfer needs two different accounts"
     }
+    require(!unlinkedRepayment || (isIncome && !isTransfer && repaymentExpense == null))
     val changesTransferType = (toAccountId != null) != isTransfer
+    val detachesInstallment = changesTransferType || ((repaymentExpense != null || unlinkedRepayment) && !isReimbursement)
     // Keep the signed direction of legacy transfers when only editing their fields.
     val negative = if (isTransfer) toAccountId != null && amount < 0.0 else isIncome
     return copy(
@@ -1544,13 +1720,15 @@ internal fun TransactionEntity.withHistoryEdit(
         toAccountId = if (isTransfer) destinationAccountId else null,
         sourceWasCreditCard = sourceWasCreditCard.takeIf { sourceAccountId == accountId },
         destinationWasCreditCard = destinationWasCreditCard.takeIf { isTransfer && destinationAccountId == toAccountId },
-        category = if (isTransfer) "Transfer" else category,
+        category = repaymentExpense?.category ?: if (isTransfer) "Transfer" else category,
+        reimbursementOf = repaymentExpense?.id,
+        isUnlinkedReimbursement = unlinkedRepayment,
         description = description,
         customIcon = com.example.vibefinance.data.entity.ExpenseIcon.normalize(customIcon),
-        isExcludedFromDailyBudget = isTransfer || isIncome || !countsTowardDailyBudget,
-        installmentNumber = installmentNumber.takeUnless { changesTransferType },
-        totalInstallments = totalInstallments.takeUnless { changesTransferType },
-        groupId = groupId.takeUnless { changesTransferType }
+        isExcludedFromDailyBudget = repaymentExpense?.isExcludedFromDailyBudget ?: if (unlinkedRepayment) false else (isTransfer || isIncome || !countsTowardDailyBudget),
+        installmentNumber = installmentNumber.takeUnless { detachesInstallment },
+        totalInstallments = totalInstallments.takeUnless { detachesInstallment },
+        groupId = groupId.takeUnless { detachesInstallment }
     )
 }
 

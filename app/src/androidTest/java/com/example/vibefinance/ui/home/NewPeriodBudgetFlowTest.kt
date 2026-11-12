@@ -35,7 +35,7 @@ class NewPeriodBudgetFlowTest {
                 HeroDailyBudgetCard(budgetInfo = budget, onOpenRecalcSheet = {},
                     onOpenBudgetDialog = { destination = BudgetSheetDestination.fromDaily(budget.totalMonthlyBudget) })
                 if (destination == BudgetSheetDestination.NEW_PERIOD) {
-                    NewPeriodBudgetSheet(budgetInfo = budget, onConfirmNewPeriod = { amount, start, end ->
+                    NewPeriodBudgetSheet(budgetInfo = budget, onConfirmNewPeriod = { amount, start, end, _ ->
                         saves++
                         budget = budget.copy(totalMonthlyBudget = amount, monthlyRemaining = amount,
                             dailyAllowance = amount / 30, dailyRemaining = amount / 30, daysLeft = 30,

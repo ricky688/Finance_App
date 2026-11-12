@@ -99,6 +99,58 @@ class PaymentNotificationListenerTest {
     }
 
     @Test
+    fun moxCardPurchaseWithCashbackPerkParsesCorrectly() {
+        val title = "交易已完成並可賺取現金回贈！"
+        val text = "😍\n你已在GOOGLE消費HKD40.78，可獲1% CashBack！如懷疑電28888228"
+        val pkg = "com.mox.app"
+
+        assertTrue("Must pass payment notification guard", PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Expected parsed payment for Mox card purchase with cashback", parsed)
+        assertEquals(40.78, parsed!!.amount, 0.001)
+        assertEquals("GOOGLE", parsed.merchant)
+        assertEquals("Mox Bank", parsed.assetName)
+        assertEquals("EXPENSE", parsed.transactionType)
+        assertFalse(parsed.isTopUp)
+        assertEquals("Entertainment", PaymentNotificationListener.determineCategory(parsed.merchant, text))
+    }
+
+    @Test
+    fun purchaseAlertsWithCashbackAndRebateAreNotRejected() {
+        val alerts = listOf(
+            Triple("交易已完成並可賺取現金回贈！", "😍\n你已在GOOGLE消費HKD40.78，可獲1% CashBack！如懷疑電28888228", "com.mox.app"),
+            Triple("Mox", "你已在PARKnSHOP消費HKD125.00，可獲1% CashBack！", "com.mox.app"),
+            Triple("ZA Bank", "你在 麥當勞 消費 HKD 35.50，已賺取高達 2% 現金回贈", "com.za.bank"),
+            Triple("Card Alert", "Spent HKD 120.00 at Starbucks. 1% CashBack earned.", "com.hsbc.hbap.mobilebanking"),
+            Triple("信用卡交易通知", "你已在百佳超級市場成功以信用卡付款HKD250.00，可享現金回贈！", "com.hangseng.rbmobile")
+        )
+
+        for ((title, text, pkg) in alerts) {
+            assertTrue("Expected payment notification for: $text", PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+            val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+            assertNotNull("Expected valid parsed payment for: $text", parsed)
+            assertEquals("EXPENSE", parsed!!.transactionType)
+            assertTrue("Amount should be positive", parsed.amount > 0.0)
+            assertTrue("Merchant should be extracted", parsed.merchant.isNotBlank())
+        }
+    }
+
+    @Test
+    fun standaloneCashbackDepositsWithoutSpendingAreNotExpenses() {
+        val depositAlerts = listOf(
+            "現金回贈 HK$50.00 已存入您的戶口" to "com.mox.app",
+            "Your CashBack of HK$50.00 has been credited to your account" to "com.mox.app",
+            "現金回贈已存入你的帳戶 HK$100.00" to "com.hangseng.rbmobile"
+        )
+        for ((message, pkg) in depositAlerts) {
+            val parsed = PaymentNotificationListener.parseNotification("Cashback Alert", message, pkg)
+            if (parsed != null) {
+                org.junit.Assert.assertNotEquals("EXPENSE", parsed.transactionType)
+            }
+        }
+    }
+
+    @Test
     fun walletTopUpsAndBalanceOnlyAlertsAreNotSpending() {
         assertNull(PaymentNotificationListener.parseNotification(
             "Octopus payment", "Top-up HK$100.00 completed", "com.samsung.android.spay"

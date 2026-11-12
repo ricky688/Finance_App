@@ -79,7 +79,15 @@ fun MinMaxSpentCard(
         colors = colors,
         content = {
             Spacer(modifier = Modifier.height(2.dp))
-            if (spent != null) {
+            if (spends.size == 1) {
+                Text(
+                    text = stringResource(R.string.not_enough_records),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = LocalContentColor.current.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else if (spent != null && spends.size > 1) {
                 val dateLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
                 val timeStr = remember(spent.timestamp, dateLocale) {
                     val dt = LocalDateTime.ofInstant(Instant.ofEpochMilli(spent.timestamp), ZoneId.systemDefault())
@@ -105,7 +113,7 @@ fun MinMaxSpentCard(
             }
         },
         backdropContent = {
-            if (spends.isNotEmpty()) {
+            if (spends.size > 1) {
                 SpendsChart(
                     modifier = Modifier.fillMaxSize(),
                     spends = spends,

@@ -137,7 +137,7 @@ fun HeroDailyBudgetCard(
 
     // Spring Physics animation specs
     val colorSpringSpec = spring<Color>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)
-    val ratioSpringSpec = spring<Float>(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy)
+    val ratioSpringSpec = spring<Float>(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioNoBouncy)
 
     // Animated ratio fill with Spring physics
     val targetRatio = if (isNormal && dailyAllowance > 0) (dailyRem / dailyAllowance).coerceIn(0.0, 1.0).toFloat() else 0f
@@ -294,10 +294,11 @@ fun HeroDailyBudgetCard(
                         .padding(horizontal = 22.dp, vertical = 20.dp)
                 ) {
                     // Header Status Badge & Title Row
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        maxItemsInEachRow = 2
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -400,14 +401,23 @@ fun HeroDailyBudgetCard(
                         isPeriodEnded = isPeriodEnded,
                         monthlyRemaining = budgetInfo.monthlyRemaining
                     )
-                    val amountFontSize = calculateHeroAmountFontSize(formattedTarget)
-
-                    com.example.vibefinance.ui.components.RollingNumberText(
-                        text = formattedTarget,
-                        style = MaterialTheme.typography.displayMedium.copy(fontSize = amountFontSize),
-                        fontWeight = FontWeight.Black,
-                        color = amountTextColor
-                    )
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val maxFont = calculateHeroAmountFontSize(formattedTarget)
+                        val amountStyle = MaterialTheme.typography.displayMedium.copy(fontSize = maxFont, fontWeight = FontWeight.Black)
+                        val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val amountFontSize = remember(formattedTarget, maxWidth, amountStyle, density) {
+                            val width = measurer.measure(formattedTarget, amountStyle, softWrap = false, maxLines = 1).size.width
+                            val available = with(density) { maxWidth.toPx() } - formattedTarget.length * 2f
+                            (maxFont.value * (available / width.coerceAtLeast(1)).coerceIn(0.1f, 1f)).sp
+                        }
+                        com.example.vibefinance.ui.components.RollingNumberText(
+                            text = formattedTarget,
+                            style = amountStyle.copy(fontSize = amountFontSize),
+                            fontWeight = FontWeight.Black,
+                            color = amountTextColor
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 

@@ -62,7 +62,7 @@ data class CategoryMergeRules(
 }
 
 val TransactionEntity.categoryKind: CategoryKind
-    get() = if (amount < 0.0) CategoryKind.INCOME else CategoryKind.EXPENSE
+    get() = if (amount < 0.0 && !isReimbursement) CategoryKind.INCOME else CategoryKind.EXPENSE
 val SubscriptionEntity.categoryKind: CategoryKind
     get() = if (amount < 0.0) CategoryKind.INCOME else CategoryKind.EXPENSE
 

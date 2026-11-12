@@ -9,6 +9,7 @@ import com.example.vibefinance.data.InMemoryDatabase
 import com.example.vibefinance.data.entity.ParsedTransactionType
 import com.example.vibefinance.R
 import com.example.vibefinance.util.appString
+import kotlinx.coroutines.*
 import java.util.Locale
 
 /**
@@ -23,6 +24,21 @@ class PaymentNotificationListener : NotificationListenerService() {
         // A notification listener can start before the Activity in a fresh process.
         InMemoryDatabase.initialize(this)
         PendingPaymentStore.initialize(this)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        com.example.vibefinance.transit.NfcTransitMonitor.connected(this)
+    }
+
+    override fun onListenerDisconnected() {
+        com.example.vibefinance.transit.NfcTransitMonitor.disconnected()
+        super.onListenerDisconnected()
+    }
+
+    override fun onDestroy() {
+        com.example.vibefinance.transit.NfcTransitMonitor.disconnected()
+        super.onDestroy()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -76,6 +92,15 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         if (title.isBlank() && text.isBlank()) return
 
+        // Recognized receipts can exclude NFC evidence even when this app is not selected for logging.
+        if (InMemoryDatabase.isNotificationLoggingEnabled &&
+            com.example.vibefinance.transit.MtrTransitSettings.isNfcEnabled(this) &&
+            com.example.vibefinance.transit.MtrTransitSettings.isEnabled(this) &&
+            isPaymentNotification(title, text, packageName)) {
+            com.example.vibefinance.transit.NfcTransitMonitor.payment(
+                sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis())
+        }
+
         // 4. Check if automatic logging is enabled in Settings
         if (!InMemoryDatabase.isNotificationLoggingEnabled) {
             android.util.Log.d("VibeFinanceNotification", "Notification logging is disabled in Settings.")
@@ -127,16 +152,16 @@ class PaymentNotificationListener : NotificationListenerService() {
     )
 
     companion object {
-        private val nonExpenseEnglish = Regex(
-            "\\b(?:refund(?:ed|s)?|revers(?:ed|al)|chargeback|cashback|rebate)\\b",
+        private val nonExpenseReversalEnglish = Regex(
+            "\\b(?:refund(?:ed|s)?|revers(?:ed|al)|chargeback)\\b",
             RegexOption.IGNORE_CASE
         )
-        private val nonExpenseChinese = listOf(
+        private val nonExpenseReversalChinese = listOf(
             "退款", "退回", "退貨", "退货", "退刷", "撤銷", "撤销", "沖正", "冲正",
-            "返現", "返现", "回贈", "回赠",
             "付款失敗", "付款失败", "交易失敗", "交易失败", "交易已取消",
             "待付款", "待支付", "付款請求", "付款请求", "付款提醒", "繳費提醒", "缴费提醒"
         )
+        private val cashbackKeywords = listOf("cashback", "rebate", "回贈", "回赠", "返現", "返现")
         private val balanceText = Regex(
             "\\bbalance\\b|\\bremaining value\\b|\\bavailable funds\\b|餘額|余额|結餘|结余",
             RegexOption.IGNORE_CASE
@@ -241,9 +266,42 @@ class PaymentNotificationListener : NotificationListenerService() {
 
             // A banking app may mention "payment" in a refund, deposit, or incoming
             // transfer. Never treat those as a spend, even when an amount is present.
-            if (nonExpenseEnglish.containsMatchIn(combined) ||
-                nonExpenseChinese.any { combined.contains(it) }
+            if (nonExpenseReversalEnglish.containsMatchIn(combined) ||
+                nonExpenseReversalChinese.any { combined.contains(it) }
             ) return false
+
+            // Cashback and rebate rewards:
+            // Standalone cashback deposits/credits (e.g. "CashBack credited" / "現金回贈已存入") are not spend events.
+            // However, purchase alerts with cashback perks (e.g. "你已在GOOGLE消費HKD40.78，可獲1% CashBack！" / "交易已完成並可賺取現金回贈！")
+            // ARE valid expense transactions and must NOT be rejected.
+            if (cashbackKeywords.any { combined.contains(it) }) {
+                val isSpendWithCashbackPerk = combined.contains("消費") ||
+                    combined.contains("支出") ||
+                    combined.contains("扣款") ||
+                    combined.contains("刷卡") ||
+                    combined.contains("交易已完成") ||
+                    combined.contains("完成交易") ||
+                    combined.contains("已完成付款") ||
+                    combined.contains("成功付款") ||
+                    combined.contains("已付款") ||
+                    combined.contains("成功支付") ||
+                    combined.contains("已支付") ||
+                    combined.contains("簽賬") ||
+                    combined.contains("簽帳") ||
+                    outgoingEnglish.containsMatchIn(combined) ||
+                    TransactionGrammarEngine.parse(title, text, packageName)?.let {
+                        it.intent == com.example.vibefinance.data.entity.ParsedTransactionType.EXPENSE && it.confidence >= 0.90f
+                    } == true
+
+                val isPureCashbackDepositOrCredit = (combined.contains("credited") || combined.contains("deposited") ||
+                    combined.contains("已存入") || combined.contains("存入") || combined.contains("已入賬") ||
+                    combined.contains("已入帳") || combined.contains("已發放") || combined.contains("已发放")) &&
+                    !combined.contains("消費") && !combined.contains("支出") && !outgoingEnglish.containsMatchIn(combined)
+
+                if (isPureCashbackDepositOrCredit || !isSpendWithCashbackPerk) {
+                    return false
+                }
+            }
 
             // Negative Keywords: OTP, security codes, promo ads, login alerts, statement notices
             val negativeKeywords = listOf(
@@ -285,8 +343,10 @@ class PaymentNotificationListener : NotificationListenerService() {
             val positiveIndicators = listOf(
                 "已付款", "成功付款", "已扣款", "消費", "支出",
                 "支付成功", "扣款成功", "付款：", "已完成付款", "付款卡：", "支付", "自動付款", "授權自動付款",
+                "直接付款", "直接扣款", "直接支付",
                 "轉出", "轉入", "存入", "轉賬", "轉帳", "轉數快", "經轉數快", "款項已成功發送", "發送給收款人", "付款人",
-                "收到款項", "已向你付款", "向你付款", "已向您付款", "向您付款"
+                "收到款項", "已向你付款", "向你付款", "已向您付款", "向您付款",
+                "交易已完成", "完成交易", "交易成功", "成功完成交易", "簽賬", "簽帳"
             )
 
             val isAndroidOctopusPayment = androidOctopusTitlePattern.containsMatchIn(title) &&
@@ -630,7 +690,9 @@ class PaymentNotificationListener : NotificationListenerService() {
                 androidOctopusEnPattern.containsMatchIn(title)
             )) || isSmartOctopus
 
-            val spendIdentified = isOctopusPayment || smartOctopusPurchase.containsMatchIn(title) || smartOctopusPurchase.containsMatchIn(text)
+            val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
+            val isGrammarIdentified = grammarResult != null && grammarResult.amount > 0.0 && grammarResult.confidence >= 0.90f
+            val spendIdentified = isOctopusPayment || smartOctopusPurchase.containsMatchIn(title) || smartOctopusPurchase.containsMatchIn(text) || isGrammarIdentified
             val amounts = (localCurrencyAmount.findAll(text) + localCurrencyAmount.findAll(title))
                 .mapNotNull { match ->
                     (match.groupValues[1].ifEmpty { match.groupValues[2] })
@@ -709,7 +771,6 @@ class PaymentNotificationListener : NotificationListenerService() {
             }
 
             // 2.5. Transaction Grammar Engine (Preposition Anchors & Grammar State Machine)
-            val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
             if (!isBocGoUnionPayTransit && grammarResult != null && grammarResult.amount > 0.0 && grammarResult.confidence >= 0.90f) {
                 val assetName = resolveAssetName(
                     title = title,
@@ -855,6 +916,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         /** Queue a candidate until a real account is chosen, or use a remembered choice. */
         fun queuePayment(context: Context, payment: ParsedPayment): Boolean {
             val sourcePackage = payment.sourcePackage.ifBlank { return false }
+            val loc = com.example.vibefinance.util.GnssLocationManager.getInstantLocation(context)
             val queued = PendingPaymentStore.enqueue(
                 context = context,
                 sourcePackage = sourcePackage,
@@ -868,12 +930,116 @@ class PaymentNotificationListener : NotificationListenerService() {
                 isTopUp = payment.isTopUp,
                 rawTitle = payment.rawTitle,
                 rawText = payment.rawText,
-                transactionType = payment.transactionType
+                transactionType = payment.transactionType,
+                latitude = loc?.latitude,
+                longitude = loc?.longitude,
+                locationName = loc?.locationName
             ) ?: return false
+
+            // Actively acquire fresh GPS/Fused location asynchronously upon notification interception
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val fresh = com.example.vibefinance.util.GnssLocationManager.resolveFreshLocation(context)
+                    val effectiveLat = fresh?.latitude ?: loc?.latitude
+                    val effectiveLon = fresh?.longitude ?: loc?.longitude
+                    var finalLocationName = fresh?.locationName ?: loc?.locationName
+                    var startLat: Double? = null
+                    var startLon: Double? = null
+                    var startName: String? = null
+
+                    val isMtr = payment.merchant.contains("港鐵") || payment.merchant.contains("MTR") ||
+                        payment.rawTitle.contains("港鐵") || payment.rawText.contains("港鐵") ||
+                        payment.rawTitle.contains("MTR") || payment.rawText.contains("MTR")
+
+                    if (isMtr && com.example.vibefinance.transit.MtrTransitSettings.isEnabled(context) && effectiveLat != null && effectiveLon != null) {
+                        val accuracy = (fresh ?: loc)?.accuracyMeters
+                        val nearestExit = if (accuracy != null && accuracy in 0.01f..100f) {
+                            com.example.vibefinance.transit.MtrStationRegistry.findNearestStation(context, effectiveLat, effectiveLon, 500.0)?.first
+                        } else null
+                        if (nearestExit != null) {
+                            val passengerType = com.example.vibefinance.transit.MtrTransitSettings.getPassengerType(context)
+                            val breadcrumbs = if (com.example.vibefinance.transit.MtrTransitSettings.isNfcEnabled(context)) {
+                                com.example.vibefinance.transit.NfcTransitStore.origins(context, payment.detectedAt)
+                            } else emptyList()
+                            val route = com.example.vibefinance.transit.MtrFareEngine.deduceTransitRoute(
+                                context = context,
+                                destStation = nearestExit,
+                                fareAmount = payment.amount,
+                                passengerType = passengerType,
+                                breadcrumbs = breadcrumbs,
+                                exitTimestamp = payment.detectedAt
+                            )
+                            if (route != null) {
+                                finalLocationName = route.routeDisplay
+                                startLat = route.originStation.latitude
+                                startLon = route.originStation.longitude
+                                startName = route.originStation.nameZh
+                            } else {
+                                finalLocationName = context.appString(R.string.mtr_origin_unconfirmed, nearestExit.nameZh)
+                            }
+                        }
+                    }
+
+                    if (isMtr && com.example.vibefinance.transit.MtrTransitSettings.isNfcEnabled(context)) {
+                        com.example.vibefinance.transit.NfcTransitStore.closeJourney(context, payment.detectedAt)
+                    }
+
+                    if (effectiveLat != null && effectiveLon != null) {
+                        PendingPaymentStore.updateLocation(
+                            context = context,
+                            paymentId = queued.id,
+                            latitude = effectiveLat,
+                            longitude = effectiveLon,
+                            locationName = finalLocationName,
+                            startLatitude = startLat,
+                            startLongitude = startLon,
+                            startLocationName = startName
+                        )
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            if (queued.isTopUp) {
+                val rememberedId = PendingPaymentStore.rememberedAccountId(context, queued)
+                val rememberedAccount = InMemoryDatabase.accounts.value.firstOrNull { it.id == rememberedId }
+                if (rememberedAccount != null && PendingPaymentStore.accept(context, queued.id, rememberedAccount.id, true)) {
+                    showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining, queued.isTopUp, queued.id)
+                    return true
+                }
+                // Fall back to showing decision notification so user can select funding account
+                val accounts = InMemoryDatabase.accounts.value
+                val matchedAccount = PendingPaymentStore.findMatchingAccount(queued, accounts)
+                    ?: (!queued.cardLast4.isNullOrBlank()).let { if (it) accounts.firstOrNull { acc -> acc.cardLast4 == queued.cardLast4 } else null }
+                PaymentLoggingNotification.showDecision(context, queued, matchedAccount)
+                return true
+            }
+
+            val rawCombined = "${queued.rawTitle} ${queued.rawText}".lowercase(Locale.ROOT)
+            val isTransfer = queued.transactionType == "TRANSFER" ||
+                queued.transactionType == "INCOME" ||
+                rawCombined.contains("轉賬") || rawCombined.contains("轉帳") ||
+                rawCombined.contains("轉數快") || rawCombined.contains("transfer") ||
+                rawCombined.contains("直接付款") || rawCombined.contains("直接扣款")
+
+            if (isTransfer) {
+                val accounts = InMemoryDatabase.accounts.value
+                val matchedAccount = PendingPaymentStore.findMatchingAccount(queued, accounts)
+                    ?: (!queued.cardLast4.isNullOrBlank()).let { if (it) accounts.firstOrNull { acc -> acc.cardLast4 == queued.cardLast4 } else null }
+                PaymentLoggingNotification.showDecision(context, queued, matchedAccount)
+                return true
+            }
+
             val rememberedId = PendingPaymentStore.rememberedAccountId(context, queued)
             val rememberedAccount = InMemoryDatabase.accounts.value.firstOrNull { it.id == rememberedId }
             if (rememberedAccount != null && PendingPaymentStore.accept(context, queued.id, rememberedAccount.id, true)) {
                 showLoggedNotification(context, queued.amount, queued.merchant, rememberedAccount.name, queued.balanceRemaining, queued.isTopUp, queued.id)
+            } else {
+                val accounts = InMemoryDatabase.accounts.value
+                val matchedAccount = PendingPaymentStore.findMatchingAccount(queued, accounts)
+                    ?: (!queued.cardLast4.isNullOrBlank()).let { if (it) accounts.firstOrNull { acc -> acc.cardLast4 == queued.cardLast4 } else null }
+                PaymentLoggingNotification.showDecision(context, queued, matchedAccount)
             }
             return true
         }

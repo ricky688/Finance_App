@@ -1,0 +1,22 @@
+<resources>
+    <string name="budget_title">預算</string>
+    <string name="daily_title">今日可用</string>
+    <string name="period_title">本週期剩餘</string>
+    <string name="days_left">剩餘 %1$d 天</string>
+    <string name="updated">更新於 %1$s</string>
+    <string name="refresh">重新整理</string>
+    <string name="refreshing">更新中…</string>
+    <string name="refresh_failed">無法聯絡手機，請重試。</string>
+    <string name="waiting">請在手機開啟 VibeFinance 並啟用預算分享。</string>
+    <string name="hidden">預算分享已關閉或金額已隱藏。</string>
+    <string name="no_budget">請先在手機設定有效預算。</string>
+    <string name="expired">預算已過期，請連線手機更新。</string>
+    <string name="open_amount">開啟查看金額</string>
+    <string name="invalid">無法讀取預算，請更新手機與手錶 App。</string>
+    <string name="swipe_amount">左右滑動查看完整金額</string>
+    <string name="tile_expired">已過期，點按更新</string>
+    <string name="tile_hidden">金額已隱藏</string>
+    <string name="tile_no_budget">請在手機設定預算</string>
+    <string name="tile_open_phone">請在手機啟用分享</string>
+    <string name="cached_offline">手機暫未連線 · 顯示上次更新</string>
+</resources>

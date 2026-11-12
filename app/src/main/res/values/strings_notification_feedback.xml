@@ -10,4 +10,10 @@
     <string name="nf_logged_expense_message">Logged $%1$.2f at %2$s to %3$s%4$s</string>
     <string name="nf_logged_topup_title">Automatically Logged Top-up</string>
     <string name="nf_logged_topup_message">Logged +$%1$.2f %2$s to %3$s%4$s</string>
+    <string name="nf_decision_transfer_title">Transfer Confirmation</string>
+    <string name="nf_decision_content_with_account">%1$s $%2$,.2f • Suggested: %3$s</string>
+    <string name="nf_decision_content_no_account">%1$s $%2$,.2f • Tap to choose account</string>
+    <string name="nf_action_confirm">Confirm (%1$s)</string>
+    <string name="nf_action_decide">Choose Account</string>
+    <string name="nf_action_ignore">Ignore</string>
 </resources>

@@ -4,4 +4,15 @@
     <string name="auto_logging_recovery_body">Missing payment notifications? Close and reopen VibeFinance first. If logging still does not work, open Notification access, switch VibeFinance off and back on, then return here. Check that automatic logging is enabled and your payment apps are selected.</string>
     <string name="auto_logging_open_access">Open notification access</string>
     <string name="auto_logging_access_unavailable">Notification access settings are unavailable on this device.</string>
+    <string name="battery_guideline_title">Power Saving &amp; Background Logging</string>
+    <string name="battery_guideline_desc">When Power Saving mode is turned on, the system or OEM optimization may delay push alerts or suspend background services. We recommend setting VibeFinance to Unrestricted battery usage.</string>
+    <string name="battery_status_unrestricted">Unrestricted (Recommended)</string>
+    <string name="battery_status_optimized">Optimized / Restricted</string>
+    <string name="battery_btn_unrestrict">Allow Unrestricted</string>
+    <string name="battery_btn_app_settings">App Battery Settings</string>
+    <string name="battery_btn_system_saver">System Power Saving</string>
+    <string name="battery_guideline_tip1">Unrestricted Battery: Prevents the system from suspending VibeFinance notification reader when battery saver is active.</string>
+    <string name="battery_guideline_tip2">Bank App Background Data: Ensure bank &amp; payment apps are allowed background data so transaction alerts arrive promptly.</string>
+    <string name="battery_guideline_tip3">Extreme Power Saving: Maximum power saving modes (e.g. Samsung Limit apps) will suspend all 3rd-party background listeners.</string>
+    <string name="battery_settings_unavailable">Battery settings are unavailable on this device.</string>
 </resources>

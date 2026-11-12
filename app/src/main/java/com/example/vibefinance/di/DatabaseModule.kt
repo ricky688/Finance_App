@@ -34,6 +34,10 @@ object DatabaseModule {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE budgets ADD COLUMN estimatedIncome REAL")
             }
+        }, object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE budgets ADD COLUMN categoryBudgetsJson TEXT NOT NULL DEFAULT '{}'")
+            }
         }).fallbackToDestructiveMigration().build()
     }
 

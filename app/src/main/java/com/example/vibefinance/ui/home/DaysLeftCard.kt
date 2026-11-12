@@ -24,6 +24,7 @@ import com.example.vibefinance.theme.BentoCardShape
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.rememberExpressiveCardPress
 import com.example.vibefinance.ui.common.expressiveCardClickable
+import androidx.compose.ui.tooling.preview.Preview
 
 enum class IndicatorShape {
     FLAT,
@@ -31,14 +32,28 @@ enum class IndicatorShape {
 }
 
 /**
+ * Minimum visible indicator progress (1%) when full days remain or when elapsed time is minimal.
+ * Prevents the circular progress indicator from collapsing to 0% (empty ring) at period start.
+ */
+const val MIN_DAYS_LEFT_PROGRESS: Float = 0.01f
+
+/**
  * Remaining budget-period days, shown with a determinate Material 3 circular indicator.
  * Tapping the card springs between the flat and wavy shapes.
  *
  * The progress indicator is reversed to indicate elapsed time through the period:
- * e.g., 30 days left out of 30 days = 0.0f (0%), 0 days left = 1.0f (100%).
+ * e.g., 30 days left out of 30 days = 0.01f (1% minimum visible starting indicator),
+ * 0 days left = 1.0f (100%).
  */
 fun calculateDaysLeftProgress(daysLeft: Int, totalDays: Int): Float =
-    if (totalDays > 0) ((totalDays - daysLeft).toFloat() / totalDays).coerceIn(0f, 1f) else 0f
+    if (totalDays > 0) {
+        val elapsed = (totalDays - daysLeft).toFloat() / totalDays
+        when {
+            daysLeft <= 0 -> 1.0f
+            elapsed <= 0f -> MIN_DAYS_LEFT_PROGRESS
+            else -> elapsed.coerceIn(MIN_DAYS_LEFT_PROGRESS, 1.0f)
+        }
+    } else 0f
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -91,7 +106,7 @@ fun DaysLeftCard(
     Card(
         modifier = modifier
             .testTag("DaysLeftCard")
-            .fillMaxHeight()
+            .aspectRatio(1f)
             .expressiveCardClickable(
                 pressState = pressState,
                 rippleColor = activeColor
@@ -179,5 +194,53 @@ fun DaysLeftCard(
                 }
             }
         }
+    }
+}
+
+@Preview(name = "DaysLeftCard Light 1:1", showBackground = true, widthDp = 150, heightDp = 150)
+@Composable
+fun PreviewDaysLeftCardLight() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        DaysLeftCard(
+            modifier = Modifier.size(140.dp),
+            daysLeft = 18,
+            totalDays = 30
+        )
+    }
+}
+
+@Preview(name = "DaysLeftCard Dark 1:1", showBackground = true, widthDp = 150, heightDp = 150)
+@Composable
+fun PreviewDaysLeftCardDark() {
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        DaysLeftCard(
+            modifier = Modifier.size(140.dp),
+            daysLeft = 5,
+            totalDays = 30
+        )
+    }
+}
+
+@Preview(name = "DaysLeftCard Stacked 120dp", showBackground = true, widthDp = 120, heightDp = 120)
+@Composable
+fun PreviewDaysLeftCardStacked120() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        DaysLeftCard(
+            modifier = Modifier.size(120.dp),
+            daysLeft = 12,
+            totalDays = 30
+        )
+    }
+}
+
+@Preview(name = "DaysLeftCard Stacked 156dp", showBackground = true, widthDp = 156, heightDp = 156)
+@Composable
+fun PreviewDaysLeftCardStacked156() {
+    MaterialTheme(colorScheme = lightColorScheme()) {
+        DaysLeftCard(
+            modifier = Modifier.size(156.dp),
+            daysLeft = 24,
+            totalDays = 30
+        )
     }
 }
