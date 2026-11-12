@@ -4,6 +4,19 @@ This document details all recent features, architectural changes, modified files
 
 ---
 
+### 2026-11-12 — v1.4.4 (194): Move account image loading off the UI thread
+- Profiled fast Assets scrolling on a Galaxy S24 Ultra running 1.4.3 release. Perfetto recorded seven app deadline misses across 377 frames and lazy-list prefetch up to 23.76ms. The eight longest prefetch slices included 16ms of synchronous image decoding in total. Rendering and buffer queue delays were also present.
+- Load card thumbnails and linked app icons on the I/O dispatcher in compact and detailed account cards. Linked app icons use the existing bounded cache and replace the separate synchronous package lookup. Loads are keyed by the current image or package so a changed link cannot display the previous result.
+- **Google Play & Release Artifacts**:
+  - Official Play Store App Bundle: [`VibeFinance-1.4.4-194-release.aab`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.4-194-release.aab) (29,474,057 bytes, SHA-256: `97942bf435c6fad2952ef08cba89ca9b6257a148dfef41b66db7b7ceef9c9cdf`).
+  - Standalone Release APK: [`VibeFinance-1.4.4-194-release.apk`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.4-194-release.apk) (54,607,572 bytes, SHA-256: `e9c2aa31799edc712d906c5f2a35052aebf042480617bce11f80c33925775651`).
+  - R8 Mapping Bundle: [`VibeFinance-1.4.4-194-release-mapping.zip`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.4-194-release-mapping.zip) (16.5 MiB).
+  - Play Store Notes: [`releases/VibeFinance-1.4.4-194-play-store-notes.txt`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.4-194-play-store-notes.txt).
+  - Full Release Notes: [`releases/VibeFinance-1.4.4-194-notes.md`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.4-194-notes.md).
+- Verification: 576 unit tests passed. Debug and AndroidTest APKs built, the code graph was refreshed, and `git diff --check` passed.
+- Waydroid could not start because its system image failed to mount. With the user's approval, built the signed R8 release APK, matched its signing certificate to 1.4.3, and installed 1.4.4 in place on the Galaxy S24 Ultra with app data retained.
+- Galaxy S24 Ultra Assets fast-scroll comparison: after one warm-up and two measured runs per release, Android gfxinfo reported 10/777 janky frames (1.29%) on 1.4.3 and 13/786 (1.65%) on 1.4.4. A separate 9-second Perfetto trace showed that main-thread lazy prefetch peaked at 5.45ms on 1.4.4 versus 23.69ms in the earlier 1.4.3 trace. ImageDecoder slices within main-thread prefetch fell from eight to zero, and app deadline misses from 7/377 to 1/388. This confirms the targeted work was removed in the sampled scroll, but the short gfxinfo runs do not establish an overall jank improvement.
+
 ### 2026-11-12 — v1.4.3 (193): Official Google Play App Bundle (AAB), Release Notes & GitHub Release
 - **Release Build Artifacts**:
   - Generated and signed official Google Play Store App Bundle: [`VibeFinance-1.4.3-193-release.aab`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.3-193-release.aab) (29,471,122 bytes, SHA-256: `22bdce1ab16912f4d6c63dd13ddf65fc3ae6c71ea436f463170dac646cd70d10`).

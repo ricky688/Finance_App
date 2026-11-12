@@ -145,6 +145,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -348,27 +349,31 @@ private fun accountThumbnailSpec(ratio: String?, compact: Boolean): AccountThumb
 
 @Composable
 private fun rememberAccountThumbnail(filePath: String?): ImageBitmap? {
+    if (filePath.isNullOrBlank()) return null
     val context = LocalContext.current
-    return remember(filePath) {
-        if (filePath.isNullOrBlank()) return@remember null
-        try {
-            val bitmap = if (filePath.equals("sample", ignoreCase = true)) {
-                createSampleCardBitmap(context)
-            } else {
-                val file = File(filePath)
-                if (!file.isFile) return@remember null
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(file.absolutePath, bounds)
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@remember null
-                val sampleSize = (maxOf(bounds.outWidth, bounds.outHeight) / 256).coerceAtLeast(1)
-                BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize
-                })
+    return key(context, filePath) {
+        produceState<ImageBitmap?>(null) {
+            value = withContext(Dispatchers.IO) {
+                try {
+                    val bitmap = if (filePath.equals("sample", ignoreCase = true)) {
+                        createSampleCardBitmap(context)
+                    } else {
+                        val file = File(filePath)
+                        if (!file.isFile) return@withContext null
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(file.absolutePath, bounds)
+                        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+                        val sampleSize = (maxOf(bounds.outWidth, bounds.outHeight) / 256).coerceAtLeast(1)
+                        BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply {
+                            inSampleSize = sampleSize
+                        })
+                    }
+                    bitmap?.asImageBitmap()
+                } catch (_: Exception) {
+                    null
+                }
             }
-            bitmap?.asImageBitmap()
-        } catch (_: Exception) {
-            null
-        }
+        }.value
     }
 }
 
@@ -2514,14 +2519,16 @@ fun AccountAppRedirectButton(
     shapeRadius: Dp = 7.dp,
     onLongClick: (() -> Unit)? = null
 ) {
+    if (packageName.isBlank() || packageName.equals("none", ignoreCase = true)) return
     val context = LocalContext.current
-    val haptic = rememberVibeHapticFeedback()
+    val appIcon = key(context, packageName) {
+        produceState<Bitmap?>(null) {
+            value = loadAccountAppIcon(context, packageName)
+        }.value
+    } ?: return
     val hapticView = androidx.compose.ui.platform.LocalView.current
-    val appIcon = remember(packageName, context) { LocalAppManager.getAppIcon(context, packageName) }
     val shape = RoundedCornerShape(shapeRadius)
     val notInstalledMsg = stringResource(com.example.vibefinance.R.string.assets_linked_app_not_installed)
-
-    if (appIcon == null) return
 
     Surface(
         modifier = modifier
@@ -2561,7 +2568,7 @@ fun AppPickerDialog(
     onAppSelected: (String?) -> Unit,
     onDismissRequest: () -> Unit,
     loadApps: suspend (Context) -> List<InstalledAppInfo> = LocalAppManager::loadInstalledApps,
-    loadIcon: suspend (Context, String) -> Bitmap? = ::loadPickerIcon
+    loadIcon: suspend (Context, String) -> Bitmap? = ::loadAccountAppIcon
 ) {
     val context = LocalContext.current
     val appLocale = LocalConfiguration.current.locales[0]
@@ -2824,7 +2831,7 @@ fun AppPickerDialog(
     )
 }
 
-private suspend fun loadPickerIcon(context: Context, packageName: String): Bitmap? =
+private suspend fun loadAccountAppIcon(context: Context, packageName: String): Bitmap? =
     withContext(Dispatchers.IO) { LocalAppManager.getAppIcon(context, packageName) }
 
 @Composable
@@ -2853,10 +2860,6 @@ private fun CompactAccountRow(
     val customImage = rememberAccountThumbnail(account.cardImageUri)
     val issuerIcon = account.cardIssuer?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
     val accent = accountAccent(account.type, account.accentColorKey)
-    val context = LocalContext.current
-    val targetPackage = remember(account.linkedAppPackage, account.name) {
-        LocalAppManager.resolveTargetAppPackage(context, account.linkedAppPackage, account.name)
-    }
     val closingDay = if (account.type == AccountType.CC) {
         account.billingDate?.takeIf { it in 1..31 }?.let {
             stringResource(com.example.vibefinance.R.string.assets_compact_closing_day, it)
@@ -2953,9 +2956,9 @@ private fun CompactAccountRow(
                     } else if (issuerIcon != null) {
                         CardIssuerLogo(issuer = issuerIcon, modifier = Modifier.size(30.dp))
                     }
-                    if (targetPackage != null) {
+                    account.linkedAppPackage?.let { packageName ->
                         AccountAppRedirectButton(
-                            packageName = targetPackage,
+                            packageName = packageName,
                             sizeDp = 24.dp,
                             shapeRadius = 6.dp,
                             onLongClick = { onPickApp(account) }
@@ -3101,10 +3104,6 @@ fun ExpressiveAccountListItem(
         AccountType.BANK -> stringResource(com.example.vibefinance.R.string.assets_type_bank)
         AccountType.DEBIT -> stringResource(com.example.vibefinance.R.string.assets_type_debit)
     }.uppercase(LocalConfiguration.current.locales[0])
-    val context = LocalContext.current
-    val targetPackage = remember(account.linkedAppPackage, account.name) {
-        LocalAppManager.resolveTargetAppPackage(context, account.linkedAppPackage, account.name)
-    }
 
     // Dedicated Bento Card Container (Subtle, refined M3 surface)
     Surface(
@@ -3270,9 +3269,9 @@ fun ExpressiveAccountListItem(
                                     }
                                 }
                             }
-                            if (targetPackage != null) {
+                            account.linkedAppPackage?.let { packageName ->
                                 AccountAppRedirectButton(
-                                    packageName = targetPackage,
+                                    packageName = packageName,
                                     sizeDp = 28.dp,
                                     shapeRadius = 8.dp,
                                     onLongClick = { onPickApp(account) }

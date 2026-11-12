@@ -1,0 +1,23 @@
+<en-US>
+• Performance Optimization: Offloaded account card images and linked app icons decoding to background threads, significantly boosting scrolling fluidity on the Accounts tab.
+• Adaptive UI: Navigation Rail and side sheets for large screens and foldables.
+• Days Left Indicator: 1% visual notch indicator for full-cycle budget countdown.
+• Subscriptions List-Detail: In-place management for recurring payments.
+• Smart Notifications: Robust Mox Bank & cashback alert interception.
+</en-US>
+
+<zh-HK>
+• 效能與滑動流暢度提升：帳戶卡片自訂圖像與關聯應用圖標全面改為後台非阻塞式載入，大幅改善資產清單快速滾動時的掉幀問題。
+• Material 3 Expressive 自適應設計：大螢幕與折疊螢幕專屬 88dp Navigation Rail 與日常支出側邊欄。
+• 週期天數進度指示：新增 1% 起始圓角指示標記，週期初日不再空白。
+• 定期訂閱雙欄管理：大螢幕支援 List-Detail 並列檢視，原位編輯訂閱免跳轉。
+• 智能交易通知攔截：完美支援 Mox 銀行及各類信用卡現金回贈、返現通知。
+</zh-HK>
+
+<zh-TW>
+• 效能與滾動順暢度最佳化：帳戶卡片自訂圖片與關聯應用程式圖示改採背景非同步載入，徹底消除資產頁面快速滑動時的卡頓。
+• Material 3 Expressive 自適應架構：大螢幕與折疊螢幕專用 Navigation Rail 與側邊欄。
+• 預算天數進度指示：新增 1% 起始圓角指示標記，週期第一天清晰易見。
+• 定期訂閱雙欄管理：大螢幕支援清單與時間軸並列，原位編輯訂閱免跳轉。
+• 智能通知攔截強化：支援 Mox 銀行及各類信用卡現金回饋通知自動辨識。
+</zh-TW>
