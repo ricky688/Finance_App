@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subscription_next_expiry">下次到期日</string>
+    <string name="subscription_renewal_action">记录续订</string>
+    <string name="subscription_renewal_confirm">确认续订</string>
+    <string name="subscription_renewal_saved">已记录续订并更新到期日。</string>
+    <string name="subscription_renewal_failed">无法记录续订。请核对订阅资料后再试。</string>
+</resources>

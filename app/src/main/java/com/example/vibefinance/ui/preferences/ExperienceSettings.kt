@@ -87,6 +87,7 @@ fun PrivacySettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit) {
             PreferenceSwitch(stringResource(R.string.privacy_hide_amounts), stringResource(R.string.privacy_hide_desc),
                 state.hideAmounts, "HideAmountsSwitch") { dispatch(FinanceIntent.SetHideAmounts(it)) }
             com.example.vibefinance.wear.WearSharingPreference()
+            com.example.vibefinance.wear.WearCompanionControls()
         }
     }
 }

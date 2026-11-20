@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.main
 
 import androidx.compose.foundation.BorderStroke
@@ -12,7 +14,12 @@ import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.material3.windowsizeclass.*
+import androidx.compose.material3.adaptive.WindowAdaptiveInfo
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.window.core.layout.WindowSizeClass
+import androidx.window.core.layout.computeWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,7 +27,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
 import com.example.vibefinance.R
@@ -29,12 +35,31 @@ import com.example.vibefinance.util.VibeHaptics
 
 val LocalMainWindowWidth = compositionLocalOf<androidx.compose.ui.unit.Dp?> { null }
 
+/** Official Material navigation suite type for the current window (bar, medium bar or wide rail). */
+val LocalNavigationSuiteType = compositionLocalOf { NavigationSuiteType.ShortNavigationBarCompact }
+
 /**
- * Material 3 & ImageToolbox/Morphe inspired Navigation Rail Hub for landscape and large screens.
- * Fixed 88dp width anchors the global app controls (Logo, FAB, 12dp-spaced tabs, utility dock).
+ * Google's adaptive rule from `NavigationSuiteScaffoldDefaults.navigationSuiteType`:
+ * compact width -> short bar; compact height or tabletop -> medium short bar (icon beside label);
+ * otherwise -> collapsed wide navigation rail. Sized from the frame constraints so windowed and
+ * flex-display hosts follow the space the app actually has.
+ */
+@Composable
+internal fun rememberNavigationSuiteType(widthDp: Float, heightDp: Float): NavigationSuiteType {
+    val posture = currentWindowAdaptiveInfo().windowPosture
+    return remember(widthDp, heightDp, posture) {
+        NavigationSuiteScaffoldDefaults.navigationSuiteType(
+            WindowAdaptiveInfo(WindowSizeClass.BREAKPOINTS_V1.computeWindowSizeClass(widthDp, heightDp), posture)
+        )
+    }
+}
+
+/**
+ * Material 3 Expressive collapsed wide navigation rail for medium and expanded windows.
+ * The 96dp column follows the M3E collapsed rail spec and anchors the global app controls
+ * (Logo, FAB, `WideNavigationRailItem` tabs, utility dock).
  * Preserves 100% stable horizontal canvas space for the dual-column Bento dashboard.
  */
-@OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
 @Composable
 internal fun AdaptiveMainFrame(
     selectedTab: TabItem,
@@ -52,12 +77,14 @@ internal fun AdaptiveMainFrame(
     content: @Composable (Boolean) -> Unit
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val sizes = WindowSizeClass.calculateFromSize(DpSize(maxWidth, maxHeight))
-        val useRail = sizes.widthSizeClass != WindowWidthSizeClass.Compact
+        val suiteType = rememberNavigationSuiteType(maxWidth.value, maxHeight.value)
+        val useRail = suiteType == NavigationSuiteType.WideNavigationRailCollapsed
         val view = LocalView.current
         val triggers = remember { mutableStateMapOf<TabItem, Int>() }
 
-        CompositionLocalProvider(LocalMainWindowWidth provides maxWidth) {
+        // Root for M3 Expressive container transforms between pages.
+        com.example.vibefinance.ui.motion.ExpressiveSharedTransitionRoot {
+        CompositionLocalProvider(LocalMainWindowWidth provides maxWidth, LocalNavigationSuiteType provides suiteType) {
             Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
                 if (useRail) {
                     val railView = LocalView.current
@@ -77,16 +104,27 @@ internal fun AdaptiveMainFrame(
                         }
                     }
 
+                    // The rail surface stays edge-to-edge behind the system bars; only its
+                    // controls are inset, matching WideNavigationRailDefaults.windowInsets.
                     Surface(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .width(88.dp),
+                            .width(96.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerLow
                     ) {
+                      BoxWithConstraints(
+                        Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start))
+                      ) {
+                        // Three zones: header (logo + FAB) on top, destinations centred in the
+                        // remaining height, utility dock at the bottom. heightIn(min) lets the
+                        // weighted spacers fill tall windows while short ones fall back to scrolling.
                         Column(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
+                                .heightIn(min = maxHeight)
                                 .testTag("MainNavigationRail"),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -142,7 +180,9 @@ internal fun AdaptiveMainFrame(
                                 )
                             }
 
-                            // --- NAVIGATION TABS (12dp gap per ImageToolbox & M3 rhythm) ---
+                            Spacer(Modifier.weight(1f).heightIn(min = 8.dp))
+
+                            // --- NAVIGATION TABS (vertically centred group, 12dp rhythm) ---
                             val tabs = listOf(
                                 TabItem.HOME to Triple(R.string.nav_daily, Icons.Filled.Home, Icons.Outlined.Home),
                                 TabItem.ACCOUNTS to Triple(R.string.nav_assets, Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
@@ -157,7 +197,7 @@ internal fun AdaptiveMainFrame(
                             ) {
                                 tabs.forEach { (tab, info) ->
                                     val title = stringResource(info.first)
-                                    NavigationRailItem(
+                                    WideNavigationRailItem(
                                         selected = selectedTab == tab,
                                         onClick = {
                                             triggers[tab] = (triggers[tab] ?: 0) + 1
@@ -174,13 +214,13 @@ internal fun AdaptiveMainFrame(
                                             )
                                         },
                                         label = { Text(title, maxLines = 1) },
-                                        alwaysShowLabel = true,
+                                        railExpanded = false,
                                         modifier = Modifier.testTag("RailNav_${tab.name}")
                                     )
                                 }
                             }
 
-                            Spacer(Modifier.weight(1f))
+                            Spacer(Modifier.weight(1f).heightIn(min = 16.dp))
 
                             // --- BOTTOM UTILITY HUB (Centralized Global Controls) ---
                             Column(
@@ -258,7 +298,7 @@ internal fun AdaptiveMainFrame(
                                 }
 
                                 // Settings Item
-                                NavigationRailItem(
+                                WideNavigationRailItem(
                                     selected = false,
                                     onClick = {
                                         VibeHaptics.selection(view)
@@ -271,11 +311,12 @@ internal fun AdaptiveMainFrame(
                                         )
                                     },
                                     label = { Text(stringResource(R.string.settings_title), maxLines = 1) },
-                                    alwaysShowLabel = true,
+                                    railExpanded = false,
                                     modifier = Modifier.testTag("RailSettings")
                                 )
                             }
                         }
+                      }
                     }
                 }
 
@@ -284,6 +325,9 @@ internal fun AdaptiveMainFrame(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        // Keep the card below the status bar / cutout. The bottom edge still runs
+                        // behind the navigation bar because pages already pad for it themselves.
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End))
                         .padding(8.dp)
                         .testTag("MainContentContainer"),
                     shape = RoundedCornerShape(28.dp),
@@ -292,6 +336,7 @@ internal fun AdaptiveMainFrame(
                 ) { content(true) }
                 else Box(Modifier.weight(1f).fillMaxHeight()) { content(false) }
             }
+        }
         }
     }
 }

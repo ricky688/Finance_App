@@ -48,6 +48,24 @@ class BatchTransactionTest {
         assertFails { InMemoryDatabase.batchTransactions(listOf(expense, transfer), BatchTransactionOperation.Account(credit)) }
         assertEquals(records, InMemoryDatabase.transactions.value); assertEquals(accounts, InMemoryDatabase.accounts.value)
     }
+    @Test fun statementOverridePersistsWithoutChangingBalanceOrTransactionDate() = runTest {
+        val original = add(100.0, source = credit)
+        val transfer = add(50.0, destination = credit)
+        val accounts = InMemoryDatabase.accounts.value
+        repo.setStatementCycleOffset(original, 1)
+        val adjusted = original.copy(statementCycleOffset = 1)
+        assertFails { repo.setStatementCycleOffset(original, -1) }
+        assertFails { repo.setStatementCycleOffset(transfer, 1) }
+        assertEquals(accounts, InMemoryDatabase.accounts.value)
+        InMemoryDatabase.initialize(context)
+        assertTrue(InMemoryDatabase.transactions.value.contains(adjusted))
+        assertEquals(accounts, InMemoryDatabase.accounts.value)
+        repo.setStatementCycleOffset(adjusted, null)
+        InMemoryDatabase.initialize(context)
+        assertTrue(InMemoryDatabase.transactions.value.contains(original))
+        assertEquals(accounts, InMemoryDatabase.accounts.value)
+    }
+
     @Test fun categoryEditPreservesAllOtherFieldsAndBalances() = runTest {
         val records = listOf(add(10.0), add(20.0))
         val accounts = InMemoryDatabase.accounts.value

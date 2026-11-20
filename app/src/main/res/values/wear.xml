@@ -3,5 +3,15 @@
         <item>vibefinance_budget_phone_v1</item>
     </string-array>
     <string name="wear_share_title">Share budget with Wear OS</string>
-    <string name="wear_share_description">Show a read-only budget on your watch. Hidden amounts or App lock disable sharing. Offline amounts expire within 15 minutes or at midnight. Google Play services may relay encrypted updates through Google servers.</string>
+    <string name="wear_share_description">Show budget on your watch app, Tile, and watch face widgets. Hidden amounts or App lock disable sharing. Offline amounts expire within 2 hours or at midnight.</string>
+    <string name="wear_pending_title">Confirm pending transactions on watch</string>
+    <string name="wear_pending_description">Send unconfirmed bank and card alerts to your watch so you can approve, classify, or ignore them from your wrist. Phone remains the sole ledger.</string>
+    <string name="wear_recent_title">Recent activity &amp; quick log on watch</string>
+    <string name="wear_recent_description">Share your latest 5 transactions, next upcoming bill, and allow quick expense entry &amp; undo from your watch.</string>
+    <string name="wear_status_connected">Connected · %1$s</string>
+    <string name="wear_status_disconnected">No Wear OS watch nearby</string>
+    <string name="wear_last_synced">Last synced %1$s</string>
+    <string name="wear_never_synced">Not synced yet</string>
+    <string name="wear_sync_now">Sync now</string>
+    <string name="wear_syncing">Syncing…</string>
 </resources>

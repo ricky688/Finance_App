@@ -121,6 +121,9 @@ class TransactionRepository @Inject constructor() {
         InMemoryDatabase.updateTransactionWithBalances(newTx, oldTx, repaymentExpense)
     }
 
+    fun setStatementCycleOffset(expected: TransactionEntity, offset: Int?) =
+        InMemoryDatabase.setStatementCycleOffset(expected, offset)
+
     suspend fun deleteInstallmentGroup(groupId: String, accountId: Long) {
         InMemoryDatabase.deleteTransactionsByGroupId(groupId)
     }

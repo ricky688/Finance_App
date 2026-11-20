@@ -127,18 +127,12 @@ internal fun ScallopColorSwatchItem(
     val label = paletteLabel(palette)
     val scale by animateFloatAsState(
         targetValue = if (selected) 1.08f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "scallop_scale"
     )
     val borderWidth by animateDpAsState(
         targetValue = if (selected) 2.5.dp else 1.dp,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "scallop_borderWidth"
     )
     val borderColor by animateColorAsState(
@@ -217,10 +211,7 @@ internal fun ScallopColorSwatchItem(
         AnimatedVisibility(
             visible = selected,
             enter = scaleIn(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
             ) + fadeIn(animationSpec = tween(150)),
             exit = scaleOut(
                 animationSpec = spring(

@@ -63,7 +63,7 @@ fun FoodVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     forkAngle.animateTo(4f, tween(50, easing = LinearEasing))
                     // Touch 2
                     forkAngle.animateTo(20f, tween(65, easing = FastOutSlowInEasing))
-                    forkAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    forkAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // Touch 1
@@ -71,7 +71,7 @@ fun FoodVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     knifeAngle.animateTo(-4f, tween(50, easing = LinearEasing))
                     // Touch 2
                     knifeAngle.animateTo(-20f, tween(65, easing = FastOutSlowInEasing))
-                    knifeAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    knifeAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // Spark 1
@@ -267,8 +267,8 @@ fun ShoppingVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     delay(125)
                     bagScaleX.animateTo(1.20f, tween(60, easing = FastOutSlowInEasing))
                     bagScaleY.animateTo(0.82f, tween(60, easing = FastOutSlowInEasing))
-                    launch { bagScaleX.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
-                    bagScaleY.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    launch { bagScaleX.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial()) }
+                    bagScaleY.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {
@@ -354,7 +354,7 @@ fun TransitCarVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     delay(90)
                     carX.animateTo(-2f, tween(60, easing = FastOutSlowInEasing))
                     carX.animateTo(6.5f, tween(110, easing = FastOutSlowInEasing))
-                    carX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    carX.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {

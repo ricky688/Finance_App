@@ -251,7 +251,9 @@ class MainActivity : ComponentActivity() {
             com.example.vibefinance.service.PaymentLoggingNotification.cancel(this, decidePaymentId!!)
             intent?.removeExtra(com.example.vibefinance.service.NotificationActionReceiver.EXTRA_DECIDE_PAYMENT)
         }
-        val targetTabStr = intent?.getStringExtra("navigate_tab")
+        val deepLinkTab = intent?.data?.takeIf { it.scheme == "vibefinance" && it.host == "open" }
+            ?.pathSegments?.firstOrNull()
+        val targetTabStr = intent?.getStringExtra("navigate_tab") ?: deepLinkTab
         if (targetTabStr != null) {
             val targetTab = when (targetTabStr.lowercase(Locale.US)) {
                 "history" -> com.example.vibefinance.ui.main.TabItem.HISTORY

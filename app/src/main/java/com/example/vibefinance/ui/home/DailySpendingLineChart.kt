@@ -406,10 +406,7 @@ fun DailySpendingLineChart(
 
             val animatedRatioX by animateFloatAsState(
                 targetValue = targetXRatio,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "scrubRatioX"
             )
 
@@ -421,13 +418,13 @@ fun DailySpendingLineChart(
 
             val animatedGlowRadius by animateDpAsState(
                 targetValue = if (isDragging) 18.dp else 12.dp,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
                 label = "glowRadius"
             )
 
             val animatedDotRadius by animateDpAsState(
                 targetValue = if (isDragging) 9.dp else 6.dp,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
                 label = "dotRadius"
             )
 
@@ -611,7 +608,7 @@ fun DailySpendingLineChart(
                 // 5. Interactive Floating Scrub Tooltip Badge
                 androidx.compose.animation.AnimatedVisibility(
                     visible = isDragging,
-                    enter = fadeIn(tween(120)) + scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+                    enter = fadeIn(tween(120)) + scaleIn(com.example.vibefinance.theme.VibeMotion.fastSpatial()),
                     exit = fadeOut(tween(120)) + scaleOut(spring(stiffness = Spring.StiffnessMediumLow)),
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
@@ -674,7 +671,7 @@ fun DailySpendingLineChart(
                     )
                     val labelScale by animateFloatAsState(
                         targetValue = if (isSelected) 1.2f else 1.0f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
                         label = "labelScale_$idx"
                     )
 

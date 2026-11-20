@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="statement_cycle_title">信用卡結單週期</string>
+    <string name="statement_cycle_previous">上期</string>
+    <string name="statement_cycle_current">本期</string>
+    <string name="statement_cycle_next">下期</string>
+    <string name="statement_cycle_range">%1$s 至 %2$s</string>
+    <string name="statement_cycle_hint">點選交易可調整結單週期。原交易日期與結餘維持不變。</string>
+    <string name="statement_cycle_empty">這一期沒有已記錄的交易。</string>
+    <string name="statement_cycle_adjusted">已調整週期</string>
+    <string name="statement_cycle_adjust">調整結單週期</string>
+    <string name="statement_cycle_auto">自動分期</string>
+    <string name="statement_cycle_closing">%1$s 結單</string>
+    <string name="statement_cycle_saved">已更新結單週期。</string>
+    <string name="statement_cycle_save_failed">無法更新結單週期。請重新開啟交易再試。</string>
+</resources>

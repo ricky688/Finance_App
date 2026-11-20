@@ -4,7 +4,31 @@ package com.example.vibefinance.ui.history
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import com.example.vibefinance.ui.motion.sharedTransitionBounds
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.SizeTransform
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.debounce
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateContentSize
+import com.example.vibefinance.theme.MotionTokens
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -60,6 +84,968 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.abs
 
+/**
+ * The phone transaction dialog frame. Normally a regular [AlertDialog]; with [inline] it lays out
+ * the same title, text and buttons without its own window or surface, so [MorphingTransactionDialog]
+ * can morph between the detail and edit dialogs inside one container.
+ */
+@Composable
+internal fun TransactionDialogFrame(
+    inline: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(32.dp),
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    title: @Composable () -> Unit,
+    text: @Composable () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: (@Composable () -> Unit)? = null,
+) {
+    if (!inline) {
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            modifier = modifier,
+            shape = shape,
+            containerColor = containerColor,
+            title = title,
+            text = text,
+            confirmButton = confirmButton,
+            dismissButton = dismissButton
+        )
+        return
+    }
+    // Mirrors AlertDialog's content layout: 24dp padding, title, scrollable text, end-aligned buttons.
+    Column(Modifier.padding(24.dp)) {
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+            ProvideTextStyle(MaterialTheme.typography.headlineSmall) {
+                Box(Modifier.padding(bottom = 16.dp)) { title() }
+            }
+        }
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+            ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
+                Box(Modifier.weight(1f, fill = false).padding(bottom = 24.dp)) { text() }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            dismissButton?.invoke()
+            confirmButton()
+        }
+    }
+}
+
+/**
+ * Phone transaction dialog that keeps one window while switching between the detail view and the
+ * edit form: the shared 32dp card resizes with a slow spatial spring while the content cross-fades
+ * and settles in from 96% scale, so pressing Edit (or cancelling back) morphs instead of
+ * closing one dialog and opening another.
+ */
+/**
+ * Phone transaction dialog that keeps one window while switching between the detail view and the
+ * edit form, using a **shared element transition**: the location card (with the very same map
+ * view), amount, category, date/time, account and description move and reshape from their place
+ * on one page to their place on the other, while the card resizes. Elements that exist on only one
+ * page slide a short way and fade, so nothing pops in. All motion uses the slow spatial spring.
+ */
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+@Composable
+internal fun MorphingTransactionDialog(
+    editing: Boolean,
+    onDismissRequest: () -> Unit,
+    detail: @Composable () -> Unit,
+    edit: @Composable () -> Unit,
+) {
+    val currentDismiss by rememberUpdatedState(onDismissRequest)
+    val mapHost = remember { SharedMapHost() }
+    androidx.compose.material3.BasicAlertDialog(
+        onDismissRequest = onDismissRequest,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+      // A full-size window: with a wrap-content window the card could only grow as far as the
+      // window's previous height each pass, so the resize crawled for seconds.
+      Box(
+          Modifier
+              .fillMaxSize()
+              // Scrim tap dismisses; gesture-only so no extra accessibility node (back dismisses too).
+              .pointerInput(Unit) { detectTapGestures { currentDismiss() } },
+          contentAlignment = Alignment.Center
+      ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .widthIn(max = 560.dp)
+                .padding(vertical = 24.dp)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(32.dp))
+                .testTag("TransactionMorphDialog"),
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 0.dp
+        ) {
+            Box(
+                // Swallow taps on the card so only the scrim dismisses.
+                Modifier.pointerInput(Unit) { detectTapGestures { } }
+            ) {
+              // The dialog is its own window, so it needs its own shared-transition root.
+              androidx.compose.animation.SharedTransitionLayout {
+                CompositionLocalProvider(
+                    com.example.vibefinance.ui.motion.LocalSharedTransitionScope provides this,
+                    LocalSharedMapHost provides mapHost,
+                    LocalCompactTransactionForm provides true
+                ) {
+                    AnimatedContent(
+                        targetState = editing,
+                        contentAlignment = Alignment.TopCenter,
+                        transitionSpec = {
+                            // Only the page-specific parts use this; shared elements fly on their own.
+                            val toEdit = targetState
+                            val enter = slideInVertically(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { h -> if (toEdit) h / 8 else -h / 8 } +
+                                fadeIn(com.example.vibefinance.theme.VibeMotion.slowEffects())
+                            val exit = slideOutVertically(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { h -> if (toEdit) -h / 8 else h / 8 } +
+                                fadeOut(com.example.vibefinance.theme.VibeMotion.defaultEffects())
+                            (enter togetherWith exit).using(
+                                SizeTransform(clip = false) { _, _ -> com.example.vibefinance.theme.VibeMotion.slowSpatial() }
+                            )
+                        },
+                        label = "transactionDetailToEdit"
+                    ) { isEditing ->
+                        CompositionLocalProvider(
+                            com.example.vibefinance.ui.motion.LocalSharedContentScope provides this,
+                            com.example.vibefinance.ui.motion.LocalIsSharedTargetPage provides (isEditing == editing)
+                        ) {
+                            if (isEditing) edit() else detail()
+                        }
+                    }
+                }
+              }
+            }
+        }
+      }
+    }
+}
+
+/** Edit form plus save state, produced by History and rendered inside [TransactionDetailPage]. */
+internal class TransactionEditUi(
+    val form: @Composable () -> Unit,
+    val canSave: Boolean,
+    val busy: Boolean,
+    val save: () -> Unit,
+)
+
+/**
+ * One page for viewing and editing a transaction (M3 Expressive redesign, item 2).
+ * Phones show it full screen through [TransactionDetailPageHost]; wide windows show it in the
+ * list-detail pane ([embedded] = true, so no back arrow while viewing). Edit mode swaps the body
+ * for the shared edit form in place and shows Cancel / Save in a floating toolbar.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun TransactionDetailPage(
+    transaction: TransactionEntity,
+    accounts: List<AccountEntity>,
+    embedded: Boolean,
+    editing: Boolean,
+    editUi: TransactionEditUi?,
+    onClose: () -> Unit,
+    onEdit: (TransactionEntity) -> Unit,
+    onCancelEdit: () -> Unit,
+    onDelete: (TransactionEntity) -> Unit,
+    modifier: Modifier = Modifier,
+    onUpdateTransaction: ((TransactionEntity) -> Unit)? = null,
+    onMoneyBack: (() -> Unit)? = null,
+    onUnlink: (() -> Unit)? = null,
+) {
+    val hideAmounts = com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts
+    val context = LocalContext.current
+    var currentTx by remember(transaction) { mutableStateOf(transaction) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showPresetSheet by remember { mutableStateOf(false) }
+
+    val view = LocalView.current
+    val isDark = isSystemInDarkTheme()
+
+    val sourceAccount = remember(currentTx.accountId, accounts) {
+        accounts.firstOrNull { it.id == currentTx.accountId }
+    }
+    val destinationAccount = remember(currentTx.toAccountId, accounts) {
+        accounts.firstOrNull { it.id == currentTx.toAccountId }
+    }
+
+    val isTransfer = currentTx.toAccountId != null
+    val isIncome = currentTx.amount < 0 && !isTransfer
+    val isExpense = currentTx.amount >= 0 && !isTransfer
+    val isReimbursement = currentTx.isReimbursement
+
+    val displayAmount = abs(currentTx.amount)
+    val amountPrefix = when {
+        isTransfer -> ""
+        isIncome -> "+"
+        else -> "-"
+    }
+    val amountColor = when {
+        isTransfer -> MaterialTheme.colorScheme.primary
+        isIncome -> Color(0xFF2E7D32)
+        else -> MaterialTheme.colorScheme.error
+    }
+
+
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+            .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing))
+            .testTag("TransactionDetailPage")
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            // Top app bar: back (or cancel while editing), title, edit and delete actions.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!embedded || editing) {
+                    IconButton(
+                        onClick = {
+                            com.example.vibefinance.util.VibeHaptics.selection(view)
+                            if (editing) onCancelEdit() else onClose()
+                        },
+                        modifier = Modifier.testTag("DetailCloseButton")
+                    ) {
+                        Icon(
+                            if (editing) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(if (editing) R.string.btn_cancel else R.string.btn_close)
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.width(12.dp))
+                }
+                Box(Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            var iconClickTrigger by remember { mutableStateOf(1) }
+                            Surface(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        iconClickTrigger++
+                                    },
+                                shape = CircleShape,
+                                color = when {
+                                    isReimbursement -> MaterialTheme.colorScheme.secondaryContainer
+                                    isTransfer -> MaterialTheme.colorScheme.primaryContainer
+                                    isIncome -> Color(0xFFE8F5E9)
+                                    else -> MaterialTheme.colorScheme.errorContainer
+                                }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (isReimbursement) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardReturn,
+                                            contentDescription = stringResource(R.string.reimbursement_title),
+                                            modifier = Modifier.size(20.dp),
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    } else {
+                                        val mode = when {
+                                            isTransfer -> TransactionMode.TRANSFER
+                                            isIncome -> TransactionMode.INCOME
+                                            else -> TransactionMode.EXPENSE
+                                        }
+                                        val iconTint = when {
+                                            isTransfer -> MaterialTheme.colorScheme.onPrimaryContainer
+                                            isIncome -> Color(0xFF1B5E20)
+                                            else -> MaterialTheme.colorScheme.onErrorContainer
+                                        }
+                                        ModeSwitcherAnimatedIcon(
+                                            mode = mode,
+                                            tint = iconTint,
+                                            isSelected = true,
+                                            clickTrigger = iconClickTrigger,
+                                            iconSize = 20.dp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Column {
+                                Text(
+                                    text = when {
+                                        isReimbursement -> stringResource(R.string.reimbursement_title)
+                                        isTransfer -> stringResource(R.string.filter_transfer)
+                                        isIncome -> stringResource(R.string.filter_income)
+                                        else -> com.example.vibefinance.ui.home.getCategoryDisplayName(currentTx.category)
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(currentTx.timestamp)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+                AnimatedVisibility(
+                    visible = !editing,
+                    enter = fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) +
+                        scaleIn(com.example.vibefinance.theme.VibeMotion.fastSpatial(), initialScale = 0.6f),
+                    exit = fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()) +
+                        scaleOut(com.example.vibefinance.theme.VibeMotion.fastSpatial(), targetScale = 0.6f)
+                ) {
+                    Row {
+                        IconButton(
+                            onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); onEdit(currentTx) },
+                            modifier = Modifier.testTag("DetailEditButton")
+                        ) { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.btn_edit)) }
+                        IconButton(
+                            onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); showDeleteConfirm = true },
+                            modifier = Modifier.testTag("DetailDeleteButton")
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.btn_delete),
+                                tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+
+            AnimatedContent(
+                targetState = editing && editUi != null,
+                transitionSpec = {
+                    (fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) +
+                        slideInVertically(com.example.vibefinance.theme.VibeMotion.defaultSpatial()) { it / 12 })
+                        .togetherWith(fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()))
+                },
+                modifier = Modifier.weight(1f),
+                label = "transactionPageMode"
+            ) { isEditing ->
+                if (isEditing && editUi != null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp)
+                            .padding(top = 8.dp, bottom = 112.dp)
+                            .testTag("TransactionEditForm"),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) { editUi.form() }
+                } else {
+                    val heroSection: @Composable () -> Unit = {
+                        // 1. Hero Amount Display
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = if (hideAmounts) "••••" else String.format(Locale.US, "%sHK$%,.2f", amountPrefix, displayAmount),
+                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = amountColor,
+                                    maxLines = 1
+                                )
+
+                                if (currentTx.description.isNotBlank()) {
+                                    Text(
+                                        text = currentTx.description,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+
+                    }
+                    val locationSection: @Composable () -> Unit = {
+                        // 2. OpenStreetMap (OSM) Location Card (Graceful display when coordinates exist)
+                        val location = rememberTransactionLocation(currentTx)
+                        if (location != null) {
+                            val lat = location.latitude
+                            val lng = location.longitude
+                            val locLabel = location.label
+                            val startStationName = location.startStationName
+                            val endStationName = location.endStationName
+                            val effectiveStartLat = location.startLatitude
+                            val effectiveStartLng = location.startLongitude
+
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("OsmLocationCard"),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.tx_detail_location),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            CompletePressTextButton(
+                                                onClick = {
+                                                    val geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(${Uri.encode(currentTx.description.ifBlank { currentTx.category })})")
+                                                    val mapIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+                                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    }
+                                                    runCatching { context.startActivity(mapIntent) }
+                                                },
+                                                shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(stringResource(R.string.tx_detail_open_in_map), style = MaterialTheme.typography.labelSmall)
+                                            }
+
+                                            if (onUpdateTransaction != null) {
+                                                CompletePressTextButton(
+                                                    onClick = { showPresetSheet = true },
+                                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier.height(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Spacer(Modifier.width(2.dp))
+                                                    Text(stringResource(R.string.tx_detail_retag_location), style = MaterialTheme.typography.labelSmall)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Transit Route Bento Card
+                                    if (startStationName != null && endStationName != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(0xFF00C853)))
+                                                    Text(
+                                                        text = startStationName,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Icon(
+                                                        imageVector = androidx.compose.material.icons.Icons.Default.DirectionsSubway,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(0xFFD50000)))
+                                                    Text(
+                                                        text = endStationName,
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "港鐵出行",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    TransactionLocationMap(
+                                        latitude = lat, longitude = lng,
+                                        startLatitude = effectiveStartLat, startLongitude = effectiveStartLng,
+                                        description = locLabel,
+                                        modifier = Modifier.fillMaxWidth().height(180.dp)
+                                    )
+
+                                    // Location Address / Street description
+                                    Text(
+                                        text = locLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        } else if (onUpdateTransaction != null) {
+                            var isTagging by remember { mutableStateOf(false) }
+                            val scope = rememberCoroutineScope()
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("OsmNoLocationCard"),
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.size(38.dp),
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.LocationOff,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(R.string.tx_detail_no_location_title),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = stringResource(R.string.tx_detail_no_location_hint),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        CompletePressButton(
+                                            onClick = {
+                                                if (!isTagging) {
+                                                    isTagging = true
+                                                    scope.launch {
+                                                        val freshLoc = com.example.vibefinance.util.GnssLocationManager.resolveFreshLocation(context)
+                                                            ?: com.example.vibefinance.util.GnssLocationManager.getInstantLocation(context)
+                                                        isTagging = false
+                                                        if (freshLoc != null) {
+                                                            val updated = currentTx.copy(
+                                                                latitude = freshLoc.latitude,
+                                                                longitude = freshLoc.longitude,
+                                                                locationName = freshLoc.locationName
+                                                            )
+                                                            currentTx = updated
+                                                            onUpdateTransaction(updated)
+                                                            android.widget.Toast.makeText(
+                                                                context,
+                                                                context.getString(R.string.tx_detail_location_success),
+                                                                android.widget.Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        } else {
+                                                            android.widget.Toast.makeText(
+                                                                context,
+                                                                context.getString(R.string.tx_detail_location_failed),
+                                                                android.widget.Toast.LENGTH_LONG
+                                                            ).show()
+                                                            showPresetSheet = true
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                            enabled = !isTagging,
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                        ) {
+                                            if (isTagging) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(14.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = MaterialTheme.colorScheme.onPrimary
+                                                )
+                                            } else {
+                                                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    text = stringResource(R.string.tx_detail_tag_location),
+                                                    style = MaterialTheme.typography.labelMedium
+                                                )
+                                            }
+                                        }
+
+                                        CompletePressOutlinedButton(
+                                            onClick = { showPresetSheet = true },
+                                            shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                            modifier = Modifier.height(36.dp)
+                                        ) {
+                                            Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = stringResource(R.string.tx_detail_tag_preset),
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+
+                    }
+                    val infoSection: @Composable () -> Unit = {
+                        // 3. Detail Info Grid
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Account row
+                                DetailRow(
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    label = stringResource(R.string.label_account),
+                                    value = when {
+                                        isTransfer -> "${sourceAccount?.name ?: "#${currentTx.accountId}"} → ${destinationAccount?.name ?: "#${currentTx.toAccountId}"}"
+                                        else -> sourceAccount?.name ?: "#${currentTx.accountId}"
+                                    }
+                                )
+
+                                // Category row
+                                if (!isTransfer) {
+                                    DetailRow(
+                                        icon = Icons.Default.Category,
+                                        label = stringResource(R.string.cat_others),
+                                        value = com.example.vibefinance.ui.home.getCategoryDisplayName(currentTx.category)
+                                    )
+                                }
+
+                                // Daily budget status
+                                if (isExpense) {
+                                    DetailRow(
+                                        icon = if (currentTx.isExcludedFromDailyBudget) Icons.Outlined.EventBusy else Icons.Outlined.EventAvailable,
+                                        label = stringResource(R.string.daily_budget_toggle_title),
+                                        value = if (currentTx.isExcludedFromDailyBudget) {
+                                            stringResource(R.string.daily_budget_toggle_desc_off)
+                                        } else {
+                                            stringResource(R.string.daily_budget_toggle_desc_on)
+                                        }
+                                    )
+                                }
+
+                                // Reimbursement status
+                                if (currentTx.isReimbursement) {
+                                    DetailRow(
+                                        icon = Icons.AutoMirrored.Outlined.AssignmentReturn,
+                                        label = stringResource(R.string.reimbursement_title),
+                                        value = if (currentTx.reimbursementOf != null) {
+                                            "#${currentTx.reimbursementOf}"
+                                        } else {
+                                            stringResource(R.string.reimbursement_unlink)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (onMoneyBack != null && currentTx.amount < 0 && currentTx.toAccountId == null && !currentTx.isBalanceAdjustment) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                CompletePressTextButton(
+                                    onClick = onMoneyBack,
+                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                                ) { Text(stringResource(R.string.reimbursement_choose_expense)) }
+                                if (currentTx.reimbursementOf != null && onUnlink != null) CompletePressTextButton(
+                                    onClick = onUnlink,
+                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                                ) { Text(stringResource(R.string.reimbursement_unlink)) }
+                            }
+                        }
+                    }
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        if (maxWidth >= 720.dp) {
+                            // Wide pane: amount and map on the left, the record's fields on the right.
+                            Row(
+                                Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.spacedBy(20.dp)
+                            ) {
+                                Column(
+                                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+                                        .padding(top = 8.dp, bottom = 24.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) { heroSection(); locationSection() }
+                                Column(
+                                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+                                        .padding(top = 8.dp, bottom = 24.dp),
+                                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                                ) { infoSection() }
+                            }
+                        } else {
+                            Column(
+                                Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) { heroSection(); locationSection(); infoSection() }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Edit mode: M3 Expressive floating toolbar with Cancel / Save.
+        AnimatedVisibility(
+            visible = editing && editUi != null,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+            enter = fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) +
+                slideInVertically(com.example.vibefinance.theme.VibeMotion.defaultSpatial()) { it },
+            exit = fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()) +
+                slideOutVertically(com.example.vibefinance.theme.VibeMotion.defaultSpatial()) { it }
+        ) {
+            val ui = editUi
+            HorizontalFloatingToolbar(expanded = true, modifier = Modifier.testTag("TransactionEditToolbar")) {
+                CompletePressTextButton(
+                    enabled = ui?.busy != true,
+                    onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); onCancelEdit() },
+                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                ) { Text(stringResource(R.string.btn_cancel)) }
+                Spacer(Modifier.width(8.dp))
+                CompletePressButton(
+                    enabled = ui?.canSave == true,
+                    onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); ui?.save?.invoke() },
+                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    modifier = Modifier.testTag("EditTransactionSave")
+                ) {
+                    if (ui?.busy == true) LoadingIndicator(Modifier.size(24.dp))
+                    else Text(stringResource(R.string.btn_save))
+                }
+            }
+        }
+    }
+
+    // District / Location Preset Sheet Dialog
+    if (showPresetSheet && onUpdateTransaction != null) {
+        AlertDialog(
+            onDismissRequest = { showPresetSheet = false },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.Place, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = stringResource(R.string.tx_detail_select_district_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    com.example.vibefinance.util.GnssLocationManager.PRESETS.forEach { preset ->
+                        Surface(
+                            onClick = {
+                                showPresetSheet = false
+                                val updated = currentTx.copy(
+                                    latitude = preset.latitude,
+                                    longitude = preset.longitude,
+                                    locationName = preset.title
+                                )
+                                currentTx = updated
+                                onUpdateTransaction(updated)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.tx_detail_location_success) + ": " + preset.title,
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = preset.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    // Clear Location option if location currently exists
+                    if (currentTx.latitude != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Surface(
+                            onClick = {
+                                showPresetSheet = false
+                                val updated = currentTx.copy(
+                                    latitude = null,
+                                    longitude = null,
+                                    locationName = null
+                                )
+                                currentTx = updated
+                                onUpdateTransaction(updated)
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOff,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.tx_detail_remove_location),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPresetSheet = false }) {
+                    Text(stringResource(R.string.btn_close))
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.tx_detail_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.tx_detail_delete_confirm_desc)) },
+            confirmButton = {
+                CompletePressButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete(currentTx)
+                    },
+                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(stringResource(R.string.btn_delete))
+                }
+            },
+            dismissButton = {
+                CompletePressTextButton(
+                    onClick = { showDeleteConfirm = false },
+                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                ) {
+                    Text(stringResource(R.string.btn_cancel))
+                }
+            }
+        )
+    }
+}
+
+/** Phone (compact) viewer: the original detail dialog, kept by user preference (2026-11-20). */
 @Composable
 fun TransactionDetailDialog(
     transaction: TransactionEntity,
@@ -67,7 +1053,8 @@ fun TransactionDetailDialog(
     onDismissRequest: () -> Unit,
     onEdit: (TransactionEntity) -> Unit,
     onDelete: (TransactionEntity) -> Unit,
-    onUpdateTransaction: ((TransactionEntity) -> Unit)? = null
+    onUpdateTransaction: ((TransactionEntity) -> Unit)? = null,
+    inline: Boolean = false
 ) {
     val context = LocalContext.current
     var currentTx by remember(transaction.id, transaction.latitude, transaction.longitude) { mutableStateOf(transaction) }
@@ -103,14 +1090,12 @@ fun TransactionDetailDialog(
 
     val dialogScale by animateFloatAsState(
         targetValue = 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
         label = "detailDialogContainerTransform"
     )
 
-    AlertDialog(
+    TransactionDialogFrame(
+        inline = inline,
         onDismissRequest = onDismissRequest,
         modifier = Modifier
             .fillMaxWidth(0.95f)
@@ -192,12 +1177,14 @@ fun TransactionDetailDialog(
                                 isIncome -> stringResource(R.string.filter_income)
                                 else -> com.example.vibefinance.ui.home.getCategoryDisplayName(currentTx.category)
                             },
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Category),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(currentTx.timestamp)),
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.DateTime),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -206,10 +1193,13 @@ fun TransactionDetailDialog(
             }
         },
         text = {
+            // Edges fade only while there is more to scroll in that direction.
+            val detailScroll = rememberScrollState()
+            com.example.vibefinance.ui.common.ScrollBlurContainer(scrollState = detailScroll, vertical = true) { blurModifier ->
             Column(
-                modifier = Modifier
+                modifier = blurModifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(detailScroll),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // 1. Hero Amount Display
@@ -228,6 +1218,7 @@ fun TransactionDetailDialog(
                     ) {
                         Text(
                             text = String.format(Locale.US, "%sHK$%,.2f", amountPrefix, displayAmount),
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Amount),
                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
                             color = amountColor,
                             maxLines = 1
@@ -236,6 +1227,7 @@ fun TransactionDetailDialog(
                         if (currentTx.description.isNotBlank()) {
                             Text(
                                 text = currentTx.description,
+                                modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Description),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
@@ -246,32 +1238,20 @@ fun TransactionDetailDialog(
                 }
 
                 // 2. OpenStreetMap (OSM) Location Card (Graceful display when coordinates exist)
-                val lat = currentTx.latitude
-                val lng = currentTx.longitude
-                if (lat != null && lng != null) {
-                    val rawLocName = currentTx.locationName
-                    val locLabel = rawLocName?.takeIf { it.isNotBlank() }
-                        ?: String.format(Locale.US, "%.5f, %.5f", lat, lng)
-
-                    val startStationName = if (!currentTx.startLocationName.isNullOrBlank()) {
-                        currentTx.startLocationName
-                    } else if (rawLocName?.contains(" ➔ ") == true) {
-                        rawLocName.substringBefore(" ➔ ").trim()
-                    } else null
-
-                    val endStationName = if (rawLocName?.contains(" ➔ ") == true) {
-                        rawLocName.substringAfter(" ➔ ").trim()
-                    } else null
-
-                    val startStationObj = if (startStationName != null) {
-                        com.example.vibefinance.transit.MtrStationRegistry.getStationByName(context, startStationName)
-                    } else null
-                    val effectiveStartLat = currentTx.startLatitude ?: startStationObj?.latitude
-                    val effectiveStartLng = currentTx.startLongitude ?: startStationObj?.longitude
+                val location = rememberTransactionLocation(currentTx)
+                if (location != null) {
+                    val lat = location.latitude
+                    val lng = location.longitude
+                    val locLabel = location.label
+                    val startStationName = location.startStationName
+                    val endStationName = location.endStationName
+                    val effectiveStartLat = location.startLatitude
+                    val effectiveStartLng = location.startLongitude
 
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .sharedTransitionBounds(SharedTxKeys.LocationCard, remeasure = true)
                             .testTag("OsmLocationCard"),
                         shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -389,12 +1369,7 @@ fun TransactionDetailDialog(
                                 }
                             }
 
-                            TransactionLocationMap(
-                                latitude = lat, longitude = lng,
-                                startLatitude = effectiveStartLat, startLongitude = effectiveStartLng,
-                                description = locLabel,
-                                modifier = Modifier.fillMaxWidth().height(180.dp)
-                            )
+                            SharedTransactionMap(location, Modifier.fillMaxWidth().height(180.dp))
 
                             // Location Address / Street description
                             Text(
@@ -550,6 +1525,7 @@ fun TransactionDetailDialog(
                     ) {
                         // Account row
                         DetailRow(
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Account),
                             icon = Icons.Default.AccountBalanceWallet,
                             label = stringResource(R.string.label_account),
                             value = when {
@@ -595,6 +1571,7 @@ fun TransactionDetailDialog(
                     }
                 }
             }
+            }
         },
         confirmButton = {
             Row(
@@ -627,7 +1604,8 @@ fun TransactionDetailDialog(
                     // Edit button
                     CompletePressButton(
                         onClick = {
-                            onDismissRequest()
+                            // In the morphing phone dialog the detail stays open behind the edit form.
+                            if (!inline) onDismissRequest()
                             onEdit(currentTx)
                         },
                         shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
@@ -799,10 +1777,11 @@ fun TransactionDetailDialog(
 private fun DetailRow(
     icon: ImageVector,
     label: String,
-    value: String
+    value: String,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {

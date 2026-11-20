@@ -1,0 +1,20 @@
+<en-US>
+• Google Wallet Deduplication: Seamless cross-source deduplication between Google Wallet / Samsung Wallet and bank card alerts, eliminating duplicate prompts and double logging.
+• Merchant Name Upgrade: Automatically upgrades generic Google Pay placeholders to exact merchant names and enriches GPS locations.
+• Performance: Background image decoding for asset cards for smoother scrolling.
+• Adaptive UI: Navigation Rail and side sheets for large screens and foldables.
+</en-US>
+
+<zh-HK>
+• Google Wallet 與數位錢包重複攔截防護：新增 Google Wallet / Samsung Wallet 與發卡銀行（如 Mox、HSBC、恒生等）通知跨來源智能去重，杜絕實體感應付款後的重複記帳與重複彈窗。
+• 商戶資訊自動升級：自動將 Google Pay 通用佔位商戶名升級為銀行真實商戶名稱，並無縫繼承 GPS 座標。
+• 效能流暢度提升：帳戶卡片自訂圖像非阻塞式背景載入，快速滑動毫無卡頓。
+• Material 3 Expressive 自適應設計：大螢幕與折疊螢幕專屬 88dp 導覽列與側邊欄。
+</zh-HK>
+
+<zh-TW>
+• Google Wallet 與數位錢包重複攔截防護：新增 Google Wallet / Samsung Wallet 與發卡銀行通知跨來源智慧去重，杜絕實體感應付款後的重複記帳與重複彈窗。
+• 商戶資訊自動升級：自動將 Google Pay 通用佔位商戶名升級為銀行真實商戶名稱，並無縫繼承 GPS 座標。
+• 效能順暢度最佳化：帳戶卡片自訂圖片非同步背景載入，快速滑動穩定流暢。
+• Material 3 Expressive 自適應架構：大螢幕與折疊螢幕專屬 Navigation Rail 與側邊欄。
+</zh-TW>

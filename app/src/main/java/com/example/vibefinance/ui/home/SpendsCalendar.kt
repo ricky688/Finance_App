@@ -899,7 +899,7 @@ private fun DayCell(
 
     val borderThickness by animateDpAsState(
         targetValue = if (isSelected) 2.5.dp else if (isToday) 1.5.dp else 1.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
         label = "cellBorderThickness"
     )
 

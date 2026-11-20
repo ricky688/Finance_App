@@ -306,7 +306,7 @@ fun RecalcBudgetSheet(
                 // Animated Hero Number Counter with Spring Physics
                 val animatedHeroAmount by animateFloatAsState(
                     targetValue = Math.abs(yesterdayLeftover).toFloat(),
-                    animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioMediumBouncy),
+                    animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                     label = "heroRecalcAmount"
                 )
 

@@ -53,7 +53,8 @@ data class TransactionEntity(
     val locationName: String? = null,
     val startLatitude: Double? = null,
     val startLongitude: Double? = null,
-    val startLocationName: String? = null
+    val startLocationName: String? = null,
+    val statementCycleOffset: Int? = null // Relative to the cycle of the original transaction date
 ) {
     val isReimbursement: Boolean get() = reimbursementOf != null || isUnlinkedReimbursement
 }

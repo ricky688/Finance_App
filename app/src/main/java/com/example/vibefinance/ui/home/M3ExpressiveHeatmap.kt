@@ -529,10 +529,7 @@ private fun HeatmapTile(
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.85f else if (isSelected) 1.15f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "tileScale"
     )
 

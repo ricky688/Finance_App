@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
@@ -111,12 +112,12 @@ fun <T> ExpressiveConnectedButtonGroup(
                         },
                         interactionSource = interactionSource,
                         shapes = when {
-                            items.size == 1 -> ToggleButtonDefaults.shapes()
+                            items.size == 1 -> ToggleButtonDefaults.shapesFor(ButtonDefaults.MinHeight)
                             index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                             index == items.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                             else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                         },
-                        colors = ToggleButtonDefaults.toggleButtonColors(
+                        colors = ToggleButtonDefaults.colors(
                             containerColor = colorMotion.containerColor,
                             checkedContainerColor = colorMotion.containerColor,
                             contentColor = colorMotion.contentColor,
@@ -169,7 +170,7 @@ fun <T> ExpressiveConnectedButtonGroup(
                                     AnimatedVisibility(
                                         visible = isSelected,
                                         enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
-                                            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                                            com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                         ),
                                         exit = fadeOut(spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
                                             spring(stiffness = Spring.StiffnessMediumLow)

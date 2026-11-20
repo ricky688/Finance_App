@@ -235,10 +235,7 @@ fun AppSwitch(
                         targetState = checked,
                         transitionSpec = {
                             (scaleIn(
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             ) + fadeIn(animationSpec = tween(140)))
                                 .togetherWith(
                                     scaleOut(

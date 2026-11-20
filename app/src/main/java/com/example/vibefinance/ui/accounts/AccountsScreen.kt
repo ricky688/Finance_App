@@ -732,10 +732,7 @@ internal fun AssetGroupSelector(
                             )
                             iconBounceScale.animateTo(
                                 targetValue = 1.08f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             )
                         }
                         launch {
@@ -746,10 +743,7 @@ internal fun AssetGroupSelector(
                             )
                             iconBounceOffsetY.animateTo(
                                 targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             )
                         }
                     }
@@ -787,7 +781,7 @@ internal fun AssetGroupSelector(
                         AssetFilter.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                         else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                     },
-                    colors = ToggleButtonDefaults.toggleButtonColors(
+                    colors = ToggleButtonDefaults.colors(
                         containerColor = colorMotion.containerColor,
                         contentColor = colorMotion.contentColor,
                         checkedContainerColor = colorMotion.containerColor,
@@ -862,6 +856,7 @@ fun AccountsScreen(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val presentationLocale = LocalConfiguration.current.locales[0]
+    var statementAccountId by rememberSaveable { mutableStateOf<Long?>(null) }
     val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
     val breakdown = remember(state.accounts) { calculateNetWorth(state.accounts) }
@@ -1237,10 +1232,7 @@ fun AccountsScreen(
                                     // Phase 2: Settle down to 0.90x compact resting scale
                                     iconScale.animateTo(
                                         targetValue = 0.90f,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
+                                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                     )
                                 } else {
                                     // Compact -> Detailed:
@@ -1257,10 +1249,7 @@ fun AccountsScreen(
                                     // Phase 2: Bloom up to 1.0f detailed resting scale
                                     iconScale.animateTo(
                                         targetValue = 1.0f,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
+                                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                     )
                                 }
                             }
@@ -1621,6 +1610,7 @@ fun AccountsScreen(
                                                 },
                                                 onBalanceClick = { balanceAccount = account },
                                                 onHistoryClick = { onViewAccountHistory(account.id) },
+                                                onShowStatement = { statementAccountId = account.id },
                                                 onPickApp = { accountForAppPicker = it },
                                                 modifier = cardItemModifier
                                             )
@@ -1636,6 +1626,7 @@ fun AccountsScreen(
                                                 },
                                                 onBalanceClick = { balanceAccount = account },
                                                 onHistoryClick = { onViewAccountHistory(account.id) },
+                                                onShowStatement = { statementAccountId = account.id },
                                                 onPickApp = { accountForAppPicker = it },
                                                 modifier = cardItemModifier
                                             )
@@ -1669,12 +1660,22 @@ fun AccountsScreen(
                         onEditClick = { editorState.open(accountId = id) },
                         onBalanceClick = { balanceAccount = account },
                         onHistoryClick = { onViewAccountHistory(id) },
+                        onShowStatement = { statementAccountId = id },
                         onPickApp = { accountForAppPicker = it })
                     AccountTransactionInspection(account.id, state.transactions, state.hideAmounts)
                 }
             }
         }
     } else Box(modifier) { accountList() }
+    state.accounts.firstOrNull { it.id == statementAccountId && it.type == AccountType.CC }?.let { account ->
+        StatementCycleSheet(
+            account = account,
+            transactions = state.transactions,
+            hideAmounts = state.hideAmounts,
+            onDismiss = { statementAccountId = null },
+            onSetOffset = { transaction, offset -> onIntent(FinanceIntent.SetStatementCycleOffset(transaction, offset)) }
+        )
+    }
     accountForAppPicker?.let { targetAccount ->
         AppPickerDialog(
             currentPackage = targetAccount.linkedAppPackage,
@@ -1974,24 +1975,15 @@ fun Modifier.rotate3DOnTouch(): Modifier = this.composed {
 
     val animatedRotationX by animateFloatAsState(
         targetValue = rotationX,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
     val animatedRotationY by animateFloatAsState(
         targetValue = rotationY,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
     val animatedShineOffsetX by animateFloatAsState(
         targetValue = shineOffsetX,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
 
     this
@@ -2843,6 +2835,7 @@ private fun CompactAccountRow(
     onEditClick: () -> Unit,
     onBalanceClick: () -> Unit,
     onHistoryClick: () -> Unit,
+    onShowStatement: () -> Unit,
     onPickApp: (AccountEntity) -> Unit = {},
     modifier: Modifier = Modifier,
     onEditWithBounds: ((Rect?) -> Unit)? = null,
@@ -3009,7 +3002,7 @@ private fun CompactAccountRow(
                         )
                     }
                 }
-                if (account.type == AccountType.CC) CreditCardCycleBadges(account, transactions)
+                if (account.type == AccountType.CC) CreditCardCycleBadges(account, transactions, onShowStatement = onShowStatement)
             }
 
             Column(horizontalAlignment = Alignment.End, modifier = Modifier.testTag("AccountBalance_${account.id}")) {
@@ -3079,6 +3072,7 @@ fun ExpressiveAccountListItem(
     onPickApp: (AccountEntity) -> Unit = {},
     modifier: Modifier = Modifier,
     onEditWithBounds: ((Rect?) -> Unit)? = null,
+    onShowStatement: (() -> Unit)? = null,
 ) {
     var itemBounds by remember { mutableStateOf<Rect?>(null) }
     val isCC = account.type == AccountType.CC
@@ -3115,7 +3109,7 @@ fun ExpressiveAccountListItem(
                     itemBounds = coords.boundsInRoot()
                 }
             }
-            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .animateContentSize(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             .bouncyClickable(shape = RoundedCornerShape(20.dp), onClick = {
                 onEditWithBounds?.invoke(itemBounds) ?: onEditClick()
             }),
@@ -3377,7 +3371,7 @@ fun ExpressiveAccountListItem(
                 }
             }
 
-            if (isCC) CreditCardCycleBadges(account, transactions)
+            if (isCC) CreditCardCycleBadges(account, transactions, onShowStatement = onShowStatement)
 
 
             Row(

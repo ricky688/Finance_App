@@ -76,10 +76,7 @@ fun MaterialYouAppLaunchOverlay(
 
     val contentScale by animateFloatAsState(
         targetValue = if (showLaunch) 0.88f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
         label = "contentLaunchScale"
     )
 
@@ -121,10 +118,7 @@ fun MaterialYouAppLaunchOverlay(
             exit = fadeOut(tween(350)) + scaleOut(
                 targetScale = 1.4f,
                 transformOrigin = TransformOrigin.Center,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
+                animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial()
             )
         ) {
             Box(

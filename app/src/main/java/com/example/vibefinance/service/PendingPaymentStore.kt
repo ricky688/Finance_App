@@ -35,6 +35,19 @@ data class PendingPayment(
     val startLocationName: String? = null
 )
 
+/** Recent handled (logged or ignored) expenses to deduplicate companion wallet/bank notifications. */
+data class HandledExpenseRecord(
+    val paymentId: String,
+    val fingerprint: String,
+    val sourcePackage: String,
+    val assetHint: String,
+    val merchant: String,
+    val amount: Double,
+    val timestamp: Long,
+    val cardLast4: String? = null,
+    val wasIgnored: Boolean = false
+)
+
 /**
  * A separate durable inbox keeps a notification from changing balances until its account is known.
  * Remembered choices are scoped to the posting app AND the card/wallet hint, so one bank app can
@@ -45,6 +58,7 @@ object PendingPaymentStore {
     private const val PENDING_KEY = "pending"
     private const val REMEMBERED_KEY = "remembered_accounts"
     private const val SEEN_KEY = "seen_alerts"
+    private const val HANDLED_EXPENSES_KEY = "recent_handled_expenses"
     private const val SEEN_RETENTION_MS = 7L * 24 * 60 * 60 * 1000
     private const val SAME_ALERT_WINDOW_MS = 15L * 60 * 1000
     private const val MAX_SEEN = 500
@@ -55,6 +69,7 @@ object PendingPaymentStore {
     private var initialized = false
     private var remembered = mutableMapOf<String, Long>()
     private var seen = linkedMapOf<String, Long>()
+    private var recentHandledExpenses = mutableListOf<HandledExpenseRecord>()
 
     @Synchronized
     fun initialize(context: Context) {
@@ -112,6 +127,28 @@ object PendingPaymentStore {
             val json = JSONObject(prefs.getString(SEEN_KEY, "{}") ?: "{}")
             json.keys().asSequence().map { key -> key to json.optLong(key) }.toMap().toMap(linkedMapOf())
         }.getOrDefault(linkedMapOf())
+        recentHandledExpenses = runCatching {
+            val array = JSONArray(prefs.getString(HANDLED_EXPENSES_KEY, "[]"))
+            (0 until array.length()).mapNotNull { index ->
+                val obj = array.optJSONObject(index) ?: return@mapNotNull null
+                val amount = obj.optDouble("amount", 0.0)
+                val paymentId = obj.optString("paymentId", "")
+                if (paymentId.isBlank() || !amount.isFinite() || amount <= 0.0) return@mapNotNull null
+                HandledExpenseRecord(
+                    paymentId = paymentId,
+                    fingerprint = obj.optString("fingerprint", paymentId),
+                    sourcePackage = obj.optString("sourcePackage", ""),
+                    assetHint = obj.optString("assetHint", ""),
+                    merchant = obj.optString("merchant", ""),
+                    amount = amount,
+                    timestamp = obj.optLong("timestamp", 0L),
+                    cardLast4 = if (obj.has("cardLast4") && !obj.isNull("cardLast4")) obj.getString("cardLast4") else null,
+                    wasIgnored = obj.optBoolean("wasIgnored", false)
+                )
+            }.toMutableList()
+        }.getOrDefault(mutableListOf())
+        val cutoff = System.currentTimeMillis() - 120_000L
+        recentHandledExpenses.removeAll { it.timestamp < cutoff }
         trimSeen()
         initialized = true
     }
@@ -311,6 +348,132 @@ object PendingPaymentStore {
                 trimSeen()
                 persist(context)
                 return enrichedTopUp
+            }
+        } else {
+            // Deduplicate concurrent digital wallet and bank card expense notifications
+            val now = System.currentTimeMillis()
+            val cutoff = now - 120_000L
+            recentHandledExpenses.removeAll { it.timestamp < cutoff }
+
+            // 1. Check recently handled (accepted or ignored) companion expenses
+            val handledCompanion = recentHandledExpenses.firstOrNull {
+                areCompanionExpenseAlerts(
+                    pkg1 = it.sourcePackage, hint1 = it.assetHint, title1 = "", merchant1 = it.merchant,
+                    amount1 = it.amount, time1 = it.timestamp, card1 = it.cardLast4,
+                    pkg2 = sourcePackage, hint2 = assetHint, title2 = rawTitle, merchant2 = merchant,
+                    amount2 = amount, time2 = detectedAt, card2 = cardLast4
+                )
+            }
+            if (handledCompanion != null) {
+                if (handledCompanion.wasIgnored) {
+                    seen[fingerprint] = now
+                    trimSeen()
+                    persist(context)
+                    return null
+                }
+                if (isGenericMerchant(handledCompanion.merchant) && !isGenericMerchant(merchant)) {
+                    val loggedTx = InMemoryDatabase.transactions.value.firstOrNull {
+                        it.groupId == "notification:${handledCompanion.paymentId}" ||
+                            (it.category != "Top-up" && it.category != "Transfer" &&
+                             kotlin.math.abs(kotlin.math.abs(it.amount) - amount) < 0.01 &&
+                             kotlin.math.abs(it.timestamp - detectedAt) <= 90_000L)
+                    }
+                    if (loggedTx != null) {
+                        InMemoryDatabase.updateTransaction(loggedTx.copy(description = merchant))
+                    }
+                }
+                seen[fingerprint] = now
+                trimSeen()
+                persist(context)
+                return null
+            }
+
+            // 2. Check if a companion transaction is already logged in InMemoryDatabase
+            val loggedCompanion = InMemoryDatabase.transactions.value.firstOrNull { tx ->
+                tx.category != "Top-up" && tx.category != "Transfer" &&
+                    kotlin.math.abs(kotlin.math.abs(tx.amount) - amount) < 0.01 &&
+                    kotlin.math.abs(tx.timestamp - detectedAt) <= 90_000L &&
+                    areCompanionExpenseAlerts(
+                        pkg1 = "", hint1 = "", title1 = "", merchant1 = tx.description,
+                        amount1 = kotlin.math.abs(tx.amount), time1 = tx.timestamp, card1 = null,
+                        pkg2 = sourcePackage, hint2 = assetHint, title2 = rawTitle, merchant2 = merchant,
+                        amount2 = amount, time2 = detectedAt, card2 = cardLast4
+                    )
+            }
+            if (loggedCompanion != null) {
+                if (isGenericMerchant(loggedCompanion.description) && !isGenericMerchant(merchant)) {
+                    InMemoryDatabase.updateTransaction(loggedCompanion.copy(description = merchant))
+                }
+                seen[fingerprint] = now
+                trimSeen()
+                persist(context)
+                return null
+            }
+
+            // 3. Check if a companion alert is currently pending in _pending.value
+            val pendingIndex = _pending.value.indexOfFirst {
+                !it.isTopUp && it.transactionType != "TRANSFER" &&
+                    areCompanionExpenseAlerts(
+                        pkg1 = it.sourcePackage, hint1 = it.assetHint, title1 = it.rawTitle, merchant1 = it.merchant,
+                        amount1 = it.amount, time1 = it.detectedAt, card1 = it.cardLast4,
+                        pkg2 = sourcePackage, hint2 = assetHint, title2 = rawTitle, merchant2 = merchant,
+                        amount2 = amount, time2 = detectedAt, card2 = cardLast4
+                    )
+            }
+            if (pendingIndex >= 0) {
+                val existing = _pending.value[pendingIndex]
+                PaymentLoggingNotification.cancel(context, existing.id)
+                markSeen(existing)
+                seen[fingerprint] = now
+                trimSeen()
+
+                val existingIsWallet = isDigitalWallet(existing.sourcePackage, existing.assetHint, existing.rawTitle)
+                val newIsWallet = isDigitalWallet(sourcePackage, assetHint, rawTitle)
+
+                val mergedPkg = when {
+                    !newIsWallet && existingIsWallet -> sourcePackage
+                    !existingIsWallet && newIsWallet -> existing.sourcePackage
+                    sourcePackage.isNotBlank() -> sourcePackage
+                    else -> existing.sourcePackage
+                }
+
+                val mergedHint = when {
+                    isGenericHint(existing.assetHint) && !isGenericHint(assetHint) -> assetHint
+                    !isGenericHint(existing.assetHint) && isGenericHint(assetHint) -> existing.assetHint
+                    assetHint.isNotBlank() -> assetHint
+                    else -> existing.assetHint
+                }
+
+                val mergedMerchant = when {
+                    isGenericMerchant(existing.merchant) && !isGenericMerchant(merchant) -> merchant
+                    !isGenericMerchant(existing.merchant) && isGenericMerchant(merchant) -> existing.merchant
+                    merchant.isNotBlank() -> merchant
+                    else -> existing.merchant
+                }
+
+                val mergedCard = cardLast4 ?: existing.cardLast4
+
+                val mergedPayment = existing.copy(
+                    sourcePackage = mergedPkg,
+                    assetHint = mergedHint,
+                    merchant = mergedMerchant,
+                    cardLast4 = mergedCard,
+                    balanceRemaining = balanceRemaining ?: existing.balanceRemaining,
+                    rawTitle = if (rawTitle.isNotBlank()) rawTitle else existing.rawTitle,
+                    rawText = if (rawText.isNotBlank()) rawText else existing.rawText,
+                    latitude = latitude ?: existing.latitude,
+                    longitude = longitude ?: existing.longitude,
+                    locationName = locationName ?: existing.locationName,
+                    startLatitude = startLatitude ?: existing.startLatitude,
+                    startLongitude = startLongitude ?: existing.startLongitude,
+                    startLocationName = startLocationName ?: existing.startLocationName
+                )
+
+                val updatedList = _pending.value.toMutableList()
+                updatedList[pendingIndex] = mergedPayment
+                _pending.value = updatedList
+                persist(context)
+                return mergedPayment
             }
         }
         val id = MessageDigest.getInstance("SHA-256")
@@ -669,6 +832,127 @@ object PendingPaymentStore {
         return null
     }
 
+    fun isDigitalWallet(sourcePackage: String, assetHint: String = "", rawTitle: String = ""): Boolean {
+        val pkg = sourcePackage.lowercase(Locale.ROOT)
+        val hint = assetHint.lowercase(Locale.ROOT)
+        val title = rawTitle.lowercase(Locale.ROOT)
+        return pkg.contains("walletnfcrel") ||
+            pkg.contains("nbu.paisa") ||
+            (pkg.contains("google") && (pkg.contains("wallet") || pkg.contains("pay"))) ||
+            pkg.contains("spay") ||
+            (pkg.contains("samsung") && (pkg.contains("wallet") || pkg.contains("pay"))) ||
+            hint.contains("google pay") || hint.contains("google wallet") ||
+            hint.contains("samsung pay") || hint.contains("samsung wallet") ||
+            title.contains("google pay") || title.contains("google wallet") ||
+            title.contains("samsung pay") || title.contains("samsung wallet")
+    }
+
+    fun isGenericMerchant(merchant: String): Boolean {
+        val m = merchant.trim().lowercase(Locale.ROOT)
+        if (m.isBlank()) return true
+        val genericSet = setOf(
+            "google pay merchant", "google pay", "google wallet",
+            "samsung wallet merchant", "samsung wallet", "samsung pay",
+            "card payment", "payment", "auto payment", "purchase",
+            "消費", "付款", "成功付款", "無卡支付", "網上付款", "線上付款", "交易", "支出",
+            "credit card", "debit card", "visa", "mastercard"
+        )
+        return m in genericSet || m.startsWith("google pay") || m.startsWith("google wallet") ||
+            m.startsWith("samsung pay") || m.startsWith("samsung wallet") ||
+            m.endsWith(" merchant")
+    }
+
+    fun isMerchantMatch(m1: String, m2: String): Boolean {
+        if (isGenericMerchant(m1) || isGenericMerchant(m2)) return true
+        val s1 = m1.trim().lowercase(Locale.ROOT)
+        val s2 = m2.trim().lowercase(Locale.ROOT)
+        if (s1 == s2) return true
+
+        fun clean(s: String) = s.replace(Regex("[^a-z0-9\\u4e00-\\u9fa5]"), "")
+        val c1 = clean(s1)
+        val c2 = clean(s2)
+        if (c1.isNotEmpty() && c2.isNotEmpty()) {
+            if (c1 == c2 || (c1.length >= 3 && c2.contains(c1)) || (c2.length >= 3 && c1.contains(c2))) {
+                return true
+            }
+        }
+
+        val tokens1 = s1.split(Regex("[\\s,._\\-]+")).filter { it.length >= 3 }
+        val tokens2 = s2.split(Regex("[\\s,._\\-]+")).filter { it.length >= 3 }
+        if (tokens1.any { it in tokens2 }) return true
+
+        val pairs = listOf(
+            setOf("sushiro", "壽司郎"),
+            setOf("mcdonald", "mcdonalds", "麥當勞"),
+            setOf("starbucks", "星巴克"),
+            setOf("parknshop", "百佳"),
+            setOf("wellcome", "惠康"),
+            setOf("7-eleven", "7-11", "seven eleven"),
+            setOf("circle k", "ok便利店", "ok"),
+            setOf("donki", "驚安", "驚安之殿堂", "don don donki"),
+            setOf("aeon", "永旺"),
+            setOf("sogo", "崇光"),
+            setOf("citybus", "城巴"),
+            setOf("kmb", "九巴", "kowloon motor bus"),
+            setOf("mtr", "港鐵"),
+            setOf("deliveroo", "戶戶送"),
+            setOf("foodpanda", "熊貓"),
+            setOf("taobao", "淘寶", "淘宝"),
+            setOf("netflix", "網飛", "网飞"),
+            setOf("spotify", "聲田", "声田")
+        )
+        for (pair in pairs) {
+            val m1Matches = pair.any { s1.contains(it) }
+            val m2Matches = pair.any { s2.contains(it) }
+            if (m1Matches && m2Matches) return true
+        }
+
+        return false
+    }
+
+    fun areCompanionExpenseAlerts(
+        pkg1: String, hint1: String, title1: String, merchant1: String, amount1: Double, time1: Long, card1: String?,
+        pkg2: String, hint2: String, title2: String, merchant2: String, amount2: Double, time2: Long, card2: String?
+    ): Boolean {
+        if (kotlin.math.abs(time1 - time2) > 90_000L) return false
+        if (kotlin.math.abs(amount1 - amount2) >= 0.01) return false
+        val oneIsWallet = isDigitalWallet(pkg1, hint1, title1) || isDigitalWallet(pkg2, hint2, title2)
+        val differentPackages = !pkg1.equals(pkg2, ignoreCase = true)
+        if (!oneIsWallet && !differentPackages) return false
+        val bothHaveCard = !card1.isNullOrBlank() && !card2.isNullOrBlank()
+        if (bothHaveCard && card1 != card2) return false
+        return isMerchantMatch(merchant1, merchant2)
+    }
+
+    @Synchronized
+    fun recordHandledExpense(
+        paymentId: String,
+        sourcePackage: String,
+        assetHint: String,
+        merchant: String,
+        amount: Double,
+        timestamp: Long,
+        cardLast4: String? = null,
+        fingerprint: String = paymentId,
+        wasIgnored: Boolean = false
+    ) {
+        val cutoff = System.currentTimeMillis() - 120_000L
+        recentHandledExpenses.removeAll { it.timestamp < cutoff }
+        recentHandledExpenses.add(
+            HandledExpenseRecord(
+                paymentId = paymentId,
+                fingerprint = fingerprint,
+                sourcePackage = sourcePackage,
+                assetHint = assetHint,
+                merchant = merchant,
+                amount = amount,
+                timestamp = timestamp,
+                cardLast4 = cardLast4,
+                wasIgnored = wasIgnored
+            )
+        )
+    }
+
     fun isGenericHint(hint: String): Boolean {
         val h = hint.lowercase(Locale.ROOT)
         val genericHints = setOf(
@@ -982,6 +1266,17 @@ object PendingPaymentStore {
             InMemoryDatabase.updateAccount(currentAcc)
         }
         markSeen(payment)
+        recordHandledExpense(
+            paymentId = payment.id,
+            sourcePackage = payment.sourcePackage,
+            assetHint = payment.assetHint,
+            merchant = payment.merchant,
+            amount = payment.amount,
+            timestamp = payment.detectedAt,
+            cardLast4 = payment.cardLast4,
+            fingerprint = payment.fingerprint,
+            wasIgnored = false
+        )
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
         PaymentLoggingNotification.cancel(context, paymentId)
@@ -991,8 +1286,19 @@ object PendingPaymentStore {
     @Synchronized
     fun ignore(context: Context, paymentId: String) {
         initialize(context)
-        if (_pending.value.none { it.id == paymentId }) return
-        markSeen(_pending.value.first { it.id == paymentId })
+        val payment = _pending.value.firstOrNull { it.id == paymentId } ?: return
+        recordHandledExpense(
+            paymentId = payment.id,
+            sourcePackage = payment.sourcePackage,
+            assetHint = payment.assetHint,
+            merchant = payment.merchant,
+            amount = payment.amount,
+            timestamp = payment.detectedAt,
+            cardLast4 = payment.cardLast4,
+            fingerprint = payment.fingerprint,
+            wasIgnored = true
+        )
+        markSeen(payment)
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
         PaymentLoggingNotification.cancel(context, paymentId)
@@ -1081,6 +1387,7 @@ object PendingPaymentStore {
         _pending.value.forEach(::markSeen)
         _pending.value = emptyList()
         remembered.clear()
+        recentHandledExpenses.clear()
         persist(context)
     }
 
@@ -1128,11 +1435,29 @@ object PendingPaymentStore {
         val seenJson = JSONObject().apply {
             seen.forEach { (key, timestamp) -> put(key, timestamp) }
         }
+        val handledJson = JSONArray().apply {
+            val cutoff = System.currentTimeMillis() - 120_000L
+            recentHandledExpenses.removeAll { it.timestamp < cutoff }
+            recentHandledExpenses.takeLast(30).forEach { record ->
+                put(JSONObject().apply {
+                    put("paymentId", record.paymentId)
+                    put("fingerprint", record.fingerprint)
+                    put("sourcePackage", record.sourcePackage)
+                    put("assetHint", record.assetHint)
+                    put("merchant", record.merchant)
+                    put("amount", record.amount)
+                    put("timestamp", record.timestamp)
+                    record.cardLast4?.let { put("cardLast4", it) }
+                    put("wasIgnored", record.wasIgnored)
+                })
+            }
+        }
         com.example.vibefinance.util.CoordinatedPreferences.get(context.applicationContext, PREFS_NAME)
             .edit()
             .putString(PENDING_KEY, pendingJson.toString())
             .putString(REMEMBERED_KEY, rememberedJson.toString())
             .putString(SEEN_KEY, seenJson.toString())
+            .putString(HANDLED_EXPENSES_KEY, handledJson.toString())
             .commit()
     }
 }

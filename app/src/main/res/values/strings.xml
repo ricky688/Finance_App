@@ -228,6 +228,12 @@
     <string name="edit_transaction_type_label">Transaction type</string>
     <string name="edit_amount_label">Amount</string>
     <string name="edit_description_label">Description / Note</string>
+    <string name="edit_datetime_label">Date &amp; time</string>
+    <string name="edit_date_picker_title">Transaction date</string>
+    <string name="edit_time_picker_title">Transaction time</string>
+    <string name="edit_datetime_future_hint">Future time: account balances update when this time arrives.</string>
+    <string name="edit_datetime_change_date">Change date, %1$s</string>
+    <string name="edit_datetime_change_time">Change time, %1$s</string>
     <string name="edit_category_label">Category</string>
     <string name="edit_category_defaults">Suggested categories</string>
     <string name="edit_category_existing">Your categories</string>
@@ -617,7 +623,7 @@
     <string name="subscription_deposit_mode_auto">Auto-debit</string>
     <string name="subscription_deposit_mode_manual">Manual deposit</string>
     <string name="subscription_deposit_mode_auto_desc">Automatically logs expense and deducts balance on due date</string>
-    <string name="subscription_deposit_mode_manual_desc">Reminder only on due date; mark as paid to record expense</string>
+    <string name="subscription_deposit_mode_manual_desc">Get a reminder at expiry. Record the renewal and choose the next expiry date when you pay.</string>
     <string name="subscription_badge_auto">Auto</string>
     <string name="subscription_badge_manual">Manual</string>
 

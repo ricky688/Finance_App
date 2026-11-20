@@ -147,10 +147,7 @@ fun CategoryBreakdownCard(
             .fillMaxWidth()
             .testTag("CategoryAnalyticsCard")
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
             ),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -354,10 +351,7 @@ fun CategoryBreakdownCard(
                             val targetFraction = (entry.value / totalExpense).toFloat().coerceIn(0.01f, 1f)
                             val animatedFraction by animateFloatAsState(
                                 targetValue = targetFraction,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "segment_spring_$index"
                             )
                             val color = categoryColorMap[entry.key] ?: ChartColors.getCategoryColor(entry.key, isDark, primaryColor)
@@ -370,28 +364,19 @@ fun CategoryBreakdownCard(
                                     isSegmentDimmed -> 10.dp
                                     else -> 14.dp
                                 },
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "segment_height_spring_$index"
                             )
 
                             val segmentAlpha by animateFloatAsState(
                                 targetValue = if (isSegmentDimmed) 0.35f else 1.0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "segment_alpha_spring_$index"
                             )
 
                             val segmentScale by animateFloatAsState(
                                 targetValue = if (isSegmentSelected) 1.05f else 1.0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                                 label = "segment_scale_spring_$index"
                             )
 
@@ -519,37 +504,25 @@ fun CategoryBreakdownCard(
                         val rowBgColor by animateColorAsState(
                             targetValue = if (isSelected) color.copy(alpha = 0.18f)
                             else Color.Transparent,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                             label = "row_bg_spring_$index"
                         )
 
                         val rowAlpha by animateFloatAsState(
                             targetValue = if (isDimmed) 0.35f else 1.0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                             label = "row_alpha_spring_$index"
                         )
 
                         val dotSize by animateDpAsState(
                             targetValue = if (isSelected) 14.dp else 10.dp,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ),
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                             label = "dot_size_spring_$index"
                         )
 
                         val horizontalPadding by animateDpAsState(
                             targetValue = if (isSelected) 12.dp else 8.dp,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            ),
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                             label = "row_h_padding_spring_$index"
                         )
 

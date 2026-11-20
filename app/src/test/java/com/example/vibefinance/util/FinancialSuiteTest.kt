@@ -44,6 +44,28 @@ class FinancialSuiteTest {
         fun tx(timestamp: Long) = TransactionEntity(amount = 10.0, category = "Test", accountId = 1, timestamp = timestamp)
         assertEquals(10.0, calc.metrics(card(), listOf(tx(cycle.startMillis - 1), tx(cycle.startMillis), tx(cycle.endExclusiveMillis))).spent, 0.0)
     }
+    @Test fun statementOverridesMoveOnlyTheirOwnEntriesAcrossClosingDates() {
+        val calc = calculator("2026-11-16")
+        val account = card(billing = 9)
+        val current = calc.currentCycle(account)
+        val previous = calc.shiftCycle(account, current, -1)
+        val next = calc.shiftCycle(account, current, 1)
+        fun tx(id: Long, amount: Double, day: String) = TransactionEntity(
+            id = id, amount = amount, category = "Test", accountId = account.id,
+            timestamp = LocalDate.parse(day).atStartOfDay(zone).toInstant().toEpochMilli()
+        )
+        val spend = tx(1, 100.0, "2026-11-09")
+        val credit = tx(2, -20.0, "2026-11-10")
+        val forward = tx(3, 45.0, "2026-11-10").copy(statementCycleOffset = 1)
+        val transfer = tx(4, 500.0, "2026-11-10").copy(toAccountId = 2)
+        val future = tx(5, 35.0, "2026-11-19").copy(statementCycleOffset = -1)
+        val records = listOf(spend.copy(statementCycleOffset = 1), credit.copy(statementCycleOffset = -1), forward, transfer, future)
+        assertEquals(-20.0, calc.metrics(account, records, previous).spent, 0.0)
+        assertEquals(100.0, calc.metrics(account, records, current).spent, 0.0)
+        assertEquals(45.0, calc.metrics(account, records, next).spent, 0.0)
+        assertEquals(LocalDate.parse("2026-11-09"), calc.cycleForTransaction(account, spend).closing)
+        assertEquals(100.0, calc.metrics(account, listOf(spend), previous).spent, 0.0)
+    }
     @Test fun utilizationClampsButCreditsCanIncreaseCycleAllowance() {
         val calc = calculator("2026-10-15")
         val timestamp = calc.currentCycle(card()).startMillis

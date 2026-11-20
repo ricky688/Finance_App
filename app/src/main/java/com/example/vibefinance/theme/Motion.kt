@@ -2,7 +2,9 @@ package com.example.vibefinance.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.TweenSpec
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 
 /**
@@ -100,4 +102,30 @@ object MotionTokens {
     /** Expressive overshoot spec for playful pushes and dialogs (default 400ms). */
     fun <T> fancy(durationMillis: Int = DurationMedium4): TweenSpec<T> =
         tween(durationMillis, easing = FancyTransitionEasing)
+}
+
+/**
+ * Material 3 Expressive spring tokens (`MotionSchemeKeyTokens`, material3 1.5.0), usable
+ * anywhere, including LaunchedEffect bodies and modifier factories where
+ * `MaterialTheme.motionScheme` is out of reach. Values match `MotionScheme.expressive()`.
+ * With the app's minimal-motion setting they switch to the non-bouncy `MotionScheme.standard()`
+ * values, like the theme does.
+ *
+ * Spatial specs move, resize or reshape things (slight overshoot). Effects specs change colour
+ * and opacity (never bounce). Fast is for small components, default for most UI, slow for
+ * full-screen and large container motion.
+ */
+object VibeMotion {
+    /** Set by `VibeFinanceTheme` from the app's motion level. */
+    @Volatile var reduced: Boolean = false
+
+    fun <T> fastSpatial(): SpringSpec<T> =
+        if (reduced) spring(0.9f, 1400f) else spring(0.6f, 800f)
+    fun <T> defaultSpatial(): SpringSpec<T> =
+        if (reduced) spring(0.9f, 700f) else spring(0.8f, 380f)
+    fun <T> slowSpatial(): SpringSpec<T> =
+        if (reduced) spring(0.9f, 300f) else spring(0.8f, 200f)
+    fun <T> fastEffects(): SpringSpec<T> = spring(1f, 3800f)
+    fun <T> defaultEffects(): SpringSpec<T> = spring(1f, 1600f)
+    fun <T> slowEffects(): SpringSpec<T> = spring(1f, 800f)
 }

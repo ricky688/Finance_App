@@ -22,6 +22,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -121,6 +122,7 @@ fun VibeFinanceTheme(
     content: @Composable () -> Unit
 ) {
     val motionLevel = LocalExperience.current.motion
+    VibeMotion.reduced = motionLevel == MotionLevel.MINIMAL
     @OptIn(ExperimentalMaterial3ExpressiveApi::class)
     val resolvedMotionScheme = when (motionLevel) {
         MotionLevel.MINIMAL -> MotionScheme.standard()
@@ -208,7 +210,8 @@ fun VibeFinanceTheme(
         LocalIsDarkTheme provides darkTheme,
         LocalAppButtonShapes provides AppButtonDefaults.shapes()
     ) {
-        MaterialTheme(
+        // Official M3 Expressive root theme; every token is supplied, so no defaults leak in.
+        MaterialExpressiveTheme(
             colorScheme = animatedColorScheme,
             typography = Typography,
             shapes = ExpressiveShapes,

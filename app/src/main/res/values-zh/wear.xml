@@ -1,4 +1,14 @@
 <resources>
     <string name="wear_share_title">分享預算至 Wear OS</string>
-    <string name="wear_share_description">在手錶查看唯讀預算。隱藏金額或啟用 App 鎖會停止分享。離線金額最遲於 15 分鐘內或午夜失效。Google Play 服務可能透過 Google 伺服器中繼加密更新。</string>
+    <string name="wear_share_description">在手錶 App、資訊方塊與錶面小工具查看預算。隱藏金額或啟用 App 鎖會停止分享。離線金額最遲於 2 小時內或午夜失效。</string>
+    <string name="wear_pending_title">在手錶確認待處理交易</string>
+    <string name="wear_pending_description">將尚待決定的銀行收款、轉帳與消費通知送到手錶，抬腕即可確認、分類或忽略。手機維持唯一記帳來源。</string>
+    <string name="wear_recent_title">手錶近期消費與快速記帳</string>
+    <string name="wear_recent_description">分享最近 5 筆交易與下筆到期帳單，並允許從手錶快速記帳、改分類及撤銷。</string>
+    <string name="wear_status_connected">已連線 · %1$s</string>
+    <string name="wear_status_disconnected">未偵測到已連線的 Wear OS 手錶</string>
+    <string name="wear_last_synced">上次同步：%1$s</string>
+    <string name="wear_never_synced">尚未同步</string>
+    <string name="wear_sync_now">立即同步</string>
+    <string name="wear_syncing">同步中…</string>
 </resources>

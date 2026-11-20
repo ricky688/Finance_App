@@ -2,6 +2,7 @@ package com.example.vibefinance.ui.accounts
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -28,17 +29,32 @@ internal fun rememberFinancialNow(): Long {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun CreditCardCycleBadges(account: AccountEntity, transactions: List<TransactionEntity>, modifier: Modifier = Modifier) {
+internal fun CreditCardCycleBadges(
+    account: AccountEntity,
+    transactions: List<TransactionEntity>,
+    modifier: Modifier = Modifier,
+    onShowStatement: (() -> Unit)? = null
+) {
     val now = rememberFinancialNow()
     val calculator = remember(now) { CreditCardCycleCalculator() }
     val metrics = remember(account, transactions, now) { calculator.metrics(account, transactions) }
     val today = calculator.today
     FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+        val spending: @Composable () -> Unit = {
             Row(Modifier.padding(horizontal = 8.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 metrics.utilization?.let { ratio -> CircularProgressIndicator(progress = { ratio }, modifier = Modifier.size(14.dp), strokeWidth = 2.dp) }
                 Text(stringResource(R.string.cycle_spent, metrics.spent), style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                if (onShowStatement != null) {
+                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = stringResource(R.string.statement_cycle_title), modifier = Modifier.size(16.dp))
+                }
             }
+        }
+        if (onShowStatement == null) {
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, content = spending)
+        } else {
+            Surface(onClick = onShowStatement, shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer, content = spending)
         }
         metrics.remaining?.let { remaining ->
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest) {

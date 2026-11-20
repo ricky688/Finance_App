@@ -4,6 +4,197 @@ This document details all recent features, architectural changes, modified files
 
 ---
 
+### 2026-11-20 — v1.5.8 (212): Shared element transition between the phone detail and edit dialogs
+- Pressing Edit on a phone is now a **shared element transition**. Six elements present on both pages move and reshape from their detail position to their edit position instead of being re-created:
+  1. Location card, using the very same map view, handed over with movable content (`SharedMapHost`) so it never reloads.
+  2. Amount text → amount field.
+  3. Category title → category dropdown.
+  4. Date/time line → date/time button pair.
+  5. Account row → account dropdown.
+  6. Memo → description field.
+- Page-only elements slide a short way and fade. Bounds use `VibeMotion.slowSpatial()`, and the shared versions cross-fade on `slowEffects()`. Content is only ever scaled down, start-aligned (`ContentScale.Inside`), which removed the oversized text seen in the first build. Cancel or back reverses everything.
+- `MorphingTransactionDialog` hosts its own `SharedTransitionLayout`, because a dialog is a separate window. New helpers in `ui/motion/ExpressiveTransitions.kt`: `sharedTransitionBounds`, `sharedTransitionElement`, `LocalSharedContentScope` and `LocalIsSharedTargetPage`. The wide-screen pane is unaffected (the helpers are no-ops outside the dialog).
+- No scrolling needed for the shared fields: in the phone dialog (`LocalCompactTransactionForm`) the edit form uses 8dp spacing and an 84dp map, and drops the "收支類型" and "日期與時間" labels (the buttons carry their own labels and icons). On a 411×891dp phone the description field ends above the buttons. Only the budget toggle needs a scroll, and both dialogs' scroll areas now use `ScrollBlurContainer` edge fades.
+- AGENTS.md section 2 now lists shared element transitions as an IMPORTANT rule.
+- Unit tests: 596 pass; the AndroidTest sources compile. Checked on Waydroid at 411dp, recorded at 30fps: both directions move all six elements, the map stays loaded throughout, and there are no crashes.
+
+### 2026-11-20 — v1.5.7 (211): Phone detail ↔ edit as a sliding pager
+- At the user's request, the morph is now a slide in which nothing pops in.
+  - Pressing Edit slides the detail up and out of the card while the edit form slides in from below, right behind it, like a vertical pager. The card resizes at the same time.
+  - Cancel, Save or back reverses it: the form slides down, the detail slides in from above, and the card shrinks.
+  - Offsets and size share `VibeMotion.slowSpatial()`, so everything arrives together. There are no fades and no delayed reveal; the 1.5.6 expand-then-reveal sequence was removed.
+- The full-size dialog window from 1.5.6 is kept, so the card resizes in one pass.
+- Unit tests: 596 pass. Waydroid at 411dp, recorded at 30fps: both directions slide continuously with the card resizing in step. No crashes.
+- Known: the map in the incoming content is a new map view, so its tiles load while it slides in.
+
+### 2026-11-20 — v1.5.6 (210): Phone edit morph — expand first, then reveal
+- Feedback on 1.5.4/1.5.5: content changed while the card was still resizing. `MorphingTransactionDialog` now runs a strict sequence:
+  1. On Edit, the card resizes to the edit form's size (400ms, M3 Emphasized) while the detail content stays visible and clipped.
+  2. Once the card size has been stable for 90ms, the detail fades out (100ms) and the edit form fades in (220ms).
+  3. Cancel, save or back runs the reverse: the card shrinks with the form still showing, then the detail appears.
+- Root causes fixed:
+  - The dialog window was wrap-content, so the card could only grow to the window's previous height on each pass and crawled for seconds. The window is now full size with the card centred; a scrim tap (gesture only, no extra accessibility node) or back still dismisses.
+  - Moving content between the size-owning slot and the overlay recreated it and reloaded the map. Both contents are now `movableContentOf`.
+- Unit tests: 596 pass; the AndroidTest sources compile. Waydroid at 411dp, checked frame by frame at 30fps:
+  - Edit: the card expands in about 200ms with the detail and map intact, then the form appears.
+  - Cancel: the card shrinks with the form showing, then the detail appears.
+  - A scrim tap closes the dialog. No crashes.
+
+### 2026-11-20 — v1.5.4 (208): Phone detail-to-edit morph
+- On phones, the transaction detail dialog and the edit dialog now share one window (`MorphingTransactionDialog`). Pressing Edit keeps the same 32dp card: it resizes with a slow spatial spring (`SizeTransform`) while the edit form fades in from 96% scale. Cancel, back or a successful save morph back to the detail view, which shows the refreshed record; back from the detail closes the dialog. Long-press still opens straight into edit, and cancelling then closes the dialog.
+- `TransactionDialogFrame` renders either a regular `AlertDialog` or the same title/text/button layout inline. Both phone dialogs keep their original content, buttons and spacing. The card uses the plain surface colour, as before.
+- Unit tests: 596 pass. Waydroid at 411dp (scrcpy virtual display):
+  - Detail → Edit morphs in one card (checked frame by frame at 20fps).
+  - Cancel returns to the detail with Close and Edit, and back closes it. No crashes.
+  - Known: the map in the edit form reloads its tiles for a moment because it is a new map view.
+
+### 2026-11-20 — v1.5.3 (207): Phones keep the original transaction dialogs
+- At the user's request, phones (no list-detail pane) are back to the original detail `AlertDialog`: Delete, Close and Edit buttons, location card and retagging. Phone editing is back to the original edit `AlertDialog`, with the same title, buttons, 32dp shape and border. Both were restored from the restore-point branch, with the item 11 spring tokens re-applied.
+- The edit dialog still opens with the location card and includes the date/time row, and it renders the shared `transactionEditUi` form, so validation and save logic match the wide pane.
+- Wide windows keep the unified `TransactionDetailPage` from 1.5.2. `TransactionDetailPageHost` (the phone full-screen host) was removed.
+- In narrow dialogs (under 360dp) the date button drops the year ("11月19日週四") so the weekday is no longer clipped; the spoken label keeps the full date.
+- Unit tests: 596 pass. Waydroid:
+  - Wide window (805dp): the detail page is unchanged.
+  - Phone-width scrcpy display (411dp): the original detail dialog opens; Edit opens the original edit dialog with the location card first and the full short date; back closes it. No crashes.
+
+### 2026-11-20 — v1.5.2 (206): Unified transaction page for view and edit (redesign item 2)
+- Transaction detail and edit are now a single `TransactionDetailPage` (`ui/history/TransactionDetailDialog.kt`) instead of the detail AlertDialog, the wide-screen `TransactionInspection` card (removed) and the edit AlertDialog.
+  - Top app bar: back (or close while editing), type icon, category and time, with edit and delete actions that fade out in edit mode.
+  - View mode: amount hero, then the location card (map, open in map, retag, district presets, tag current location), then the details list. Reimbursement actions appear when the page is in the wide pane.
+  - At 720dp and wider the page splits into two columns: amount and map on the left, fields on the right.
+  - Edit mode swaps the body for the shared edit form in place (spatial and effects transition). Cancel and Save sit in an M3 Expressive `HorizontalFloatingToolbar`, and Save shows a `LoadingIndicator` while busy.
+- Phones: `TransactionDetailPageHost` shows the page in an edge-to-edge full-screen dialog. It enters with a slow-spatial scale and slide and supports M3 predictive back (`rememberPredictiveBackPage`); back while editing returns to view mode. Long-press still opens straight into edit, and cancelling then closes the page.
+- Wide windows: the list-detail pane renders the same page with `embedded = true` (no back arrow while viewing), so location and retagging are now also available there.
+- The History edit form is now a reusable `transactionEditUi` lambda (`TransactionEditUi`: form, canSave, busy, save); validation and save logic are unchanged.
+- Unit tests: 596 pass; the AndroidTest sources compile. Checked on Waydroid with Debug 206 in a phone-width window:
+  - The full-screen page opens from the list.
+  - Tagging "旺角 Mong Kok" from the district presets shows the map card.
+  - Edit mode opens with the location card first and the floating toolbar.
+  - Cancel returns to view mode and back closes the page.
+  - Changing the memo and saving returns to view mode with the update; the test memo now reads "Claude-test-location-saved".
+- Not verified this round: the wide two-pane version (the Waydroid window was phone width), the predictive back gesture itself (3-button navigation), and a shared-element container transform from the list row, which is not implemented yet.
+
+### 2026-11-20 — v1.5.1 (205): M3 Expressive motion foundation (redesign item 11)
+- Restore point before the redesign: branch `restore/pre-m3e-redesign-2026-11-20` (3c0209d), a full snapshot of the v1.4.13 working tree.
+- The root theme is now `MaterialExpressiveTheme`; every token is still supplied, so colours, shapes and typography are unchanged.
+- Added `VibeMotion` with the official `MotionScheme.expressive()` spring tokens from material3 1.5.0 `MotionSchemeKeyTokens`: fast, default and slow spatial (0.6/800, 0.8/380, 0.8/200) and effects (1.0 at 3800, 1600 and 800). With the minimal-motion setting, spatial specs switch to the standard non-bouncy values.
+- Migrated 182 hand-tuned bouncy springs in 32 `ui/` files: medium/low-bouncy at medium-low stiffness becomes default spatial, at low stiffness slow spatial, and at medium or default stiffness fast spatial. Non-bouncy springs are left alone because they already behave as effects. No Wear files were touched.
+- Added `ui/motion/ExpressiveTransitions.kt`. `ExpressiveSharedTransitionRoot` and `LocalSharedTransitionScope` wrap the main frame for upcoming container transforms (items 1, 2 and 7). `rememberPredictiveBackPage` with `Modifier.predictiveBackPage` implements the M3 full-screen predictive back on the GPU layer (scale to 90%, 8dp drift from the swiped edge, 28dp corners, spring back on cancel). The asset editor uses it in place of its `BackHandler`.
+- AGENTS.md section 2 now points new UI at `VibeMotion` and the motion helpers.
+- Unit tests: 596 pass. Debug 205 is installed on Waydroid; the back button still closes the asset editor and there were no crashes. The predictive back animation itself has not been seen, because Waydroid uses 3-button navigation and needs gesture navigation for it.
+
+### 2026-11-20 — v1.5.0 (204): Wear OS Companion Upgrade (Steps 1–4 + Watch Face Complication Component)
+- **Contract (`:wear-contract`)**:
+  - Added versioned [`WearCompanionProtocol.kt`](file:///home/ricky/Antigravity_project/finance_app/wear-contract/src/main/kotlin/com/example/vibefinance/wear/contract/WearCompanionProtocol.kt) (`/vibefinance/companion/v1`, `/vibefinance/command/v1`, `/vibefinance/command_result/v1`) alongside backward-compatible `/vibefinance/budget/v1`.
+  - Enforces strict privacy & size invariants: hidden snapshots and disabled feature flags reject any non-empty pending/recent/upcoming/account payloads.
+- **Step 1 — Foundation Polish & M3E Radial Tile**:
+  - Fixed negative `periodAmount` formatting defensively in [`WearBudgetPresentation.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/wear/WearBudgetPresentation.kt).
+  - Upgraded `PhoneBudgetService` in [`PhoneBudgetBridge.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/wear/PhoneBudgetBridge.kt) to publish immediately upon watch refresh requests (with `WorkManager` only as retry fallback) and to observe `PendingPaymentStore.pending`, `accounts`, and `subscriptions`.
+  - Added two-stage staleness in [`CompanionCache.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/CompanionCache.kt) (0–15 min fresh, 15 min–2 hr soft-stale with tap-to-sync, hard wipe on 2 hr / midnight / boot / privacy revocation).
+  - Upgraded [`BudgetTileService.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/BudgetTileService.kt) with a 270° Material 3 Expressive radial bezel progress arc, semantic overspend/low-budget colors, pending count badge, and zero-money expiry fallback.
+  - Added connected watch status, last synced timestamp, "Sync Now" button, and granular opt-in privacy toggles (`wear_pending_decisions`, `wear_recent_and_quick_add`) in [`WearSharingPreference.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/wear/WearSharingPreference.kt) and [`ExperienceSettings.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/ui/preferences/ExperienceSettings.kt).
+- **Step 2 (OEM Watch Face Component) — Watch Face Complication**:
+  - Added [`BudgetComplicationService.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/BudgetComplicationService.kt) (`RANGED_VALUE`, `SHORT_TEXT`, `LONG_TEXT`) so VibeFinance plugs natively into any OEM official watch face (Galaxy Watch, Pixel Watch, etc.) without replacing the watch face, respecting privacy and expiry strictly.
+- **Step 3 — Bidirectional Pending Payments & Bank Income Confirmation**:
+  - Added authoritative, idempotent [`WearCommandHandler.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/wear/WearCommandHandler.kt) on the phone (`requestId` ledger deduplication, privacy/App-lock re-check, CC guard on income/transfer) and [`WearPendingScreen.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/WearPendingScreen.kt) on the watch ("Confirm", "Confirm Income", "Own Transfer", account switcher, "Ignore", "Open on phone", waiting-for-phone confirmation state).
+- **Step 4 — Recent Activity, Upcoming Bill, Quick Expense Entry & Remote Open**:
+  - Added [`WearQuickAddScreen.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/WearQuickAddScreen.kt) (Category → Presets/Keypad Amount → Account → Idempotent Save with offline retry queue) and Recent 5 Transactions + Quick Undo / Category Change + Upcoming Bill card + `RemoteActivityHelper` (`vibefinance://open/<tab>`) in [`BudgetActivity.kt`](file:///home/ricky/Antigravity_project/finance_app/wear/src/main/java/com/example/vibefinance/wear/BudgetActivity.kt) and [`MainActivity.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/main/java/com/example/vibefinance/MainActivity.kt).
+- **Verification**:
+  - All unit tests and debug/androidTest APK builds pass across `:wear-contract:test` (10 tests), `:wear:testDebugUnitTest` (7 tests), `:app:testDebugUnitTest` (600 tests), `:wear:assembleDebug`, `:wear:assembleDebugAndroidTest`, `:app:assembleDebug`, and `:app:assembleDebugAndroidTest`.
+  - Limitation: Real paired phone–watch Data Layer E2E delivery, live OEM watch face complication rendering, and physical watch (`SM-L310`) testing have not yet been executed for build 204.
+
+### 2026-11-20 — v1.4.13 (203): Consistent date/time pair, location first in the edit dialog, Asset Editor Appearance Studio
+- The date/time buttons in the History edit dialog now match the type selector above them: `ButtonGroupDefaults` connected leading/trailing shapes with the same complete-press morph, `ConnectedSpaceBetween` spacing, 48dp minimum height, 12dp padding, `labelLarge` SemiBold text, a `surfaceContainerHigh` container and `ConnectedButtonRipple`.
+- When the transaction was captured from an intercepted notification with a location, the edit dialog now opens with a compact location card (map, 140dp). `rememberTransactionLocation` resolves the label, MTR route and start point once and is shared with the detail dialog.
+- Asset/card editor at 720dp and wider (user picked option A, "Appearance Studio"): the left pane is 40% of the width (280–380dp) instead of a fixed 260dp. It keeps the card preview and billing-cycle preview fixed, with the card appearance controls scrolling directly under them. The data form stays on the right, and the editor max width grows from 840dp to 1080dp. Narrow windows keep the single-column order.
+- Unit tests: 596 pass. Debug 203 is installed on Waydroid; the Appearance Studio layout was checked on the 805dp main display.
+- Waydroid walkthrough on a test expense (HK$42.50, memo "Claude-test-location", left in place for the user):
+  - The date/time pair renders like the type selector.
+  - The Vibrant time dialog opens in scroll mode with the keyboard toggle. Scrolling to 3:40 PM showed the future-time hint, and moving the date to 19 Nov removed it.
+  - After saving, the record reads 19 Nov 2026 3:40:30 PM with its seconds preserved.
+- Not verified:
+  - The location card. Waydroid has no GPS fix, and on wide windows tagging is only in the narrow-screen detail dialog, so no located transaction exists.
+  - The Material 3 DatePicker weekday header shows "星" for every column under zh-HK. This comes from the library's narrow weekday names and is not new.
+
+### 2026-11-20 — v1.4.12 (202): Edit a transaction's date and time with the Material 3 1.5.0 pickers
+- The History edit dialog has a new "Date & time" row below the amount: a connected pair of M3E tonal buttons (24dp outer and 8dp inner corners, morphing on press, 0.97 press scale, selection haptics) showing the locale-formatted date and time.
+- Date opens the Material 3 `DatePickerDialog`. Time opens the Material 3 Expressive `VibrantTimePickerDialog` from material3 1.5.0 (stable, released 18 Nov 2026), using the new `TimeScroll` wheel with a `ScrollDisplayModeToggle` to keyboard `TimeInput`, as in the official `VibrantTimePickerScrollSample` in androidx/androidx. The time picker follows the system 12/24-hour setting.
+- `util/TransactionDateTime` converts between the picker's UTC-midnight millis and the stored local timestamp. Changing the date keeps the time; changing the time keeps the date; seconds are preserved. Reimbursement checks in the dialog now use the edited time. A future time shows a hint that balances update only when that time arrives; the existing repository rule already excludes future records from balances.
+- Upgraded material3 and material3-adaptive-navigation-suite from 1.5.0-alpha01 to 1.5.0 stable. This required compileSdk 37 for the app (targetSdk stays 36) and these API migrations: `ToggleButtonDefaults.colors`, `shapesFor`, `contentPaddingFor` and `elevation` (`AppButtonDefaults.toggleElevation`); `menuAnchor(ExposedDropdownMenuAnchorType…)`; and the extension `ExposedDropdownMenu` import.
+- Unit tests: 592 pass, including 4 new `TransactionDateTimeTest` cases. The Debug and AndroidTest sources compile. History screenshots are unchanged after the upgrade. Debug 202 is installed on Waydroid and launches without crashes. The Waydroid instance has no transactions, so the edit dialog itself has not been exercised on a device.
+
+### 2026-11-20 — v1.4.11 (201): Centred rail destinations, inset rail and gap-free days row
+- Rail: three zones. The logo and FAB stay on top, the four destinations are vertically centred in the remaining height, and the utility dock stays at the bottom. Weighted spacers on a `heightIn(min = viewport)` scroll column keep short windows scrollable.
+- System bars: the rail controls are inset for `WindowInsets.safeDrawing` (vertical and start), so the app icon no longer sits under the status bar. The content card is inset at the top and end; the rail background still runs edge-to-edge.
+- Daily Bento: when the remaining card has to stack (narrow column or amount overflow), the days-left square now shares one row with the lowest and highest spending day cards (`resolveStackedBentoTiles`). For example, a ~353dp column gets three ~107dp tiles instead of a lone 156dp square beside empty space. Below a legible 100dp tile (scaled up to 1.3x for large fonts) it falls back to the previous layout. An asymmetric layout (days spanning two rows) was evaluated but left the min/max cards ~80dp tall at the reported width, too short for their content.
+- Added two unit tests for the tile sizing.
+
+### 2026-11-19 — v1.4.10 (200): Official adaptive navigation rule and M3E rail
+- Navigation now follows Google's `NavigationSuiteScaffoldDefaults.navigationSuiteType`, computed from the frame size in `AdaptiveMainFrame` and exposed as `LocalNavigationSuiteType`. Compact width, compact height (phone landscape) and tabletop use the bottom `NavigationBar`. All other windows use the rail. Phone landscape (891x411dp) moved from the rail to the bottom bar; AGENTS.md section 4 and DESIGN.md were updated to match the user's decision.
+- The rail is now 96dp wide (M3E collapsed rail) with `WideNavigationRailItem` tabs and settings item; the logo, FAB, utility dock and haptics are unchanged. On windows of 1600dp and wider, the Daily dual-column canvas widens from 1240dp to 1440dp.
+- `ShortNavigationBar` was tried and rejected: in material3 1.5.0-alpha01 it lays out only its first item. A minimal four-item preview reproduced this, so the existing `NavigationBar` and its glass, pop and scroll-hide behavior were kept.
+- Added Compose Preview Screenshot Testing (plugin 0.0.1-alpha16), covering the main frame on phone, phone landscape, foldable, tablet and desktop, and History on phone and foldable. Above about 700dp, layoutlib throws an NPE for Nav3 list-detail scenes. Home, Accounts and Recurring render blank because their entrance animations start at alpha 0. The baseline was recorded before the change. `validateDebugScreenshotTest` reports the 4 expected rail and landscape frame diffs; the references have not been updated and are awaiting user review.
+- Not changed: `RadarScreen` (it has no call sites). The Accounts and History lists stay single-column because at 600dp and wider they sit in the narrow list pane of the Nav3 list-detail layout. The collapsing top bar already provides scroll hiding.
+- Unit tests and the Debug build pass. On Waydroid, Debug 200 was installed and checked on the main display (805dp, rail) and on scrcpy virtual displays at 411x891dp (four-item bottom bar) and 891x411dp (bottom bar, top bar shown). `SettingsDrawerTest` passed 2 of 3: `closeBackScrimAndSwipe` failed with "Failed to inject touch input" under the device's zh-HK locale. The run also uninstalled the Waydroid app, which then held no transactions, and Debug 200 was reinstalled.
+
+### 2026-11-16 — v1.4.9 (199): Clear the Settings drawer after dismissal
+- Reproduced a right-edge strip and dimmed page after tapping Close on 198 in Waydroid. The main screen reacted to the drawer's intermediate closed value and removed the settings content, cancelling its close animation before it reached the edge.
+- Let the settings session complete dismissal and notify the main screen after settling. Keep destination-triggered closing in the main screen for flows that leave Settings directly.
+- The phone's app-filtered log showed no related rendering errors. Built the phone Debug and AndroidTest APKs and passed 586 unit tests and all three SettingsDrawerTest checks (in the fixture's expected English locale). Installed Debug 199 in place on Waydroid and visually verified Close, Back, scrim tap, and right swipe.
+- Repeated the screenshot scenario on the dark Assets page. The app area matched pixel for pixel before opening and after tapping Close.
+- Built the signed [1.4.9 (199) Release APK](releases/VibeFinance-1.4.9-199-release.apk) with R8 and resource shrinking. Installed it over 1.4.8 (198) at the user's request and verified the release version, original data directory, and first install time on the Galaxy S24 Ultra. The drawer was verified on Waydroid.
+
+### 2026-11-16 — v1.4.8 (198): Recurring category filter edge fade
+- Applied the shared 16dp horizontal scroll fade to the connected filter row. The fade clears at each scroll limit and stays within the row, independent of the timeline button.
+- Debug build and 586 unit tests passed. Installed debug 198 on Waydroid and visually verified the row at both scroll limits. Updated the code graph and checked the diff.
+- Built and verified the signed [1.4.8 (198) R8 release APK](releases/VibeFinance-1.4.8-198-release.apk) with resource shrinking. Installed it in place over 1.4.5 (195) on the Galaxy S24 Ultra at the user's request. Android reports 1.4.8 (198), the original data directory and first install time, and the release package flags. On-phone interactive checks were outside this installation.
+
+### 2026-11-16 — v1.4.7 (197): Choose the next expiry when recording a manual subscription renewal
+- The Recurring card opens a date picker for manual renewals and suggests one configured interval from the confirmation day. The user chooses the actual future expiry, which is stored in the existing next payment date field. The editor labels that date as expiry in manual mode.
+- Confirmation saves the charge, balance and new reminder date together. Stale confirmations and failed writes leave the existing schedule intact. The next expiry remains a manual reminder, and automatic subscriptions keep their existing charging schedule.
+- Passed 586 unit tests, including late renewal, duplicate confirmation, persistence, and failure rollback. Built debug and AndroidTest APKs, installed debug 197 on Waydroid, passed three existing recurring-editor device checks, and refreshed the code graph. The full new renewal picker flow was not exercised on-device.
+
+### 2026-11-16 — v1.4.6 (196): Credit-card statement period adjustments
+- The spending badge on compact and detailed credit cards opens statement details. Browse adjacent or historical periods, then assign a recorded purchase or credit to the previous or next period relative to its original date. The picker displays closing dates and lets users restore automatic assignment.
+- Persist an optional per-transaction offset without writing balance effects. Rollups use the same assignment in Assets and the estimated statement amount on payment reminders. Original dates, budgets and repayment transfers retain their behavior. Full backups retain the optional offset; Drive sync conflict behavior is unchanged.
+- Verified 584 unit tests, including cross-period totals, invalid or stale updates, reload and balance preservation. Debug and AndroidTest builds passed. Installed debug 196 in place on Waydroid and ran seven existing Assets and balance UI checks. The full new sheet interaction was not exercised on Waydroid. No release artifact.
+
+### 2026-11-12 — v1.4.5 (195): Cross-Source Digital Wallet (Google Wallet / Samsung Wallet) Companion Notification Deduplication
+- **Problem Solved**:
+  - Addressed duplicate notification interceptions and duplicate expense bookkeeping when a physical card payment made via **Google Wallet** (or Samsung Wallet) is followed or preceded by a push alert from the issuing bank (such as Mox Bank, HSBC, Hang Seng, etc.).
+- **Root Cause Analysis**:
+  - `PendingPaymentStore.enqueue` constructs notification raw identities using source package names (e.g. `com.google.android.apps.walletnfcrel` vs `com.mox.app`). Because different apps post alerts with different package names, separate unique fingerprints were generated.
+  - While Octopus top-ups and bank transfers had cross-package correlation rules, regular expense transactions lacked companion deduplication across digital wallet packages and banking apps. Consequently, both alerts were treated as independent purchases, causing double logging or duplicate decision prompts.
+- **Architectural Enhancements**:
+  1. **Companion Alert Recognition (`PendingPaymentStore.kt`)**:
+     - `isDigitalWallet(sourcePackage, assetHint, rawTitle)`: identifies Google Wallet (`com.google.android.apps.walletnfcrel`, `nbu.paisa`, `google pay`, `google wallet`) and Samsung Wallet (`spay`, `samsung pay`, `samsung wallet`).
+     - `isGenericMerchant(merchant)`: detects generic wallet merchants (`"Google Pay Merchant"`, `"Google Pay"`, `"Google Wallet"`, `"Samsung Wallet Merchant"`, etc.).
+     - `isMerchantMatch(m1, m2)`: matches exact or normalized strings, token overlaps, and common bilingual pairings (e.g., `Sushiro HK` <-> `壽司郎`, `McDonald's` <-> `麥當勞`, `Starbucks` <-> `星巴克`, `7-Eleven` <-> `7-11`, `PARKnSHOP` <-> `百佳`, `Wellcome` <-> `惠康`, `Donki` <-> `驚安之殿堂`, etc.). Generic merchants match any specific companion merchant.
+     - `areCompanionExpenseAlerts(...)`: verifies alerts share identical amount (within 0.01), occur within 90 seconds, match card last 4 digits (if both present), and possess compatible merchant descriptions.
+  2. **Triple-Layer Deduplication & Metadata Enrichment (`PendingPaymentStore.kt`)**:
+     - **Layer 1: Recently Handled Ledger (`HandledExpenseRecord`)**: Records recently accepted (logged) or ignored alerts for 120 seconds. If an incoming companion alert matches an ignored alert, it is silently dropped without re-prompting. If the companion was already accepted and logged, any generic merchant description (`Google Pay Merchant`) is automatically upgraded to the specific bank merchant (`GOOGLE` or `壽司郎`) in `InMemoryDatabase`.
+     - **Layer 2: Existing Database Transactions**: Inspects `InMemoryDatabase.transactions.value` for any expense matching the amount, time window, and merchant/card. If already logged, drops the duplicate and upgrades generic descriptions.
+     - **Layer 3: Pending In-Flight Inbox**: If a companion alert is currently pending in `_pending.value`, cancels the prior decision notification (`PaymentLoggingNotification.cancel`), marks both fingerprints as seen, and seamlessly merges properties (prioritizing the bank package and card name over generic wallet placeholders, and enriching GPS coordinates from Google Wallet).
+- **Verification**:
+  - Authored comprehensive test suite in [`GoogleWalletDeduplicationTest.kt`](file:///home/ricky/Antigravity_project/finance_app/app/src/test/java/com/example/vibefinance/service/GoogleWalletDeduplicationTest.kt) covering all permutation scenarios:
+    - Google Wallet pending -> Bank alert arrives: merges into 1 pending payment, no duplicate prompt.
+    - Google Wallet auto-logged -> Bank alert arrives: drops duplicate, upgrades generic description to specific merchant.
+    - Bank auto-logged -> Google Wallet arrives: drops duplicate, enriches GPS coordinates.
+    - Google Wallet ignored -> Bank alert arrives: silently drops, no re-prompt.
+    - Distinct purchases at different merchants / different cards within 90s: preserved independently.
+  - 100% pass across all unit tests (`./gradlew :app:testDebugUnitTest`).
+- **Google Play & Release Artifacts**:
+  - Official Play Store App Bundle: [`VibeFinance-1.4.5-195-release.aab`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.5-195-release.aab) (29,485,675 bytes, SHA-256: `47869a3c181c7dca46dd01fb59c0b941a6a550f9febbbd0ed1b74533c18a6c96`).
+  - Standalone Release APK: [`VibeFinance-1.4.5-195-release.apk`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.5-195-release.apk) (54,607,572 bytes, SHA-256: `01d503066dbcdbe6773c3569d4870d3c0d6c64d3224cecd29117fa8b3681dd52`).
+  - R8 Mapping Bundle: [`VibeFinance-1.4.5-195-release-mapping.zip`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.5-195-release-mapping.zip) (6,942,726 bytes, SHA-256: `199d30589c96855eed8123528de03631dad3f0a29f0f2c9c400ab1bbdea35e78`).
+  - Play Store Notes: [`releases/VibeFinance-1.4.5-195-play-store-notes.txt`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.5-195-play-store-notes.txt).
+  - Full Release Notes: [`releases/VibeFinance-1.4.5-195-notes.md`](file:///home/ricky/Antigravity_project/finance_app/releases/VibeFinance-1.4.5-195-notes.md).
+- **Physical Device Deployment**:
+  - Per the user's explicit request, installed signed release APK (`VibeFinance-1.4.5-195-release.apk`) on user's Samsung Galaxy S24 Ultra (`SM_S9280`, device endpoint `10.9.37.90:38723`) using `adb install -r`, preserving existing user database and app settings.
+  - Verified installed version via dumpsys: `versionCode=195`, `versionName=1.4.5`. Process confirmed active with zero crashes.
+
+---
+
 ### 2026-11-12 — v1.4.4 (194): Move account image loading off the UI thread
 - Profiled fast Assets scrolling on a Galaxy S24 Ultra running 1.4.3 release. Perfetto recorded seven app deadline misses across 377 frames and lazy-list prefetch up to 23.76ms. The eight longest prefetch slices included 16ms of synchronous image decoding in total. Rendering and buffer queue delays were also present.
 - Load card thumbnails and linked app icons on the I/O dispatcher in compact and detailed account cards. Linked app icons use the existing bounded cache and replace the separate synchronous package lookup. Loads are keyed by the current image or package so a changed link cannot display the previous result.

@@ -70,10 +70,7 @@ fun DaysLeftCard(
 
     val animatedProgress by animateFloatAsState(
         targetValue = progressTarget,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
         label = "daysLeftProgress"
     )
 

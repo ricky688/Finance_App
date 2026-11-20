@@ -102,10 +102,7 @@ fun rememberExpressiveCardPress(
         interactionSource = interactionSource,
         enabled = enabled,
         pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
-        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
     val cornerRadius = lerp(restingCorner, pressedCorner, pressProgress.coerceIn(0f, 1f))
     val shape = remember(cornerRadius) { RoundedCornerShape(cornerRadius) }
@@ -189,10 +186,7 @@ fun Modifier.bouncyClickable(
         interactionSource = interactionSource,
         enabled = enabled,
         pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
-        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
 
     val baseModifier = this.graphicsLayer {
@@ -246,10 +240,7 @@ fun Modifier.pressBounce(
     val pressProgress by rememberCompletePressProgress(
         interactionSource = interactionSource,
         pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
-        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
     this.graphicsLayer {
         val scale = 1f - (1f - scaleDown) * pressProgress

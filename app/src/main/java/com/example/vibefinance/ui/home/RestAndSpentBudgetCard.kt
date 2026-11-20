@@ -150,20 +150,14 @@ fun RestAndSpentBudgetCard(
     val pressProgress by rememberCompletePressProgress(
         interactionSource = interactionSource,
         pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
-        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
+        releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
     )
 
     // Dynamic Card Corner Shape Changing between Remaining (28dp) and Spent (20dp asymmetric bento)
     val cardCornerRadius by modeTransition.animateDp(
         transitionSpec = {
             if (motion == MotionLevel.MINIMAL) snap()
-            else spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
+            else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
         },
         label = "restCardCornerMorph"
     ) { isSpent ->
@@ -188,7 +182,7 @@ fun RestAndSpentBudgetCard(
     val remainingDotWidth by modeTransition.animateDp(
         transitionSpec = {
             if (motion == MotionLevel.MINIMAL) snap()
-            else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+            else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
         },
         label = "remainingDotWidth"
     ) { if (it) 4.dp else 12.dp }
@@ -196,7 +190,7 @@ fun RestAndSpentBudgetCard(
     val spentDotWidth by modeTransition.animateDp(
         transitionSpec = {
             if (motion == MotionLevel.MINIMAL) snap()
-            else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+            else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
         },
         label = "spentDotWidth"
     ) { if (it) 12.dp else 4.dp }

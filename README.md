@@ -95,6 +95,7 @@ The Wear companion emphasizes today's allowance, groups period details, simplifi
 ### Money back and flexible subscriptions (1.3.0)
 - Daily → Money back links a partial/full repayment to its original expense, credits the receiving account/card and restores the budget on the received date. These records are distinct from income and retain their links in History and full backups. Expenses excluded from the daily budget remain excluded. Delete repayment records first before removing/changing the type of their original expense.
 - Subscriptions repeat every 1–999 days, weeks, months or years. Monthly estimates and calendar exports use the same interval as automatic charging; legacy subscriptions keep interval 1. Month-end advances clamp naturally, and calendar snapshots retain the existing re-export notice for explicit month-end occurrences.
+- For manual subscriptions, select **Record renewal** in Recurring and choose the next expiry date. Confirming records the payment and sets the next reminder using that date.
 
 ### Neutral press ripples (1.2.102)
 - Informational card backgrounds use a neutral gray press ripple rather than inheriting a colored text/icon tint. Their tap haptics and corner morphs remain; pointer hover stays unhighlighted. Navigational controls retain their existing ripple colors.
@@ -541,6 +542,7 @@ The Wear companion emphasizes today's allowance, groups period details, simplifi
 
 ### Financial tools (1.2.7)
 - Credit cards show current-cycle spending, remaining cycle allowance, closing countdowns and payment urgency. Cycle allowance is separate from outstanding debt and excludes future transactions, transfers and balance adjustments; recorded credits reduce spending. Dates clamp to the last day of shorter months.
+- Tap the spending badge to browse statement periods. Choose a transaction to move it one period earlier or later than its automatic assignment, or restore automatic assignment. The transaction date, budget and account balance are unaffected.
 - History supports long-press/header selection, Select All within the filtered results, atomic Delete with Undo, category changes for the same transaction type, and account moves for Income/Expense records. Transfers and adjustments support deletion.
 - The shared transaction keypad calculates additions and subtractions with decimal precision. Apply evaluates the expression before currency conversion; incomplete and nonpositive amounts cannot be submitted. Budget predictions retain the completed part of an expression while an operator is pending (for example, `6+` previews 6), including foreign-currency conversion.
 - Daily calendar shows card-payment reminders even without a budget. Statement amounts are estimates from recorded entries in the relevant closed cycle. Pay opens Transfer with the card selected and requires confirmation.

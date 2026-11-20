@@ -3,7 +3,9 @@
     <string name="daily_title">Available today</string>
     <string name="period_title">Remaining this period</string>
     <string name="days_left">%1$d days left</string>
+    <string name="days_left_short">%1$dd</string>
     <string name="updated">Updated %1$s</string>
+    <string name="stale_notice">Updated %1$s · tap Refresh</string>
     <string name="refresh">Refresh</string>
     <string name="refreshing">Updating…</string>
     <string name="refresh_failed">Unable to reach phone. Try again.</string>
@@ -18,5 +20,55 @@
     <string name="tile_hidden">Amounts hidden</string>
     <string name="tile_no_budget">Set budget on phone</string>
     <string name="tile_open_phone">Enable sharing on phone</string>
+    <string name="tile_pending_badge">%1$d pending</string>
     <string name="cached_offline">Phone offline · showing last update</string>
+
+    <!-- Complication (Watch Face Component) -->
+    <string name="complication_label">Daily Budget</string>
+    <string name="complication_today">Today</string>
+    <string name="complication_hidden">Hidden</string>
+    <string name="complication_expired">Sync</string>
+    <string name="complication_desc">VibeFinance daily remaining budget</string>
+
+    <!-- Pending Decisions (Step 3) -->
+    <string name="pending_banner_title">%1$d pending</string>
+    <string name="pending_banner_subtitle">Tap to confirm or ignore</string>
+    <string name="pending_screen_title">Pending (%1$d)</string>
+    <string name="pending_type_expense">Expense</string>
+    <string name="pending_type_income">Income</string>
+    <string name="pending_type_transfer">Transfer</string>
+    <string name="pending_type_topup">Top-up</string>
+    <string name="pending_account_label">Account: %1$s</string>
+    <string name="pending_confirm">Confirm</string>
+    <string name="pending_confirm_income">Confirm Income</string>
+    <string name="pending_confirm_transfer">Own Transfer</string>
+    <string name="pending_ignore">Ignore</string>
+    <string name="pending_later">Later</string>
+    <string name="pending_open_phone">Open on phone</string>
+    <string name="pending_waiting_phone">Waiting for phone…</string>
+    <string name="pending_done">Logged on phone</string>
+    <string name="pending_already_handled">Already handled on phone</string>
+    <string name="pending_failed">Phone unreachable. Try again.</string>
+
+    <!-- Recent Activity, Upcoming Bill & Quick Entry (Step 4) -->
+    <string name="quick_log_button">+ Quick Log</string>
+    <string name="upcoming_bill_title">Next bill</string>
+    <string name="upcoming_due_today">Due today</string>
+    <string name="upcoming_due_in">In %1$d days · %2$s</string>
+    <string name="recent_title">Recent</string>
+    <string name="recent_undo">Undo</string>
+    <string name="recent_change_category">Category</string>
+    <string name="quick_add_category_title">Category</string>
+    <string name="quick_add_amount_title">Amount (HK$)</string>
+    <string name="quick_add_confirm_title">Confirm</string>
+    <string name="quick_add_save">Save to phone</string>
+    <string name="quick_add_next">Next</string>
+    <string name="quick_add_back">Back</string>
+    <string name="quick_add_queued">Queued offline · tap Retry when phone is nearby</string>
+    <string name="quick_add_retry_queued">Retry %1$d queued</string>
+    <string name="sent_to_phone">Opening on phone…</string>
+    <string name="tile_edge_log">+ Log</string>
+    <string name="tile_edge_pending">Review (%1$d)</string>
+    <string name="tile_edge_open">Open</string>
+    <string name="opened_on_phone_curved">Check your phone</string>
 </resources>

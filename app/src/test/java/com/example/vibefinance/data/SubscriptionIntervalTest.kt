@@ -97,6 +97,45 @@ class SubscriptionIntervalTest {
         assertTrue(ics.contains("RDATE:20260731T090000"))
         assertFalse(ics.contains("20260228T090000"))
     }
+    @Test fun lateManualRenewalUsesChosenExpiryAndRecordsExactlyOneCharge() {
+        val now = LocalDate.of(2026, 2, 5).atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val expiry = LocalDate.of(2026, 3, 8)
+        InMemoryDatabase.insertSubscription(subscription().copy(isAutoPaid = false))
+        val before = InMemoryDatabase.subscriptions.value.single()
+
+        InMemoryDatabase.renewManualSubscription(before, expiry, now, zone)
+        assertThrows(IllegalArgumentException::class.java) {
+            InMemoryDatabase.renewManualSubscription(before, expiry, now, zone)
+        }
+        val expectedTime = expiry.atStartOfDay(zone).toInstant().toEpochMilli()
+        InMemoryDatabase.initialize(context)
+        val renewed = InMemoryDatabase.subscriptions.value.single()
+        assertEquals(before.copy(nextPaymentDate = expectedTime, lastPaidDate = now), renewed)
+        assertEquals(now, InMemoryDatabase.transactions.value.single().timestamp)
+        assertEquals(990.0, InMemoryDatabase.accounts.value.single().balance, 0.0)
+        assertFalse(InMemoryDatabase.chargeSubscriptionIfDue(renewed, expectedTime))
+        assertEquals(renewed, InMemoryDatabase.subscriptions.value.single())
+        assertEquals(1, InMemoryDatabase.transactions.value.size)
+    }
+
+    @Test fun failedManualRenewalKeepsTheOriginalDateAndBalance() {
+        val today = LocalDate.of(2026, 2, 5)
+        val now = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        InMemoryDatabase.insertSubscription(subscription().copy(isAutoPaid = false))
+        val before = InMemoryDatabase.subscriptions.value.single()
+        assertThrows(IllegalArgumentException::class.java) {
+            InMemoryDatabase.renewManualSubscription(before, today, now, zone)
+        }
+        val blocked = File(context.filesDir, "vibefinance_data.json.new").apply { mkdirs() }
+        File(blocked, "block").writeText("x")
+        assertThrows(java.io.IOException::class.java) {
+            InMemoryDatabase.renewManualSubscription(before, today.plusDays(10), now, zone)
+        }
+        assertEquals(before, InMemoryDatabase.subscriptions.value.single())
+        assertTrue(InMemoryDatabase.transactions.value.isEmpty())
+        assertEquals(1000.0, InMemoryDatabase.accounts.value.single().balance, 0.0)
+    }
+
     @Test fun subscriptionPaidStatusCanBeToggledAndPersists() {
         val id = InMemoryDatabase.insertSubscription(subscription("Monthly", 1))
         val initial = InMemoryDatabase.subscriptions.value.single()

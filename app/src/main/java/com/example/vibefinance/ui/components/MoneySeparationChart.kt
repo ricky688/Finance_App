@@ -184,10 +184,7 @@ fun MoneySeparationChart(
         modifier = modifier
             .fillMaxWidth()
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
             ),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -316,10 +313,7 @@ fun MoneySeparationChart(
 
                     val animatedFraction by animateFloatAsState(
                         targetValue = seg.percentage.coerceIn(0.01f, 1f),
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "segment_spring"
                     )
 
@@ -329,28 +323,19 @@ fun MoneySeparationChart(
                             isSegmentDimmed -> 8.dp
                             else -> 12.dp
                         },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "segment_height_spring"
                     )
 
                     val segmentAlpha by animateFloatAsState(
                         targetValue = if (isSegmentDimmed) 0.35f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "segment_alpha_spring"
                     )
 
                     val segmentScale by animateFloatAsState(
                         targetValue = if (isSegmentSelected) 1.05f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                         label = "segment_scale_spring"
                     )
 
@@ -396,10 +381,7 @@ fun MoneySeparationChart(
             val debtFraction = if (totalAssets > 0) (debtTotal / totalAssets).toFloat().coerceIn(0.02f, 1f) else if (debtTotal > 0) 1f else 0f
             val debtAnimatedFraction by animateFloatAsState(
                 targetValue = if (debtTotal > 0) debtFraction else 0f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "debt_bar_fraction"
             )
             val isDebtSelected = selectedSegmentId == "debt"
@@ -411,10 +393,7 @@ fun MoneySeparationChart(
                     isDebtDimmed -> 6.dp
                     else -> 10.dp
                 },
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "debt_height"
             )
 
@@ -493,37 +472,25 @@ fun MoneySeparationChart(
                     val rowBgColor by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                         else Color.Transparent,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "row_bg_spring"
                     )
 
                     val rowAlpha by animateFloatAsState(
                         targetValue = if (isDimmed) 0.35f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "row_alpha_spring"
                     )
 
                     val dotSize by animateDpAsState(
                         targetValue = if (isSelected) 14.dp else 10.dp,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                         label = "dot_size_spring"
                     )
 
                     val horizontalPadding by animateDpAsState(
                         targetValue = if (isSelected) 12.dp else 8.dp,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioLowBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                         label = "row_h_padding_spring"
                     )
 

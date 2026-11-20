@@ -22,12 +22,12 @@ internal fun connectedSpatialMotion(index: Int, pressedIndex: Int?, isPressed: B
             index == pressedIndex + 1 -> (3 * direction).dp
             else -> 0.dp
         },
-        animationSpec = spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "neighborPush_$index"
     )
     val scale = animateFloatAsState(
         if (isPressed) 0.95f else 1f,
-        spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow),
+        com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "pressScale_$index"
     )
     // Read State only in the layer lambda; animation frames do not recompose the button.

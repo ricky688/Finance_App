@@ -26,6 +26,7 @@
 # Keep VibeFinance Data Models & Database Entities
 -keep class com.example.vibefinance.data.model.** { *; }
 -keep class com.example.vibefinance.ui.** { *; }
+-keep class com.example.vibefinance.wear.contract.** { *; }
 
 # OpenStreetMap (osmdroid)
 -keep class org.osmdroid.** { *; }

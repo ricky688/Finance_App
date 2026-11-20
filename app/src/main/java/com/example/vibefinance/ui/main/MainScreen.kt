@@ -474,10 +474,7 @@ internal fun ExpressiveCollapsingTopBar(
                                 iconScale.animateTo(0.85f, spring(stiffness = Spring.StiffnessHigh))
                                 iconScale.animateTo(
                                     1f,
-                                    spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                 )
                             }
                             if (triggered) {
@@ -486,10 +483,7 @@ internal fun ExpressiveCollapsingTopBar(
                                     iconRotation.snapTo(0f)
                                     iconRotation.animateTo(
                                         360f,
-                                        spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
+                                        com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                     )
                                 }
                                 onAppIconEasterEggTrigger()
@@ -529,10 +523,7 @@ internal fun ExpressiveCollapsingTopBar(
                 contentAlignment = Alignment.CenterStart,
                 transitionSpec = {
                     val enter = fadeIn(animationSpec = springFloat) + slideInVertically(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                     ) { -it / 2 }
                     val exit = fadeOut(animationSpec = springFloat) + slideOutVertically(
                         animationSpec = spring(
@@ -625,10 +616,7 @@ internal fun ExpressiveCollapsingTopBar(
                     targetState = selectedTab,
                     transitionSpec = {
                         val enter = fadeIn(animationSpec = springFloat) + slideInVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                         ) { -it / 2 }
                         val exit = fadeOut(animationSpec = springFloat) + slideOutVertically(
                             animationSpec = spring(
@@ -663,10 +651,7 @@ internal fun ExpressiveCollapsingTopBar(
                                 easing = FastOutSlowInEasing
                             )
                         ) + slideInVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                stiffness = Spring.StiffnessLow
-                            )
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial()
                         ) { -it * 3 / 4 }
                         val exit = fadeOut(
                             animationSpec = tween(durationMillis = 140)
@@ -1035,22 +1020,14 @@ fun MainScreen(
     }
 
     val settingsDrawerState = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
+    val showSettingsDrawer = showBudgetDialog && !budgetConfigurationOnly
     var selectedEndDateMillis by rememberSaveable(budgetInfo.endDate, showBudgetDialog) {
         mutableStateOf<Long?>(budgetInfo.endDate.takeIf { it > 0 })
     }
     var showDatePickerModal by rememberSaveable(showBudgetDialog) { mutableStateOf(false) }
-    LaunchedEffect(showBudgetDialog, budgetConfigurationOnly) {
-        // Import/restore and opening the focused budget form can leave Settings directly.
-        if (!showBudgetDialog || budgetConfigurationOnly) {
-            if (settingsDrawerState.isOpen) settingsDrawerState.close()
-        } else {
-            if (settingsDrawerState.isClosed) settingsDrawerState.open()
-        }
-    }
-    LaunchedEffect(settingsDrawerState.isOpen) {
-        if (settingsDrawerState.isClosed && showBudgetDialog && !budgetConfigurationOnly) {
-            budgetSheetDestination = budgetSheetDestination.dismissSettings()
-        }
+    LaunchedEffect(showSettingsDrawer) {
+        // Settings owns normal dismissal. Destination changes can also leave it directly.
+        if (!showSettingsDrawer) settingsDrawerState.close()
     }
     var flyingCashTriggerKey by remember { mutableLongStateOf(0L) }
     val assetEditorTransition = androidx.compose.animation.core.updateTransition(
@@ -1072,7 +1049,7 @@ fun MainScreen(
     com.example.vibefinance.ui.settings.SettingsDrawerHost(
         drawerState = settingsDrawerState,
         drawerContent = {
-            if (showBudgetDialog && !budgetConfigurationOnly) {
+            if (showSettingsDrawer) {
                 com.example.vibefinance.ui.settings.SettingsSheet(
                     state = state,
                     budgetInfo = budgetInfo,
@@ -1203,10 +1180,7 @@ fun MainScreen(
                             val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
                             val iconRotation by animateFloatAsState(
                                 targetValue = if (isDarkTheme) 360f else 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "themeIconRotation"
                             )
                             val iconTint by animateColorAsState(
@@ -1228,10 +1202,7 @@ fun MainScreen(
                                             dampingRatio = Spring.DampingRatioNoBouncy,
                                             stiffness = Spring.StiffnessMediumLow
                                         )) + scaleIn(
-                                            animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
-                                            )
+                                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                         )).togetherWith(
                                             fadeOut(animationSpec = spring(
                                                 dampingRatio = Spring.DampingRatioNoBouncy,
@@ -1280,10 +1251,7 @@ fun MainScreen(
                             scaleIn(
                                 initialScale = 0.78f,
                                 transformOrigin = TransformOrigin(1f, 1f),
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             )
                         val exit = fadeOut(animationSpec = MotionTokens.emphasizedExit(120)) +
                             scaleOut(
@@ -1301,10 +1269,7 @@ fun MainScreen(
                         } else {
                             (enter togetherWith exit).using(
                                 SizeTransform(clip = false) { _, _ ->
-                                    spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                 }
                             )
                         }
@@ -1379,6 +1344,9 @@ fun MainScreen(
                     }
 
                     val outlineVariant = MaterialTheme.colorScheme.outlineVariant
+                    // Shown for every official short-bar suite type (compact width, compact height,
+                    // tabletop). Stays on NavigationBar: material3 1.5.0-alpha01's ShortNavigationBar
+                    // lays out only its first item.
                     NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1425,10 +1393,7 @@ fun MainScreen(
                                             delay(staggerDelay)
                                             popProgress.animateTo(
                                                 targetValue = 1f,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
+                                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                             )
                                         }
                                     } else {
@@ -1438,10 +1403,7 @@ fun MainScreen(
                                             delay((3 - index) * 40L) // Staggered right-to-left pop exit
                                             popProgress.animateTo(
                                                 targetValue = 0f,
-                                                animationSpec = spring(
-                                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
+                                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                                             )
                                         }
                                     }
@@ -1660,10 +1622,7 @@ fun MainScreen(
                     visible = showLoadingIndicator,
                     modifier = Modifier.align(Alignment.Center),
                     enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                        scaleIn(initialScale = 0.82f, animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )),
+                        scaleIn(initialScale = 0.82f, animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()),
                     exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
                         scaleOut(targetScale = 0.9f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                 ) {
@@ -2130,34 +2089,22 @@ fun <T> ExpressiveSegmentedButtonGroup(
 
             val topStart by animateDpAsState(
                 targetValue = restingTopStart,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "topStart_$index"
             )
             val bottomStart by animateDpAsState(
                 targetValue = restingBottomStart,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "bottomStart_$index"
             )
             val topEnd by animateDpAsState(
                 targetValue = restingTopEnd,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "topEnd_$index"
             )
             val bottomEnd by animateDpAsState(
                 targetValue = restingBottomEnd,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                ),
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                 label = "bottomEnd_$index"
             )
             
@@ -2209,7 +2156,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
                         // Animate each chip's width, so following siblings move continuously.
                         // A fill-width parent alone cannot animate its children's positions.
                         .then(if (isScrollable) Modifier.animateContentSize(
-                            spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow)
+                            com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                         ) else Modifier)
                         .padding(vertical = 8.dp, horizontal = if (isScrollable) 12.dp else 4.dp),
                     horizontalArrangement = Arrangement.Center,
@@ -2218,7 +2165,7 @@ fun <T> ExpressiveSegmentedButtonGroup(
                     AnimatedVisibility(
                         visible = isSelected,
                         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandHorizontally(
-                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                         ),
                         exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkHorizontally(
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
@@ -2496,10 +2443,7 @@ fun ModeSwitcherAnimatedIcon(
                         )
                         upperSlideX.animateTo(
                             targetValue = 0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            )
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial()
                         )
                     }
                     launch {
@@ -2510,10 +2454,7 @@ fun ModeSwitcherAnimatedIcon(
                         )
                         lowerSlideX.animateTo(
                             targetValue = 0f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            )
+                            animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial()
                         )
                     }
                 } else {
@@ -3079,7 +3020,7 @@ fun AddExpenseSheetContent(
                                         targetState = isDailyBudget,
                                         transitionSpec = {
                                             (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                                             expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow)))
+                                             expandVertically(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()))
                                                 .togetherWith(fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
                                                  shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
                                         },
@@ -3366,10 +3307,7 @@ fun AddExpenseSheetContent(
                                     )
                                     val categoryArrowRotation by animateFloatAsState(
                                         targetValue = if (isCategoryExpanded) 180f else 0f,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        ),
+                                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                         label = "EntryCategory_arrowRotation"
                                     )
                                     Surface(
@@ -3682,11 +3620,11 @@ fun AddExpenseSheetContent(
                             AnimatedVisibility(
                                 visible = isTransfer,
                                 enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + expandVertically(
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                     expandFrom = Alignment.Top
                                 ),
                                 exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + shrinkVertically(
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                     shrinkTowards = Alignment.Top
                                 )
                             ) {

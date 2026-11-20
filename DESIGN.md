@@ -446,7 +446,7 @@ Never invoke `view.performHapticFeedback(...)` directly in UI code. All haptics 
 ```
 
 ### Adaptive Navigation and Stable Editors
-- Portrait windows below840dp retain bottom navigation, including medium-width foldables/windowed views. Landscape width≥600dp and large windows≥840dp may use the established navigation rail.
+- Navigation follows Google's official suite rule (`NavigationSuiteScaffoldDefaults.navigationSuiteType`): compact width, compact height (phone landscape) and tabletop use the bottom `NavigationBar` (`ShortNavigationBar` in material3 1.5.0-alpha01 renders only its first item); every other window uses the 96dp collapsed rail with `WideNavigationRailItem`. Desktop-class windows (>=1600dp) widen the Daily dual-column canvas to 1440dp.
 - Preserve rail action placement, scrolling support and existing expand/menu behavior. Do not sacrifice financial card width merely to copy Morphe's layout.
 - The physical right-edge Settings drawer stays docked: exposed left corners28dp, right bezel corners0dp; keep the established safe scrim margin and LTR content inside scoped RTL anchoring.
 - Asset/card and transaction editors remain full-screen. Preserve drafts, validation, IME behavior and keyboard continuity across expense/income/transfer. Do not replace them with bottom sheets to match an old blueprint.

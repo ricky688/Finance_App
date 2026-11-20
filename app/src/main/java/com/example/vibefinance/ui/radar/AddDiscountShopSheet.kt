@@ -188,7 +188,7 @@ fun AddDiscountShopSheet(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor()
+                        .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryEditable)
                 )
 
                 ExposedDropdownMenu(

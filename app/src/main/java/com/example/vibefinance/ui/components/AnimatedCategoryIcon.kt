@@ -101,20 +101,20 @@ fun AnimatedCategoryIcon(
                             // Spring settle back to center
                             offsetX.animateTo(
                                 0f,
-                                spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow)
+                                com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             )
                         }
                         launch {
                             delay(96)
                             scaleX.animateTo(0.94f, tween(70))
                             scaleX.animateTo(1.20f, tween(110))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(96)
                             scaleY.animateTo(0.94f, tween(70))
                             scaleY.animateTo(1.20f, tween(110))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -126,22 +126,22 @@ fun AnimatedCategoryIcon(
                             // Phase 2: Sharp chop down
                             offsetY.animateTo(2.5f, tween(60, easing = FastOutSlowInEasing))
                             // Phase 3: Spring bounce back to baseline
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             rotation.animateTo(-14f, tween(80, easing = FastOutSlowInEasing))
                             rotation.animateTo(8f, tween(60, easing = FastOutSlowInEasing))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.0f, tween(80))
                             scaleX.animateTo(1.15f, tween(60)) // squash on slice
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.12f, tween(80))
                             scaleY.animateTo(0.90f, tween(60))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -150,24 +150,24 @@ fun AnimatedCategoryIcon(
                         launch {
                             // Phase 1: Quick upward pull
                             offsetY.animateTo(-4.5f, tween(85, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             // Phase 2: Pendulum swing
                             rotation.animateTo(18f, tween(80, easing = FastOutSlowInEasing))
                             rotation.animateTo(-14f, tween(85, easing = FastOutSlowInEasing))
                             rotation.animateTo(8f, tween(60, easing = FastOutSlowInEasing))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(0.92f, tween(85))
                             scaleX.animateTo(1.14f, tween(100))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.15f, tween(85))
                             scaleY.animateTo(0.94f, tween(100))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -183,11 +183,11 @@ fun AnimatedCategoryIcon(
                         }
                         launch {
                             scaleX.animateTo(1.22f, tween(180, easing = FastOutSlowInEasing))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.22f, tween(180, easing = FastOutSlowInEasing))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -198,30 +198,30 @@ fun AnimatedCategoryIcon(
                             offsetX.animateTo(-2.5f, tween(35))
                             offsetX.animateTo(2.5f, tween(35))
                             offsetX.animateTo(-1.5f, tween(35))
-                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetX.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             offsetY.animateTo(-2f, tween(35))
                             offsetY.animateTo(2f, tween(35))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             rotation.animateTo(-12f, tween(50))
                             rotation.animateTo(12f, tween(55))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(105)
                             // Button smash squash
                             scaleX.animateTo(0.88f, tween(50))
                             scaleX.animateTo(1.24f, tween(80))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(105)
                             scaleY.animateTo(0.88f, tween(50))
                             scaleY.animateTo(1.24f, tween(80))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -233,21 +233,21 @@ fun AnimatedCategoryIcon(
                             rotation.animateTo(18f, tween(45, easing = LinearEasing))
                             rotation.animateTo(-10f, tween(40, easing = LinearEasing))
                             rotation.animateTo(6f, tween(40, easing = LinearEasing))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(0.90f, tween(40))
                             scaleX.animateTo(1.36f, tween(45))
                             scaleX.animateTo(1.10f, tween(40))
                             scaleX.animateTo(1.26f, tween(40))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(0.90f, tween(40))
                             scaleY.animateTo(1.36f, tween(45))
                             scaleY.animateTo(1.10f, tween(40))
                             scaleY.animateTo(1.26f, tween(40))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -259,17 +259,17 @@ fun AnimatedCategoryIcon(
                             // Phase 2: Downward foundation stomp
                             offsetY.animateTo(2.5f, tween(75, easing = FastOutSlowInEasing))
                             // Phase 3: Firm settle
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(0.90f, tween(90))
                             scaleX.animateTo(1.22f, tween(75)) // wide stomp
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.24f, tween(90))
                             scaleY.animateTo(0.88f, tween(75))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -281,18 +281,18 @@ fun AnimatedCategoryIcon(
                             scaleX.animateTo(1.05f, tween(40, easing = FastOutSlowInEasing))
                             // "DUB" (stronger ventricular pulse)
                             scaleX.animateTo(1.34f, tween(70, easing = FastOutSlowInEasing))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.18f, tween(60, easing = FastOutSlowInEasing))
                             scaleY.animateTo(1.05f, tween(40, easing = FastOutSlowInEasing))
                             scaleY.animateTo(1.34f, tween(70, easing = FastOutSlowInEasing))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(100)
                             offsetY.animateTo(-2f, tween(70))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -304,22 +304,22 @@ fun AnimatedCategoryIcon(
                             delay(60) // Peak contraction hold
                             // Weighted descent & thump
                             offsetY.animateTo(1.5f, tween(70, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             rotation.animateTo(-10f, tween(110))
                             delay(60)
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.18f, tween(110))
                             delay(60)
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.18f, tween(110))
                             delay(60)
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -330,25 +330,25 @@ fun AnimatedCategoryIcon(
                             offsetX.animateTo(2.5f, tween(70, easing = LinearEasing))
                             // Phase 3: Soaring climb
                             offsetX.animateTo(7f, tween(130, easing = FastOutSlowInEasing))
-                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetX.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             // Phase 2: Nose up tilt
                             delay(70)
                             rotation.animateTo(-32f, tween(80, easing = FastOutSlowInEasing))
                             offsetY.animateTo(-5.5f, tween(130, easing = FastOutSlowInEasing))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(70)
                             scaleX.animateTo(1.22f, tween(130))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(70)
                             scaleY.animateTo(1.22f, tween(130))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -357,22 +357,22 @@ fun AnimatedCategoryIcon(
                         launch {
                             // Coin impact squash
                             offsetY.animateTo(3f, tween(80, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.24f, tween(80)) // squashes outward
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(0.86f, tween(80)) // squashes downward
                             scaleY.animateTo(1.20f, tween(90)) // bounces tall
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(80)
                             rotation.animateTo(-8f, tween(50))
                             rotation.animateTo(8f, tween(50))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -380,20 +380,20 @@ fun AnimatedCategoryIcon(
                     "education", "tuition" -> {
                         launch {
                             offsetY.animateTo(-6.5f, tween(110, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             rotation.animateTo(-16f, tween(110))
                             rotation.animateTo(12f, tween(90))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.18f, tween(110))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.18f, tween(110))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -402,22 +402,22 @@ fun AnimatedCategoryIcon(
                         launch {
                             rotation.animateTo(-10f, tween(40))
                             rotation.animateTo(10f, tween(40))
-                            rotation.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            rotation.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(80)
                             offsetY.animateTo(-5.5f, tween(80, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(80)
                             scaleX.animateTo(1.28f, tween(80))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             delay(80)
                             scaleY.animateTo(1.28f, tween(80))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -425,19 +425,19 @@ fun AnimatedCategoryIcon(
                     "investment", "dividend", "stocks" -> {
                         launch {
                             offsetX.animateTo(4.5f, tween(110, easing = FastOutSlowInEasing))
-                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetX.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             offsetY.animateTo(-4.5f, tween(110, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.22f, tween(110))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.22f, tween(110))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -447,13 +447,13 @@ fun AnimatedCategoryIcon(
                             scaleX.animateTo(1.20f, tween(50))
                             scaleX.animateTo(1.0f, tween(40))
                             scaleX.animateTo(1.30f, tween(60))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.20f, tween(50))
                             scaleY.animateTo(1.0f, tween(40))
                             scaleY.animateTo(1.30f, tween(60))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -462,15 +462,15 @@ fun AnimatedCategoryIcon(
                         launch {
                             offsetX.animateTo(4.5f, tween(90, easing = FastOutSlowInEasing))
                             offsetX.animateTo(-3f, tween(80, easing = FastOutSlowInEasing))
-                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetX.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleX.animateTo(1.20f, tween(90))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.animateTo(1.20f, tween(90))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
 
@@ -479,17 +479,17 @@ fun AnimatedCategoryIcon(
                         launch {
                             scaleX.snapTo(1f)
                             scaleX.animateTo(1.25f, tween(80, easing = FastOutSlowInEasing))
-                            scaleX.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleX.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             scaleY.snapTo(1f)
                             scaleY.animateTo(1.25f, tween(80, easing = FastOutSlowInEasing))
-                            scaleY.animateTo(1.08f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            scaleY.animateTo(1.08f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                         launch {
                             offsetY.snapTo(0f)
                             offsetY.animateTo(-2.5f, tween(80, easing = FastOutSlowInEasing))
-                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                            offsetY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                         }
                     }
                 }
@@ -574,17 +574,14 @@ fun AnimatedAddCategoryIcon(
                 launch {
                     rotation.animateTo(
                         targetValue = targetRot,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
+                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                     )
                 }
                 if (retriggered) {
                     launch {
                         scale.snapTo(1f)
                         scale.animateTo(1.25f, tween(70, easing = FastOutSlowInEasing))
-                        scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                        scale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                     }
                 }
             }

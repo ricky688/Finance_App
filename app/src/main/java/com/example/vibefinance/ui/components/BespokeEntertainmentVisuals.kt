@@ -213,7 +213,7 @@ fun WorkVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     // Walks / swings
                     delay(140)
                     // Sets down firmly at work
-                    liftY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    liftY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // Swings forward and back like walking
@@ -221,7 +221,7 @@ fun WorkVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     swingAngle.animateTo(-12f, tween(70, easing = FastOutSlowInEasing))
                     swingAngle.animateTo(14f, tween(80, easing = FastOutSlowInEasing))
                     swingAngle.animateTo(-6f, tween(60, easing = FastOutSlowInEasing))
-                    swingAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    swingAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {

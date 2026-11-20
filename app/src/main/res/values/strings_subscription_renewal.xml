@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="subscription_next_expiry">Next subscription expiry date</string>
+    <string name="subscription_renewal_action">Record renewal</string>
+    <string name="subscription_renewal_confirm">Record renewal</string>
+    <string name="subscription_renewal_saved">Renewal recorded and expiry date updated.</string>
+    <string name="subscription_renewal_failed">Could not record the renewal. Check the subscription and try again.</string>
+</resources>

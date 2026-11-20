@@ -335,6 +335,30 @@ object InMemoryDatabase {
         persistToDisk()
     }
 
+    /** Record a manual renewal and its chosen expiry in the same durable snapshot. */
+    fun renewManualSubscription(
+        expected: SubscriptionEntity,
+        nextEndDate: java.time.LocalDate,
+        now: Long = System.currentTimeMillis(),
+        zone: java.time.ZoneId = java.time.ZoneId.systemDefault()
+    ) = synchronized(diskIoLock) {
+        val current = subscriptions.value.firstOrNull { it.id == expected.id }
+        require(current == expected && !expected.isAutoPaid && !expected.isPaid)
+        require(nextEndDate > java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate())
+        val updated = expected.copy(
+            nextPaymentDate = nextEndDate.atStartOfDay(zone).toInstant().toEpochMilli(),
+            lastPaidDate = now
+        )
+        require(updated != expected)
+        com.example.vibefinance.util.SubscriptionSchedule.validate(updated)
+        val account = requireNotNull(accounts.value.firstOrNull { it.id == expected.accountId })
+        val charge = TransactionEntity(id = nextTransactionId, amount = expected.amount, category = expected.category,
+            timestamp = now, accountId = account.id, description = "Subscription: ${expected.name}",
+            groupId = "subscription_renewal:${expected.id}:$nextTransactionId", sourceWasCreditCard = account.type == AccountType.CC)
+        val schedule = subscriptions.value.map { if (it.id == expected.id) updated else it }
+        publishTransactionBatch(emptyList(), listOf(charge), transactions.value + charge, now, nextTransactionId + 1, schedule)
+    }
+
     /** Sets the paid status of a subscription for the current cycle. Optionally creates or reverts a matching expense. */
     fun setSubscriptionPaidStatus(
         subscriptionId: Long,
@@ -975,6 +999,9 @@ object InMemoryDatabase {
             }
         }
         val updated = withAccountTypeSnapshot(newTx.copy(
+            statementCycleOffset = stored.statementCycleOffset.takeIf {
+                newTx.accountId == stored.accountId && newTx.toAccountId == null && !newTx.isBalanceAdjustment
+            },
             sourceWasCreditCard = if (newTx.accountId == oldTx.accountId) newTx.sourceWasCreditCard else null,
             destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null
         ))
@@ -1028,6 +1055,7 @@ object InMemoryDatabase {
             is BatchTransactionOperation.Account -> {
                 require(operation.accountId in currentAccounts) { "Account no longer exists" }
                 expected.map { it.copy(accountId = operation.accountId,
+                    statementCycleOffset = it.statementCycleOffset.takeIf { _ -> it.accountId == operation.accountId },
                     sourceWasCreditCard = if (it.accountId == operation.accountId) it.sourceWasCreditCard
                         else currentAccounts.getValue(operation.accountId).type == AccountType.CC) }
             }
@@ -1088,6 +1116,18 @@ object InMemoryDatabase {
         accounts.value = updatedAccounts
         transactions.value = updatedTransactions
         subscriptionUpdates?.let { subscriptions.value = it }
+    }
+
+    fun setStatementCycleOffset(expected: TransactionEntity, offset: Int?) = synchronized(diskIoLock) {
+        require(offset == null || offset == -1 || offset == 1)
+        val stored = transactions.value.firstOrNull { it.id == expected.id }
+        require(stored != null && stored == expected && stored.toAccountId == null &&
+            !stored.isBalanceAdjustment && stored.timestamp <= System.currentTimeMillis())
+        require(accounts.value.any { it.id == stored.accountId && it.type == AccountType.CC })
+        if (stored.statementCycleOffset == offset) return@synchronized
+        val updated = transactions.value.map { if (it.id == stored.id) it.copy(statementCycleOffset = offset) else it }
+        persistToDisk(transactionsSnapshot = updated, throwOnFailure = true)
+        transactions.value = updated
     }
 
     fun updateTransaction(transaction: TransactionEntity) = synchronized(diskIoLock) {
@@ -1245,6 +1285,7 @@ object InMemoryDatabase {
                 tx.startLatitude?.let { obj.put("startLatitude", it) }
                 tx.startLongitude?.let { obj.put("startLongitude", it) }
                 tx.startLocationName?.let { obj.put("startLocationName", it) }
+                tx.statementCycleOffset?.let { obj.put("statementCycleOffset", it) }
                 txArr.put(obj)
             }
             root.put("transactions", txArr)
@@ -1488,7 +1529,8 @@ object InMemoryDatabase {
                             locationName = if (obj.has("locationName") && !obj.isNull("locationName")) obj.getString("locationName") else null,
                             startLatitude = if (obj.has("startLatitude") && !obj.isNull("startLatitude")) obj.getDouble("startLatitude") else null,
                             startLongitude = if (obj.has("startLongitude") && !obj.isNull("startLongitude")) obj.getDouble("startLongitude") else null,
-                            startLocationName = if (obj.has("startLocationName") && !obj.isNull("startLocationName")) obj.getString("startLocationName") else null
+                            startLocationName = if (obj.has("startLocationName") && !obj.isNull("startLocationName")) obj.getString("startLocationName") else null,
+                            statementCycleOffset = obj.opt("statementCycleOffset")?.toString()?.toIntOrNull()?.takeIf { it == -1 || it == 1 }
                         )
                     )
                 }

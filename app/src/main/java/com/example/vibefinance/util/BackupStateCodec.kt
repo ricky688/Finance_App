@@ -144,6 +144,11 @@ internal object BackupStateCodec {
                 require(tx.get("customIcon") is String && com.example.vibefinance.data.entity.ExpenseIcon.normalize(tx.getString("customIcon")) == tx.getString("customIcon"))
             }
             optional(tx, "groupId") { require(tx.get("groupId") is String) }
+            optional(tx, "statementCycleOffset") {
+                val offset = tx.get("statementCycleOffset")
+                require(offset is Number && offset.toString().toIntOrNull() in listOf(-1, 1))
+                require(tx.isNull("toAccountId") && !tx.optBoolean("isBalanceAdjustment"))
+            }
             optional(tx, "latitude") { finite(tx, "latitude") }
             optional(tx, "longitude") { finite(tx, "longitude") }
             optional(tx, "locationName") { require(tx.get("locationName") is String) }

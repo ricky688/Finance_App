@@ -67,10 +67,7 @@ fun Modifier.expressiveHoverLayer(
     val lift = when (motion) {
         MotionLevel.FULL -> animateFloatAsState(
             targetValue = targetLift,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            ),
+            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
             label = "hoverLift"
         )
         else -> rememberUpdatedState(0f)

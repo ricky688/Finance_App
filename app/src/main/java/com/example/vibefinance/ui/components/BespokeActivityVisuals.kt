@@ -60,18 +60,18 @@ fun SchoolVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     // Toss high up into the air
                     capY.animateTo(-7.5f, tween(110, easing = FastOutSlowInEasing))
                     // Float softly back down
-                    capY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    capY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     capAngle.animateTo(-16f, tween(110, easing = FastOutSlowInEasing))
                     capAngle.animateTo(10f, tween(90))
-                    capAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    capAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     delay(80)
                     tasselAngle.animateTo(30f, tween(90))
                     tasselAngle.animateTo(-18f, tween(80))
-                    tasselAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    tasselAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {
@@ -150,7 +150,7 @@ fun FitnessVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     tiltAngle.animateTo(0f, tween(65, easing = FastOutSlowInEasing))
                     // LIFT 2 (150..340ms)
                     tiltAngle.animateTo(8f, tween(85, easing = FastOutSlowInEasing))
-                    tiltAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    tiltAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // LIFT 1 (up and down)
@@ -162,7 +162,7 @@ fun FitnessVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     liftY.animateTo(0f, tween(65, easing = FastOutSlowInEasing))
                     // Floor impact squash
                     bellScaleY.animateTo(0.85f, tween(40))
-                    bellScaleY.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    bellScaleY.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {
@@ -229,8 +229,8 @@ fun GiftVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     launch { lidAngle.animateTo(-22f, tween(110, easing = FastOutSlowInEasing)) }
                     lidY.animateTo(-6.5f, tween(110, easing = FastOutSlowInEasing))
                     delay(30)
-                    launch { lidAngle.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
-                    lidY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    launch { lidAngle.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial()) }
+                    lidY.animateTo(0f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // Confetti burst
@@ -344,7 +344,7 @@ fun GamesVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     delay(200)
                     // Controller victory rumble pop
                     rumbleScale.animateTo(1.18f, tween(70))
-                    rumbleScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    rumbleScale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else {

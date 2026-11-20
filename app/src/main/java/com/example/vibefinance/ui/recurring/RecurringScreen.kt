@@ -166,6 +166,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
 import com.example.vibefinance.theme.rememberIconShape
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
@@ -246,6 +247,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -420,6 +422,11 @@ fun RecurringScreen(
 ) {
     val haptic = rememberVibeHapticFeedback()
     var pendingDeleteSub by remember { mutableStateOf<SubscriptionEntity?>(null) }
+    var renewalId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val toggleSubscriptionPaid: (SubscriptionEntity, Boolean) -> Unit = { sub, isPaid ->
+        if (isPaid && !sub.isAutoPaid) renewalId = sub.id
+        else onIntent(FinanceIntent.SetSubscriptionPaidStatus(sub.id, isPaid))
+    }
 
     LaunchedEffect(showAddSheet) {
         if (showAddSheet) {
@@ -560,9 +567,7 @@ fun RecurringScreen(
                         onDeleteInstallment = { groupId, accountId ->
                             onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
                         },
-                        onTogglePaid = { sub, isPaid ->
-                            onIntent(FinanceIntent.SetSubscriptionPaidStatus(sub.id, isPaid))
-                        },
+                        onTogglePaid = toggleSubscriptionPaid,
                         onAddNew = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             editorState.open()
@@ -622,9 +627,7 @@ fun RecurringScreen(
                             onDeleteInstallment = { groupId, accountId ->
                                 onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
                             },
-                            onTogglePaid = { sub, isPaid ->
-                                onIntent(FinanceIntent.SetSubscriptionPaidStatus(sub.id, isPaid))
-                            },
+                            onTogglePaid = toggleSubscriptionPaid,
                             onAddNew = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 editorState.open()
@@ -714,6 +717,18 @@ fun RecurringScreen(
         )
     }
 
+    state.subscriptions.firstOrNull { it.id == renewalId && !it.isAutoPaid && !it.isPaid }?.let { sub ->
+        val expected = remember(sub.id) { sub }
+        ManualSubscriptionRenewalDialog(
+            subscription = expected,
+            onDismiss = { renewalId = null },
+            onConfirm = { nextEndDate ->
+                renewalId = null
+                onIntent(FinanceIntent.RenewManualSubscription(expected, nextEndDate))
+            }
+        )
+    }
+
     // Confirmation Dialog for Subscription Deletion
     pendingDeleteSub?.let { sub ->
         DeleteSubscriptionConfirmDialog(
@@ -724,6 +739,50 @@ fun RecurringScreen(
             onConfirm = { deletePastTransactions ->
                 onIntent(FinanceIntent.DeleteSubscription(sub, deletePastTransactions))
                 pendingDeleteSub = null
+            }
+        )
+    }
+}
+
+private fun LocalDate.toDatePickerMillis(): Long = atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+private fun Long.fromDatePickerMillis(): LocalDate = Instant.ofEpochMilli(this).atZone(ZoneOffset.UTC).toLocalDate()
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ManualSubscriptionRenewalDialog(
+    subscription: SubscriptionEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalDate) -> Unit
+) {
+    val today = remember { LocalDate.now() }
+    val suggestedDate = remember(subscription, today) {
+        com.example.vibefinance.util.SubscriptionSchedule.advance(today, subscription.frequency, subscription.interval)
+    }
+    val picker = rememberDatePickerState(
+        initialSelectedDateMillis = suggestedDate.toDatePickerMillis(),
+        yearRange = today.year..maxOf(today.year + 100, suggestedDate.year),
+        selectableDates = remember(today) {
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis.fromDatePickerMillis() > today
+            }
+        }
+    )
+    val selected = picker.selectedDateMillis?.fromDatePickerMillis()
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = { selected?.let(onConfirm) },
+                enabled = selected?.isAfter(today) == true
+            ) { Text(stringResource(R.string.subscription_renewal_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
+    ) {
+        DatePicker(
+            state = picker,
+            title = {
+                Text(stringResource(R.string.subscription_next_expiry), Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp))
             }
         )
     }
@@ -806,11 +865,13 @@ fun FilterAndControlsRow(
         val strDueSoon = stringResource(R.string.filter_due_soon)
         val strMonthly = stringResource(R.string.filter_monthly)
         val strInstallments = stringResource(R.string.filter_installments)
+        val filterScroll = rememberScrollState()
 
         Box(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScroll(rememberScrollState())
+                .horizontalFadingEdge(filterScroll)
+                .horizontalScroll(filterScroll)
         ) {
             ConnectedButtonGroup(
                 items = connectedFilters,
@@ -1359,7 +1420,7 @@ fun RecurringCategoryDonutChart(
 
         val strokeState = animateDpAsState(
             targetValue = targetStroke,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+            animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
             label = "stroke_$cat"
         )
         val alphaState = animateFloatAsState(
@@ -1377,7 +1438,7 @@ fun RecurringCategoryDonutChart(
         shape = RoundedCornerShape(24.dp),
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .animateContentSize(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
     ) {
         Column(
@@ -1545,7 +1606,7 @@ fun RecurringCategoryDonutChart(
                             )
                             val dotSize by animateDpAsState(
                                 targetValue = if (isFocused) 14.dp else 10.dp,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
                                 label = "dotSize_$category"
                             )
 
@@ -1771,7 +1832,8 @@ fun SubscriptionPaymentStatusChip(
     isPaid: Boolean,
     lastPaidDate: Long? = null,
     onToggle: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    renewalAction: Boolean = false
 ) {
     val haptic = rememberVibeHapticFeedback()
     val isDark = isSystemInDarkTheme()
@@ -1824,7 +1886,7 @@ fun SubscriptionPaymentStatusChip(
                 .clip(RoundedCornerShape(99.dp))
                 .bouncyClickable(shape = RoundedCornerShape(99.dp)) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    if (!isPaid) {
+                    if (!isPaid && !renewalAction) {
                         burstTrigger = System.currentTimeMillis()
                     }
                     onToggle()
@@ -1861,11 +1923,11 @@ fun SubscriptionPaymentStatusChip(
                 }
 
                 Text(
-                    text = if (isPaid) {
-                        stringResource(R.string.subscription_paid_badge)
-                    } else {
-                        stringResource(R.string.subscription_status_unpaid)
-                    },
+                    text = stringResource(when {
+                        isPaid -> R.string.subscription_paid_badge
+                        renewalAction -> R.string.subscription_renewal_action
+                        else -> R.string.subscription_status_unpaid
+                    }),
                     style = MaterialTheme.typography.labelSmall,
                     color = contentColor,
                     fontWeight = if (isPaid) FontWeight.Bold else FontWeight.Medium,
@@ -2086,7 +2148,8 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                                     SubscriptionPaymentStatusChip(
                                         isPaid = subscription.isPaid,
                                         lastPaidDate = subscription.lastPaidDate,
-                                        onToggle = { onTogglePaid(!subscription.isPaid) }
+                                        onToggle = { onTogglePaid(!subscription.isPaid) },
+                                        renewalAction = !subscription.isAutoPaid
                                     )
                                 }
                             }
@@ -3537,7 +3600,7 @@ fun AddEditSubscriptionSheet(
                                         // Next Payment Date
                                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Text(
-                                                text = stringResource(R.string.sub_due_date_label),
+                                                text = stringResource(if (isAutoPaidState) R.string.sub_due_date_label else R.string.subscription_next_expiry),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3588,8 +3651,7 @@ fun AddEditSubscriptionSheet(
                                             }
                                         }
 
-                                        // Cycle Payment Status (Paid / Unpaid)
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        if (isAutoPaidState) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Text(
                                                 text = stringResource(R.string.subscription_cycle_paid_label),
                                                 style = MaterialTheme.typography.labelSmall,
@@ -3648,7 +3710,7 @@ fun AddEditSubscriptionSheet(
 
                                             val rotateDegrees by animateFloatAsState(
                                                 targetValue = if (isCategoryExpanded) 180f else 0f,
-                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                                animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                                                 label = "categoryChevronRotation"
                                             )
                                             Surface(
@@ -3759,7 +3821,7 @@ fun AddEditSubscriptionSheet(
                                             transitionSpec = {
                                                 if (targetState) {
                                                     (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     expandVertically(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(), expandFrom = Alignment.Top))
                                                      .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
                                                      shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
                                                 } else {
@@ -4274,7 +4336,7 @@ fun AddEditSubscriptionSheet(
 
                                             val rotateDegrees by animateFloatAsState(
                                                 targetValue = if (isCategoryExpanded) 180f else 0f,
-                                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                                animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                                                 label = "categoryChevronRotation_installment"
                                             )
                                             Surface(
@@ -4383,7 +4445,7 @@ fun AddEditSubscriptionSheet(
                                             transitionSpec = {
                                                 if (targetState) {
                                                     (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) +
-                                                     expandVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow), expandFrom = Alignment.Top))
+                                                     expandVertically(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(), expandFrom = Alignment.Top))
                                                      .togetherWith(fadeOut(animationSpec = tween(90, easing = LinearEasing)) +
                                                      shrinkVertically(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow), shrinkTowards = Alignment.Top))
                                                 } else {
@@ -4596,6 +4658,7 @@ fun AddEditSubscriptionSheet(
                                             convertedSubscriptionAmount ?: parsedAmount
                                         }
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        val paid = if (isAutoPaidState) isPaidState else subscription?.let { !it.isAutoPaid && it.isPaid } == true
                                         val sub = SubscriptionEntity(
                                             id = subscription?.id ?: 0L,
                                             name = nameText.trim(),
@@ -4605,9 +4668,13 @@ fun AddEditSubscriptionSheet(
                                             interval = requireNotNull(intervalText.toIntOrNull()),
                                             nextPaymentDate = nextPaymentDateState,
                                             accountId = accountIdText,
-                                            isPaid = isPaidState,
+                                            isPaid = paid,
                                             isAutoPaid = isAutoPaidState,
-                                            lastPaidDate = if (isPaidState) (subscription?.lastPaidDate ?: System.currentTimeMillis()) else null
+                                            lastPaidDate = when {
+                                                !isAutoPaidState -> subscription?.lastPaidDate
+                                                paid -> subscription?.lastPaidDate ?: System.currentTimeMillis()
+                                                else -> null
+                                            }
                                         )
                                         onSave(sub)
                                     }
@@ -5019,8 +5086,11 @@ fun AddEditSubscriptionSheet(
 
         // Subscription Date Picker Modal Dialog
         if (showDatePicker) {
+            val zone = ZoneId.systemDefault()
+            val localDate = Instant.ofEpochMilli(nextPaymentDateState).atZone(zone).toLocalDate()
             val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = nextPaymentDateState
+                initialSelectedDateMillis = localDate.toDatePickerMillis(),
+                yearRange = minOf(1900, localDate.year)..maxOf(2100, localDate.year)
             )
             DatePickerDialog(
                 onDismissRequest = { showDatePicker = false },
@@ -5028,7 +5098,7 @@ fun AddEditSubscriptionSheet(
                     TextButton(
                         onClick = {
                             datePickerState.selectedDateMillis?.let {
-                                nextPaymentDateState = it
+                                nextPaymentDateState = it.fromDatePickerMillis().atStartOfDay(zone).toInstant().toEpochMilli()
                             }
                             showDatePicker = false
                         }

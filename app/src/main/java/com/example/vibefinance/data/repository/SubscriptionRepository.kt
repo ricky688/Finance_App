@@ -34,6 +34,9 @@ class SubscriptionRepository @Inject constructor(
         return InMemoryDatabase.setSubscriptionPaidStatus(subscriptionId, isPaid, recordExpense)
     }
 
+    fun renewManualSubscription(expected: SubscriptionEntity, nextEndDate: java.time.LocalDate) =
+        InMemoryDatabase.renewManualSubscription(expected, nextEndDate)
+
     suspend fun checkAndTriggerAutoCharges(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val subs = InMemoryDatabase.subscriptions.value
         val now = System.currentTimeMillis()

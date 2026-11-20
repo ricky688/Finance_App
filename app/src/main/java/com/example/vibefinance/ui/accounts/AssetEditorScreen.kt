@@ -8,7 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import com.example.vibefinance.ui.motion.predictiveBackPage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -100,6 +100,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -651,7 +652,8 @@ fun AssetEditorScreen(
         }
     }
     val imeVisible = WindowInsets.isImeVisible
-    BackHandler(
+    // M3 predictive back: the page shrinks and rounds with the gesture before closing.
+    val predictiveBack = com.example.vibefinance.ui.motion.rememberPredictiveBackPage(
         enabled =
             !imeVisible &&
                 !showCropDialog &&
@@ -764,6 +766,7 @@ fun AssetEditorScreen(
     Scaffold(
         modifier =
             Modifier.fillMaxSize()
+                .predictiveBackPage(predictiveBack)
                 .testTag("AssetEditorSheet"),
         containerColor = animatedContainerColor,
         topBar = {
@@ -1717,10 +1720,7 @@ fun AssetEditorScreen(
                                 animateFloatAsState(
                                     targetValue = util,
                                     animationSpec =
-                                        spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessLow,
-                                        ),
+                                        com.example.vibefinance.theme.VibeMotion.slowSpatial(),
                                     label = "utilProgressSpring",
                                 )
                             val targetColor =
@@ -1848,7 +1848,7 @@ fun AssetEditorScreen(
                                             )
                                         },
                                         shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                        modifier = Modifier.menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                                     )
                                     ExposedDropdownMenu(
                                         expanded = billingDayDropdownExpanded,
@@ -1906,7 +1906,7 @@ fun AssetEditorScreen(
                                             )
                                         },
                                         shape = RoundedCornerShape(14.dp),
-                                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                        modifier = Modifier.menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                                     )
                                     ExposedDropdownMenu(
                                         expanded = paymentDayDropdownExpanded,
@@ -1968,7 +1968,7 @@ fun AssetEditorScreen(
                                         )
                                     },
                                     shape = RoundedCornerShape(14.dp),
-                                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                    modifier = Modifier.menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                                 )
                                 ExposedDropdownMenu(
                                     expanded = paymentDeadlineDayDropdownExpanded,
@@ -2069,10 +2069,7 @@ fun AssetEditorScreen(
                                     animateFloatAsState(
                                         targetValue = if (isSelected) 1.15f else 1.0f,
                                         animationSpec =
-                                            spring(
-                                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                stiffness = Spring.StiffnessMediumLow,
-                                            ),
+                                            com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                         label = "swatchScale_$themeKey",
                                     )
                                 val animatedBorderWidth by
@@ -2178,7 +2175,7 @@ fun AssetEditorScreen(
                                     )
                                 },
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                modifier = Modifier.menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                             )
                             ExposedDropdownMenu(
                                 expanded = protocolDropdownExpanded,
@@ -2251,7 +2248,7 @@ fun AssetEditorScreen(
                                     )
                                 },
                                 shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                modifier = Modifier.menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                             )
                             ExposedDropdownMenu(
                                 expanded = patternDropdownExpanded,
@@ -3229,11 +3226,14 @@ fun AssetEditorScreen(
                         )
                         billingContent()
                     }
-                    Text(
-                        stringResource(R.string.asset_editor_appearance),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    designContent()
+                    // Wide windows edit appearance beside the preview (Appearance Studio pane).
+                    if (!isWide) {
+                        Text(
+                            stringResource(R.string.asset_editor_appearance),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        designContent()
+                    }
                     Text(
                         stringResource(R.string.asset_editor_automation),
                         style = MaterialTheme.typography.titleMedium,
@@ -3261,23 +3261,39 @@ fun AssetEditorScreen(
                     Spacer(Modifier.height(48.dp))
                 }
             }
+            // Appearance Studio: on wide windows the left pane keeps the card preview fixed and puts
+            // the appearance controls right under it, so every style change is seen as it is made.
+            val studioPaneWidth = (minOf(maxWidth, 1080.dp) * 0.4f).coerceIn(280.dp, 380.dp)
             Row(
                 modifier =
                     Modifier.align(Alignment.TopCenter)
-                        .widthIn(max = 840.dp)
+                        .widthIn(max = if (isWide) 1080.dp else 840.dp)
                         .fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(if (isWide) 24.dp else 0.dp),
             ) {
                 if (isWide)
                     Column(
-                        Modifier.width(260.dp)
+                        Modifier.width(studioPaneWidth)
                             .fillMaxHeight()
-                            .verticalScroll(rememberScrollState())
-                            .padding(start = 24.dp, top = 12.dp, bottom = 12.dp)
+                            .padding(start = 24.dp, top = 12.dp)
                             .testTag("AssetEditorPreviewPane")
                     ) {
                         previewCard()
                         cyclePreview()
+                        Column(
+                            Modifier.weight(1f)
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(top = 12.dp, bottom = 12.dp)
+                                .testTag("AssetEditorAppearanceStudio"),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.asset_editor_appearance),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            designContent()
+                        }
                     }
                 ScrollBlurContainer(
                     scrollState = editorScrollState,

@@ -164,6 +164,17 @@ fun calculateStackedDaysSize(maxWidth: Dp): Dp {
 }
 
 /**
+ * Square tile size for the stacked daily Bento row (days left + lowest + highest day), or null
+ * when three tiles would drop below a legible minimum (100dp, scaled with large fonts up to 1.3x).
+ * Days stays square and capped at 156dp; the min/max cards share the remaining width.
+ */
+fun resolveStackedBentoTiles(maxWidth: Dp, bentoSpacing: Dp, fontScale: Float): Dp? {
+    val minTile = 100.dp * fontScale.coerceIn(1f, 1.3f)
+    val evenTile = (maxWidth - bentoSpacing * 2) / 3
+    return if (evenTile < minTile) null else minOf(evenTile, 156.dp)
+}
+
+/**
  * Determines whether the daily bento layout should stack vertically:
  * - Ultra-narrow widths (< 340dp)
  * - Amount overflow at 12sp floor in side-by-side mode
@@ -502,7 +513,13 @@ fun HomeScreen(
                             state = listState,
                             modifier = Modifier
                                 .fillMaxHeight()
-                                .widthIn(max = if (isDualColumn) 1240.dp else 680.dp)
+                                // Desktop-class windows (>=1600dp) get a wider canvas so the two
+                                // semantic Bento panes breathe instead of floating in a narrow band.
+                                .widthIn(max = when {
+                                    availableWidth >= 1600.dp -> 1440.dp
+                                    isDualColumn -> 1240.dp
+                                    else -> 680.dp
+                                })
                                 .fillMaxWidth()
                                 .testTag("DailyCardsList"),
                             contentPadding = PaddingValues(top = topContentPadding),
@@ -907,7 +924,45 @@ private fun DailyCardContent(
                         calculatePeriodTotalDays(budgetInfo.startDate, budgetInfo.endDate)
                     }
 
+                    val minMaxRow: @Composable (Modifier, androidx.compose.ui.unit.Dp) -> Unit = { rowModifier, cardHeight ->
+                        Row(
+                            modifier = rowModifier,
+                            horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "lowest",
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(cardHeight)
+                            ) {
+                                MinMaxSpentCard(
+                                    modifier = Modifier.fillMaxSize(), isMin = true,
+                                    spends = periodExpenses, isDarkTheme = isDark
+                                )
+                            }
+                            com.example.vibefinance.ui.common.PageContentEntrance(
+                                "highest", delayMillis = 40,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(cardHeight)
+                            ) {
+                                MinMaxSpentCard(
+                                    modifier = Modifier.fillMaxSize(), isMin = false,
+                                    spends = periodExpenses, isDarkTheme = isDark
+                                )
+                            }
+                        }
+                    }
+
                     if (shouldStack) {
+                        // Stacked: the remaining card takes the full row, so the square days card
+                        // joins the min/max pair in one Bento row instead of sitting alone.
+                        val stackedTiles = resolveStackedBentoTiles(
+                            maxWidth = bentoMaxWidth,
+                            bentoSpacing = bentoSpacing,
+                            fontScale = LocalDensity.current.fontScale
+                        )
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(bentoSpacing),
@@ -928,82 +983,81 @@ private fun DailyCardContent(
                                 )
                             }
 
-                            val stackedDaysSize = calculateStackedDaysSize(bentoMaxWidth)
-                            com.example.vibefinance.ui.common.PageContentEntrance(
-                                "days", delayMillis = 110,
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            ) {
-                                DaysLeftCard(
-                                    modifier = Modifier.size(stackedDaysSize),
-                                    daysLeft = budgetInfo.daysLeft,
-                                    totalDays = totalPeriodDays
-                                )
+                            if (stackedTiles != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("DailyBentoTripleRow"),
+                                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    com.example.vibefinance.ui.common.PageContentEntrance(
+                                        "days", delayMillis = 110,
+                                        modifier = Modifier.size(stackedTiles)
+                                    ) {
+                                        DaysLeftCard(
+                                            modifier = Modifier.fillMaxSize(),
+                                            daysLeft = budgetInfo.daysLeft,
+                                            totalDays = totalPeriodDays
+                                        )
+                                    }
+                                    minMaxRow(Modifier.weight(1f), stackedTiles)
+                                }
+                            } else {
+                                // Ultra-narrow or very large text: three tiles cannot fit legibly.
+                                val stackedDaysSize = calculateStackedDaysSize(bentoMaxWidth)
+                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                    "days", delayMillis = 110,
+                                    modifier = Modifier.size(stackedDaysSize)
+                                ) {
+                                    DaysLeftCard(
+                                        modifier = Modifier.fillMaxSize(),
+                                        daysLeft = budgetInfo.daysLeft,
+                                        totalDays = totalPeriodDays
+                                    )
+                                }
+                                minMaxRow(Modifier.fillMaxWidth(), 128.dp)
                             }
                         }
                     } else {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(daysSide),
-                            horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(bentoSpacing)
                         ) {
-                            com.example.vibefinance.ui.common.PageContentEntrance(
-                                "remaining", delayMillis = 80,
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
+                                    .fillMaxWidth()
+                                    .height(daysSide),
+                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                RestAndSpentBudgetCard(
-                                    modifier = Modifier.fillMaxSize(),
-                                    remainingBudget = budgetInfo.monthlyRemaining,
-                                    totalBudget = budgetInfo.totalMonthlyBudget,
-                                    isDarkTheme = isDark,
-                                    onOverflowChanged = { childReportedOverflow = it }
-                                )
+                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                    "remaining", delayMillis = 80,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                ) {
+                                    RestAndSpentBudgetCard(
+                                        modifier = Modifier.fillMaxSize(),
+                                        remainingBudget = budgetInfo.monthlyRemaining,
+                                        totalBudget = budgetInfo.totalMonthlyBudget,
+                                        isDarkTheme = isDark,
+                                        onOverflowChanged = { childReportedOverflow = it }
+                                    )
+                                }
+                                com.example.vibefinance.ui.common.PageContentEntrance(
+                                    "days", delayMillis = 110,
+                                    modifier = Modifier.size(daysSide)
+                                ) {
+                                    DaysLeftCard(
+                                        modifier = Modifier.fillMaxSize(),
+                                        daysLeft = budgetInfo.daysLeft,
+                                        totalDays = totalPeriodDays
+                                    )
+                                }
                             }
-                            com.example.vibefinance.ui.common.PageContentEntrance(
-                                "days", delayMillis = 110,
-                                modifier = Modifier.size(daysSide)
-                            ) {
-                                DaysLeftCard(
-                                    modifier = Modifier.fillMaxSize(),
-                                    daysLeft = budgetInfo.daysLeft,
-                                    totalDays = totalPeriodDays
-                                )
-                            }
+                            minMaxRow(Modifier.fillMaxWidth(), 128.dp)
                         }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    com.example.vibefinance.ui.common.PageContentEntrance(
-                        "lowest",
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(128.dp)
-                    ) {
-                        MinMaxSpentCard(
-                            modifier = Modifier.fillMaxSize(), isMin = true,
-                            spends = periodExpenses, isDarkTheme = isDark
-                        )
-                    }
-                    com.example.vibefinance.ui.common.PageContentEntrance(
-                        "highest", delayMillis = 40,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(128.dp)
-                    ) {
-                        MinMaxSpentCard(
-                            modifier = Modifier.fillMaxSize(), isMin = false,
-                            spends = periodExpenses, isDarkTheme = isDark
-                        )
                     }
                 }
             }
@@ -1175,7 +1229,7 @@ fun CategoryDonutChart(
 
         val strokeState = animateDpAsState(
             targetValue = targetStroke,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+            animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
             label = "stroke_$cat"
         )
         val alphaState = animateFloatAsState(
@@ -1198,7 +1252,7 @@ fun CategoryDonutChart(
             .fillMaxWidth()
             .testTag("DailyCategoryAnalyticsCard")
             .expressiveCardClickable(pressState, hoverEnabled = false) {}
-            .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .animateContentSize(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), cardShape)
     ) {
         Column(
@@ -1400,7 +1454,7 @@ fun CategoryDonutChart(
                             )
                             val dotSize by animateDpAsState(
                                 targetValue = if (isFocused) 14.dp else 10.dp,
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
                                 label = "dotSize_$category"
                             )
 

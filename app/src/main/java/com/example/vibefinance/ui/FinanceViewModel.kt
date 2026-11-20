@@ -140,6 +140,7 @@ sealed interface FinanceIntent {
     data class DeleteTransaction(val tx: TransactionEntity) : FinanceIntent
     data class EditTransaction(val oldTx: TransactionEntity, val newTx: TransactionEntity,
         val requestId: String? = null, val repaymentExpense: TransactionEntity? = null) : FinanceIntent
+    data class SetStatementCycleOffset(val expected: TransactionEntity, val offset: Int?) : FinanceIntent
     data class RestoreTransaction(val tx: TransactionEntity) : FinanceIntent
     data class BatchTransactions(val requestId: String, val expected: List<TransactionEntity>,
         val operation: com.example.vibefinance.data.BatchTransactionOperation) : FinanceIntent
@@ -169,6 +170,7 @@ sealed interface FinanceIntent {
     data class SetAppLanguage(val language: AppLanguage) : FinanceIntent
     data class SaveSubscription(val sub: SubscriptionEntity) : FinanceIntent
     data class SetSubscriptionPaidStatus(val subscriptionId: Long, val isPaid: Boolean, val recordExpense: Boolean = false) : FinanceIntent
+    data class RenewManualSubscription(val expected: SubscriptionEntity, val nextEndDate: java.time.LocalDate) : FinanceIntent
     data class DeleteSubscription(val sub: SubscriptionEntity, val deletePastTransactions: Boolean = false) : FinanceIntent
     data class MergeCategories(val kind: CategoryKind, val sources: Set<String>, val target: String) : FinanceIntent
     data class SetCategoryLimit(val category: String, val limit: Double?) : FinanceIntent
@@ -583,6 +585,18 @@ class FinanceViewModel @Inject constructor(
                             else application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
                     }
                 }
+                is FinanceIntent.SetStatementCycleOffset -> {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            transactionRepository.setStatementCycleOffset(intent.expected, intent.offset)
+                        }
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.statement_cycle_saved)))
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.statement_cycle_save_failed)))
+                    }
+                }
                 is FinanceIntent.SaveAccount -> {
                     val requestId = intent.editorRequestId
                     if (requestId != null && _accountSaveResult.value?.requestId == requestId &&
@@ -773,6 +787,18 @@ class FinanceViewModel @Inject constructor(
                         subscriptionRepository.checkAndTriggerAutoCharges(application)
                     } catch (e: Exception) {
                         _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.feedback_error, e.localizedMessage ?: e.javaClass.simpleName)))
+                    }
+                }
+                is FinanceIntent.RenewManualSubscription -> {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            subscriptionRepository.renewManualSubscription(intent.expected, intent.nextEndDate)
+                        }
+                        _uiEvents.emit(FinanceUiEvent.HapticSuccess)
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.subscription_renewal_saved)))
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        _uiEvents.emit(FinanceUiEvent.ShowToast(application.appString(R.string.subscription_renewal_failed)))
                     }
                 }
                 is FinanceIntent.SetSubscriptionPaidStatus -> {

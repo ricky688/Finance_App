@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.screenshot)
 }
 
 import java.util.Properties
@@ -16,14 +17,15 @@ val mapsApiKey = System.getenv("MAPS_API_KEY")
     ?: "DEMO_KEY"
 
 android {
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
     namespace = "com.example.vibefinance"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.ricky688.vibefinance"
         minSdk = 24
         targetSdk = 36
-        versionCode = 194
-        versionName = "1.4.4"
+        versionCode = 212
+        versionName = "1.5.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
@@ -110,10 +112,13 @@ dependencies {
   implementation(libs.androidx.compose.material3)
   implementation("androidx.compose.material3.adaptive:adaptive-navigation3:1.3.0-alpha05")
   implementation("androidx.compose.material3:material3-window-size-class")
+  implementation(libs.androidx.compose.material3.navigation.suite)
   implementation("com.google.android.material:material:1.10.0") // Material color utilities for seed palettes
   implementation("dev.chrisbanes.haze:haze:1.7.2")
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
+  screenshotTestImplementation(libs.screenshot.validation.api)
+  screenshotTestImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)

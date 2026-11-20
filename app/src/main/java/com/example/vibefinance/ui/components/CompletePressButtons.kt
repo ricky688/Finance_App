@@ -33,6 +33,10 @@ object AppButtonDefaults {
     @Composable
     fun elevation(): ButtonElevation = ButtonDefaults.buttonElevation(hoveredElevation = 0.dp)
 
+    /** Toggle buttons take their own elevation type since material3 1.5.0. */
+    @Composable
+    fun toggleElevation(): ToggleButtonElevation = ToggleButtonDefaults.elevation(hoveredElevation = 0.dp)
+
     @Composable
     fun tonalElevation(): ButtonElevation = ButtonDefaults.filledTonalButtonElevation(hoveredElevation = 0.dp)
 
@@ -378,10 +382,10 @@ internal fun CompletePressToggleButton(
     shapes: ToggleButtonShapes,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    colors: ToggleButtonColors = ToggleButtonDefaults.toggleButtonColors(),
-    elevation: ButtonElevation? = AppButtonDefaults.elevation(),
+    colors: ToggleButtonColors = ToggleButtonDefaults.colors(),
+    elevation: ToggleButtonElevation? = AppButtonDefaults.toggleElevation(),
     border: BorderStroke? = null,
-    contentPadding: PaddingValues = ToggleButtonDefaults.ContentPadding,
+    contentPadding: PaddingValues = ToggleButtonDefaults.contentPaddingFor(ButtonDefaults.MinHeight),
     interactionSource: MutableInteractionSource? = null,
     content: @Composable RowScope.() -> Unit,
 ) {

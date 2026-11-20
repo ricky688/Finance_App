@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="statement_cycle_title">Statement periods</string>
+    <string name="statement_cycle_previous">Previous</string>
+    <string name="statement_cycle_current">Current</string>
+    <string name="statement_cycle_next">Next</string>
+    <string name="statement_cycle_range">%1$s – %2$s</string>
+    <string name="statement_cycle_hint">Tap a transaction to change its statement period. Its transaction date and balance stay the same.</string>
+    <string name="statement_cycle_empty">No recorded transactions in this period.</string>
+    <string name="statement_cycle_adjusted">Period adjusted</string>
+    <string name="statement_cycle_adjust">Adjust statement period</string>
+    <string name="statement_cycle_auto">Automatic</string>
+    <string name="statement_cycle_closing">Closes %1$s</string>
+    <string name="statement_cycle_saved">Statement period updated.</string>
+    <string name="statement_cycle_save_failed">Could not update the statement period. Reopen the transaction and try again.</string>
+</resources>

@@ -54,19 +54,13 @@ internal fun rememberTapIconMotion(effect: TapIconEffect): TapIconMotion {
                 when (effect) {
                     TapIconEffect.RECALCULATE -> coroutineScope {
                         var pulsed = false
-                        state.rotation.animateTo(360f, spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        )) {
+                        state.rotation.animateTo(360f, com.example.vibefinance.theme.VibeMotion.defaultSpatial()) {
                             // AnimationScope.value is not a Compose-state read or a recomposition.
                             if (!pulsed && value >= 288f) {
                                 pulsed = true
                                 launch {
                                     state.scale.animateTo(1.18f, tween(90))
-                                    state.scale.animateTo(1f, spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMediumLow,
-                                    ))
+                                    state.scale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.defaultSpatial())
                                 }
                             }
                         }
@@ -104,13 +98,10 @@ internal fun transactionFabIconMotion(expanded: Boolean): Modifier {
         if (motion != MotionLevel.FULL) {
             rotation.snapTo(if (expanded) 45f else 0f)
         } else coroutineScope {
-            launch { rotation.animateTo(if (expanded) 45f else 0f, spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessMediumLow)) }
+            launch { rotation.animateTo(if (expanded) 45f else 0f, com.example.vibefinance.theme.VibeMotion.defaultSpatial()) }
             if (opening) {
                 scale.animateTo(1.12f, tween(90))
-                scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMediumLow))
+                scale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             }
         }
     }

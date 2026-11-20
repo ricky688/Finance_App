@@ -11,6 +11,7 @@ import com.example.vibefinance.ui.components.CompletePressToggleButton
 
 import androidx.compose.ui.res.stringResource
 import com.example.vibefinance.R
+import com.example.vibefinance.ui.motion.sharedTransitionBounds
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,6 +95,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -441,6 +443,7 @@ fun HistoryScreen(
     var editIsDailyBudget by remember { mutableStateOf(true) }
     var editRepayment by remember { mutableStateOf(false) }
     var editRepaymentExpenseId by remember { mutableLongStateOf(0L) }
+    var editTimestamp by remember { mutableLongStateOf(0L) }
     var editRequestId by remember { mutableStateOf("") }
     var editSubmitting by remember { mutableStateOf(false) }
     val editOperation = editResult?.invoke()?.takeIf { it.requestId == editRequestId }
@@ -523,6 +526,7 @@ fun HistoryScreen(
                                                 editSubmitting = false
                                                 editRepayment = tx.isReimbursement
                                                 editRepaymentExpenseId = tx.reimbursementOf ?: 0L
+                                                editTimestamp = tx.timestamp
                                                 editAmountText = String.format(Locale.US, "%.2f", Math.abs(tx.amount))
                                                 editCategoryText = tx.category
                                                 editDescriptionText = tx.description
@@ -1057,45 +1061,8 @@ fun HistoryScreen(
         }
     }
     }
-    if (useInspector) {
-        com.example.vibefinance.ui.main.AdaptiveRecordScene(inspectedTransactionId,
-            { inspectedTransactionId = null }, modifier, historyList) { id ->
-            state.transactions.firstOrNull { it.id == id }?.let { tx ->
-                TransactionInspection(tx, state.hideAmounts, topContentPadding,
-                    onEdit = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx) },
-                    onMoneyBack = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true },
-                    onUnlink = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true; editRepaymentExpenseId = 0L },
-                    onDelete = { com.example.vibefinance.util.VibeHaptics.warningAlert(view); inspectDelete = tx })
-            }
-        }
-    } else Box(modifier) { historyList() }
-    inspectDelete?.let { tx ->
-        AlertDialog(onDismissRequest = { inspectDelete = null },
-            title = { Text(stringResource(R.string.btn_delete)) },
-            text = { Text(tx.description.ifBlank { tx.category }) },
-            confirmButton = { TextButton(onClick = { onIntent(FinanceIntent.DeleteTransaction(tx)); inspectDelete = null }) { Text(stringResource(R.string.btn_delete)) } },
-            dismissButton = { TextButton(onClick = { inspectDelete = null }) { Text(stringResource(R.string.btn_cancel)) } })
-    }
-
-
-    if (showFilters) {
-        HistoryFilterSheet(searchQuery, state.accounts, state.transactions.map { it.category }.distinct().sorted(),
-            transactionsList.size, onChange = { query ->
-                searchText = query.text; searchAccount = query.account; searchCategory = query.category
-                searchKind = query.kind; searchFrom = query.from; searchThrough = query.through
-                searchMinimum = query.minimum; searchMaximum = query.maximum
-            }, onClear = {
-                searchText = ""; searchAccount = null; searchCategory = null; searchKind = HistoryKind.ALL
-                searchFrom = ""; searchThrough = ""; searchMinimum = ""; searchMaximum = ""
-                selectedCategoryFilter = null
-                periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
-                analyticsPeriodMode = CategoryAnalyticsPeriodMode.ALL_TIME
-                onClearCategoryFilter(); onClearAccountFilter()
-            }, onDismiss = { showFilters = false })
-    }
-
-    // Real Transaction Edit Dialog with Container Transform Morphing
-    editingTransaction?.let { tx ->
+    // Shared edit form for the transaction page (phone full screen and the wide detail pane).
+    val transactionEditUi: @Composable (TransactionEntity) -> TransactionEditUi = { tx ->
         val canChangeType = !tx.isBalanceAdjustment
         val editIsIncome = editType == HistoryTransactionType.Income
         val editIsTransfer = editType == HistoryTransactionType.Transfer
@@ -1103,9 +1070,9 @@ fun HistoryScreen(
         val repaymentRecords = remember(state.transactions, tx.id) { state.transactions.filterNot { it.id == tx.id } }
         val repaymentExpense = repaymentRecords.firstOrNull { it.id == editRepaymentExpenseId &&
             com.example.vibefinance.util.Reimbursements.isExpense(it) && it.timestamp <= System.currentTimeMillis() &&
-            com.example.vibefinance.util.Reimbursements.expenseOnOrBeforeDay(it.timestamp, tx.timestamp) }
+            com.example.vibefinance.util.Reimbursements.expenseOnOrBeforeDay(it.timestamp, editTimestamp) }
         val repaymentAmount = editAmountText.toBigDecimalOrNull()?.stripTrailingZeros()
-        val validRepayment = !editIsRepayment || (tx.timestamp <= System.currentTimeMillis() && (editRepaymentExpenseId == 0L || repaymentExpense != null) &&
+        val validRepayment = !editIsRepayment || (editTimestamp <= System.currentTimeMillis() && (editRepaymentExpenseId == 0L || repaymentExpense != null) &&
             repaymentAmount != null && repaymentAmount > java.math.BigDecimal.ZERO && repaymentAmount.scale() <= 2 &&
             state.accounts.any { it.id == (editSourceAccountId ?: tx.accountId) && it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT })
         val repaymentEnter = if (motion == MotionLevel.MINIMAL) EnterTransition.None else
@@ -1123,30 +1090,22 @@ fun HistoryScreen(
                 state.accounts.any { it.id == editSourceAccountId }
         }
         val editedMagnitude = editAmountText.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
-        val dialogScale by animateFloatAsState(
-            targetValue = 1.0f,
-            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-            label = "dialogContainerTransform"
-        )
 
-        AlertDialog(
-            onDismissRequest = { if (!editBusy) editingTransaction = null },
-            title = {
-                Text(
-                    text = stringResource(R.string.edit_transaction_title),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.titleLarge
-                )
-            },
-            text = {
+        TransactionEditUi(
+            form = {
+                // Phone dialog: tighter rhythm and a shorter map so the shared fields fit without scrolling.
+                val compactForm = LocalCompactTransactionForm.current
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
+                    verticalArrangement = Arrangement.spacedBy(if (compactForm) 8.dp else 16.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    // Where the intercepted payment happened comes first, as context for the edit.
+                    rememberTransactionLocation(tx)?.let {
+                        EditTransactionLocationCard(it, mapHeight = if (compactForm) 84.dp else 140.dp)
+                    }
                     if (canChangeType) {
-                        Text(
+                        // The selector's own labels are enough in the compact phone dialog.
+                        if (!compactForm) Text(
                             text = stringResource(R.string.edit_transaction_type_label),
                             style = MaterialTheme.typography.labelLarge
                         )
@@ -1172,7 +1131,13 @@ fun HistoryScreen(
                         label = { Text(stringResource(R.string.edit_amount_label) + " (HK$)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("EditTransactionAmount")
+                        modifier = Modifier.fillMaxWidth().sharedTransitionBounds(SharedTxKeys.Amount).testTag("EditTransactionAmount")
+                    )
+
+                    TransactionDateTimeEditor(
+                        timestamp = editTimestamp,
+                        enabled = !editBusy,
+                        onTimestampChange = { editTimestamp = it }
                     )
 
                     if (editIsTransfer) {
@@ -1182,6 +1147,7 @@ fun HistoryScreen(
                             enabled = !editBusy,
                             label = stringResource(R.string.transfer_from),
                             tag = "EditTransactionSource",
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Account),
                             onAccountSelected = {
                                 editSourceAccountId = it
                                 if (editDestinationAccountId == it) editDestinationAccountId = null
@@ -1212,6 +1178,7 @@ fun HistoryScreen(
                                 else R.string.edit_account_expense_label
                             ),
                             tag = "EditTransactionAccount",
+                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Account),
                             onAccountSelected = { editSourceAccountId = it }
                         )
                         Column(Modifier.fillMaxWidth()) {
@@ -1240,13 +1207,13 @@ fun HistoryScreen(
                                     Column(Modifier.fillMaxWidth().padding(top = 12.dp).testTag("EditTransactionReimbursementOptions"),
                                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                         com.example.vibefinance.ui.main.ReimbursementExpenseSelector(repaymentRecords, editRepaymentExpenseId,
-                                            enabled = !editBusy, latestExpenseTimestamp = tx.timestamp,
+                                            enabled = !editBusy, latestExpenseTimestamp = editTimestamp,
                                             onClear = { editRepaymentExpenseId = 0L }, onSelect = { editRepaymentExpenseId = it.id })
                                         Text(stringResource(R.string.history_reimbursement_date_hint,
                                             java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM,
-                                                LocalContext.current.resources.configuration.locales[0]).format(java.util.Date(tx.timestamp))),
+                                                LocalContext.current.resources.configuration.locales[0]).format(java.util.Date(editTimestamp))),
                                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        if (tx.timestamp > System.currentTimeMillis()) Text(stringResource(R.string.reimbursement_not_received),
+                                        if (editTimestamp > System.currentTimeMillis()) Text(stringResource(R.string.reimbursement_not_received),
                                             color = MaterialTheme.colorScheme.error)
                                         if (repaymentExpense?.isExcludedFromDailyBudget == true) Text(stringResource(R.string.reimbursement_excluded_hint))
                                     }
@@ -1258,7 +1225,8 @@ fun HistoryScreen(
                                         HistoryCategoryDropdown(
                                             category = editCategoryText, isIncome = editIsIncome,
                                             transactions = state.transactions, categoryMergeRules = state.categoryMergeRules,
-                                            onCategorySelected = { if (!editBusy) editCategoryText = it }
+                                            onCategorySelected = { if (!editBusy) editCategoryText = it },
+                                            modifier = Modifier.sharedTransitionBounds(SharedTxKeys.Category)
                                         )
                                     } else {
                                         OutlinedTextField(value = com.example.vibefinance.ui.home.getCategoryDisplayName(editCategoryText),
@@ -1281,7 +1249,7 @@ fun HistoryScreen(
                         enabled = !editBusy,
                         onValueChange = { editDescriptionText = it },
                         label = { Text(stringResource(R.string.edit_description_label)) },
-                        modifier = Modifier.fillMaxWidth().testTag("EditTransactionDescription")
+                        modifier = Modifier.fillMaxWidth().sharedTransitionBounds(SharedTxKeys.Description).testTag("EditTransactionDescription")
                     )
 
                     editOperation?.error?.let { Text(it, color = MaterialTheme.colorScheme.error,
@@ -1337,15 +1305,13 @@ fun HistoryScreen(
                     }
                 }
             },
-            confirmButton = {
-                val confirmInteraction = remember { MutableInteractionSource() }
-                val haptic = rememberVibeHapticFeedback()
-                CompletePressButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            canSave = !editBusy && editedMagnitude != null && validAccounts && validRepayment,
+            busy = editBusy,
+            save = {
                         val amount = editedMagnitude
                         if (amount != null && validAccounts && validRepayment && !editBusy) {
-                            val newTx = tx.withHistoryEdit(
+                            // Apply the edited time first: reimbursement checks inside read it.
+                            val newTx = tx.copy(timestamp = editTimestamp).withHistoryEdit(
                                 magnitude = amount,
                                 isIncome = editIsIncome,
                                 category = editCategoryText,
@@ -1367,15 +1333,145 @@ fun HistoryScreen(
                                 if (editIsRepayment) repaymentExpense else null))
                             if (editResult == null) editingTransaction = null
                         }
+            }
+        )
+    }
+    if (useInspector) {
+        com.example.vibefinance.ui.main.AdaptiveRecordScene(inspectedTransactionId,
+            { inspectedTransactionId = null }, modifier, historyList) { id ->
+            state.transactions.firstOrNull { it.id == id }?.let { tx ->
+                val paneEditing = editingTransaction?.id == tx.id
+                TransactionDetailPage(
+                    transaction = tx,
+                    accounts = state.accounts,
+                    embedded = true,
+                    editing = paneEditing,
+                    editUi = editingTransaction?.takeIf { paneEditing }?.let { transactionEditUi(it) },
+                    onClose = { inspectedTransactionId = null },
+                    onEdit = { beginTransactionEdit(it) },
+                    onCancelEdit = { if (!editBusy) editingTransaction = null },
+                    onDelete = { inspectDelete = it },
+                    onUpdateTransaction = { updated -> onIntent(FinanceIntent.EditTransaction(tx, updated)) },
+                    onMoneyBack = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true },
+                    onUnlink = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true; editRepaymentExpenseId = 0L },
+                    modifier = Modifier.padding(top = topContentPadding)
+                )
+            }
+        }
+    } else Box(modifier) { historyList() }
+    inspectDelete?.let { tx ->
+        AlertDialog(onDismissRequest = { inspectDelete = null },
+            title = { Text(stringResource(R.string.btn_delete)) },
+            text = { Text(tx.description.ifBlank { tx.category }) },
+            confirmButton = { TextButton(onClick = { onIntent(FinanceIntent.DeleteTransaction(tx)); inspectDelete = null }) { Text(stringResource(R.string.btn_delete)) } },
+            dismissButton = { TextButton(onClick = { inspectDelete = null }) { Text(stringResource(R.string.btn_cancel)) } })
+    }
+
+
+    if (showFilters) {
+        HistoryFilterSheet(searchQuery, state.accounts, state.transactions.map { it.category }.distinct().sorted(),
+            transactionsList.size, onChange = { query ->
+                searchText = query.text; searchAccount = query.account; searchCategory = query.category
+                searchKind = query.kind; searchFrom = query.from; searchThrough = query.through
+                searchMinimum = query.minimum; searchMaximum = query.maximum
+            }, onClear = {
+                searchText = ""; searchAccount = null; searchCategory = null; searchKind = HistoryKind.ALL
+                searchFrom = ""; searchThrough = ""; searchMinimum = ""; searchMaximum = ""
+                selectedCategoryFilter = null
+                periodFilterMode = com.example.vibefinance.ui.components.PeriodFilterMode.ALL
+                analyticsPeriodMode = CategoryAnalyticsPeriodMode.ALL_TIME
+                onClearCategoryFilter(); onClearAccountFilter()
+            }, onDismiss = { showFilters = false })
+    }
+
+    viewingAdjustment?.let { tx ->
+        val accountName = state.accounts.firstOrNull { it.id == tx.accountId }?.displayLabel() ?: "#${tx.accountId}"
+        val delta = tx.balanceAdjustmentDelta ?: 0.0
+        val signedAmount = String.format(Locale.US, "%sHK$%,.2f", if (delta >= 0) "+" else "-", abs(delta))
+        AlertDialog(
+            onDismissRequest = { viewingAdjustment = null },
+            title = { Text(stringResource(R.string.balance_adjustment_title)) },
+            text = { Text(stringResource(R.string.balance_adjustment_detail, accountName, signedAmount)) },
+            confirmButton = {
+                TextButton(onClick = { viewingAdjustment = null }) {
+                    Text(stringResource(R.string.btn_close))
+                }
+            }
+        )
+    }
+
+    // Phones keep the original dialogs (user preference) but in one window: pressing Edit morphs
+    // the detail dialog into the edit dialog, and Cancel / Save morph back. Wide windows use
+    // TransactionDetailPage instead.
+    if (!useInspector) {
+        var lastEditTx by remember { mutableStateOf<TransactionEntity?>(null) }
+        editingTransaction?.let { lastEditTx = it }
+        val detailTx = viewingDetailTransaction?.let { v -> state.transactions.firstOrNull { it.id == v.id } ?: v }
+        if (detailTx != null || editingTransaction != null) {
+            val isEditing = editingTransaction != null
+            MorphingTransactionDialog(
+                editing = isEditing,
+                onDismissRequest = {
+                    if (isEditing) { if (!editBusy) editingTransaction = null } else viewingDetailTransaction = null
+                },
+                detail = {
+                    detailTx?.let { tx ->
+                        TransactionDetailDialog(
+                            transaction = tx,
+                            accounts = state.accounts,
+                            inline = true,
+                            onDismissRequest = { viewingDetailTransaction = null },
+                            onEdit = {
+                                com.example.vibefinance.util.VibeHaptics.selection(view)
+                                beginTransactionEdit(it)
+                            },
+                            onDelete = {
+                                viewingDetailTransaction = null
+                                onIntent(FinanceIntent.DeleteTransaction(it))
+                            },
+                            onUpdateTransaction = { updated ->
+                                viewingDetailTransaction = updated
+                                onIntent(FinanceIntent.EditTransaction(tx, updated))
+                            }
+                        )
+                    }
+                },
+                edit = {
+                    (editingTransaction ?: lastEditTx)?.let { tx ->
+                        val ui = transactionEditUi(tx)
+                        val dialogScale = 1f
+        TransactionDialogFrame(
+            inline = true,
+            onDismissRequest = { if (!editBusy) editingTransaction = null },
+            title = {
+                Text(
+                    text = stringResource(R.string.edit_transaction_title),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                val editScroll = rememberScrollState()
+                com.example.vibefinance.ui.common.ScrollBlurContainer(scrollState = editScroll, vertical = true) { blurModifier ->
+                    Column(blurModifier.fillMaxWidth().verticalScroll(editScroll)) { ui.form() }
+                }
+            },
+            confirmButton = {
+                val confirmInteraction = remember { MutableInteractionSource() }
+                val haptic = rememberVibeHapticFeedback()
+                CompletePressButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        ui.save()
                     },
-                    enabled = !editBusy && editedMagnitude != null && validAccounts && validRepayment,
+                    enabled = ui.canSave,
                     shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
                     interactionSource = confirmInteraction,
                     modifier = Modifier
                         .testTag("EditTransactionSave")
                         .pressBounce(interactionSource = confirmInteraction)
                 ) {
-                    if (editBusy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    if (ui.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     else Text(stringResource(R.string.btn_save))
                 }
             },
@@ -1408,43 +1504,10 @@ fun HistoryScreen(
                     shape = RoundedCornerShape(32.dp)
                 )
         )
-    }
-
-    viewingAdjustment?.let { tx ->
-        val accountName = state.accounts.firstOrNull { it.id == tx.accountId }?.displayLabel() ?: "#${tx.accountId}"
-        val delta = tx.balanceAdjustmentDelta ?: 0.0
-        val signedAmount = String.format(Locale.US, "%sHK$%,.2f", if (delta >= 0) "+" else "-", abs(delta))
-        AlertDialog(
-            onDismissRequest = { viewingAdjustment = null },
-            title = { Text(stringResource(R.string.balance_adjustment_title)) },
-            text = { Text(stringResource(R.string.balance_adjustment_detail, accountName, signedAmount)) },
-            confirmButton = {
-                TextButton(onClick = { viewingAdjustment = null }) {
-                    Text(stringResource(R.string.btn_close))
+                    }
                 }
-            }
-        )
-    }
-
-    viewingDetailTransaction?.let { tx ->
-        TransactionDetailDialog(
-            transaction = tx,
-            accounts = state.accounts,
-            onDismissRequest = { viewingDetailTransaction = null },
-            onEdit = {
-                viewingDetailTransaction = null
-                beginTransactionEdit(it)
-            },
-            onDelete = {
-                viewingDetailTransaction = null
-                onIntent(FinanceIntent.DeleteTransaction(it))
-            },
-            onUpdateTransaction = { updated ->
-                val old = viewingDetailTransaction ?: tx
-                viewingDetailTransaction = updated
-                onIntent(FinanceIntent.EditTransaction(old, updated))
-            }
-        )
+            )
+        }
     }
 }
 
@@ -1488,7 +1551,7 @@ private fun HistoryTransactionTypeSelector(
                         else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                     },
                     interactionSource = interactionSource,
-                    colors = ToggleButtonDefaults.toggleButtonColors(
+                    colors = ToggleButtonDefaults.colors(
                         containerColor = colorMotion.containerColor,
                         checkedContainerColor = colorMotion.containerColor,
                         contentColor = colorMotion.contentColor,
@@ -1541,13 +1604,14 @@ private fun HistoryAccountDropdown(
     label: String,
     tag: String,
     onAccountSelected: (Long) -> Unit,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { if (enabled && accounts.isNotEmpty()) expanded = !expanded },
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
             value = accounts.firstOrNull { it.id == accountId }?.displayLabel().orEmpty(),
@@ -1584,6 +1648,7 @@ internal fun HistoryCategoryDropdown(
     isIncome: Boolean,
     transactions: List<TransactionEntity>,
     categoryMergeRules: com.example.vibefinance.data.entity.CategoryMergeRules,
+    modifier: Modifier = Modifier,
     onCategorySelected: (String) -> Unit
 ) {
     var expanded by remember(isIncome) { mutableStateOf(false) }
@@ -1613,7 +1678,7 @@ internal fun HistoryCategoryDropdown(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = !expanded },
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
             value = com.example.vibefinance.ui.home.getCategoryDisplayName(category),

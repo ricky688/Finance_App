@@ -3,7 +3,9 @@
     <string name="daily_title">今日可用</string>
     <string name="period_title">本週期剩餘</string>
     <string name="days_left">剩餘 %1$d 天</string>
+    <string name="days_left_short">%1$d天</string>
     <string name="updated">更新於 %1$s</string>
+    <string name="stale_notice">更新於 %1$s · 點按同步</string>
     <string name="refresh">重新整理</string>
     <string name="refreshing">更新中…</string>
     <string name="refresh_failed">無法聯絡手機，請重試。</string>
@@ -18,5 +20,55 @@
     <string name="tile_hidden">金額已隱藏</string>
     <string name="tile_no_budget">請在手機設定預算</string>
     <string name="tile_open_phone">請在手機啟用分享</string>
+    <string name="tile_pending_badge">%1$d 筆待確認</string>
     <string name="cached_offline">手機暫未連線 · 顯示上次更新</string>
+
+    <!-- Complication (錶面小工具) -->
+    <string name="complication_label">今日預算</string>
+    <string name="complication_today">今日</string>
+    <string name="complication_hidden">已隱藏</string>
+    <string name="complication_expired">同步</string>
+    <string name="complication_desc">VibeFinance 今日剩餘預算</string>
+
+    <!-- Pending Decisions (待確認交易) -->
+    <string name="pending_banner_title">%1$d 筆待確認</string>
+    <string name="pending_banner_subtitle">點按確認或忽略</string>
+    <string name="pending_screen_title">待確認 (%1$d)</string>
+    <string name="pending_type_expense">支出</string>
+    <string name="pending_type_income">收入</string>
+    <string name="pending_type_transfer">轉帳</string>
+    <string name="pending_type_topup">增值</string>
+    <string name="pending_account_label">帳戶：%1$s</string>
+    <string name="pending_confirm">確認入帳</string>
+    <string name="pending_confirm_income">確認收入</string>
+    <string name="pending_confirm_transfer">自有帳戶轉帳</string>
+    <string name="pending_ignore">忽略</string>
+    <string name="pending_later">稍後處理</string>
+    <string name="pending_open_phone">在手機處理</string>
+    <string name="pending_waiting_phone">等待手機確認…</string>
+    <string name="pending_done">已在手機記帳</string>
+    <string name="pending_already_handled">已在手機處理</string>
+    <string name="pending_failed">無法連線手機，請重試。</string>
+
+    <!-- Recent Activity, Upcoming Bill & Quick Entry -->
+    <string name="quick_log_button">+ 快速記帳</string>
+    <string name="upcoming_bill_title">下筆帳單</string>
+    <string name="upcoming_due_today">今天到期</string>
+    <string name="upcoming_due_in">%1$d 天後 · %2$s</string>
+    <string name="recent_title">近期記錄</string>
+    <string name="recent_undo">撤銷</string>
+    <string name="recent_change_category">改分類</string>
+    <string name="quick_add_category_title">選擇分類</string>
+    <string name="quick_add_amount_title">輸入金額 (HK$)</string>
+    <string name="quick_add_confirm_title">確認記帳</string>
+    <string name="quick_add_save">送出至手機</string>
+    <string name="quick_add_next">下一步</string>
+    <string name="quick_add_back">返回</string>
+    <string name="quick_add_queued">已離線暫存 · 連線後點按重送</string>
+    <string name="quick_add_retry_queued">重送 %1$d 筆暫存</string>
+    <string name="sent_to_phone">正在手機開啟…</string>
+    <string name="tile_edge_log">+ 快記</string>
+    <string name="tile_edge_pending">待確認 (%1$d)</string>
+    <string name="tile_edge_open">開啟</string>
+    <string name="opened_on_phone_curved">請在手機查看</string>
 </resources>

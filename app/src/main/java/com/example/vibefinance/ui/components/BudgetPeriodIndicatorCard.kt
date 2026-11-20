@@ -69,10 +69,7 @@ fun BudgetPeriodIndicatorCard(
 
     val animatedProgress by animateFloatAsState(
         targetValue = spentRatio,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
         label = "budget_period_progress_spring"
     )
 
@@ -80,10 +77,7 @@ fun BudgetPeriodIndicatorCard(
         modifier = modifier
             .fillMaxWidth()
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
+                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
             ),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),

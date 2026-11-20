@@ -541,4 +541,19 @@ class HomeScreenBentoTest {
         assertEquals(4, LEFT_COLUMN_CARD_KEYS.size)
         assertEquals(4, RIGHT_COLUMN_CARD_KEYS.size)
     }
+
+    @Test
+    fun stackedBentoTiles_joinDaysWithMinMax_whenThreeLegibleTilesFit() {
+        // ~353dp right column reported on Waydroid: three ~107dp tiles instead of a lone square.
+        val tile = resolveStackedBentoTiles(maxWidth = 353.dp, bentoSpacing = 16.dp, fontScale = 1f)
+        assertEquals(107.dp.value, tile!!.value, 0.5f)
+        // Wide stacked columns cap the square days tile; min/max cards take the extra width.
+        assertEquals(156.dp, resolveStackedBentoTiles(600.dp, 16.dp, 1f))
+    }
+
+    @Test
+    fun stackedBentoTiles_fallBack_whenTooNarrowOrTextTooLarge() {
+        assertEquals(null, resolveStackedBentoTiles(320.dp, 16.dp, 1f))
+        assertEquals(null, resolveStackedBentoTiles(353.dp, 16.dp, 1.3f))
+    }
 }

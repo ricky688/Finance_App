@@ -142,7 +142,7 @@ fun HomeVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                 }
                 launch {
                     homeScale.animateTo(1.10f, tween(90))
-                    homeScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    homeScale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
             }
         } else if (isSelected) {
@@ -322,7 +322,7 @@ fun HealthVisual(isSelected: Boolean, trigger: Int, tint: Color) {
                     crossScale.animateTo(1.24f, tween(70, easing = FastOutSlowInEasing))
                     crossScale.animateTo(1.05f, tween(40))
                     crossScale.animateTo(1.28f, tween(70, easing = FastOutSlowInEasing))
-                    crossScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                    crossScale.animateTo(1f, com.example.vibefinance.theme.VibeMotion.fastSpatial())
                 }
                 launch {
                     // Radiating circular healing ripple ring

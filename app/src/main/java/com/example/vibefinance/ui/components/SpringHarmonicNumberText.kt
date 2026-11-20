@@ -92,19 +92,13 @@ fun SpringHarmonicNumberText(
                         launch {
                             translationAnim.animateTo(
                                 targetValue = 0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial()
                             )
                         }
                         launch {
                             stretchAnim.animateTo(
                                 targetValue = 1.0f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                )
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
                             )
                         }
                     }

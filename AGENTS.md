@@ -10,9 +10,17 @@ Every modification, new screen, component refactoring, or feature addition MUST 
 ## 2. Transitional Animation & Kinetic Motion Priority
 Static, sudden, or linear UI transitions are strictly forbidden. All interactive states and navigations MUST incorporate fluid transitional motion:
 - **Expressive Overshoot Curves:** Use `FancyTransitionEasing = CubicBezierEasing(0.48f, 0.19f, 0.05f, 1.03f)` for navigation pushes, sheet entrances, and content transforms to provide a lively micro-overshoot feel.
-- **Physics-Driven Spring Kinetics:** Standardize on spring physics (`spring(dampingRatio, stiffness)`):
-  - Touch/Active: `dampingRatio = Spring.DampingRatioMediumBouncy`, `stiffness = Spring.StiffnessMediumLow`.
-  - Playful component gestures: `springySpec(dampingRatio = 0.35f, stiffness = Spring.StiffnessLow)`.
+- **Physics-Driven Spring Kinetics (official M3E tokens, 2026-11-20):** use `VibeMotion` (`theme/Motion.kt`) or `MaterialTheme.motionScheme`, whose values are the `MotionScheme.expressive()` springs from material3 1.5.0. Do not hand-tune `spring(dampingRatio, stiffness)` for new UI.
+  - Spatial (position, size, shape morph; slight overshoot): `VibeMotion.fastSpatial()` for small controls (0.6/800), `defaultSpatial()` for most UI (0.8/380), `slowSpatial()` for full-screen and large containers (0.8/200).
+  - Effects (colour, opacity; no bounce): `fastEffects()` (1.0/3800), `defaultEffects()` (1.0/1600), `slowEffects()` (1.0/800).
+  - With the minimal-motion setting, spatial specs use the standard non-bouncy values automatically.
+- **Container transforms & predictive back:** pages that open from an element use `LocalSharedTransitionScope` (provided by `ExpressiveSharedTransitionRoot` in `AdaptiveMainFrame`). Full-screen pages use `rememberPredictiveBackPage` + `Modifier.predictiveBackPage` (scale to 90%, 8dp drift, 28dp corners) instead of a plain `BackHandler`.
+- **⚠️ IMPORTANT — Shared Element Transitions (user requirement, 2026-11-20):** whenever one state or page changes into another that shows the **same element** (detail ↔ edit, list item ↔ detail, card ↔ editor), that element must **stay or move/reshape to its new position**. It must never be removed and re-created, and nothing may pop in.
+  - Use Compose shared element transitions: `SharedTransitionLayout` together with `Modifier.sharedTransitionBounds(key)` (looks different on each side, e.g. text → input field; content is scaled down only, start-aligned, with a slow cross-fade) or `Modifier.sharedTransitionElement(key)` (identical content), both in `ui/motion/ExpressiveTransitions.kt`. Provide `LocalSharedContentScope` and `LocalIsSharedTargetPage` per `AnimatedContent` page.
+  - A dialog is a separate window, so it needs its own `SharedTransitionLayout` and its own `LocalSharedTransitionScope`. See `MorphingTransactionDialog`.
+  - Heavy views (maps) move as one instance through movable content (`SharedMapHost` / `SharedTransactionMap`), so they never reload mid-transition.
+  - Elements that exist on one side only slide a short distance and fade on `VibeMotion` springs; bounds use `VibeMotion.slowSpatial()`.
+  - Keep both layouts' element order unless the user asks otherwise. Size the destination so the shared elements are visible without scrolling (compact spacing on phones). If content still overflows, wrap the scroll in `ScrollBlurContainer` so the overflowing edge fades.
 - **Zero-Recomposition GPU Layering:** Execute high-frequency scaling, dragging, and fading inside `Modifier.graphicsLayer` or `DrawModifierNode` (`withTransform { scale(...) }`) to maintain 120 FPS without triggering recomposition.
 - **Micro-Interactions & Multi-Sensory Tactile Feedback:**
   - Standardize button tap downscaling (`pressScale(0.97f)`) paired with `HapticFeedbackConstants.VIRTUAL_KEY`.
@@ -27,11 +35,10 @@ Static, sudden, or linear UI transitions are strictly forbidden. All interactive
 - The user's instructions and established preferences take precedence.
 
 ## 4. Adaptive Navigation Architecture
-- **Portrait Orientation (<840dp)**:
-  - ALWAYS use the Bottom Navigation Bar (`NavigationBar`).
-  - NEVER use a side Navigation Rail in portrait mode—including foldables and windowed scrcpy views (~628dp)—to preserve 100% horizontal screen width for Bento grids and metric cards without margin squeezing.
-- **Landscape Orientation (≥600dp) & Large Tablets (≥840dp)**:
-  - Dynamically switch to `NavigationRail` with vertical scrolling support (`rememberScrollState()`).
+- Follow Google's official navigation suite rule (`NavigationSuiteScaffoldDefaults.navigationSuiteType`), computed from the frame size in `AdaptiveMainFrame` (user decision, 2026-11-19):
+  - **Compact width (<600dp), compact height (<480dp, e.g. phone landscape) or tabletop posture**: the bottom `NavigationBar` (haze glass, staggered pop, scroll-hide). Keep `NavigationBar` until `ShortNavigationBar` is fixed: in material3 1.5.0-alpha01 it lays out only its first item.
+  - **Otherwise (>=600dp width with >=480dp height, including portrait foldables and tablets)**: collapsed 96dp rail using `WideNavigationRailItem` in three zones: logo and FAB on top, destinations vertically centred, utility dock at the bottom. The rail controls and the content card are inset for `WindowInsets.safeDrawing` (the rail background stays edge-to-edge), and short windows fall back to vertical scrolling (`rememberScrollState()`).
+- Read the active type from `LocalNavigationSuiteType`; do not add separate orientation-based navigation switches.
 
 ## 5. Device Testing & Verification Standards (Waydroid & scrcpy)
 - **Target Device Policy**:

@@ -71,10 +71,7 @@ private fun ExpenseIconPicker(value: String?, category: String, onConfirm: (Stri
                             val isSymbolSelected = !typing && selected == token
                             val symbolScale by animateFloatAsState(
                                 targetValue = if (isSymbolSelected) 1.15f else 1f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "expenseSymbolScale_${symbol.name}"
                             )
                             Surface(onClick = { selected = token; typedEmoji = ""; typing = false },
@@ -107,10 +104,7 @@ private fun ExpenseIconPicker(value: String?, category: String, onConfirm: (Stri
                             val isEmojiSelected = !typing && selected == token
                             val emojiScale by animateFloatAsState(
                                 targetValue = if (isEmojiSelected) 1.20f else 1f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
+                                animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                 label = "expenseEmojiScale_$emoji"
                             )
                             Surface(onClick = { selected = token; typedEmoji = emoji; typing = false },
