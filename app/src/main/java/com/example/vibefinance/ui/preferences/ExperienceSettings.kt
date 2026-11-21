@@ -6,6 +6,7 @@ import com.example.vibefinance.util.VibeHaptics
 import com.example.vibefinance.util.HapticStrength
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalView
+import com.example.vibefinance.ui.components.AppSlider
 import com.example.vibefinance.ui.components.AppSwitch
 
 import androidx.compose.foundation.layout.*
@@ -39,13 +40,18 @@ fun HapticStrengthSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> U
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("HapticStrengthLabel"))
-            Slider(slider, { slider = it }, valueRange = 0f..2f, steps = 1,
+            AppSlider(slider, { slider = it }, valueRange = 0f..2f, steps = 1,
                 enabled = state.hapticFeedbackEnabled,
                 onValueChangeFinished = { dispatch(FinanceIntent.SetHapticStrength(HapticStrength.entries[slider.roundToInt().coerceIn(0, 2)])) },
                 modifier = Modifier.testTag("HapticStrength").semantics { contentDescription = title; stateDescription = label })
             Text(stringResource(R.string.haptic_strength_desc), style = MaterialTheme.typography.bodySmall)
-            FilledTonalButton(onClick = { VibeHaptics.selection(view) }, enabled = state.hapticFeedbackEnabled,
-                modifier = Modifier.testTag("HapticStrengthPreview"), elevation = AppButtonDefaults.tonalElevation()) {
+            com.example.vibefinance.ui.components.CompletePressFilledTonalButton(
+                onClick = { VibeHaptics.selection(view) },
+                enabled = state.hapticFeedbackEnabled,
+                shapes = AppButtonDefaults.shapes(),
+                modifier = Modifier.testTag("HapticStrengthPreview"),
+                elevation = AppButtonDefaults.tonalElevation()
+            ) {
                 Text(stringResource(R.string.haptic_strength_preview))
             }
         }
@@ -70,7 +76,7 @@ fun MotionBlurSettings(state: FinanceUiState, dispatch: (FinanceIntent) -> Unit)
             }
             Text(stringResource(R.string.experience_blur_title, (state.blurIntensity * 100).toInt()), style = MaterialTheme.typography.titleSmall)
             var slider by remember(state.blurIntensity) { mutableFloatStateOf(state.blurIntensity) }
-            Slider(slider, { slider = it }, onValueChangeFinished = { VibeHaptics.selection(view); dispatch(FinanceIntent.SetBlurIntensity(slider)) },
+            AppSlider(slider, { slider = it }, onValueChangeFinished = { VibeHaptics.selection(view); dispatch(FinanceIntent.SetBlurIntensity(slider)) },
                 valueRange = 0f..1f, steps = 3, modifier = Modifier.testTag("BlurIntensity"))
             Text(stringResource(R.string.experience_blur_desc), style = MaterialTheme.typography.bodySmall)
         }

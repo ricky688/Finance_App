@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.main
 
 import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.CompletePressButton
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +21,7 @@ import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.history.HistoryCategoryDropdown
 
 /** Only the category is edited; amount, account, transfer, metadata and balances stay intact. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun NotificationCategorySheet(
     transaction: TransactionEntity,
@@ -68,16 +69,17 @@ internal fun NotificationCategorySheet(
                     stringResource(R.string.nf_category_save_failed),
                     color = MaterialTheme.colorScheme.error,
                 )
-            Button(
+            CompletePressButton(
                 onClick = { onSave(category) },
                 enabled = !saving,
+                shapes = AppButtonDefaults.largeShapes(),
                 modifier =
                     Modifier.fillMaxWidth()
                         .heightIn(min = 48.dp)
                         .testTag("NotificationCategorySave"),
                 elevation = AppButtonDefaults.elevation(),
             ) {
-                if (saving) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                if (saving) LoadingIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                 else Text(stringResource(R.string.btn_save))
             }
         }

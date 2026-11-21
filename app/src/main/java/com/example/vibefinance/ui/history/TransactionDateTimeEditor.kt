@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -156,17 +157,23 @@ internal fun TransactionDateTimeEditor(
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
-                TextButton(
+                com.example.vibefinance.ui.components.CompletePressTextButton(
                     enabled = pickerState.selectedDateMillis != null,
                     onClick = {
                         pickerState.selectedDateMillis?.let { onTimestampChange(TransactionDateTime.withDate(timestamp, it)) }
                         VibeHaptics.selection(view)
                         showDatePicker = false
                     },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     modifier = Modifier.testTag("EditTransactionDateConfirm")
                 ) { Text(stringResource(R.string.btn_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.btn_cancel)) } }
+            dismissButton = {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { showDatePicker = false },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) { Text(stringResource(R.string.btn_cancel)) }
+            }
         ) {
             DatePicker(
                 state = pickerState,
@@ -185,17 +192,23 @@ internal fun TransactionDateTimeEditor(
         VibrantTimePickerDialog(
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
-                TextButton(
+                com.example.vibefinance.ui.components.CompletePressTextButton(
                     enabled = timeState.isInputValid,
                     onClick = {
                         onTimestampChange(TransactionDateTime.withTime(timestamp, timeState.hour, timeState.minute))
                         VibeHaptics.selection(view)
                         showTimePicker = false
                     },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     modifier = Modifier.testTag("EditTransactionTimeConfirm")
                 ) { Text(stringResource(R.string.btn_confirm)) }
             },
-            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.btn_cancel)) } },
+            dismissButton = {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { showTimePicker = false },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) { Text(stringResource(R.string.btn_cancel)) }
+            },
             modeToggleButton = {
                 TimePickerDialogDefaults.ScrollDisplayModeToggle(
                     onDisplayModeChange = { VibeHaptics.selection(view); isScrollMode = !isScrollMode },
@@ -250,7 +263,7 @@ private fun DateTimeButton(
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                icon()
+                Box(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current) { icon() }
                 Text(text, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
                     style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             }

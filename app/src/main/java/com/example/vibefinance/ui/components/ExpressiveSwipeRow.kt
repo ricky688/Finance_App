@@ -58,6 +58,7 @@ fun ExpressiveSwipeRow(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     selectionMode: Boolean = false,
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     onLongClick: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -168,7 +169,7 @@ fun ExpressiveSwipeRow(
             }
         }
 
-        val rowInteractionSource = remember { MutableInteractionSource() }
+        val rowInteractionSource = interactionSource
         Surface(
             modifier = Modifier
                 .fillMaxWidth()

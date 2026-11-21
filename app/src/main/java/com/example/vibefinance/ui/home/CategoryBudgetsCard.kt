@@ -175,9 +175,9 @@ fun CategoryBudgetsCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
                             )
                         }
-                        Button(
+                        com.example.vibefinance.ui.components.CompletePressButton(
                             onClick = handleOpenSheet,
-                            shape = RoundedCornerShape(12.dp),
+                            shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                         ) {
                             Text(

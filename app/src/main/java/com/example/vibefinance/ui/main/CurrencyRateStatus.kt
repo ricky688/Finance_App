@@ -17,6 +17,7 @@ import com.example.vibefinance.R
 import com.example.vibefinance.data.currency.ExchangeRateResult
 import com.example.vibefinance.util.CurrencyEngine
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CurrencyRateStatus(
     currencyCode: String,
@@ -32,8 +33,13 @@ internal fun CurrencyRateStatus(
             Column(Modifier.weight(1f)) {
                 when {
                     loading -> {
+                        val minimalMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                            com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
                         Text(stringResource(R.string.currency_rate_loading, currencyCode), style = MaterialTheme.typography.bodyMedium)
-                        LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp))
+                        LinearWavyProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            amplitude = if (minimalMotion) 0f else 1f
+                        )
                     }
                     quote == null -> Text(stringResource(R.string.currency_rate_unavailable),
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error,

@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.vibefinance.ui.preferences.LocalExperience
 import com.example.vibefinance.ui.preferences.MotionLevel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -39,6 +40,8 @@ internal fun BottomNavigationIcon(
 ) {
     val motion = LocalExperience.current.motion
     val density = LocalDensity.current.density
+    val animationScope = rememberCoroutineScope()
+    var activeJob by remember { mutableStateOf<Job?>(null) }
     val scale = remember { Animatable(1f) }
     val historyX = remember { List(3) { Animatable(0f) } }
     val columnsY = remember { List(3) { Animatable(0f) } }
@@ -47,51 +50,64 @@ internal fun BottomNavigationIcon(
     val rotation = remember { Animatable(0f) }
     var wasSelected by remember { mutableStateOf(selected) }
     var lastTrigger by remember { mutableIntStateOf(trigger) }
+    LaunchedEffect(motion) {
+        if (motion != MotionLevel.FULL) {
+            activeJob?.cancel()
+            activeJob = null
+            scale.snapTo(1f); rotation.snapTo(0f)
+            columnsY.forEach { it.snapTo(0f) }
+            roofY.snapTo(0f); baseY.snapTo(0f)
+            historyX.forEach { it.snapTo(0f) }
+        }
+    }
     LaunchedEffect(selected, trigger, motion) {
         val entering = selected && !wasSelected
         val reselected = selected && wasSelected && (trigger != lastTrigger)
         wasSelected = selected
         lastTrigger = trigger
-        scale.snapTo(1f); rotation.snapTo(0f)
-        columnsY.forEach { it.snapTo(0f) }
-        roofY.snapTo(0f); baseY.snapTo(0f)
-        historyX.forEach { it.snapTo(0f) }
+        // Decouple playback from deselection so quickly switching tabs lets both icons finish smoothly.
         if ((entering || reselected) && motion == MotionLevel.FULL) {
-            val settle = spring<Float>(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow)
-            when (tab) {
-                TabItem.HOME -> {
-                    scale.animateTo(0.92f, tween(70))
-                    scale.animateTo(1.15f, tween(100))
-                    scale.animateTo(1f, settle)
-                }
-                TabItem.ACCOUNTS -> coroutineScope {
-                    listOf(roofY, baseY).forEachIndexed { index, offset ->
-                        launch {
-                            delay(index * 250L)
-                            offset.animateTo(-0.75f, tween(120, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)))
-                            offset.animateTo(0f, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow))
+            activeJob?.cancel()
+            activeJob = animationScope.launch {
+                val settle = spring<Float>(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow)
+                when (tab) {
+                    TabItem.HOME -> {
+                        scale.animateTo(0.92f, tween(70))
+                        scale.animateTo(1.15f, tween(100))
+                        scale.animateTo(1f, settle)
+                    }
+                    TabItem.ACCOUNTS -> coroutineScope {
+                        listOf(roofY, baseY).forEachIndexed { index, offset ->
+                            launch {
+                                delay(index * 250L)
+                                offset.animateTo(-0.75f, tween(120, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)))
+                                offset.animateTo(0f, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow))
+                            }
+                        }
+                        columnsY.forEachIndexed { column, offset ->
+                            launch {
+                                delay(column * 100L)
+                                offset.animateTo(-1f, tween(120, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)))
+                                offset.animateTo(0f, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow))
+                            }
                         }
                     }
-                    columnsY.forEachIndexed { column, offset ->
-                        launch {
-                            delay(column * 100L)
-                            offset.animateTo(-1f, tween(120, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)))
-                            offset.animateTo(0f, spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow))
-                        }
+                    TabItem.RECURRING -> {
+                        val start = rotation.value % 360f
+                        rotation.snapTo(start)
+                        val target = if (start > 180f) 720f else 360f
+                        rotation.animateTo(target, tween(600, easing = CubicBezierEasing(0.48f, 0.19f, 0.05f, 1.03f)))
+                        rotation.snapTo(0f)
                     }
-                }
-                TabItem.RECURRING -> {
-                    rotation.animateTo(360f, tween(600, easing = CubicBezierEasing(0.48f, 0.19f, 0.05f, 1.03f)))
-                    rotation.snapTo(0f)
-                }
-                TabItem.HISTORY -> coroutineScope {
-                    historyX.forEachIndexed { row, offset ->
-                        launch {
-                            delay(row * 100L)
-                            val easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
-                            offset.animateTo(24f, tween(180, easing = easing))
-                            offset.snapTo(-24f)
-                            offset.animateTo(0f, tween(240, easing = easing))
+                    TabItem.HISTORY -> coroutineScope {
+                        historyX.forEachIndexed { row, offset ->
+                            launch {
+                                delay(row * 100L)
+                                val easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+                                offset.animateTo(24f, tween(180, easing = easing))
+                                offset.snapTo(-24f)
+                                offset.animateTo(0f, tween(240, easing = easing))
+                            }
                         }
                     }
                 }

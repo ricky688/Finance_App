@@ -24,8 +24,8 @@ android {
         applicationId = "com.ricky688.vibefinance"
         minSdk = 24
         targetSdk = 36
-        versionCode = 212
-        versionName = "1.5.8"
+        versionCode = 232
+        versionName = "1.6.19"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }

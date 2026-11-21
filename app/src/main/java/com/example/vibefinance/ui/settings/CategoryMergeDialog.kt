@@ -8,9 +8,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -93,16 +95,26 @@ fun CategoryMergeDialog(
                         Column(Modifier.navigationBarsPadding().padding(16.dp)) {
                             Text(stringResource(R.string.category_merge_future_hint), style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.height(8.dp))
-                            CompletePressButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); confirming = true }, enabled = canMerge && !state.isMergingCategories,
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ReviewCategoryMerge")) {
+                            com.example.vibefinance.ui.components.CompletePressButton(
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
+                                onClick = { VibeHaptics.lightTick(view); confirming = true },
+                                enabled = canMerge && !state.isMergingCategories,
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ReviewCategoryMerge")
+                            ) {
                                 Text(stringResource(if (state.isMergingCategories) R.string.category_merge_busy else R.string.category_merge_review))
                             }
                         }
                     }
                 }
             ) { padding ->
+                val visibleChoices = remember(choices, query, labels) {
+                    choices.filter { category ->
+                        val display = displayLabel(category)
+                        query.isBlank() || category.contains(query, true) || display.contains(query, true)
+                    }
+                }
                 LazyColumn(Modifier.padding(padding).fillMaxSize().imePadding(),
-                    contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     item {
                         ExpressiveConnectedButtonGroup(CategoryKind.entries, kind.ordinal, { index ->
                             if (!state.isMergingCategories) {
@@ -114,11 +126,19 @@ fun CategoryMergeDialog(
                     }
                     item { Text(stringResource(R.string.category_merge_source_hint), style = MaterialTheme.typography.bodyMedium) }
                     item {
-                        OutlinedButton(onClick = { VibeHaptics.lightTick(view); choosingTarget = true }, enabled = !state.isMergingCategories,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ChooseMergeTarget")) {
+                        com.example.vibefinance.ui.components.CompletePressOutlinedButton(
+                            onClick = { VibeHaptics.lightTick(view); choosingTarget = true },
+                            enabled = !state.isMergingCategories,
+                            shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("ChooseMergeTarget")
+                        ) {
                             Text(target?.let { displayLabel(it) } ?: stringResource(R.string.category_merge_choose_target),
                                 modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                modifier = Modifier.then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                            )
                         }
                     }
                     item {
@@ -126,23 +146,42 @@ fun CategoryMergeDialog(
                             label = { Text(stringResource(R.string.category_merge_search)) }, singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("CategoryMergeSearch"), shape = RoundedCornerShape(24.dp))
                     }
-                    items(choices, key = { it }) { category ->
+                    itemsIndexed(visibleChoices, key = { _, it -> it }) { index, category ->
                         val display = displayLabel(category)
-                        if (query.isBlank() || category.contains(query, true) || display.contains(query, true)) {
-                            val count = recordCounts[category] ?: 0
-                            Surface(shape = RoundedCornerShape(20.dp), color = if (category in selected)
-                                MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.fillMaxWidth()) {
-                                Row(Modifier.fillMaxWidth().testTag("MergeSource:$category").toggleable(value = category in selected, role = Role.Checkbox, enabled = category != target && !state.isMergingCategories) {
+                        val count = recordCounts[category] ?: 0
+                        val isCategorySelected = category in selected
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                            isFirst = index == 0,
+                            isLast = index == visibleChoices.lastIndex,
+                            isSelected = isCategorySelected,
+                            isPressed = isPressed
+                        )
+                        Surface(
+                            shape = rowShape,
+                            color = if (isCategorySelected) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().testTag("MergeSource:$category").toggleable(
+                                    value = isCategorySelected,
+                                    interactionSource = interactionSource,
+                                    indication = androidx.compose.foundation.LocalIndication.current,
+                                    role = Role.Checkbox,
+                                    enabled = category != target && !state.isMergingCategories
+                                ) {
                                     VibeHaptics.toggle(view)
-                                    selectedList = if (category in selected) selectedList - category else selectedList + category
-                                }.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(category in selected, onCheckedChange = null, enabled = category != target && !state.isMergingCategories)
-                                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                                        Text(display, style = MaterialTheme.typography.titleMedium)
-                                        Text(stringResource(R.string.category_merge_category_count, count),
-                                            style = MaterialTheme.typography.bodySmall)
-                                    }
+                                    selectedList = if (isCategorySelected) selectedList - category else selectedList + category
+                                }.padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(isCategorySelected, onCheckedChange = null, enabled = category != target && !state.isMergingCategories)
+                                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                                    Text(display, style = MaterialTheme.typography.titleMedium)
+                                    Text(stringResource(R.string.category_merge_category_count, count),
+                                        style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
@@ -151,19 +190,47 @@ fun CategoryMergeDialog(
             }
         }
         if (choosingTarget) {
+            val targetChoices = remember(choices, selected) { choices.filter { it !in selected } }
             AlertDialog(onDismissRequest = { choosingTarget = false },
                 title = { Text(stringResource(R.string.category_merge_choose_target)) },
                 text = {
-                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(choices.filter { it !in selected }, key = { it }) { category ->
-                            ListItem(headlineContent = { Text(displayLabel(category)) },
-                                supportingContent = null,
-                                leadingContent = { RadioButton(category == target, onClick = null) },
-                                modifier = Modifier.selectable(selected = category == target, role = Role.RadioButton) { VibeHaptics.selection(view); target = category; choosingTarget = false }
-                                    .testTag("MergeTarget:$category"))
+                    LazyColumn(
+                        Modifier.heightIn(max = 360.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        itemsIndexed(targetChoices, key = { _, it -> it }) { index, category ->
+                            val isTargetSelected = category == target
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val isPressed by interactionSource.collectIsPressedAsState()
+                            val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                                isFirst = index == 0,
+                                isLast = index == targetChoices.lastIndex,
+                                isSelected = isTargetSelected,
+                                isPressed = isPressed
+                            )
+                            Surface(
+                                shape = rowShape,
+                                color = if (isTargetSelected) MaterialTheme.colorScheme.secondaryContainer
+                                else MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                ListItem(
+                                    colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                                    headlineContent = { Text(displayLabel(category)) },
+                                    supportingContent = null,
+                                    leadingContent = { RadioButton(isTargetSelected, onClick = null) },
+                                    modifier = Modifier.selectable(
+                                        selected = isTargetSelected,
+                                        interactionSource = interactionSource,
+                                        indication = androidx.compose.foundation.LocalIndication.current,
+                                        role = Role.RadioButton
+                                    ) { VibeHaptics.selection(view); target = category; choosingTarget = false }
+                                        .testTag("MergeTarget:$category")
+                                )
+                            }
                         }
                     }
-                }, confirmButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); choosingTarget = false }) { Text(stringResource(R.string.btn_cancel)) } })
+                }, confirmButton = { com.example.vibefinance.ui.components.CompletePressTextButton(shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); choosingTarget = false }) { Text(stringResource(R.string.btn_cancel)) } })
         }
         if (confirming && canMerge && target != null) {
             val destination = target!!
@@ -181,13 +248,13 @@ fun CategoryMergeDialog(
                     }
                 },
                 confirmButton = {
-                    CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(), onClick = {
                         VibeHaptics.warningAlert(view)
                         confirming = false
                         onMerge(kind, selected, destination)
                     }, modifier = Modifier.testTag("ConfirmCategoryMerge")) { Text(stringResource(R.string.category_merge_confirm)) }
                 },
-                dismissButton = { CompletePressTextButton(shapes = ButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); confirming = false }) { Text(stringResource(R.string.btn_cancel)) } }
+                dismissButton = { com.example.vibefinance.ui.components.CompletePressTextButton(shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(), onClick = { VibeHaptics.lightTick(view); confirming = false }) { Text(stringResource(R.string.btn_cancel)) } }
             )
         }
     }

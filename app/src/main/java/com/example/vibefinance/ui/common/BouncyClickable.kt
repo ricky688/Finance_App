@@ -41,11 +41,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.util.lerp
 
-/** Keeps the original asymmetric corners while rounding them inwards on press. */
+/** Keeps the original asymmetric corners while morphing toward [pressedCornerDp] (6.dp) on press. */
 private class ExpressivePressedShape(
     private val restingShape: Shape,
-    private val pressProgress: Float
+    private val pressProgress: Float,
+    private val pressedCornerDp: Dp = 6.dp,
 ) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val outline = restingShape.createOutline(size, layoutDirection, density)
@@ -55,11 +57,11 @@ private class ExpressivePressedShape(
         if (amount == 0f) return outline
 
         val corners = outline.roundRect
-        // In Material 3 Expressive, shape changing is changing the dp of corners, not the edges.
-        // Outer rectangle edges remain fixed while corner radii morph smoothly under spring physics.
-        // Morphs from 28.dp down to 16.dp (ratio: 16/28 = 0.5714 -> reduction = 0.4286)
-        val cornerScale = 1f - 0.4286f * amount
-        fun CornerRadius.pressed() = CornerRadius(x * cornerScale, y * cornerScale)
+        val targetPx = with(density) { pressedCornerDp.toPx() }
+        fun CornerRadius.pressed() = CornerRadius(
+            lerp(x, targetPx, amount),
+            lerp(y, targetPx, amount)
+        )
         return Outline.Rounded(
             RoundRect(
                 left = corners.left,
@@ -174,16 +176,17 @@ fun Modifier.bouncyClickable(
     enabled: Boolean = true,
     shape: Shape? = null,
     rippleColor: Color = Color.Unspecified,
+    interactionSource: MutableInteractionSource? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ): Modifier = composed {
-    val interactionSource = remember { MutableInteractionSource() }
+    val resolvedInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val motion = LocalExperience.current.motion
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val isPressed by resolvedInteractionSource.collectIsPressedAsState()
     val view = LocalView.current
 
     val pressProgress by rememberCompletePressProgress(
-        interactionSource = interactionSource,
+        interactionSource = resolvedInteractionSource,
         enabled = enabled,
         pressSpec = if (motion == MotionLevel.MINIMAL) snap() else tween(160, easing = FastOutSlowInEasing),
         releaseSpec = if (motion == MotionLevel.MINIMAL) snap() else com.example.vibefinance.theme.VibeMotion.defaultSpatial()
@@ -194,14 +197,18 @@ fun Modifier.bouncyClickable(
         scaleX = scale
         scaleY = scale
         if (shape != null) {
-            this.shape = ExpressivePressedShape(shape, pressProgress)
+            this.shape = if (shape is RoundedCornerShape && shape.topStart is com.example.vibefinance.ui.main.ConnectedListRowCornerSize) {
+                shape
+            } else {
+                ExpressivePressedShape(shape, pressProgress)
+            }
             clip = true
         }
     }
 
     if (onLongClick != null) {
         baseModifier.combinedClickable(
-            interactionSource = interactionSource,
+            interactionSource = resolvedInteractionSource,
             indication = ripple(bounded = true, color = rippleColor),
             enabled = enabled,
             onLongClick = {
@@ -215,7 +222,7 @@ fun Modifier.bouncyClickable(
         )
     } else {
         baseModifier.clickable(
-            interactionSource = interactionSource,
+            interactionSource = resolvedInteractionSource,
             indication = ripple(bounded = true, color = rippleColor),
             enabled = enabled
         ) {
@@ -247,7 +254,11 @@ fun Modifier.pressBounce(
         scaleX = scale
         scaleY = scale
         if (shape != null) {
-            this.shape = ExpressivePressedShape(shape, pressProgress)
+            this.shape = if (shape is RoundedCornerShape && shape.topStart is com.example.vibefinance.ui.main.ConnectedListRowCornerSize) {
+                shape
+            } else {
+                ExpressivePressedShape(shape, pressProgress)
+            }
             clip = true
         }
     }

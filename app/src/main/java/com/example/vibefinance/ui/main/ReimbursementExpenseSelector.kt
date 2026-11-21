@@ -3,9 +3,11 @@ package com.example.vibefinance.ui.main
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -147,9 +150,23 @@ fun ReimbursementExpenseSelector(records: List<TransactionEntity>, selectedId: L
                                 style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag("ReimbursementResultCount")) }
                             ScrollEdgeEffects(edges.first, edges.second, Modifier.fillMaxWidth().height(320.dp), "ReimbursementSearch") { source ->
                                 LazyColumn(source.fillMaxSize().testTag("ReimbursementSearchResults"), state = list,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 72.dp)) {
-                                    items(filtered, key = { it.id }) { expense ->
-                                        ListItem(headlineContent = { Text(expense.description.ifBlank { expense.category }) },
+                                    verticalArrangement = Arrangement.spacedBy(5.dp), contentPadding = PaddingValues(bottom = 72.dp)) {
+                                    itemsIndexed(filtered, key = { _, it -> it.id }) { index, expense ->
+                                        val isRowSelected = expense.id == selectedId
+                                        val interactionSource = remember { MutableInteractionSource() }
+                                        val isPressed by interactionSource.collectIsPressedAsState()
+                                        val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                                            isFirst = index == 0,
+                                            isLast = index == filtered.lastIndex,
+                                            isSelected = isRowSelected,
+                                            isPressed = isPressed
+                                        )
+                                        ListItem(
+                                            colors = ListItemDefaults.colors(
+                                                containerColor = if (isRowSelected) MaterialTheme.colorScheme.secondaryContainer
+                                                else MaterialTheme.colorScheme.surfaceContainerLow
+                                            ),
+                                            headlineContent = { Text(expense.description.ifBlank { expense.category }) },
                                             supportingContent = { Text(expense.category + " · " + dateFormat.format(Date(expense.timestamp)) + "\n" +
                                                 stringResource(R.string.reimbursement_outstanding, Reimbursements.outstanding(expense, creditsByExpense[expense.id].orEmpty()).toDouble())) },
                                             modifier = Modifier.animateItem(
@@ -157,7 +174,8 @@ fun ReimbursementExpenseSelector(records: List<TransactionEntity>, selectedId: L
                                                 placementSpec = if (motion != MotionLevel.FULL) null else spring(
                                                     dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
                                                 fadeOutSpec = if (motion == MotionLevel.MINIMAL) null else MotionTokens.emphasized(120))
-                                                .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onSelect(expense); showExpenses = false }
+                                                .clip(rowShape)
+                                                .bouncyClickable(shape = rowShape, interactionSource = interactionSource) { onSelect(expense); showExpenses = false }
                                                 .testTag("ReimbursementSource_${expense.id}"))
                                     }
                                     if (filtered.isEmpty()) item("empty") {

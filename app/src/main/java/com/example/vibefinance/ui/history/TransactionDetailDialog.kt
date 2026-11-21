@@ -1,7 +1,12 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+)
 
 package com.example.vibefinance.ui.history
 
+import com.example.vibefinance.ui.components.postPressIconBounce
+import com.example.vibefinance.ui.motion.paneEntrance
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
@@ -36,10 +41,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -71,6 +79,7 @@ import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.TransactionEntity
 import com.example.vibefinance.ui.components.AppButtonDefaults
 import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
 import com.example.vibefinance.ui.components.CompletePressOutlinedButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
 import com.example.vibefinance.ui.main.ModeSwitcherAnimatedIcon
@@ -150,57 +159,54 @@ internal fun TransactionDialogFrame(
  * on one page to their place on the other, while the card resizes. Elements that exist on only one
  * page slide a short way and fade, so nothing pops in. All motion uses the slow spatial spring.
  */
+/** Phone (compact) stage inside [MorphingTransactionDialog]. */
+private enum class PhoneTransactionDialogStage { DETAIL, EDIT, FULL_SCREEN_MAP }
+
+/**
+ * Phone transaction dialog that keeps one window while switching between the detail view, edit form,
+ * and full-screen interactive OSM map: the single [SharedMapHost] moves smoothly between the card
+ * and full screen without reloading tiles.
+ */
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun MorphingTransactionDialog(
     editing: Boolean,
+    fullScreenMapOpen: Boolean = false,
     onDismissRequest: () -> Unit,
     detail: @Composable () -> Unit,
     edit: @Composable () -> Unit,
+    fullScreenMap: (@Composable () -> Unit)? = null,
 ) {
     val currentDismiss by rememberUpdatedState(onDismissRequest)
     val mapHost = remember { SharedMapHost() }
+    val stage = when {
+        fullScreenMapOpen && fullScreenMap != null -> PhoneTransactionDialogStage.FULL_SCREEN_MAP
+        editing -> PhoneTransactionDialogStage.EDIT
+        else -> PhoneTransactionDialogStage.DETAIL
+    }
     androidx.compose.material3.BasicAlertDialog(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            if (stage != PhoneTransactionDialogStage.FULL_SCREEN_MAP) currentDismiss()
+        },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-      // A full-size window: with a wrap-content window the card could only grow as far as the
-      // window's previous height each pass, so the resize crawled for seconds.
-      Box(
-          Modifier
-              .fillMaxSize()
-              // Scrim tap dismisses; gesture-only so no extra accessibility node (back dismisses too).
-              .pointerInput(Unit) { detectTapGestures { currentDismiss() } },
-          contentAlignment = Alignment.Center
-      ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .widthIn(max = 560.dp)
-                .padding(vertical = 24.dp)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(32.dp))
-                .testTag("TransactionMorphDialog"),
-            shape = RoundedCornerShape(32.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp
-        ) {
-            Box(
-                // Swallow taps on the card so only the scrim dismisses.
-                Modifier.pointerInput(Unit) { detectTapGestures { } }
+        androidx.compose.animation.SharedTransitionLayout {
+            CompositionLocalProvider(
+                com.example.vibefinance.ui.motion.LocalSharedTransitionScope provides this,
+                LocalSharedMapHost provides mapHost,
+                LocalCompactTransactionForm provides true
             ) {
-              // The dialog is its own window, so it needs its own shared-transition root.
-              androidx.compose.animation.SharedTransitionLayout {
-                CompositionLocalProvider(
-                    com.example.vibefinance.ui.motion.LocalSharedTransitionScope provides this,
-                    LocalSharedMapHost provides mapHost,
-                    LocalCompactTransactionForm provides true
-                ) {
-                    AnimatedContent(
-                        targetState = editing,
-                        contentAlignment = Alignment.TopCenter,
-                        transitionSpec = {
-                            // Only the page-specific parts use this; shared elements fly on their own.
-                            val toEdit = targetState
+                AnimatedContent(
+                    targetState = stage,
+                    contentAlignment = Alignment.Center,
+                    transitionSpec = {
+                        if (targetState == PhoneTransactionDialogStage.FULL_SCREEN_MAP ||
+                            initialState == PhoneTransactionDialogStage.FULL_SCREEN_MAP
+                        ) {
+                            fadeIn(com.example.vibefinance.theme.VibeMotion.slowEffects()) togetherWith
+                                fadeOut(com.example.vibefinance.theme.VibeMotion.defaultEffects())
+                        } else {
+                            val toEdit = targetState == PhoneTransactionDialogStage.EDIT
                             val enter = slideInVertically(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { h -> if (toEdit) h / 8 else -h / 8 } +
                                 fadeIn(com.example.vibefinance.theme.VibeMotion.slowEffects())
                             val exit = slideOutVertically(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { h -> if (toEdit) -h / 8 else h / 8 } +
@@ -208,21 +214,55 @@ internal fun MorphingTransactionDialog(
                             (enter togetherWith exit).using(
                                 SizeTransform(clip = false) { _, _ -> com.example.vibefinance.theme.VibeMotion.slowSpatial() }
                             )
-                        },
-                        label = "transactionDetailToEdit"
-                    ) { isEditing ->
-                        CompositionLocalProvider(
-                            com.example.vibefinance.ui.motion.LocalSharedContentScope provides this,
-                            com.example.vibefinance.ui.motion.LocalIsSharedTargetPage provides (isEditing == editing)
-                        ) {
-                            if (isEditing) edit() else detail()
+                        }
+                    },
+                    label = "transactionDetailToEditOrMap"
+                ) { targetStage ->
+                    CompositionLocalProvider(
+                        com.example.vibefinance.ui.motion.LocalSharedContentScope provides this,
+                        com.example.vibefinance.ui.motion.LocalIsSharedTargetPage provides (targetStage == stage)
+                    ) {
+                        if (targetStage == PhoneTransactionDialogStage.FULL_SCREEN_MAP && fullScreenMap != null) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .pointerInput(Unit) { detectTapGestures { } }
+                            ) {
+                                fullScreenMap()
+                            }
+                        } else {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    // Scrim tap dismisses; gesture-only so no extra accessibility node (back dismisses too).
+                                    .pointerInput(Unit) { detectTapGestures { currentDismiss() } },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.95f)
+                                        .widthIn(max = 560.dp)
+                                        .padding(vertical = 24.dp)
+                                        .sharedTransitionBounds("tx-morph-dialog-card", remeasure = true)
+                                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(32.dp))
+                                        .testTag("TransactionMorphDialog"),
+                                    shape = RoundedCornerShape(32.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 0.dp
+                                ) {
+                                    Box(
+                                        // Swallow taps on the card so only the scrim dismisses.
+                                        Modifier.pointerInput(Unit) { detectTapGestures { } }
+                                    ) {
+                                        if (targetStage == PhoneTransactionDialogStage.EDIT) edit() else detail()
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-              }
             }
         }
-      }
     }
 }
 
@@ -256,12 +296,15 @@ internal fun TransactionDetailPage(
     onUpdateTransaction: ((TransactionEntity) -> Unit)? = null,
     onMoneyBack: (() -> Unit)? = null,
     onUnlink: (() -> Unit)? = null,
+    onRecordReimbursement: ((Double, String) -> Unit)? = null,
+    onOpenFullScreenMap: (() -> Unit)? = null,
 ) {
     val hideAmounts = com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts
     val context = LocalContext.current
     var currentTx by remember(transaction) { mutableStateOf(transaction) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showPresetSheet by remember { mutableStateOf(false) }
+    var showSplitSheet by remember(transaction.id) { mutableStateOf(false) }
 
     val view = LocalView.current
     val isDark = isSystemInDarkTheme()
@@ -298,10 +341,16 @@ internal fun TransactionDetailPage(
             .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.safeDrawing))
             .testTag("TransactionDetailPage")
     ) {
+        val contentHorizontalPadding = if (embedded) 0.dp else 20.dp
         Column(Modifier.fillMaxSize()) {
             // Top app bar: back (or cancel while editing), title, edit and delete actions.
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                modifier = Modifier.paneEntrance(0).fillMaxWidth().padding(
+                    start = if (embedded) 0.dp else 4.dp,
+                    end = if (embedded) 0.dp else 8.dp,
+                    top = if (embedded) 0.dp else 8.dp,
+                    bottom = 4.dp
+                ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!embedded || editing) {
@@ -318,7 +367,7 @@ internal fun TransactionDetailPage(
                         )
                     }
                 } else {
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
                 Box(Modifier.weight(1f)) {
                     Row(
@@ -437,7 +486,7 @@ internal fun TransactionDetailPage(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp)
+                            .padding(horizontal = contentHorizontalPadding)
                             .padding(top = 8.dp, bottom = 112.dp)
                             .testTag("TransactionEditForm"),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -446,7 +495,7 @@ internal fun TransactionDetailPage(
                     val heroSection: @Composable () -> Unit = {
                         // 1. Hero Amount Display
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.paneEntrance(1).fillMaxWidth(),
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -493,6 +542,7 @@ internal fun TransactionDetailPage(
 
                             Surface(
                                 modifier = Modifier
+                                    .paneEntrance(2)
                                     .fillMaxWidth()
                                     .testTag("OsmLocationCard"),
                                 shape = RoundedCornerShape(20.dp),
@@ -505,14 +555,15 @@ internal fun TransactionDetailPage(
                                         .padding(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Row(
+                                    FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.align(Alignment.CenterVertically)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.LocationOn,
@@ -528,7 +579,10 @@ internal fun TransactionDetailPage(
                                             )
                                         }
 
-                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
                                             CompletePressTextButton(
                                                 onClick = {
                                                     val geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(${Uri.encode(currentTx.description.ifBlank { currentTx.category })})")
@@ -537,23 +591,36 @@ internal fun TransactionDetailPage(
                                                     }
                                                     runCatching { context.startActivity(mapIntent) }
                                                 },
-                                                shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                shapes = AppButtonDefaults.shapes(),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                 modifier = Modifier.height(28.dp)
                                             ) {
-                                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
                                                 Spacer(Modifier.width(4.dp))
                                                 Text(stringResource(R.string.tx_detail_open_in_map), style = MaterialTheme.typography.labelSmall)
+                                            }
+
+                                            if (onOpenFullScreenMap != null) {
+                                                CompletePressTextButton(
+                                                    onClick = onOpenFullScreenMap,
+                                                    shapes = AppButtonDefaults.shapes(),
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier.height(28.dp).testTag("OpenFullScreenOsmButton")
+                                                ) {
+                                                    Icon(Icons.Default.OpenInFull, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text(stringResource(R.string.tx_detail_fullscreen_map), style = MaterialTheme.typography.labelSmall)
+                                                }
                                             }
 
                                             if (onUpdateTransaction != null) {
                                                 CompletePressTextButton(
                                                     onClick = { showPresetSheet = true },
-                                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                                    shapes = AppButtonDefaults.shapes(),
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                                     modifier = Modifier.height(28.dp)
                                                 ) {
-                                                    Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
                                                     Spacer(Modifier.width(2.dp))
                                                     Text(stringResource(R.string.tx_detail_retag_location), style = MaterialTheme.typography.labelSmall)
                                                 }
@@ -611,11 +678,11 @@ internal fun TransactionDetailPage(
                                         }
                                     }
 
-                                    TransactionLocationMap(
-                                        latitude = lat, longitude = lng,
-                                        startLatitude = effectiveStartLat, startLongitude = effectiveStartLng,
-                                        description = locLabel,
-                                        modifier = Modifier.fillMaxWidth().height(180.dp)
+                                    SharedTransactionMap(
+                                        location = location,
+                                        modifier = Modifier.fillMaxWidth().height(180.dp),
+                                        interactive = false,
+                                        onPreviewClick = onOpenFullScreenMap
                                     )
 
                                     // Location Address / Street description
@@ -633,6 +700,7 @@ internal fun TransactionDetailPage(
                             val scope = rememberCoroutineScope()
                             Surface(
                                 modifier = Modifier
+                                    .paneEntrance(2)
                                     .fillMaxWidth()
                                     .testTag("OsmNoLocationCard"),
                                 shape = RoundedCornerShape(20.dp),
@@ -716,7 +784,7 @@ internal fun TransactionDetailPage(
                                                     }
                                                 }
                                             },
-                                            shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                            shapes = AppButtonDefaults.shapes(),
                                             enabled = !isTagging,
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                                             modifier = Modifier
@@ -724,13 +792,12 @@ internal fun TransactionDetailPage(
                                                 .height(36.dp)
                                         ) {
                                             if (isTagging) {
-                                                CircularProgressIndicator(
+                                                LoadingIndicator(
                                                     modifier = Modifier.size(14.dp),
-                                                    strokeWidth = 2.dp,
                                                     color = MaterialTheme.colorScheme.onPrimary
                                                 )
                                             } else {
-                                                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
                                                 Spacer(Modifier.width(6.dp))
                                                 Text(
                                                     text = stringResource(R.string.tx_detail_tag_location),
@@ -741,14 +808,32 @@ internal fun TransactionDetailPage(
 
                                         CompletePressOutlinedButton(
                                             onClick = { showPresetSheet = true },
-                                            shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                            shapes = AppButtonDefaults.shapes(),
                                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                             modifier = Modifier.height(36.dp)
                                         ) {
-                                            Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
                                             Spacer(Modifier.width(4.dp))
                                             Text(
                                                 text = stringResource(R.string.tx_detail_tag_preset),
+                                                style = MaterialTheme.typography.labelMedium
+                                            )
+                                        }
+                                    }
+                                    if (onOpenFullScreenMap != null) {
+                                        CompletePressOutlinedButton(
+                                            onClick = onOpenFullScreenMap,
+                                            shapes = AppButtonDefaults.shapes(),
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(36.dp)
+                                                .testTag("PickOnFullScreenOsmButton")
+                                        ) {
+                                            Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(
+                                                text = stringResource(R.string.tx_detail_pick_on_map),
                                                 style = MaterialTheme.typography.labelMedium
                                             )
                                         }
@@ -762,7 +847,7 @@ internal fun TransactionDetailPage(
                     val infoSection: @Composable () -> Unit = {
                         // 3. Detail Info Grid
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.paneEntrance(3).fillMaxWidth(),
                             shape = RoundedCornerShape(20.dp),
                             color = MaterialTheme.colorScheme.surfaceContainerLowest,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -820,15 +905,30 @@ internal fun TransactionDetailPage(
                             }
                         }
 
+                        if (isExpense && !isReimbursement && !currentTx.isBalanceAdjustment && currentTx.timestamp <= System.currentTimeMillis()) {
+                            CompletePressFilledTonalButton(
+                                onClick = {
+                                    VibeHaptics.selection(view)
+                                    showSplitSheet = true
+                                },
+                                shapes = AppButtonDefaults.shapes(),
+                                modifier = Modifier.paneEntrance(4).fillMaxWidth().testTag("TransactionSplitBillButton")
+                            ) {
+                                Icon(Icons.Default.GroupAdd, contentDescription = null, modifier = Modifier.size(18.dp).postPressIconBounce())
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.split_bill_action), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
                         if (onMoneyBack != null && currentTx.amount < 0 && currentTx.toAccountId == null && !currentTx.isBalanceAdjustment) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.paneEntrance(5), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CompletePressTextButton(
                                     onClick = onMoneyBack,
-                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                                    shapes = AppButtonDefaults.shapes()
                                 ) { Text(stringResource(R.string.reimbursement_choose_expense)) }
                                 if (currentTx.reimbursementOf != null && onUnlink != null) CompletePressTextButton(
                                     onClick = onUnlink,
-                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                                    shapes = AppButtonDefaults.shapes()
                                 ) { Text(stringResource(R.string.reimbursement_unlink)) }
                             }
                         }
@@ -837,7 +937,7 @@ internal fun TransactionDetailPage(
                         if (maxWidth >= 720.dp) {
                             // Wide pane: amount and map on the left, the record's fields on the right.
                             Row(
-                                Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                                Modifier.fillMaxSize().padding(horizontal = contentHorizontalPadding),
                                 horizontalArrangement = Arrangement.spacedBy(20.dp)
                             ) {
                                 Column(
@@ -854,7 +954,7 @@ internal fun TransactionDetailPage(
                         } else {
                             Column(
                                 Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 24.dp),
+                                    .padding(horizontal = contentHorizontalPadding).padding(top = 8.dp, bottom = 24.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) { heroSection(); locationSection(); infoSection() }
                         }
@@ -877,13 +977,13 @@ internal fun TransactionDetailPage(
                 CompletePressTextButton(
                     enabled = ui?.busy != true,
                     onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); onCancelEdit() },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                    shapes = AppButtonDefaults.shapes()
                 ) { Text(stringResource(R.string.btn_cancel)) }
                 Spacer(Modifier.width(8.dp))
                 CompletePressButton(
                     enabled = ui?.canSave == true,
                     onClick = { com.example.vibefinance.util.VibeHaptics.selection(view); ui?.save?.invoke() },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    shapes = AppButtonDefaults.shapes(),
                     modifier = Modifier.testTag("EditTransactionSave")
                 ) {
                     if (ui?.busy == true) LoadingIndicator(Modifier.size(24.dp))
@@ -917,9 +1017,19 @@ internal fun TransactionDetailPage(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    com.example.vibefinance.util.GnssLocationManager.PRESETS.forEach { preset ->
+                    val presets = com.example.vibefinance.util.GnssLocationManager.PRESETS
+                    presets.forEachIndexed { index, preset ->
+                        val isSelectedPreset = currentTx.locationName == preset.title
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                            isFirst = index == 0,
+                            isLast = index == presets.lastIndex,
+                            isSelected = isSelectedPreset,
+                            isPressed = isPressed
+                        )
                         Surface(
                             onClick = {
                                 showPresetSheet = false
@@ -936,8 +1046,10 @@ internal fun TransactionDetailPage(
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            interactionSource = interactionSource,
+                            shape = rowShape,
+                            color = if (isSelectedPreset) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -1008,7 +1120,10 @@ internal fun TransactionDetailPage(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showPresetSheet = false }) {
+                CompletePressTextButton(
+                    onClick = { showPresetSheet = false },
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.btn_close))
                 }
             }
@@ -1027,7 +1142,7 @@ internal fun TransactionDetailPage(
                         showDeleteConfirm = false
                         onDelete(currentTx)
                     },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    shapes = AppButtonDefaults.shapes(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.btn_delete))
@@ -1036,11 +1151,19 @@ internal fun TransactionDetailPage(
             dismissButton = {
                 CompletePressTextButton(
                     onClick = { showDeleteConfirm = false },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                    shapes = AppButtonDefaults.shapes()
                 ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
             }
+        )
+    }
+
+    if (showSplitSheet) {
+        SplitAmountSheet(
+            transaction = currentTx,
+            onDismiss = { showSplitSheet = false },
+            onRecordReimbursement = onRecordReimbursement
         )
     }
 }
@@ -1054,12 +1177,15 @@ fun TransactionDetailDialog(
     onEdit: (TransactionEntity) -> Unit,
     onDelete: (TransactionEntity) -> Unit,
     onUpdateTransaction: ((TransactionEntity) -> Unit)? = null,
-    inline: Boolean = false
+    onRecordReimbursement: ((Double, String) -> Unit)? = null,
+    inline: Boolean = false,
+    onOpenFullScreenMap: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var currentTx by remember(transaction.id, transaction.latitude, transaction.longitude) { mutableStateOf(transaction) }
+    var currentTx by remember(transaction.id, transaction.latitude, transaction.longitude, transaction.locationName) { mutableStateOf(transaction) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showPresetSheet by remember { mutableStateOf(false) }
+    var showSplitSheet by remember(transaction.id) { mutableStateOf(false) }
 
     val view = LocalView.current
     val isDark = isSystemInDarkTheme()
@@ -1263,14 +1389,15 @@ fun TransactionDetailDialog(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.align(Alignment.CenterVertically)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.LocationOn,
@@ -1286,7 +1413,10 @@ fun TransactionDetailDialog(
                                     )
                                 }
 
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     CompletePressTextButton(
                                         onClick = {
                                             val geoUri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(${Uri.encode(currentTx.description.ifBlank { currentTx.category })})")
@@ -1295,23 +1425,36 @@ fun TransactionDetailDialog(
                                             }
                                             runCatching { context.startActivity(mapIntent) }
                                         },
-                                        shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                        shapes = AppButtonDefaults.shapes(),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
-                                        Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
                                         Spacer(Modifier.width(4.dp))
                                         Text(stringResource(R.string.tx_detail_open_in_map), style = MaterialTheme.typography.labelSmall)
+                                    }
+
+                                    if (onOpenFullScreenMap != null) {
+                                        CompletePressTextButton(
+                                            onClick = onOpenFullScreenMap,
+                                            shapes = AppButtonDefaults.shapes(),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            modifier = Modifier.height(28.dp).testTag("OpenFullScreenOsmButton")
+                                        ) {
+                                            Icon(Icons.Default.OpenInFull, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(stringResource(R.string.tx_detail_fullscreen_map), style = MaterialTheme.typography.labelSmall)
+                                        }
                                     }
 
                                     if (onUpdateTransaction != null) {
                                         CompletePressTextButton(
                                             onClick = { showPresetSheet = true },
-                                            shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                            shapes = AppButtonDefaults.shapes(),
                                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                             modifier = Modifier.height(28.dp)
                                         ) {
-                                            Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.EditLocation, contentDescription = null, modifier = Modifier.size(14.dp).postPressIconBounce())
                                             Spacer(Modifier.width(2.dp))
                                             Text(stringResource(R.string.tx_detail_retag_location), style = MaterialTheme.typography.labelSmall)
                                         }
@@ -1369,7 +1512,12 @@ fun TransactionDetailDialog(
                                 }
                             }
 
-                            SharedTransactionMap(location, Modifier.fillMaxWidth().height(180.dp))
+                            SharedTransactionMap(
+                                location = location,
+                                modifier = Modifier.fillMaxWidth().height(180.dp),
+                                interactive = false,
+                                onPreviewClick = onOpenFullScreenMap
+                            )
 
                             // Location Address / Street description
                             Text(
@@ -1469,7 +1617,7 @@ fun TransactionDetailDialog(
                                             }
                                         }
                                     },
-                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                    shapes = AppButtonDefaults.shapes(),
                                     enabled = !isTagging,
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                                     modifier = Modifier
@@ -1477,13 +1625,12 @@ fun TransactionDetailDialog(
                                         .height(36.dp)
                                 ) {
                                     if (isTagging) {
-                                        CircularProgressIndicator(
+                                        LoadingIndicator(
                                             modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
                                             color = MaterialTheme.colorScheme.onPrimary
                                         )
                                     } else {
-                                        Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
                                         Spacer(Modifier.width(6.dp))
                                         Text(
                                             text = stringResource(R.string.tx_detail_tag_location),
@@ -1494,14 +1641,32 @@ fun TransactionDetailDialog(
 
                                 CompletePressOutlinedButton(
                                     onClick = { showPresetSheet = true },
-                                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                                    shapes = AppButtonDefaults.shapes(),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                     modifier = Modifier.height(36.dp)
                                 ) {
-                                    Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         text = stringResource(R.string.tx_detail_tag_preset),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+                            }
+                            if (onOpenFullScreenMap != null) {
+                                CompletePressOutlinedButton(
+                                    onClick = onOpenFullScreenMap,
+                                    shapes = AppButtonDefaults.shapes(),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(36.dp)
+                                        .testTag("PickOnFullScreenOsmButton")
+                                ) {
+                                    Icon(Icons.Default.Map, contentDescription = null, modifier = Modifier.size(15.dp).postPressIconBounce())
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.tx_detail_pick_on_map),
                                         style = MaterialTheme.typography.labelMedium
                                     )
                                 }
@@ -1570,6 +1735,20 @@ fun TransactionDetailDialog(
                         }
                     }
                 }
+                if (isExpense && !isReimbursement && !currentTx.isBalanceAdjustment && currentTx.timestamp <= System.currentTimeMillis()) {
+                    CompletePressFilledTonalButton(
+                        onClick = {
+                            VibeHaptics.selection(view)
+                            showSplitSheet = true
+                        },
+                        shapes = AppButtonDefaults.shapes(),
+                        modifier = Modifier.fillMaxWidth().testTag("TransactionSplitBillButton")
+                    ) {
+                        Icon(Icons.Default.GroupAdd, contentDescription = null, modifier = Modifier.size(18.dp).postPressIconBounce())
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.split_bill_action), fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
             }
         },
@@ -1582,11 +1761,11 @@ fun TransactionDetailDialog(
                 // Delete button (Error tone)
                 CompletePressTextButton(
                     onClick = { showDeleteConfirm = true },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    shapes = AppButtonDefaults.shapes(),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier.testTag("DetailDeleteButton")
                 ) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp).postPressIconBounce())
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.btn_delete))
                 }
@@ -1595,7 +1774,7 @@ fun TransactionDetailDialog(
                     // Close button
                     CompletePressOutlinedButton(
                         onClick = onDismissRequest,
-                        shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                        shapes = AppButtonDefaults.shapes(),
                         modifier = Modifier.testTag("DetailCloseButton")
                     ) {
                         Text(stringResource(R.string.btn_close))
@@ -1608,10 +1787,10 @@ fun TransactionDetailDialog(
                             if (!inline) onDismissRequest()
                             onEdit(currentTx)
                         },
-                        shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                        shapes = AppButtonDefaults.shapes(),
                         modifier = Modifier.testTag("DetailEditButton")
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp).postPressIconBounce())
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.btn_edit))
                     }
@@ -1644,9 +1823,19 @@ fun TransactionDetailDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    com.example.vibefinance.util.GnssLocationManager.PRESETS.forEach { preset ->
+                    val presets = com.example.vibefinance.util.GnssLocationManager.PRESETS
+                    presets.forEachIndexed { index, preset ->
+                        val isSelectedPreset = currentTx.locationName == preset.title
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                            isFirst = index == 0,
+                            isLast = index == presets.lastIndex,
+                            isSelected = isSelectedPreset,
+                            isPressed = isPressed
+                        )
                         Surface(
                             onClick = {
                                 showPresetSheet = false
@@ -1663,8 +1852,10 @@ fun TransactionDetailDialog(
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            interactionSource = interactionSource,
+                            shape = rowShape,
+                            color = if (isSelectedPreset) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -1735,7 +1926,10 @@ fun TransactionDetailDialog(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showPresetSheet = false }) {
+                CompletePressTextButton(
+                    onClick = { showPresetSheet = false },
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.btn_close))
                 }
             }
@@ -1755,7 +1949,7 @@ fun TransactionDetailDialog(
                         onDismissRequest()
                         onDelete(currentTx)
                     },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    shapes = AppButtonDefaults.shapes(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.btn_delete))
@@ -1764,11 +1958,19 @@ fun TransactionDetailDialog(
             dismissButton = {
                 CompletePressTextButton(
                     onClick = { showDeleteConfirm = false },
-                    shapes = AppButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32))
+                    shapes = AppButtonDefaults.shapes()
                 ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
             }
+        )
+    }
+
+    if (showSplitSheet) {
+        SplitAmountSheet(
+            transaction = currentTx,
+            onDismiss = { showSplitSheet = false },
+            onRecordReimbursement = onRecordReimbursement
         )
     }
 }

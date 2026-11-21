@@ -83,12 +83,29 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         val extras = sbn.notification.extras ?: Bundle.EMPTY
-        val title = (extras.getCharSequence(Notification.EXTRA_TITLE) ?: "").toString()
+        val rawTitle = (extras.getCharSequence(Notification.EXTRA_TITLE) ?: "").toString()
+        val bigTitle = (extras.getCharSequence(Notification.EXTRA_TITLE_BIG) ?: "").toString()
+        val title = bigTitle.takeIf { it.isNotBlank() && it.length > rawTitle.length } ?: rawTitle
         val summaryText = (extras.getCharSequence(Notification.EXTRA_TEXT) ?: "").toString()
         val expandedText = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: "").toString()
-        // Some bank alerts put the complete merchant and amount only in the expanded text.
-        val text = expandedText.takeIf { it.isNotBlank() && it.length > summaryText.length }
-            ?: summaryText
+        val subText = (extras.getCharSequence(Notification.EXTRA_SUB_TEXT) ?: "").toString()
+        val textLines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+            ?.map { it.toString().trim() }
+            ?.filter { it.isNotBlank() }
+            ?.joinToString("\n")
+            .orEmpty()
+        // Prefer multiline expanded / InboxStyle content, or combine merchant & amount split across summary/subText.
+        val combinedSummaryAndSub = listOf(summaryText, subText)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString("\n")
+        val text = when {
+            expandedText.isNotBlank() && expandedText.length >= summaryText.length -> expandedText
+            textLines.isNotBlank() && textLines.length >= summaryText.length -> textLines
+            !localCurrencyAmount.containsMatchIn(summaryText) && localCurrencyAmount.containsMatchIn(subText) -> combinedSummaryAndSub
+            summaryText.isNotBlank() -> summaryText
+            else -> subText
+        }
 
         if (title.isBlank() && text.isBlank()) return
 
@@ -200,6 +217,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         )
         private val walletCardAmount = Regex("(?i)\\bamount:\\s*(?:HKD|HK\\$|\\$)?\\s*[0-9]+(?:\\.[0-9]{1,2})?")
         private val walletCardLabel = Regex("(?i)\\b(?:card|via):")
+        private val walletOrCardTitlePattern = Regex(
+            "(?i)\\b(?:card|visa|mastercard|master|unionpay|union\\s*pay|amex|jcb|enjoy|samsung\\s*(?:wallet|pay)|google\\s*(?:wallet|pay))\\b|信用卡|扣[賬帳]卡|簽[賬帳]卡"
+        )
         private val localCurrencyAmount = Regex(
             "(?:HKD|HK\\$|\\$|港元|港幣)\\s*([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)|(?<![A-Za-z0-9])([0-9]+(?:,[0-9]{3})*(?:\\.[0-9]{1,2})?)\\s*(?:HKD|HK\\$|\\$|港元|港幣|元|圓)",
             RegexOption.IGNORE_CASE
@@ -239,6 +259,37 @@ class PaymentNotificationListener : NotificationListenerService() {
             if (localCurrencyAmount.containsMatchIn(title) || amount.range.first <= transitLabel.range.last) return false
             val merchant = text.substring(transitLabel.range.last + 1, amount.range.first).trim()
             return merchant.any(Char::isLetter)
+        }
+
+        /**
+         * Wallet and card push alerts (such as Samsung Wallet's "Hang Seng enJoy Card (Vanilla)" /
+         * "MANNINGS - LOWER NGAU TAU\nHK$31.90") often omit an explicit verb like "Paid" or "Spent".
+         */
+        private fun isWalletOrCardMerchantAmountPurchase(
+            title: String,
+            text: String,
+            packageName: String = ""
+        ): Boolean {
+            if (title.isBlank() || text.isBlank()) return false
+            if (balanceText.containsMatchIn(text) || balanceText.containsMatchIn(title)) return false
+            val lowerPkg = packageName.lowercase(Locale.US)
+            val lowerTitle = title.lowercase(Locale.US)
+            val isWalletOrigin = lowerPkg.contains("spay") || lowerPkg.contains("samsungpay") ||
+                lowerPkg.contains("walletnfcrel") || lowerPkg.contains("google.android.apps.wallet") ||
+                lowerTitle.contains("samsung wallet") || lowerTitle.contains("samsung pay") ||
+                lowerTitle.contains("google wallet") || lowerTitle.contains("google pay") ||
+                (lowerPkg.contains("shell") && text.contains("\n") && walletOrCardTitlePattern.containsMatchIn(title))
+            if (!isWalletOrigin) return false
+            val amountMatches = localCurrencyAmount.findAll(text).toList()
+            if (amountMatches.size != 1 || localCurrencyAmount.containsMatchIn(title)) return false
+            val amountMatch = amountMatches.single()
+            val rawAmount = (amountMatch.groupValues[1].ifEmpty { amountMatch.groupValues[2] })
+                .replace(",", "").toDoubleOrNull() ?: return false
+            if (rawAmount <= 0.0) return false
+            val merchantCandidate = text.removeRange(amountMatch.range).trim()
+                .trim { it == '-' || it == ':' || it == '：' || it == '·' || it.isWhitespace() }
+            if (merchantCandidate.equals("Card update", ignoreCase = true)) return false
+            return merchantCandidate.length >= 2 && merchantCandidate.any(Char::isLetter)
         }
 
         val octopusCompletionReceipt = Regex(
@@ -360,7 +411,8 @@ class PaymentNotificationListener : NotificationListenerService() {
                 isOctopusPayment ||
                 octopusMerchantPayment.matches(text.trim()) ||
                 (walletCardAmount.containsMatchIn(text) && walletCardLabel.containsMatchIn(text)) ||
-                isBocGoUnionPayTransitPurchase(title, text)
+                isBocGoUnionPayTransitPurchase(title, text) ||
+                isWalletOrCardMerchantAmountPurchase(title, text, packageName)
         }
 
         /**
@@ -692,7 +744,8 @@ class PaymentNotificationListener : NotificationListenerService() {
 
             val grammarResult = TransactionGrammarEngine.parse(title, text, packageName)
             val isGrammarIdentified = grammarResult != null && grammarResult.amount > 0.0 && grammarResult.confidence >= 0.90f
-            val spendIdentified = isOctopusPayment || smartOctopusPurchase.containsMatchIn(title) || smartOctopusPurchase.containsMatchIn(text) || isGrammarIdentified
+            val isWalletCardPurchase = isWalletOrCardMerchantAmountPurchase(title, text, packageName)
+            val spendIdentified = isOctopusPayment || smartOctopusPurchase.containsMatchIn(title) || smartOctopusPurchase.containsMatchIn(text) || isGrammarIdentified || isWalletCardPurchase
             val amounts = (localCurrencyAmount.findAll(text) + localCurrencyAmount.findAll(title))
                 .mapNotNull { match ->
                     (match.groupValues[1].ifEmpty { match.groupValues[2] })
@@ -711,8 +764,9 @@ class PaymentNotificationListener : NotificationListenerService() {
             val isShell = lowerPkg.contains("shell")
             val isGoogle = lowerPkg.contains("walletnfcrel") || lowerPkg.contains("nbu.paisa") || lowerTitle.contains("google wallet") || lowerTitle.contains("google pay") ||
                     (isShell && (text.contains("金額：") || text.contains("Amount:") || lowerText.contains("spent")))
-            val isSamsung = lowerPkg.contains("spay") || lowerTitle.contains("samsung wallet") || lowerTitle.contains("samsung pay") ||
-                    (isShell && !isGoogle && (text.contains("octopus") || title.contains("octopus")))
+            val isSamsung = lowerPkg.contains("spay") || lowerPkg.contains("samsungpay") ||
+                    lowerTitle.contains("samsung wallet") || lowerTitle.contains("samsung pay") ||
+                    (isShell && !isGoogle && ((text.contains("octopus") || title.contains("octopus")) || isWalletCardPurchase))
 
             // 1. Google Wallet / Google Pay notifications
             if (isGoogle) {
@@ -730,43 +784,53 @@ class PaymentNotificationListener : NotificationListenerService() {
                 }
             }
 
-            // 2. Samsung Wallet / Smart Octopus
+            // 2. Samsung Wallet / Smart Octopus / Digital Wallet Card Alerts
             if (isSamsung) {
-                // Text ends with amount, e.g. "OCL* OCTOPUS AD1741037 HK$300.00"
-                val amountRegex = Regex("(?:[A-Z]{2,3})?\\s*\\$?([0-9.,]+)$")
-                val amountMatch = amountRegex.find(text)
-                if (amountMatch != null) {
-                    val amount = amountMatch.groupValues[1].replace(",", "").toDoubleOrNull()
-                    if (amount != null && amount > 0.0) {
-                        val merchant = text.substring(0, amountMatch.range.first).trim().trimEnd { it == '$' || it == 'K' || it == 'H' || it == ' ' }.trim()
-                        val isOctopus = text.contains("octopus", ignoreCase = true) ||
-                            text.contains("八達通") ||
-                            text.contains("八逹通") ||
-                            title.contains("octopus", ignoreCase = true) ||
-                            title.contains("八達通") ||
-                            title.contains("八逹通") ||
-                            merchant.contains("OCTOPUS", ignoreCase = true) ||
-                            merchant.startsWith("OCL*", ignoreCase = true)
-                        val isTopUp = isOctopusTopUp(title, text) ||
-                            merchant.startsWith("OCL*", ignoreCase = true) ||
-                            merchant.contains("AAVS", ignoreCase = true) ||
-                            (merchant.contains("OCTOPUS", ignoreCase = true) && merchant.contains("OCL", ignoreCase = true))
-                        val assetName = when {
-                            isOctopus -> "Smart Octopus"
-                            title.isNotBlank() -> title.trim()
-                            else -> "Samsung Wallet"
-                        }
-                        return ParsedPayment(
-                            amount = amount,
-                            merchant = if (merchant.isBlank()) "Samsung Wallet Merchant" else merchant,
-                            assetName = assetName,
-                            cardLast4 = detectedCardLast4,
-                            isTopUp = isTopUp,
-                            rawTitle = title,
-                            rawText = text,
-                            transactionType = if (isTopUp) "TRANSFER" else "EXPENSE"
-                        )
+                val localMatch = localCurrencyAmount.find(text.trim())
+                val trailingMatch = if (localMatch == null) {
+                    Regex("(?:[A-Z]{2,3})?\\s*\\$?([0-9.,]+)$").find(text.trim())
+                } else null
+                val amount = if (localMatch != null) {
+                    (localMatch.groupValues[1].ifEmpty { localMatch.groupValues[2] })
+                        .replace(",", "").toDoubleOrNull()
+                } else {
+                    trailingMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+                }
+                if (amount != null && amount > 0.0) {
+                    val merchant = if (localMatch != null) {
+                        text.trim().removeRange(localMatch.range).trim()
+                            .trim { it == '-' || it == ':' || it == '：' || it == '·' || it.isWhitespace() }
+                    } else {
+                        text.trim().substring(0, trailingMatch!!.range.first).trim()
+                            .trimEnd { it == '$' || it == 'K' || it == 'H' || it == ' ' }.trim()
                     }
+                    val isOctopus = text.contains("octopus", ignoreCase = true) ||
+                        text.contains("八達通") ||
+                        text.contains("八逹通") ||
+                        title.contains("octopus", ignoreCase = true) ||
+                        title.contains("八達通") ||
+                        title.contains("八逹通") ||
+                        merchant.contains("OCTOPUS", ignoreCase = true) ||
+                        merchant.startsWith("OCL*", ignoreCase = true)
+                    val isTopUp = isOctopusTopUp(title, text) ||
+                        merchant.startsWith("OCL*", ignoreCase = true) ||
+                        merchant.contains("AAVS", ignoreCase = true) ||
+                        (merchant.contains("OCTOPUS", ignoreCase = true) && merchant.contains("OCL", ignoreCase = true))
+                    val assetName = when {
+                        isOctopus -> "Smart Octopus"
+                        title.isNotBlank() -> title.trim()
+                        else -> "Samsung Wallet"
+                    }
+                    return ParsedPayment(
+                        amount = amount,
+                        merchant = if (merchant.isBlank()) "Samsung Wallet Merchant" else merchant,
+                        assetName = assetName,
+                        cardLast4 = detectedCardLast4,
+                        isTopUp = isTopUp,
+                        rawTitle = title,
+                        rawText = text,
+                        transactionType = if (isTopUp) "TRANSFER" else "EXPENSE"
+                    )
                 }
             }
 
@@ -906,6 +970,8 @@ class PaymentNotificationListener : NotificationListenerService() {
 
                 combined.contains("零售") || combined.contains("shopping") || combined.contains("retail") ||
                 combined.contains("百貨") || combined.contains("商場") || combined.contains("購物") ||
+                combined.contains("mannings") || combined.contains("萬寧") ||
+                combined.contains("watsons") || combined.contains("屈臣氏") ||
                 combined.contains("淘寶") || combined.contains("taobao") || combined.contains("aeon") ||
                 combined.contains("sogo") || combined.contains("donki") || combined.contains("驚安之殿堂") -> "Shopping"
                 

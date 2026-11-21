@@ -8,9 +8,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,9 +34,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.vibefinance.R
 import com.example.vibefinance.data.InMemoryDatabase
-import com.example.vibefinance.ui.common.pressBounce
+import com.example.vibefinance.ui.components.AppButtonDefaults
 import com.example.vibefinance.ui.components.AppSwitch
 import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
 import com.example.vibefinance.util.InstalledAppInfo
 import com.example.vibefinance.util.LocalAppManager
 import kotlinx.coroutines.CancellationException
@@ -143,7 +145,7 @@ internal fun AllowedInterceptAppsPicker(
         text = {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().height(380.dp).testTag("AllowedAppsList"),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
                 if (catalogResult == null) {
                     item {
@@ -163,7 +165,10 @@ internal fun AllowedInterceptAppsPicker(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             Text(stringResource(R.string.assets_linked_app_load_failed))
-                            TextButton(onClick = { retryGeneration++ }) {
+                            CompletePressTextButton(
+                                onClick = { retryGeneration++ },
+                                shapes = AppButtonDefaults.shapes(),
+                            ) {
                                 Text(stringResource(R.string.assets_linked_app_retry))
                             }
                         }
@@ -183,7 +188,7 @@ internal fun AllowedInterceptAppsPicker(
                         }
                     }
                 } else {
-                    items(filteredApps, key = { it.packageName }) { appInfo ->
+                    itemsIndexed(filteredApps, key = { _, appInfo -> appInfo.packageName }) { index, appInfo ->
                         val iconBitmap by
                             produceState<Bitmap?>(
                                 appInfo.iconBitmap,
@@ -193,10 +198,19 @@ internal fun AllowedInterceptAppsPicker(
                                 value = loadIcon(context, appInfo.packageName)
                             }
                         val isChecked = selectedApps.contains(appInfo.packageName)
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                            isFirst = index == 0,
+                            isLast = index == filteredApps.lastIndex,
+                            isSelected = isChecked,
+                            isPressed = isPressed,
+                        )
 
                         Surface(
                             onClick = { onToggleApp(appInfo.packageName) },
-                            shape = RoundedCornerShape(14.dp),
+                            interactionSource = interactionSource,
+                            shape = rowShape,
                             color =
                                 if (isChecked)
                                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
@@ -280,20 +294,13 @@ internal fun AllowedInterceptAppsPicker(
             }
         },
         confirmButton = {
-            val confirmInteraction = remember { MutableInteractionSource() }
             val haptic = rememberVibeHapticFeedback()
             CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onDismiss()
                 },
-                shapes =
-                    ButtonDefaults.shapes(
-                        shape = CircleShape,
-                        pressedShape = RoundedCornerShape(percent = 32),
-                    ),
-                interactionSource = confirmInteraction,
-                modifier = Modifier.pressBounce(interactionSource = confirmInteraction),
+                shapes = AppButtonDefaults.shapes(),
             ) {
                 Text(stringResource(R.string.btn_confirm))
             }

@@ -150,7 +150,51 @@ object GoogleDriveSyncEngine {
         }
     }
 
-    suspend fun sync(context: Context, silent: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+    suspend fun sync(context: Context, silent: Boolean = false): Boolean = runSyncAction(context, silent) { token ->
+        val existingFileId = findSyncFile(token)
+        val localSnapshot = InMemoryDatabase.snapshotForBackup()
+
+        if (existingFileId != null) {
+            val remoteContent = downloadFile(token, existingFileId)
+            val remoteJson = JSONObject(remoteContent)
+            val mergeResult = SyncMergeEngine.merge(localSnapshot, remoteJson)
+
+            if (mergeResult.localChanged) {
+                InMemoryDatabase.applySyncedData(context, mergeResult.mergedJson)
+            }
+            if (mergeResult.remoteChanged || mergeResult.localChanged) {
+                updateFile(token, existingFileId, mergeResult.mergedJson.toString())
+            }
+        } else {
+            createFile(token, localSnapshot.toString())
+        }
+    }
+
+    /** Overwrites the remote Google Drive sync snapshot with the local database state. */
+    suspend fun forceUpload(context: Context): Boolean = runSyncAction(context) { token ->
+        val localSnapshot = InMemoryDatabase.snapshotForBackup().toString()
+        val existingFileId = findSyncFile(token)
+        if (existingFileId != null) {
+            updateFile(token, existingFileId, localSnapshot)
+        } else {
+            createFile(token, localSnapshot)
+        }
+    }
+
+    /** Downloads the remote Google Drive sync snapshot and applies it to the local database. */
+    suspend fun forceDownload(context: Context): Boolean = runSyncAction(context) { token ->
+        val existingFileId = findSyncFile(token)
+            ?: throw IllegalStateException("No cloud sync backup found")
+        val remoteContent = downloadFile(token, existingFileId)
+        val remoteJson = JSONObject(remoteContent)
+        InMemoryDatabase.applySyncedData(context, remoteJson)
+    }
+
+    private suspend inline fun runSyncAction(
+        context: Context,
+        silent: Boolean = false,
+        crossinline block: suspend (token: String) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
         if (_syncStatus.value is GoogleDriveSyncStatus.Syncing) {
             return@withContext false
         }
@@ -172,35 +216,12 @@ object GoogleDriveSyncEngine {
         _syncStatus.value = GoogleDriveSyncStatus.Syncing
 
         try {
-            val token = GoogleAuthUtil.getToken(context, account.account ?: Account(account.email ?: "", "com.google"), "oauth2:$DRIVE_APPDATA_SCOPE")
-
-            // 1. Check if sync file exists in appDataFolder
-            val existingFileId = findSyncFile(token)
-
-            val localSnapshot = InMemoryDatabase.snapshotForBackup()
-
-            if (existingFileId != null) {
-                // 2. Download remote file
-                val remoteContent = downloadFile(token, existingFileId)
-                val remoteJson = JSONObject(remoteContent)
-
-                // 3. Two-way merge
-                val mergeResult = SyncMergeEngine.merge(localSnapshot, remoteJson)
-
-                // 4. Update local if needed
-                if (mergeResult.localChanged) {
-                    InMemoryDatabase.applySyncedData(context, mergeResult.mergedJson)
-                }
-
-                // 5. Update remote if needed
-                if (mergeResult.remoteChanged || mergeResult.localChanged) {
-                    updateFile(token, existingFileId, mergeResult.mergedJson.toString())
-                }
-            } else {
-                // First sync: Upload local snapshot to appDataFolder
-                createFile(token, localSnapshot.toString())
-            }
-
+            val token = GoogleAuthUtil.getToken(
+                context,
+                account.account ?: Account(account.email ?: "", "com.google"),
+                "oauth2:$DRIVE_APPDATA_SCOPE"
+            )
+            block(token)
             val now = System.currentTimeMillis()
             CoordinatedPreferences.get(context, PREFS_NAME).edit().putLong(PREF_KEY_LAST_SYNCED, now).apply()
             _syncStatus.value = GoogleDriveSyncStatus.Success(now)

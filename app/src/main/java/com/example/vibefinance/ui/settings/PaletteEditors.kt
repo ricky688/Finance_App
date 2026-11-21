@@ -1,5 +1,6 @@
 package com.example.vibefinance.ui.settings
 
+import com.example.vibefinance.ui.components.AppSlider
 import com.example.vibefinance.util.VibeHaptics
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.background
@@ -106,7 +107,7 @@ internal fun PaletteVariantDialog(
                 listOf(16 to R.string.palette_red, 8 to R.string.palette_green, 0 to R.string.palette_blue).forEach { (shift, label) ->
                     val channel = (previewSeed ushr shift) and 255
                     Text("${stringResource(label)}: $channel", style = MaterialTheme.typography.labelLarge)
-                    Slider(
+                    AppSlider(
                         value = channel.toFloat(), valueRange = 0f..255f,
                         onValueChange = { value ->
                             val mask = 255 shl shift
@@ -116,17 +117,29 @@ internal fun PaletteVariantDialog(
                     )
                 }
                 if (palette != AppearancePalette.CUSTOM) {
-                    TextButton(onClick = { VibeHaptics.lightTick(view); hex = format(palette.seedArgb) }) { Text(stringResource(R.string.palette_reset_variant)) }
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        onClick = { VibeHaptics.lightTick(view); hex = format(palette.seedArgb) },
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                    ) { Text(stringResource(R.string.palette_reset_variant)) }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { VibeHaptics.lightTick(view); seed?.let(onSave) }, enabled = seed != null, modifier = Modifier.testTag("PaletteVariantSave")) {
+            com.example.vibefinance.ui.components.CompletePressTextButton(
+                onClick = { VibeHaptics.lightTick(view); seed?.let(onSave) },
+                enabled = seed != null,
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                modifier = Modifier.testTag("PaletteVariantSave")
+            ) {
                 Text(stringResource(R.string.btn_save_changes))
             }
         },
         dismissButton = {
-            TextButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }, modifier = Modifier.testTag("PaletteVariantCancel")) { Text(stringResource(android.R.string.cancel)) }
+            com.example.vibefinance.ui.components.CompletePressTextButton(
+                onClick = { VibeHaptics.lightTick(view); onDismiss() },
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                modifier = Modifier.testTag("PaletteVariantCancel")
+            ) { Text(stringResource(android.R.string.cancel)) }
         }
     )
 }

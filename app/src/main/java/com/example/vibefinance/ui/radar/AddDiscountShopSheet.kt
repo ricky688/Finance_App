@@ -7,7 +7,9 @@ import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomS
 import com.example.vibefinance.ui.components.AppSwitch
 
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.vibefinance.ui.components.AppButtonDefaults
 import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.LocalPostPressIconBounce
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -366,7 +368,6 @@ fun AddDiscountShopSheet(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Submit Button
-            val submitInteraction = remember { MutableInteractionSource() }
             CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -398,16 +399,18 @@ fun AddDiscountShopSheet(
                 enabled = shopName.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
-                    .pressBounce(interactionSource = submitInteraction),
+                    .height(54.dp),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
-                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(27.dp), pressedShape = RoundedCornerShape(16.dp)),
-                interactionSource = submitInteraction,
+                shapes = AppButtonDefaults.largeShapes(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.then(LocalPostPressIconBounce.current)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(R.string.ui_radar_shop_save),

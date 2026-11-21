@@ -31,6 +31,7 @@ import java.text.DateFormat
 import java.util.Date
 
 /** Keep launchers/dialogs at the settings root even when its Data & privacy group is collapsed. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
     val view = LocalView.current
@@ -100,22 +101,33 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                     }
                 },
                 confirmButton = {
-                    TextButton(modifier = Modifier.testTag("BackupContinue"), enabled = if (export && !encrypt) true else secret.isNotEmpty() && (!export || secret == confirmation), onClick = {
-                        VibeHaptics.lightTick(view)
-                        val password = if (!export || encrypt) secret.toCharArray() else null
-                        secret = ""; confirmation = ""
-                        if (export) {
-                            viewModel.awaitExport(password)
-                            save.launch("VibeFinance_${java.time.LocalDate.now()}.vibebackup")
-                        } else viewModel.prepare(password)
-                    }) { Text(stringResource(if (export) R.string.backup_save else R.string.backup_continue)) }
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        shapes = AppButtonDefaults.shapes(),
+                        modifier = Modifier.testTag("BackupContinue"),
+                        enabled = if (export && !encrypt) true else secret.isNotEmpty() && (!export || secret == confirmation),
+                        onClick = {
+                            VibeHaptics.lightTick(view)
+                            val password = if (!export || encrypt) secret.toCharArray() else null
+                            secret = ""; confirmation = ""
+                            if (export) {
+                                viewModel.awaitExport(password)
+                                save.launch("VibeFinance_${java.time.LocalDate.now()}.vibebackup")
+                            } else viewModel.prepare(password)
+                        }
+                    ) { Text(stringResource(if (export) R.string.backup_save else R.string.backup_continue)) }
                 },
-                dismissButton = { TextButton(modifier = Modifier.testTag("BackupCancel"), onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_cancel)) } }
+                dismissButton = {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        shapes = AppButtonDefaults.shapes(),
+                        modifier = Modifier.testTag("BackupCancel"),
+                        onClick = { VibeHaptics.lightTick(view); viewModel.reset() }
+                    ) { Text(stringResource(R.string.backup_cancel)) }
+                }
             )
         }
         BackupPhase.BUSY -> AlertDialog(
             onDismissRequest = {}, title = { Text(stringResource(if (state.restoring) R.string.backup_restoring else R.string.backup_saving)) },
-            text = { Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { CircularProgressIndicator(Modifier.size(24.dp)); Text(stringResource(R.string.backup_busy)) } },
+            text = { Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { LoadingIndicator(modifier = Modifier.size(24.dp)); Text(stringResource(R.string.backup_busy)) } },
             confirmButton = {}
         )
         BackupPhase.PREVIEW -> state.preview?.let { preview ->
@@ -131,25 +143,50 @@ fun rememberFullBackupActions(onRestored: () -> Unit): @Composable () -> Unit {
                         Text(stringResource(R.string.backup_replace_notice), color = MaterialTheme.colorScheme.error)
                     }
                 },
-                confirmButton = { TextButton(onClick = { VibeHaptics.warningAlert(view); viewModel.restore() }) { Text(stringResource(R.string.backup_replace)) } },
-                dismissButton = { TextButton(onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_cancel)) } }
+                confirmButton = {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        shapes = AppButtonDefaults.shapes(),
+                        onClick = { VibeHaptics.warningAlert(view); viewModel.restore() }
+                    ) { Text(stringResource(R.string.backup_replace)) }
+                },
+                dismissButton = {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        shapes = AppButtonDefaults.shapes(),
+                        onClick = { VibeHaptics.lightTick(view); viewModel.reset() }
+                    ) { Text(stringResource(R.string.backup_cancel)) }
+                }
             )
         }
         BackupPhase.ERROR, BackupPhase.EXPORTED -> AlertDialog(
             onDismissRequest = viewModel::reset,
             title = { Text(stringResource(if (state.phase == BackupPhase.EXPORTED) R.string.backup_saved else R.string.backup_failed)) },
             text = { Text(errorText ?: stringResource(R.string.backup_saved_notice)) },
-            confirmButton = { TextButton(onClick = { VibeHaptics.lightTick(view); viewModel.reset() }) { Text(stringResource(R.string.backup_done)) } }
+            confirmButton = {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    shapes = AppButtonDefaults.shapes(),
+                    onClick = { VibeHaptics.lightTick(view); viewModel.reset() }
+                ) { Text(stringResource(R.string.backup_done)) }
+            }
         )
         else -> Unit
     }
     return {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            FilledTonalButton({ VibeHaptics.lightTick(view); viewModel.exportOptions() }, enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupOpen"), elevation = AppButtonDefaults.tonalElevation()) {
+            com.example.vibefinance.ui.components.CompletePressFilledTonalButton(
+                onClick = { VibeHaptics.lightTick(view); viewModel.exportOptions() },
+                enabled = state.phase == BackupPhase.IDLE,
+                shapes = AppButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().testTag("BackupOpen"),
+                elevation = AppButtonDefaults.tonalElevation()
+            ) {
                 Text(stringResource(R.string.backup_title))
             }
-            OutlinedButton(onClick = { VibeHaptics.lightTick(view); viewModel.awaitRestore(); open.launch(arrayOf("*/*")) },
-                enabled = state.phase == BackupPhase.IDLE, modifier = Modifier.fillMaxWidth().testTag("BackupRestore")) { Text(stringResource(R.string.backup_restore_title)) }
+            com.example.vibefinance.ui.components.CompletePressOutlinedButton(
+                onClick = { VibeHaptics.lightTick(view); viewModel.awaitRestore(); open.launch(arrayOf("*/*")) },
+                enabled = state.phase == BackupPhase.IDLE,
+                shapes = AppButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().testTag("BackupRestore")
+            ) { Text(stringResource(R.string.backup_restore_title)) }
         }
     }
 }

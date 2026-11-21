@@ -163,7 +163,10 @@ fun IconShapePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { VibeHaptics.lightTick(view); onDismiss() }) {
+            com.example.vibefinance.ui.components.CompletePressTextButton(
+                onClick = { VibeHaptics.lightTick(view); onDismiss() },
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+            ) {
                 Text(stringResource(R.string.btn_confirm), fontWeight = FontWeight.Bold)
             }
         },

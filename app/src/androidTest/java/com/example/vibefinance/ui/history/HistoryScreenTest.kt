@@ -55,12 +55,12 @@ class HistoryScreenTest {
         val expense = TransactionEntity(id = 1L, amount = 9.9, category = "Food", accountId = 1L,
             timestamp = System.currentTimeMillis(), description = "咖啡", isExcludedFromDailyBudget = true)
         val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(expense)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_1"))
-        composeTestRule.onNodeWithTag("TransactionRow_1").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_1")
         composeTestRule.waitUntil(5_000) {
             composeTestRule.onAllNodes(hasTestTag("ExpenseIconChoose")).fetchSemanticsNodes().isNotEmpty()
         }
@@ -88,7 +88,7 @@ class HistoryScreenTest {
             transactions = listOf(mockTransaction)
         )
 
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = mockState,
                 onIntent = {}
@@ -130,7 +130,7 @@ class HistoryScreenTest {
             transactions = listOf(mockTransaction)
         )
 
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = mockState,
                 onIntent = {}
@@ -165,7 +165,7 @@ class HistoryScreenTest {
             description = "Test Swipe"
         )
         
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             var transactions by remember { mutableStateOf(listOf(mockTransaction)) }
             val snackbarHostState = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
@@ -230,7 +230,7 @@ class HistoryScreenTest {
             id = 2L, amount = 200.0, category = "Transfer", timestamp = today,
             accountId = 1L, toAccountId = 2L, description = "Card payment"
         )
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(income, transfer)), onIntent = {})
         }
 
@@ -248,7 +248,7 @@ class HistoryScreenTest {
             accountId = account.id, description = "Mox income regression", sourceWasCreditCard = true
         )
         val filter = mutableStateOf<Long?>(null)
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = FinanceUiState(isLoading = false, accounts = listOf(account), transactions = listOf(income)),
                 onIntent = {}, accountFilterId = filter.value
@@ -270,7 +270,7 @@ class HistoryScreenTest {
             id = 301L, amount = 50.0, category = "Food", timestamp = System.currentTimeMillis(),
             accountId = 1L, description = "Type conversion regression"
         )
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             var transactions by remember { mutableStateOf(listOf(expense)) }
             HistoryScreen(
                 state = FinanceUiState(isLoading = false, transactions = transactions),
@@ -283,7 +283,7 @@ class HistoryScreenTest {
             )
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_301"))
-        composeTestRule.onNodeWithTag("TransactionRow_301").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_301")
         composeTestRule.waitUntil(5_000) {
             composeTestRule.onAllNodes(hasTestTag("EditTransactionIncome")).fetchSemanticsNodes().isNotEmpty()
         }
@@ -297,6 +297,10 @@ class HistoryScreenTest {
         org.junit.Assert.assertEquals(-300.0, saved.get()!!.newTx.amount, 0.0)
         org.junit.Assert.assertEquals("Salary", saved.get()!!.newTx.category)
         org.junit.Assert.assertTrue(saved.get()!!.newTx.isExcludedFromDailyBudget)
+        // Saving morphs the phone dialog back to the record's detail; close it to check the list.
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodes(hasTestTag("DetailCloseButton")).fetchSemanticsNodes().isNotEmpty() }
+        composeTestRule.onNodeWithTag("DetailCloseButton").performClick()
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodes(hasTestTag("TransactionMorphDialog")).fetchSemanticsNodes().isEmpty() }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_301"))
         composeTestRule.onNodeWithText("+HK$300.00").assertIsDisplayed()
     }
@@ -308,14 +312,14 @@ class HistoryScreenTest {
             id = 302L, amount = -300.0, category = "Salary", timestamp = System.currentTimeMillis(),
             accountId = 1L, isExcludedFromDailyBudget = true, description = "Income correction"
         )
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = FinanceUiState(isLoading = false, transactions = listOf(income)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
             )
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_302"))
-        composeTestRule.onNodeWithTag("TransactionRow_302").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_302")
         composeTestRule.onNodeWithTag("EditTransactionIncome").assertIsSelected()
         composeTestRule.onNodeWithTag("EditTransactionExpense").performClick().assertIsSelected()
         composeTestRule.onNodeWithTag("EditTransactionDailyBudget").assertIsDisplayed()
@@ -332,14 +336,14 @@ class HistoryScreenTest {
             id = 303L, amount = 200.0, category = "Transfer", timestamp = System.currentTimeMillis(),
             accountId = 1L, toAccountId = 2L, description = "Card repayment"
         )
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(state = FinanceUiState(isLoading = false, transactions = listOf(transfer), accounts = listOf(
                 AccountEntity(id = 1, name = "Bank", type = AccountType.BANK, balance = 100.0, icon = "bank"),
                 AccountEntity(id = 2, name = "Cash", type = AccountType.CASH, balance = 100.0, icon = "wallet")
             )), onIntent = {})
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_303"))
-        composeTestRule.onNodeWithTag("TransactionRow_303").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_303")
         composeTestRule.onNodeWithTag("EditTransactionAmount").assertIsDisplayed()
         composeTestRule.onNodeWithTag("EditTransactionTransfer").assertIsSelected()
         composeTestRule.onNodeWithTag("EditTransactionSource").assertTextContains("Bank")
@@ -356,25 +360,32 @@ class HistoryScreenTest {
             id = 304L, amount = 25.0, category = "Custom Metro",
             timestamp = System.currentTimeMillis(), accountId = 1L, description = "Menu preservation"
         )
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = FinanceUiState(isLoading = false, transactions = listOf(expense)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
             )
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_304"))
-        composeTestRule.onNodeWithTag("TransactionRow_304").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_304")
         composeTestRule.onNodeWithTag("EditTransactionIncome").performClick().assertIsSelected()
         composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Custom Metro")
         openCategoryMenu()
         composeTestRule.onNodeWithTag("EditTransactionCategoryOption_Custom Metro")
             .assertIsDisplayed().assertIsSelected()
         selectOpenCategory("Salary")
-        composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Salary")
+        // The field shows the localized category name (the device may not be in English).
+        val salaryLabel = com.example.vibefinance.ui.main.getCategoryDisplayNameFromResources(
+            InstrumentationRegistry.getInstrumentation().targetContext.resources, "Salary")
+        composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains(salaryLabel)
         val cancel = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.btn_cancel)
         composeTestRule.onNodeWithText(cancel).performClick()
         composeTestRule.waitForIdle()
         org.junit.Assert.assertNull(saved.get())
+        // Cancel morphs back to the detail; close it before checking the list row.
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodes(hasTestTag("DetailCloseButton")).fetchSemanticsNodes().isNotEmpty() }
+        composeTestRule.onNodeWithTag("DetailCloseButton").performClick()
+        composeTestRule.waitUntil(5_000) { composeTestRule.onAllNodes(hasTestTag("TransactionMorphDialog")).fetchSemanticsNodes().isEmpty() }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_304"))
         composeTestRule.onNodeWithText("-HK$25.00").assertIsDisplayed()
     }
@@ -390,14 +401,14 @@ class HistoryScreenTest {
             expense.copy(id = 400L + index, category = "Custom category %02d".format(index),
                 timestamp = expense.timestamp - 86_400_000L, description = "Earlier category")
         }
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(
                 state = FinanceUiState(isLoading = false, transactions = listOf(expense) + older),
                 onIntent = { if (it is FinanceIntent.EditTransaction) saved.set(it) }
             )
         }
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_305"))
-        composeTestRule.onNodeWithTag("TransactionRow_305").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_305")
         chooseCategory("Custom category 24")
         composeTestRule.onNodeWithTag("EditTransactionCategory").assertTextContains("Custom category 24")
         composeTestRule.onNodeWithTag("EditTransactionSave").performClick()
@@ -430,7 +441,7 @@ class HistoryScreenTest {
             sourceWasCreditCard = isIncome, installmentNumber = 2, totalInstallments = 4, groupId = "plan:500"
         )
         val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(FinanceUiState(isLoading = false, accounts = editAccounts, transactions = listOf(original)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
         }
@@ -460,7 +471,7 @@ class HistoryScreenTest {
             timestamp = System.currentTimeMillis(), accountId = 1)
         val accounts = mutableStateOf(editAccounts)
         val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts.value, transactions = listOf(original)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
         }
@@ -478,7 +489,7 @@ class HistoryScreenTest {
         val original = TransactionEntity(id = 502, amount = -300.0, category = "Salary",
             timestamp = System.currentTimeMillis(), accountId = 1, isExcludedFromDailyBudget = true)
         val submitted = AtomicReference<FinanceIntent.EditTransaction?>()
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(FinanceUiState(isLoading = false, accounts = editAccounts, transactions = listOf(original)),
                 onIntent = { if (it is FinanceIntent.EditTransaction) submitted.set(it) })
         }
@@ -526,7 +537,7 @@ class HistoryScreenTest {
         }
         org.junit.Assert.assertEquals(52831.49, transactions.filter { it.amount > 0 && it.toAccountId == null }.sumOf { it.amount }, .001)
         val submitted = mutableListOf<FinanceIntent>()
-        composeTestRule.setContent {
+        composeTestRule.setPhoneContent {
             HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts, transactions = transactions),
                 onIntent = { submitted.add(it) })
         }
@@ -548,7 +559,7 @@ class HistoryScreenTest {
 
     private fun openTransaction(id: Long) {
         composeTestRule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_$id"))
-        composeTestRule.onNodeWithTag("TransactionRow_$id").performClick()
+        composeTestRule.openTransactionEditor("TransactionRow_$id")
         waitForTag("EditTransactionAccount")
     }
 

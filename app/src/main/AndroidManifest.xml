@@ -18,10 +18,15 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.PICK" />
+            <data android:mimeType="vnd.android.cursor.dir/contact" />
+        </intent>
         <package android:name="com.google.android.apps.walletnfcrel" />
         <package android:name="com.google.android.apps.wallet" />
         <package android:name="com.google.android.apps.nbu.paisa.user" />
         <package android:name="com.samsung.android.spay" />
+        <package android:name="com.samsung.android.samsungpay" />
         <package android:name="com.samsung.android.raja.spay" />
         <package android:name="com.samsung.android.spaymini" />
         <package android:name="com.samsung.android.samsungpay.gear" />

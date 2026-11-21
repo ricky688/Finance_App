@@ -1,6 +1,6 @@
 package com.example.vibefinance.ui.home
 
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import android.graphics.PointF
@@ -234,7 +234,7 @@ fun RecalcBudgetSheet(
 
     val dismissSheet = rememberSheetDismissAction(sheetState)
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = {
             if (!isMandatory) {
                 onDismiss()

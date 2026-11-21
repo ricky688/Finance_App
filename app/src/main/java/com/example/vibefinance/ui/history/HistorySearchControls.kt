@@ -152,7 +152,7 @@ private fun HistoryFilterControls(query: HistoryQuery, accounts: List<AccountEnt
             QueryField(query.maximum, { onChange(query.copy(maximum = it)) }, R.string.history_filter_maximum, "HistoryMaximum", Modifier.weight(1f), true)
         }
         if (!query.valid()) Text(stringResource(R.string.history_filter_invalid), color = MaterialTheme.colorScheme.error)
-        TextButton(onClick = onClear, modifier = Modifier.testTag("HistoryClearFilters")) {
+        com.example.vibefinance.ui.components.CompletePressTextButton(onClick = onClear, modifier = Modifier.testTag("HistoryClearFilters")) {
             Text(stringResource(R.string.history_clear_filters))
         }
     }
@@ -170,7 +170,11 @@ private fun QueryField(value: String, change: (String) -> Unit, label: Int, tag:
 private fun <T> FilterDropdown(label: String, selected: String, tag: String, choices: List<Pair<T, String>>, select: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth().testTag(tag)) {
+        com.example.vibefinance.ui.components.CompletePressOutlinedButton(
+            onClick = { open = true },
+            shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+            modifier = Modifier.fillMaxWidth().testTag(tag)
+        ) {
             Text("$label: $selected", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         }
         DropdownMenu(open, { open = false }, modifier = Modifier.heightIn(max = 320.dp)) {

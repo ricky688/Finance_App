@@ -165,3 +165,48 @@ internal fun TransactionEntryHost(
         }
     }
 }
+
+/**
+ * Large-screen add-transaction editor shown inside a page's own right side (History's detail
+ * pane, Daily's right column): the same form as [TransactionEntryHost], without any overlay.
+ */
+@Composable
+internal fun TransactionEntryPane(
+    state: FinanceUiState,
+    onIntent: (FinanceIntent) -> Unit,
+    onDismiss: () -> Unit,
+    initialMode: TransactionMode,
+    categoryFrequency: Map<String, Int>,
+    accountFrequency: Map<Long, Int>,
+    prefilledDestinationAccountId: Long? = null,
+    modifier: Modifier = Modifier,
+    exchangeRateLoader: ExchangeRateLoader? = null,
+    reimbursementResult: com.example.vibefinance.ui.BatchTransactionResult? = null,
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    // Staggered content entrance; closing plays the staggered exit before the page is removed.
+    com.example.vibefinance.ui.motion.StaggeredPane(modifier.fillMaxSize()) { entrance ->
+    val dismiss = { keyboard?.hide(); focus.clearFocus(); entrance.close(onDismiss) }
+    BackHandler(enabled = !entrance.exiting) { dismiss() }
+    Surface(
+        modifier = Modifier.fillMaxSize().testTag("TransactionEntryScreen"),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Box(Modifier.fillMaxSize().imePadding(), contentAlignment = Alignment.TopCenter) {
+            AddExpenseSheetContent(
+                state = state, onIntent = onIntent, onDismissAddDialog = dismiss,
+                initialMode = initialMode, categoryFrequency = categoryFrequency,
+                accountFrequency = accountFrequency,
+                prefilledDestinationAccountId = prefilledDestinationAccountId,
+                exchangeRateLoader = exchangeRateLoader,
+                selectorNavigationReady = true,
+                modifier = Modifier.fillMaxSize(),
+                reimbursementResult = reimbursementResult,
+            )
+        }
+    }
+    }
+}

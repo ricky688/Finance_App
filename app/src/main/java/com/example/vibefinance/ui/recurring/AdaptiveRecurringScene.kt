@@ -50,7 +50,7 @@ internal fun AdaptiveRecurringScene(
         val directive = calculatePaneScaffoldDirective(adaptiveInfo).copy(
             maxHorizontalPartitions = if (canShowBoth) 2 else 1,
             maxVerticalPartitions = 1,
-            horizontalPartitionSpacerSize = if (verticalSeparatingHinge != null) 0.dp else 24.dp,
+            horizontalPartitionSpacerSize = if (verticalSeparatingHinge != null) 0.dp else 16.dp,
             defaultPanePreferredWidth = if (canShowBoth && maxWidth < 800.dp) 340.dp else 400.dp
         )
         val strategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)

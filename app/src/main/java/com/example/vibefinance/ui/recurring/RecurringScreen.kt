@@ -6,6 +6,7 @@
 
 package com.example.vibefinance.ui.recurring
 
+import com.example.vibefinance.ui.motion.paneEntrance
 import com.example.vibefinance.ui.components.AppButtonDefaults
 
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
@@ -21,6 +22,8 @@ import com.example.vibefinance.theme.MotionTokens
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.LinearEasing
@@ -226,7 +229,8 @@ import com.example.vibefinance.ui.main.CurrencyRateStatus
 import com.example.vibefinance.util.CurrencyEngine
 import java.io.File
 import kotlin.math.abs
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import com.example.vibefinance.data.entity.AccountEntity
 import com.example.vibefinance.data.entity.AccountType
 import com.example.vibefinance.data.entity.SubscriptionEntity
@@ -571,7 +575,8 @@ fun RecurringScreen(
                         onAddNew = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             editorState.open()
-                        }
+                        },
+                        selectedSubscriptionId = editorState.subscriptionId.takeIf { editorState.isOpen }
                     )
 
                     item {
@@ -590,6 +595,10 @@ fun RecurringScreen(
                     verticalArrangement = Arrangement.Top
                 ) { recurringItems() }
                         } else {
+                val upcomingSubs = remember(filteredSubscriptions, today) {
+                    val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    filteredSubscriptions.filter { it.nextPaymentDate >= todayStart }
+                }
                 val timelineContent: @Composable () -> Unit = {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(end = 16.dp).testTag("RecurringRenewalTimeline"),
@@ -605,40 +614,88 @@ fun RecurringScreen(
                                 }
                             }
                         }
-                        subscriptionItemsSection(
-                            filteredSubscriptions = filteredSubscriptions.filter { it.nextPaymentDate >= today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() },
-                            filteredInstallments = filteredInstallments,
-                            accounts = state.accounts,
-                            isTimelineView = true,
-                            today = today,
-                            activeSwipeId = activeSwipeId,
-                            activeSwipeOffset = activeSwipeOffset,
-                            onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
-                            activeSwipeGroupId = activeSwipeInstallmentId,
-                            activeSwipeGroupOffset = activeSwipeInstallmentOffset,
-                            onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
-                            onEdit = { sub ->
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editorState.open(sub = sub)
-                            },
-                            onDelete = { sub ->
-                                pendingDeleteSub = sub
-                            },
-                            onDeleteInstallment = { groupId, accountId ->
-                                onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
-                            },
-                            onTogglePaid = toggleSubscriptionPaid,
-                            onAddNew = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                editorState.open()
+                        if (upcomingSubs.isEmpty() && filteredInstallments.isEmpty()) {
+                            item(key = "timeline-empty") {
+                                PageContentEntrance("timeline-empty") {
+                                    EmptyRecurringCard(
+                                        onAddNew = { editorState.open() },
+                                        showAddButton = false
+                                    )
+                                }
                             }
-                        )
+                        } else {
+                            subscriptionItemsSection(
+                                filteredSubscriptions = upcomingSubs,
+                                filteredInstallments = filteredInstallments,
+                                accounts = state.accounts,
+                                isTimelineView = true,
+                                today = today,
+                                activeSwipeId = activeSwipeId,
+                                activeSwipeOffset = activeSwipeOffset,
+                                onSwipeChange = { id, off -> activeSwipeId = id; activeSwipeOffset = off },
+                                activeSwipeGroupId = activeSwipeInstallmentId,
+                                activeSwipeGroupOffset = activeSwipeInstallmentOffset,
+                                onSwipeGroupChange = { id, off -> activeSwipeInstallmentId = id; activeSwipeInstallmentOffset = off },
+                                onEdit = { sub ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    editorState.open(sub = sub)
+                                },
+                                onDelete = { sub ->
+                                    pendingDeleteSub = sub
+                                },
+                                onDeleteInstallment = { groupId, accountId ->
+                                    onIntent(FinanceIntent.DeleteInstallmentGroup(groupId, accountId))
+                                },
+                                onTogglePaid = toggleSubscriptionPaid,
+                                onAddNew = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    editorState.open()
+                                },
+                                showEmptyAddButton = false,
+                                selectedSubscriptionId = editorState.subscriptionId.takeIf { editorState.isOpen }
+                            )
+                        }
                     }
                 }
 
+                // Unified add/edit pattern: on large screens the subscription editor opens in the
+                // right pane, sliding in over the renewal timeline (list stays in place).
+                val twoPane = maxWidth >= 724.dp
+                val paneContent: @Composable () -> Unit = {
+                    AnimatedContent(
+                        targetState = editorState.isOpen,
+                        transitionSpec = {
+                            if (targetState) {
+                                // The editor arrives through its container transform (PaneContainerTransform).
+                                androidx.compose.animation.EnterTransition.None
+                                    .togetherWith(fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()))
+                            } else {
+                                (slideInHorizontally(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { -it / 8 } +
+                                    fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()))
+                                    .togetherWith(slideOutHorizontally(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { it / 3 } +
+                                        fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()))
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        label = "recurringPaneEditor"
+                    ) { open ->
+                        if (open) {
+                            SubscriptionEditorPane(
+                                state = state,
+                                editorState = editorState,
+                                onIntent = onIntent,
+                                modifier = Modifier.padding(top = topContentPadding, end = 16.dp, bottom = 16.dp),
+                                onDismiss = { editorState.close(); onDismissAddSheet() }
+                            )
+                        } else {
+                            timelineContent()
+                        }
+                    }
+                }
                 AdaptiveRecurringScene(
-                    selectedId = editorState.subscriptionId,
-                    isEditing = editorState.isOpen,
+                    selectedId = null,
+                    // Two panes: the editor swaps into the right pane. One pane: it replaces the list.
+                    isEditing = editorState.isOpen && !twoPane,
                     onClose = { editorState.close() },
                     modifier = Modifier.fillMaxSize().testTag("RecurringDualColumn"),
                     listContent = {
@@ -649,56 +706,8 @@ fun RecurringScreen(
                         ) { recurringItems() }
                     },
                     hasActiveDialog = pendingDeleteSub != null,
-                    placeholderContent = timelineContent,
-                    detailContent = { id ->
-                        if (editorState.isOpen) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(end = 16.dp, top = topContentPadding, bottom = 100.dp)
-                                    .testTag("RecurringEmbeddedEditor"),
-                                shape = RoundedCornerShape(28.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                            ) {
-                                Box(Modifier.fillMaxSize().imePadding()) {
-                                    val activeSub = editorState.subscription
-                                        ?: id?.let { subId -> state.subscriptions.firstOrNull { it.id == subId } }
-                                    AddEditSubscriptionSheet(
-                                        subscription = activeSub,
-                                        initialPreset = editorState.initialPreset,
-                                        accounts = state.accounts,
-                                        transactions = state.transactions,
-                                        subscriptions = state.subscriptions,
-                                        categoryLimits = state.categoryLimits,
-                                        categoryMergeRules = state.categoryMergeRules,
-                                        exchangeRateLoader = null,
-                                        modifier = Modifier.fillMaxSize(),
-                                        onDismiss = { editorState.close() },
-                                        onSave = { savedSub ->
-                                            onIntent(FinanceIntent.SaveSubscription(savedSub))
-                                            editorState.close()
-                                        },
-                                        onDelete = { delSub ->
-                                            pendingDeleteSub = delSub
-                                        },
-                                        onSaveInstallment = { totalAmt, cat, accId, desc, count, firstDate ->
-                                            onIntent(
-                                                FinanceIntent.AddInstallmentTransaction(
-                                                    amount = totalAmt, category = cat, accountId = accId,
-                                                    description = desc, installments = count, firstDueDate = firstDate
-                                                )
-                                            )
-                                            editorState.close()
-                                        },
-                                        onAddNewAccount = { onIntent(FinanceIntent.SaveAccount(it)) }
-                                    )
-                                }
-                            }
-                        } else {
-                            timelineContent()
-                        }
-                    }
+                    placeholderContent = paneContent,
+                    detailContent = { _ -> paneContent() }
                 )
             }
         }
@@ -772,12 +781,18 @@ private fun ManualSubscriptionRenewalDialog(
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
+            com.example.vibefinance.ui.components.CompletePressTextButton(
                 onClick = { selected?.let(onConfirm) },
-                enabled = selected?.isAfter(today) == true
+                enabled = selected?.isAfter(today) == true,
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
             ) { Text(stringResource(R.string.subscription_renewal_confirm)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_cancel)) } }
+        dismissButton = {
+            com.example.vibefinance.ui.components.CompletePressTextButton(
+                onClick = onDismiss,
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+            ) { Text(stringResource(R.string.btn_cancel)) }
+        }
     ) {
         DatePicker(
             state = picker,
@@ -964,14 +979,17 @@ fun LazyListScope.subscriptionItemsSection(
     onDelete: (SubscriptionEntity) -> Unit,
     onDeleteInstallment: (String, Long) -> Unit = { _, _ -> },
     onTogglePaid: (SubscriptionEntity, Boolean) -> Unit = { _, _ -> },
-    onAddNew: () -> Unit
+    onAddNew: () -> Unit,
+    showEmptyAddButton: Boolean = false,
+    selectedSubscriptionId: Long? = null,
 ) {
     if (filteredSubscriptions.isEmpty() && filteredInstallments.isEmpty()) {
         item {
             Spacer(modifier = Modifier.height(20.dp))
             PageContentEntrance("empty") {
                 EmptyRecurringCard(
-                    onAddNew = onAddNew
+                    onAddNew = onAddNew,
+                    showAddButton = showEmptyAddButton
                 )
             }
         }
@@ -1024,7 +1042,8 @@ fun LazyListScope.subscriptionItemsSection(
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
                     onDelete = { onDelete(sub) },
-                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) },
+                    isSelected = selectedSubscriptionId == sub.id
                 )
             }
             itemsIndexed(dueNext7DaysInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -1068,7 +1087,8 @@ fun LazyListScope.subscriptionItemsSection(
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
                     onDelete = { onDelete(sub) },
-                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) },
+                    isSelected = selectedSubscriptionId == sub.id
                 )
             }
             itemsIndexed(dueLaterThisMonthInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -1112,7 +1132,8 @@ fun LazyListScope.subscriptionItemsSection(
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
                     onDelete = { onDelete(sub) },
-                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) },
+                    isSelected = selectedSubscriptionId == sub.id
                 )
             }
             itemsIndexed(dueLaterInst, key = { _, plan -> "inst_${plan.groupId}" }) { idx, plan ->
@@ -1157,7 +1178,8 @@ fun LazyListScope.subscriptionItemsSection(
                     onSwipeChange = onSwipeChange,
                     onClick = { onEdit(sub) },
                     onDelete = { onDelete(sub) },
-                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) }
+                    onTogglePaid = { isPaid -> onTogglePaid(sub, isPaid) },
+                    isSelected = selectedSubscriptionId == sub.id
                 )
             }
             item {
@@ -1441,239 +1463,312 @@ fun RecurringCategoryDonutChart(
             .animateContentSize(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val stackLegendItems = com.example.vibefinance.ui.home.shouldStackCategoryLegendItem(
+                maxWidth,
+                LocalDensity.current.fontScale
+            )
+            val horizontalPadding = if (stackLegendItems) 16.dp else 20.dp
+            val donutSize = if (maxWidth < 300.dp) 104.dp else if (stackLegendItems) 110.dp else 118.dp
+            val contentSpacing = if (stackLegendItems) 10.dp else 12.dp
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = horizontalPadding, vertical = 20.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.category_analytics_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                AnimatedVisibility(
-                    visible = selectedCategory != null,
-                    enter = fadeIn(animationSpec = MotionTokens.standardEnter()) + expandVertically(animationSpec = MotionTokens.emphasizedEnter()),
-                    exit = fadeOut(animationSpec = MotionTokens.standardExit()) + shrinkVertically(animationSpec = MotionTokens.emphasizedExit())
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.reset_filter),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = stringResource(R.string.category_analytics_title),
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { selectedCategory = null }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Interactive Animated Donut Chart Canvas
-                Box(
-                    modifier = Modifier.size(118.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(
-                        modifier = Modifier.fillMaxSize()
+                    AnimatedVisibility(
+                        visible = selectedCategory != null,
+                        enter = fadeIn(animationSpec = MotionTokens.standardEnter()) + expandVertically(animationSpec = MotionTokens.emphasizedEnter()),
+                        exit = fadeOut(animationSpec = MotionTokens.standardExit()) + shrinkVertically(animationSpec = MotionTokens.emphasizedExit())
                     ) {
-                        if (totalSpending == 0.0) {
-                            drawArc(
-                                color = Color.Gray.copy(alpha = 0.15f),
-                                startAngle = 0f,
-                                sweepAngle = 360f,
-                                useCenter = false,
-                                style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
-                            )
-                        } else {
-                            val gapAngle = if (categorySpending.size > 1) 3.5f else 0f
-                            var startAngle = -90f
-                            categorySpending.forEach { (category, amount) ->
-                                val rawSweep = ((amount / totalSpending) * 360f).toFloat()
-                                val sweepAngle = (rawSweep - gapAngle).coerceAtLeast(1.5f)
-                                val color = categoryColors[category] ?: Color.Gray
-
-                                val (strokeState, alphaState) = categoryAnimProps[category]
-                                    ?: (mutableStateOf(16.dp) to mutableStateOf(1f))
-
-                                val animatedStrokePx = strokeState.value.toPx()
-                                val animatedAlpha = alphaState.value
-
-                                drawArc(
-                                    color = color.copy(alpha = animatedAlpha),
-                                    startAngle = startAngle + (gapAngle / 2f),
-                                    sweepAngle = sweepAngle,
-                                    useCenter = false,
-                                    style = Stroke(width = animatedStrokePx, cap = StrokeCap.Round)
-                                )
-                                startAngle += rawSweep
-                            }
-                        }
-                    }
-
-                    // Animated Center Content transition on focus/unfocus
-                    AnimatedContent(
-                        targetState = selectedCategory,
-                        transitionSpec = {
-                            (fadeIn(animationSpec = MotionTokens.standardEnter(220)) + scaleIn(animationSpec = MotionTokens.emphasizedEnter(220), initialScale = 0.85f))
-                                .togetherWith(fadeOut(animationSpec = MotionTokens.standardExit(180)) + scaleOut(animationSpec = MotionTokens.emphasizedExit(180), targetScale = 0.85f))
-                        },
-                        label = "centerDonutText"
-                    ) { currentCategory ->
-                        val selectedItem = categorySpending.find { it.first == currentCategory }
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            if (selectedItem != null) {
-                                val percent = if (totalSpending > 0) (selectedItem.second / totalSpending * 100).toInt() else 0
-                                val itemColor = categoryColors[selectedItem.first] ?: MaterialTheme.colorScheme.primary
-                                Text(
-                                    text = getCategoryDisplayName(selectedItem.first),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = itemColor,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                RollingNumberText(
-                                    text = String.format(Locale.US, "HK$ %.0f", selectedItem.second),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = itemColor.copy(alpha = 0.18f),
-                                    modifier = Modifier.padding(top = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "$percent%",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                        color = itemColor,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            } else {
-                                Text(
-                                    text = stringResource(R.string.total_monthly_short),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                                RollingNumberText(
-                                    text = String.format(Locale.US, "HK$ %.0f", totalSpending),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
+                        Text(
+                            text = stringResource(R.string.reset_filter),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedCategory = null }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Legend with Animated Selection State
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(contentSpacing)
                 ) {
-                    if (categorySpending.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.ui_recurring_no_category_data),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    } else {
-                        categorySpending.take(5).forEach { (category, amount) ->
-                            val color = categoryColors[category] ?: Color.Gray
-                            val isFocused = selectedCategory == category
+                    // Interactive Animated Donut Chart Canvas
+                    Box(
+                        modifier = Modifier.size(donutSize),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            if (totalSpending == 0.0) {
+                                drawArc(
+                                    color = Color.Gray.copy(alpha = 0.15f),
+                                    startAngle = 0f,
+                                    sweepAngle = 360f,
+                                    useCenter = false,
+                                    style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
+                                )
+                            } else {
+                                val gapAngle = if (categorySpending.size > 1) 3.5f else 0f
+                                var startAngle = -90f
+                                categorySpending.forEach { (category, amount) ->
+                                    val rawSweep = ((amount / totalSpending) * 360f).toFloat()
+                                    val sweepAngle = (rawSweep - gapAngle).coerceAtLeast(1.5f)
+                                    val color = categoryColors[category] ?: Color.Gray
 
-                            val rowBgColor by animateColorAsState(
-                                targetValue = if (isFocused) color.copy(alpha = 0.18f) else Color.Transparent,
-                                animationSpec = tween(250),
-                                label = "rowBg_$category"
-                            )
-                            val dotSize by animateDpAsState(
-                                targetValue = if (isFocused) 14.dp else 10.dp,
-                                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
-                                label = "dotSize_$category"
-                            )
+                                    val (strokeState, alphaState) = categoryAnimProps[category]
+                                        ?: (mutableStateOf(16.dp) to mutableStateOf(1f))
 
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable {
-                                        selectedCategory = if (isFocused) null else category
-                                    },
-                                color = rowBgColor,
-                                shape = RoundedCornerShape(10.dp)
+                                    val animatedStrokePx = strokeState.value.toPx()
+                                    val animatedAlpha = alphaState.value
+
+                                    drawArc(
+                                        color = color.copy(alpha = animatedAlpha),
+                                        startAngle = startAngle + (gapAngle / 2f),
+                                        sweepAngle = sweepAngle,
+                                        useCenter = false,
+                                        style = Stroke(width = animatedStrokePx, cap = StrokeCap.Round)
+                                    )
+                                    startAngle += rawSweep
+                                }
+                            }
+                        }
+
+                        // Animated Center Content transition on focus/unfocus
+                        AnimatedContent(
+                            targetState = selectedCategory,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = MotionTokens.standardEnter(220)) + scaleIn(animationSpec = MotionTokens.emphasizedEnter(220), initialScale = 0.85f))
+                                    .togetherWith(fadeOut(animationSpec = MotionTokens.standardExit(180)) + scaleOut(animationSpec = MotionTokens.emphasizedExit(180), targetScale = 0.85f))
+                            },
+                            label = "centerDonutText"
+                        ) { currentCategory ->
+                            val selectedItem = categorySpending.find { it.first == currentCategory }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(1f)
+                                if (selectedItem != null) {
+                                    val percent = if (totalSpending > 0) (selectedItem.second / totalSpending * 100).toInt() else 0
+                                    val itemColor = categoryColors[selectedItem.first] ?: MaterialTheme.colorScheme.primary
+                                    Text(
+                                        text = getCategoryDisplayName(selectedItem.first),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = itemColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    RollingNumberText(
+                                        text = String.format(Locale.US, "HK$ %.0f", selectedItem.second),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = itemColor.copy(alpha = 0.18f),
+                                        modifier = Modifier.padding(top = 2.dp)
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(dotSize)
-                                                .clip(CircleShape)
-                                                .background(color)
-                                        )
                                         Text(
-                                            text = getCategoryDisplayName(category),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            text = "$percent%",
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                            color = itemColor,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        val percent = if (totalSpending > 0) (amount / totalSpending * 100).toInt() else 0
-                                        val formattedAmount = if (amount % 1.0 == 0.0) {
-                                            String.format(Locale.US, "$%,.0f", amount)
-                                        } else {
-                                            String.format(Locale.US, "$%,.2f", amount)
-                                        }
-                                        Text(
-                                            text = formattedAmount,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = if (isFocused) color.copy(alpha = 0.22f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+                                } else {
+                                    Text(
+                                        text = stringResource(R.string.total_monthly_short),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                    RollingNumberText(
+                                        text = String.format(Locale.US, "HK$ %.0f", totalSpending),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Legend with Animated Selection State
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (categorySpending.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.ui_recurring_no_category_data),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        } else {
+                            categorySpending.take(5).forEach { (category, amount) ->
+                                val color = categoryColors[category] ?: Color.Gray
+                                val isFocused = selectedCategory == category
+
+                                val rowBgColor by animateColorAsState(
+                                    targetValue = if (isFocused) color.copy(alpha = 0.18f) else Color.Transparent,
+                                    animationSpec = tween(250),
+                                    label = "rowBg_$category"
+                                )
+                                val dotSize by animateDpAsState(
+                                    targetValue = if (isFocused) 14.dp else 10.dp,
+                                    animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
+                                    label = "dotSize_$category"
+                                )
+                                val percent = if (totalSpending > 0) (amount / totalSpending * 100).toInt() else 0
+                                val formattedAmount = if (amount % 1.0 == 0.0) {
+                                    String.format(Locale.US, "$%,.0f", amount)
+                                } else {
+                                    String.format(Locale.US, "$%,.2f", amount)
+                                }
+                                val displayName = getCategoryDisplayName(category)
+
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable {
+                                            selectedCategory = if (isFocused) null else category
+                                        },
+                                    color = rowBgColor,
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    if (stackLegendItems) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
                                         ) {
-                                            Text(
-                                                text = "$percent%",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                                color = if (isFocused) color else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(dotSize)
+                                                        .clip(CircleShape)
+                                                        .background(color)
+                                                )
+                                                Text(
+                                                    text = displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(start = dotSize + 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = formattedAmount,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = if (isFocused) color.copy(alpha = 0.22f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+                                                ) {
+                                                    Text(
+                                                        text = "$percent%",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                        color = if (isFocused) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(dotSize)
+                                                        .clip(CircleShape)
+                                                        .background(color)
+                                                )
+                                                Text(
+                                                    text = displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = formattedAmount,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = if (isFocused) color.copy(alpha = 0.22f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+                                                ) {
+                                                    Text(
+                                                        text = "$percent%",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                        color = if (isFocused) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1962,7 +2057,8 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onTogglePaid: (Boolean) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false
 ) {
     val today = remember { LocalDate.now() }
     val paymentLocalDate = Instant.ofEpochMilli(subscription.nextPaymentDate)
@@ -1987,24 +2083,16 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
         else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), "🗓️ " + recurringDateLabel(paymentLocalDate))
     }
 
-    // Android 16 Stacking & Geometry specifications
     val isSingle = sectionItems.size <= 1
     val isFirst = index == 0
     val isLast = index == sectionItems.size - 1
-    val baseOuterRadius = 26.dp // 24px - 28px spec
-    val baseInnerRadius = 8.dp  // 8px spec
-
-    val baseTopStart = if (isSingle || isFirst) baseOuterRadius else baseInnerRadius
-    val baseTopEnd = if (isSingle || isFirst) baseOuterRadius else baseInnerRadius
-    val baseBottomStart = if (isSingle || isLast) baseOuterRadius else baseInnerRadius
-    val baseBottomEnd = if (isSingle || isLast) baseOuterRadius else baseInnerRadius
-
-    // Stable grouped container shape (Gmail / M3 Expressive)
-    val itemShape = RoundedCornerShape(
-        topStart = baseTopStart,
-        topEnd = baseTopEnd,
-        bottomStart = baseBottomStart,
-        bottomEnd = baseBottomEnd
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val isRowPressed by rowInteractionSource.collectIsPressedAsState()
+    val itemShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+        isFirst = isSingle || isFirst,
+        isLast = isSingle || isLast,
+        isSelected = isSelected,
+        isPressed = isRowPressed
     )
 
     val transitionState = remember { MutableTransitionState(true) }
@@ -2036,6 +2124,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.SubscriptionRowItem(
                     shape = itemShape,
                     onEdit = onClick,
                     onDelete = { transitionState.targetState = false },
+                    interactionSource = rowInteractionSource,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("SubscriptionRow_${subscription.id}")
@@ -2233,24 +2322,16 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
         else -> Triple(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f), stringResource(R.string.ui_recurring_plan_active))
     }
 
-    // Android 16 Stacking & Geometry specifications
     val isSingle = sectionItems.size <= 1
     val isFirst = index == 0
     val isLast = index == sectionItems.size - 1
-    val baseOuterRadius = 26.dp
-    val baseInnerRadius = 8.dp
-
-    val baseTopStart = if (isSingle || isFirst) baseOuterRadius else baseInnerRadius
-    val baseTopEnd = if (isSingle || isFirst) baseOuterRadius else baseInnerRadius
-    val baseBottomStart = if (isSingle || isLast) baseOuterRadius else baseInnerRadius
-    val baseBottomEnd = if (isSingle || isLast) baseOuterRadius else baseInnerRadius
-
-    // Stable grouped container shape (Gmail / M3 Expressive)
-    val itemShape = RoundedCornerShape(
-        topStart = baseTopStart,
-        topEnd = baseTopEnd,
-        bottomStart = baseBottomStart,
-        bottomEnd = baseBottomEnd
+    val rowInteractionSource = remember { MutableInteractionSource() }
+    val isRowPressed by rowInteractionSource.collectIsPressedAsState()
+    val itemShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+        isFirst = isSingle || isFirst,
+        isLast = isSingle || isLast,
+        isSelected = false,
+        isPressed = isRowPressed
     )
 
     val transitionState = remember { MutableTransitionState(true) }
@@ -2282,6 +2363,7 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                     shape = itemShape,
                     onEdit = {},
                     onDelete = { transitionState.targetState = false },
+                    interactionSource = rowInteractionSource,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("InstallmentRow_${plan.groupId}")
@@ -2370,14 +2452,16 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
                                 (plan.paidInstallments.toFloat() / plan.totalInstallments.toFloat()).coerceIn(0f, 1f)
                             } else 0f
 
-                            LinearProgressIndicator(
+                            val minimalMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                                com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+                            LinearWavyProgressIndicator(
                                 progress = { progress },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
+                                    .heightIn(min = 10.dp),
                                 color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                amplitude = { if (minimalMotion) 0f else WavyProgressIndicatorDefaults.indicatorAmplitude(it) }
                             )
 
                             // Bottom Pills Row
@@ -2451,7 +2535,8 @@ fun androidx.compose.foundation.lazy.LazyItemScope.InstallmentRowItem(
 // -------------------------------------------------------------
 @Composable
 fun EmptyRecurringCard(
-    onAddNew: () -> Unit
+    onAddNew: () -> Unit,
+    showAddButton: Boolean = false,
 ) {
     GlassmorphicCard(
         modifier = Modifier.fillMaxWidth(),
@@ -2498,14 +2583,21 @@ fun EmptyRecurringCard(
                 textAlign = TextAlign.Center
             )
 
-
-            Spacer(modifier = Modifier.height(18.dp))
-            Button(onClick = onAddNew, shape = RoundedCornerShape(16.dp), elevation = AppButtonDefaults.elevation()) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.btn_add_subscription))
+            if (showAddButton) {
+                Spacer(modifier = Modifier.height(18.dp))
+                CompletePressButton(
+                    onClick = onAddNew,
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.btn_add_subscription))
+                }
             }
-
         }
     }
 }
@@ -3277,6 +3369,450 @@ fun AddEditSubscriptionSheet(
     val isInstallmentRateReady = selectedCurrency == "HKD" || rateQuote != null
     val canSaveInstallment = installmentNameText.isNotBlank() && parsedInstallmentTotal > 0.0 && installmentMonths >= 2 && installmentAccountId != 0L && isInstallmentRateReady
 
+    val topHeaderRow: @Composable () -> Unit = {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.btn_close)
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                val sheetTitle = when {
+                    subscription != null -> stringResource(R.string.btn_edit_subscription)
+                    selectedSheetTab == 1 -> stringResource(R.string.tab_installment)
+                    else -> stringResource(R.string.btn_add_subscription)
+                }
+                val sheetSubtitle = when {
+                    subscription != null -> stringResource(R.string.ui_recurring_edit_subtitle)
+                    selectedSheetTab == 1 -> stringResource(R.string.ui_recurring_installment_subtitle)
+                    else -> stringResource(R.string.ui_recurring_add_subtitle)
+                }
+                Text(
+                    text = sheetTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = sheetSubtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+            Box {
+                var expanded by remember { mutableStateOf(false) }
+                Surface(
+                    onClick = { expanded = !expanded },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.testTag("EntryCurrency"),
+                ) {
+                    Text(
+                        "${currencyInfo.flagEmoji} ${currencyInfo.code}",
+                        Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+                DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+                    CurrencyEngine.supportedCurrencies.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text("${option.flagEmoji} ${option.code} (${option.symbol})") },
+                            modifier = Modifier.testTag("EntryCurrency_${option.code}"),
+                            onClick = {
+                                selectedCurrency = option.code
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    val modeSwitcherContent: @Composable () -> Unit = {
+        if (subscription == null) {
+            val subTabStr = stringResource(R.string.tab_subscription)
+            val instTabStr = stringResource(R.string.tab_installment)
+            ConnectedButtonGroup(
+                items = listOf(subTabStr, instTabStr),
+                selectedIndex = selectedSheetTab,
+                onItemSelected = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    selectedSheetTab = it
+                },
+                modifier = Modifier.fillMaxWidth(),
+                labelProvider = { it }
+            )
+        }
+    }
+
+    val subscriptionHeroAmountContent: @Composable (Boolean) -> Unit = { wideCard ->
+        val activeBrandColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary
+        val innerHero: @Composable () -> Unit = {
+            Column(
+                modifier = if (wideCard) Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp) else Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            amountFocusRequester.requestFocus()
+                        },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$currencySymbol ",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = activeBrandColor
+                        )
+                    )
+                    BasicTextField(
+                        value = if (amountText == "0") "" else amountText,
+                        onValueChange = { input ->
+                            if (input.isEmpty()) {
+                                amountText = ""
+                            } else if (input == ".") {
+                                amountText = "0."
+                            } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
+                                amountText = input
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        cursorBrush = SolidColor(activeBrandColor),
+                        textStyle = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 42.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Start
+                        ),
+                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
+                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                        else
+                            androidx.compose.ui.text.input.VisualTransformation.None,
+                        modifier = Modifier
+                            .width(IntrinsicSize.Min)
+                            .widthIn(min = 36.dp)
+                            .focusRequester(amountFocusRequester).testTag("SubscriptionAmount")
+                            .semantics { stateDescription = amountText },
+                        decorationBox = { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (amountText.isEmpty() || amountText == "0") {
+                                    Text(
+                                        text = "0",
+                                        style = MaterialTheme.typography.displaySmall.copy(
+                                            fontSize = 42.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    )
+                    if (amountText.isNotEmpty() && amountText != "0") {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        IconButton(
+                            onClick = {
+                                amountText = ""
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Clear,
+                                contentDescription = stringResource(R.string.ui_main_clear),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+                if (wideCard) {
+                    val intervalInt = (intervalText.toIntOrNull() ?: 1).coerceIn(1, 999)
+                    val baseAmt = if (selectedCurrency == "HKD") parsedAmount else (convertedSubscriptionAmount ?: 0.0)
+                    val monthlyEq = com.example.vibefinance.util.SubscriptionSchedule.monthlyAmount(
+                        SubscriptionEntity(
+                            name = "",
+                            amount = baseAmt,
+                            category = categoryText,
+                            frequency = frequencyText,
+                            interval = intervalInt,
+                            nextPaymentDate = nextPaymentDateState,
+                            accountId = accountIdText
+                        )
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = activeBrandColor.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = if (baseAmt > 0.0) {
+                                "${stringResource(R.string.est_monthly_commitment)} · ${CurrencyEngine.formatHkd(monthlyEq)}"
+                            } else {
+                                stringResource(R.string.est_monthly_commitment)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = activeBrandColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+                if (selectedCurrency != "HKD") {
+                    CurrencyRateStatus(
+                        currencyCode = selectedCurrency,
+                        result = rateResult,
+                        loading = rateLoading,
+                        convertedAmount = convertedSubscriptionAmount,
+                        onRefresh = { rateRefreshRequest++ }
+                    )
+                }
+            }
+        }
+        if (wideCard) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f),
+                border = BorderStroke(1.dp, activeBrandColor.copy(alpha = 0.22f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                innerHero()
+            }
+        } else {
+            innerHero()
+        }
+    }
+
+    val subscriptionDetailsCardContent: @Composable (Boolean) -> Unit = { wideRow ->
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.ui_recurring_identity),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 0.8.sp
+                )
+
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = { nameText = it },
+                    label = { Text(stringResource(R.string.sub_name_label)) },
+                    placeholder = { Text(stringResource(R.string.ui_recurring_name_hint)) },
+                    leadingIcon = {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = (currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.12f),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (currentPreset?.emoji != null) {
+                                    Text(currentPreset.emoji, fontSize = 16.sp)
+                                } else {
+                                    CategoryIcon(
+                                        category = categoryText,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("SubscriptionName")
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.ui_recurring_billing_frequency),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val selectedFreqIndex = frequenciesList.indexOfFirst { it.equals(frequencyText, ignoreCase = true) }.coerceAtLeast(0)
+                    val monthlyStr = stringResource(R.string.filter_monthly)
+                    val yearlyStr = stringResource(R.string.filter_yearly)
+                    val weeklyStr = stringResource(R.string.filter_weekly)
+
+                    ConnectedButtonGroup(
+                        items = frequenciesList,
+                        selectedIndex = selectedFreqIndex,
+                        onItemSelected = { index ->
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            frequencyText = frequenciesList[index]
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        labelProvider = { freq ->
+                            when (freq.lowercase(Locale.US)) {
+                                "monthly" -> monthlyStr
+                                "yearly", "annual" -> yearlyStr
+                                "weekly" -> weeklyStr
+                                "daily" -> stringResource(R.string.subscription_daily)
+                                else -> freq
+                            }
+                        }
+                    )
+                }
+
+                val intervalField: @Composable (Modifier) -> Unit = { fieldMod ->
+                    OutlinedTextField(
+                        value = intervalText,
+                        onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) intervalText = it },
+                        label = { Text(stringResource(R.string.subscription_interval)) },
+                        supportingText = { Text(stringResource(R.string.subscription_interval_hint)) },
+                        isError = intervalText.toIntOrNull() !in 1..999,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = fieldMod.testTag("SubscriptionInterval")
+                    )
+                }
+
+                val nextDateField: @Composable (Modifier) -> Unit = { dateMod ->
+                    Column(modifier = dateMod, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = stringResource(if (isAutoPaidState) R.string.sub_due_date_label else R.string.subscription_next_expiry),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val formattedDate = recurringDateLabel(
+                            Instant.ofEpochMilli(nextPaymentDateState).atZone(ZoneId.systemDefault()).toLocalDate(),
+                            full = true
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .bouncyClickable(shape = RoundedCornerShape(14.dp)) { showDatePicker = true }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = formattedDate,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = stringResource(R.string.btn_change),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (wideRow) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        intervalField(Modifier.weight(0.42f))
+                        nextDateField(Modifier.weight(0.58f))
+                    }
+                } else {
+                    intervalField(Modifier.fillMaxWidth())
+                    nextDateField(Modifier.fillMaxWidth())
+                }
+
+                if (isAutoPaidState) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.subscription_cycle_paid_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    SubscriptionPaymentToggle(
+                        isPaid = isPaidState,
+                        onPaidChange = { isPaidState = it }
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = stringResource(R.string.subscription_deposit_mode_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    SubscriptionDepositModeToggle(
+                        isAutoPaid = isAutoPaidState,
+                        onModeChange = { isAutoPaidState = it }
+                    )
+                }
+            }
+        }
+    }
+
+    val subscriptionClassificationCardContent: @Composable () -> Unit = {
+        // placeholder comment kept minimal before merging
+        Box {}
+    }
+
     Surface(
         modifier = modifier.fillMaxSize().testTag("AddEditSubscriptionSheet"),
         color = MaterialTheme.colorScheme.surface
@@ -3290,75 +3826,7 @@ fun AddEditSubscriptionSheet(
                     .widthIn(max = 840.dp)
                     .fillMaxSize()
             ) {
-                // Top Page Title Bar (Fixed Header)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.btn_close)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        val sheetTitle = when {
-                            subscription != null -> stringResource(R.string.btn_edit_subscription)
-                            selectedSheetTab == 1 -> stringResource(R.string.tab_installment)
-                            else -> stringResource(R.string.btn_add_subscription)
-                        }
-                        val sheetSubtitle = when {
-                            subscription != null -> stringResource(R.string.ui_recurring_edit_subtitle)
-                            selectedSheetTab == 1 -> stringResource(R.string.ui_recurring_installment_subtitle)
-                            else -> stringResource(R.string.ui_recurring_add_subtitle)
-                        }
-                        Text(
-                            text = sheetTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = sheetSubtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                    Box {
-                        var expanded by remember { mutableStateOf(false) }
-                        Surface(
-                            onClick = { expanded = !expanded },
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.testTag("EntryCurrency"),
-                        ) {
-                            Text(
-                                "${currencyInfo.flagEmoji} ${currencyInfo.code}",
-                                Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                            CurrencyEngine.supportedCurrencies.forEach { option ->
-                                DropdownMenuItem(
-                                    text = { Text("${option.flagEmoji} ${option.code} (${option.symbol})") },
-                                    modifier = Modifier.testTag("EntryCurrency_${option.code}"),
-                                    onClick = {
-                                        selectedCurrency = option.code
-                                        expanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
+                Box(Modifier.paneEntrance(0)) { topHeaderRow() }
 
                 // Scrollable Form Content
                 Column(
@@ -3369,24 +3837,11 @@ fun AddEditSubscriptionSheet(
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Mode Switcher (Subscription vs Installment Plan) - only when adding new
-                    if (subscription == null) {
-                        val subTabStr = stringResource(R.string.tab_subscription)
-                        val instTabStr = stringResource(R.string.tab_installment)
-                        ConnectedButtonGroup(
-                            items = listOf(subTabStr, instTabStr),
-                            selectedIndex = selectedSheetTab,
-                            onItemSelected = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                selectedSheetTab = it
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            labelProvider = { it }
-                        )
-                    }
+                    Box(Modifier.paneEntrance(1)) { modeSwitcherContent() }
 
                     // FORM CONTENT: SUBSCRIPTION OR INSTALLMENT
                     AnimatedContent(
+                        modifier = Modifier.paneEntrance(2),
                         targetState = selectedSheetTab,
                         transitionSpec = {
                             fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
@@ -3395,291 +3850,15 @@ fun AddEditSubscriptionSheet(
                     ) { tab ->
                         if (tab == 0) {
                             // --- SUBSCRIPTION FORM ---
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                // Hero Amount Row (Parity with Daily Page Add Expense)
-                                val activeBrandColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            amountFocusRequester.requestFocus()
-                                        },
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "$currencySymbol ",
-                                        style = MaterialTheme.typography.headlineMedium.copy(
-                                            fontSize = 32.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = activeBrandColor
-                                        )
-                                    )
-                                    BasicTextField(
-                                        value = if (amountText == "0") "" else amountText,
-                                        onValueChange = { input ->
-                                            if (input.isEmpty()) {
-                                                amountText = ""
-                                            } else if (input == ".") {
-                                                amountText = "0."
-                                            } else if (input.matches(Regex("""^\d*(?:\.\d{0,2})?$"""))) {
-                                                amountText = input
-                                            }
-                                        },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        cursorBrush = SolidColor(activeBrandColor),
-                                        textStyle = MaterialTheme.typography.displaySmall.copy(
-                                            fontSize = 42.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            textAlign = TextAlign.Start
-                                        ),
-                                        visualTransformation = if (com.example.vibefinance.ui.preferences.LocalExperience.current.hideAmounts)
-                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                        else
-                                            androidx.compose.ui.text.input.VisualTransformation.None,
-                                        modifier = Modifier
-                                            .width(IntrinsicSize.Min)
-                                            .widthIn(min = 36.dp)
-                                            .focusRequester(amountFocusRequester).testTag("SubscriptionAmount")
-                                            .semantics { stateDescription = amountText },
-                                        decorationBox = { innerTextField ->
-                                            Box(contentAlignment = Alignment.CenterStart) {
-                                                if (amountText.isEmpty() || amountText == "0") {
-                                                    Text(
-                                                        text = "0",
-                                                        style = MaterialTheme.typography.displaySmall.copy(
-                                                            fontSize = 42.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                                        )
-                                                    )
-                                                }
-                                                innerTextField()
-                                            }
-                                        }
-                                    )
-                                    if (amountText.isNotEmpty() && amountText != "0") {
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        IconButton(
-                                            onClick = {
-                                                amountText = ""
-                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Clear,
-                                                contentDescription = stringResource(R.string.ui_main_clear),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
+                            // Adaptive: a wide editor (large-screen detail pane) splits into two columns —
+                            // amount and details on the left, classification/payment and the rest on the right.
+                            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                                val twoColumn = maxWidth >= 640.dp
+                                val leadSections: @Composable () -> Unit = {
+                                    subscriptionHeroAmountContent(false)
+                                    subscriptionDetailsCardContent(false)
                                 }
-
-                                if (selectedCurrency != "HKD") {
-                                    CurrencyRateStatus(
-                                        currencyCode = selectedCurrency,
-                                        result = rateResult,
-                                        loading = rateLoading,
-                                        convertedAmount = convertedSubscriptionAmount,
-                                        onRefresh = { rateRefreshRequest++ }
-                                    )
-                                }
-
-                                // ==========================================
-                                // BENTO CARD 1: DETAILS & CYCLE (RoundedCornerShape(22.dp))
-                                // ==========================================
-                                Surface(
-                                    shape = RoundedCornerShape(22.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainer,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.ui_recurring_identity),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            letterSpacing = 0.8.sp
-                                        )
-
-                                        // Subscription Name TextField with leading brand/category indicator
-                                        OutlinedTextField(
-                                            value = nameText,
-                                            onValueChange = { nameText = it },
-                                            label = { Text(stringResource(R.string.sub_name_label)) },
-                                            placeholder = { Text(stringResource(R.string.ui_recurring_name_hint)) },
-                                            leadingIcon = {
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = (currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.12f),
-                                                    modifier = Modifier.size(28.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        if (currentPreset?.emoji != null) {
-                                                            Text(currentPreset.emoji, fontSize = 16.sp)
-                                                        } else {
-                                                            CategoryIcon(
-                                                                category = categoryText,
-                                                                tint = MaterialTheme.colorScheme.primary,
-                                                                modifier = Modifier.size(16.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(14.dp),
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = currentPreset?.brandColor ?: MaterialTheme.colorScheme.primary,
-                                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                                            ),
-                                            modifier = Modifier.fillMaxWidth().testTag("SubscriptionName")
-                                        )
-
-                                        // Frequency Selector
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.ui_recurring_billing_frequency),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val selectedFreqIndex = frequenciesList.indexOfFirst { it.equals(frequencyText, ignoreCase = true) }.coerceAtLeast(0)
-                                            val monthlyStr = stringResource(R.string.filter_monthly)
-                                            val yearlyStr = stringResource(R.string.filter_yearly)
-                                            val weeklyStr = stringResource(R.string.filter_weekly)
-
-                                            ConnectedButtonGroup(
-                                                items = frequenciesList,
-                                                selectedIndex = selectedFreqIndex,
-                                                onItemSelected = { index ->
-                                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                                    frequencyText = frequenciesList[index]
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                labelProvider = { freq ->
-                                                    when (freq.lowercase(Locale.US)) {
-                                                        "monthly" -> monthlyStr
-                                                        "yearly", "annual" -> yearlyStr
-                                                        "weekly" -> weeklyStr
-                                                        "daily" -> stringResource(R.string.subscription_daily)
-                                                        else -> freq
-                                                    }
-                                                }
-                                            )
-                                        }
-
-                                        OutlinedTextField(
-                                            value = intervalText,
-                                            onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) intervalText = it },
-                                            label = { Text(stringResource(R.string.subscription_interval)) },
-                                            supportingText = { Text(stringResource(R.string.subscription_interval_hint)) },
-                                            isError = intervalText.toIntOrNull() !in 1..999,
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.fillMaxWidth().testTag("SubscriptionInterval")
-                                        )
-
-                                        // Next Payment Date
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(if (isAutoPaidState) R.string.sub_due_date_label else R.string.subscription_next_expiry),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            val formattedDate = recurringDateLabel(
-                                                Instant.ofEpochMilli(nextPaymentDateState).atZone(ZoneId.systemDefault()).toLocalDate(),
-                                                full = true
-                                            )
-
-                                            Surface(
-                                                shape = RoundedCornerShape(14.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(14.dp))
-                                                    .bouncyClickable(shape = RoundedCornerShape(14.dp)) { showDatePicker = true }
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.CalendarMonth,
-                                                            contentDescription = null,
-                                                            tint = MaterialTheme.colorScheme.primary,
-                                                            modifier = Modifier.size(20.dp)
-                                                        )
-                                                        Spacer(modifier = Modifier.width(10.dp))
-                                                        Text(
-                                                            text = formattedDate,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            color = MaterialTheme.colorScheme.onSurface
-                                                        )
-                                                    }
-                                                    Text(
-                                                        text = stringResource(R.string.btn_change),
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        if (isAutoPaidState) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.subscription_cycle_paid_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            SubscriptionPaymentToggle(
-                                                isPaid = isPaidState,
-                                                onPaidChange = { isPaidState = it }
-                                            )
-                                        }
-
-                                        // Deposit / Charge Mode (Auto vs Manual)
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            Text(
-                                                text = stringResource(R.string.subscription_deposit_mode_label),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            SubscriptionDepositModeToggle(
-                                                isAutoPaid = isAutoPaidState,
-                                                onModeChange = { isAutoPaidState = it }
-                                            )
-                                        }
-                                    }
-                                }
-
+                                val trailSections: @Composable () -> Unit = {
                                 // ==========================================
                                 // BENTO CARD 2: CLASSIFICATION & PAYMENT ASSET (RoundedCornerShape(22.dp))
                                 // ==========================================
@@ -3785,17 +3964,18 @@ fun AddEditSubscriptionSheet(
                                                         modifier = Modifier.weight(1f),
                                                         textStyle = MaterialTheme.typography.bodyMedium
                                                     )
-                                                    val addCatInteraction = remember { MutableInteractionSource() }
                                                     CompletePressButton(
                                                         onClick = {
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                                             onAddNewCategory(newCatName)
                                                         },
-                                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                                        interactionSource = addCatInteraction,
-                                                        modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
+                                                        shapes = AppButtonDefaults.shapes(),
                                                     ) {
-                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Icon(
+                                                            Icons.Default.Add,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                                        )
                                                         Spacer(modifier = Modifier.width(4.dp))
                                                         Text(stringResource(R.string.btn_add))
                                                     }
@@ -3989,6 +4169,17 @@ fun AddEditSubscriptionSheet(
                                                 modifier = Modifier.testTag("RecurringAccount_card")
                                             )
                                         }
+                                    }
+                                }
+                            }
+                                if (twoColumn) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) { leadSections() }
+                                        Column(Modifier.weight(1f).paneEntrance(3), verticalArrangement = Arrangement.spacedBy(16.dp)) { trailSections() }
+                                    }
+                                } else {
+                                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        leadSections(); trailSections()
                                     }
                                 }
                             }
@@ -4411,17 +4602,18 @@ fun AddEditSubscriptionSheet(
                                                         modifier = Modifier.weight(1f),
                                                         textStyle = MaterialTheme.typography.bodyMedium
                                                     )
-                                                    val addCatInteraction = remember { MutableInteractionSource() }
                                                     CompletePressButton(
                                                         onClick = {
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                                             onAddNewCategory(newCatName)
                                                         },
-                                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                                        interactionSource = addCatInteraction,
-                                                        modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
+                                                        shapes = AppButtonDefaults.shapes(),
                                                     ) {
-                                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Icon(
+                                                            Icons.Default.Add,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                                        )
                                                         Spacer(modifier = Modifier.width(4.dp))
                                                         Text(stringResource(R.string.btn_add))
                                                     }
@@ -4609,6 +4801,7 @@ fun AddEditSubscriptionSheet(
                     shadowElevation = 8.dp,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
                     modifier = Modifier
+                        .paneEntrance(4)
                         .fillMaxWidth()
                         .navigationBarsPadding()
                 ) {
@@ -4620,7 +4813,7 @@ fun AddEditSubscriptionSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (subscription != null) {
-                            OutlinedButton(
+                            com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onDelete(subscription)
@@ -4628,7 +4821,7 @@ fun AddEditSubscriptionSheet(
                                 modifier = Modifier
                                     .weight(0.35f)
                                     .height(50.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                shapes = AppButtonDefaults.largeShapes(),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
@@ -4637,7 +4830,7 @@ fun AddEditSubscriptionSheet(
                                 Icon(
                                     imageVector = Icons.Default.Delete,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -4648,7 +4841,6 @@ fun AddEditSubscriptionSheet(
                         }
 
                         if (selectedSheetTab == 0) {
-                            val saveInteraction = remember { MutableInteractionSource() }
                             CompletePressButton(
                                 onClick = {
                                     if (canSaveSubscription) {
@@ -4680,8 +4872,7 @@ fun AddEditSubscriptionSheet(
                                     }
                                 },
                                 enabled = canSaveSubscription,
-                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(percent = 32)),
-                                interactionSource = saveInteraction,
+                                shapes = AppButtonDefaults.largeShapes(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -4689,13 +4880,12 @@ fun AddEditSubscriptionSheet(
                                 modifier = Modifier
                                     .weight(if (subscription != null) 0.65f else 1f)
                                     .height(50.dp)
-                                    .pressBounce(interactionSource = saveInteraction)
                                     .testTag("SubscriptionSaveButton")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -4705,7 +4895,6 @@ fun AddEditSubscriptionSheet(
                                 )
                             }
                         } else {
-                            val saveInstallmentInteraction = remember { MutableInteractionSource() }
                             CompletePressButton(
                                 onClick = {
                                     if (canSaveInstallment) {
@@ -4732,8 +4921,7 @@ fun AddEditSubscriptionSheet(
                                     }
                                 },
                                 enabled = canSaveInstallment,
-                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(percent = 32)),
-                                interactionSource = saveInstallmentInteraction,
+                                shapes = AppButtonDefaults.largeShapes(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.tertiary,
                                     contentColor = MaterialTheme.colorScheme.onTertiary
@@ -4741,13 +4929,12 @@ fun AddEditSubscriptionSheet(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(50.dp)
-                                    .pressBounce(interactionSource = saveInstallmentInteraction)
                                     .testTag("InstallmentSaveButton")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -4940,7 +5127,7 @@ fun AddEditSubscriptionSheet(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Inline "+ 新增帳戶" Toggle & Form
-                        OutlinedButton(
+                        com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                             onClick = {
                                 showInlineAddAccountInSheet = !showInlineAddAccountInSheet
                                 com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
@@ -4948,12 +5135,12 @@ fun AddEditSubscriptionSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("RecurringAccountPicker_AddAccountToggle"),
-                            shape = RoundedCornerShape(12.dp)
+                            shapes = AppButtonDefaults.shapes()
                         ) {
                             Icon(
                                 imageVector = if (showInlineAddAccountInSheet) Icons.Default.Close else Icons.Default.Add,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(if (showInlineAddAccountInSheet) stringResource(R.string.btn_cancel) else stringResource(R.string.ui_main_add_account))
@@ -5039,7 +5226,6 @@ fun AddEditSubscriptionSheet(
                                         singleLine = true,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    val addAccountInteraction = remember { MutableInteractionSource() }
                                     CompletePressButton(
                                         onClick = {
                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
@@ -5066,13 +5252,14 @@ fun AddEditSubscriptionSheet(
                                             showInlineAddAccountInSheet = false
                                             showAccountPickerSheet = false
                                         },
-                                        shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                        interactionSource = addAccountInteraction,
-                                        modifier = Modifier
-                                            .height(48.dp)
-                                            .pressBounce(interactionSource = addAccountInteraction)
+                                        shapes = AppButtonDefaults.largeShapes(),
+                                        modifier = Modifier.height(48.dp)
                                     ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Icon(
+                                            Icons.Default.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                        )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text(stringResource(R.string.btn_save))
                                     }
@@ -5095,19 +5282,23 @@ fun AddEditSubscriptionSheet(
             DatePickerDialog(
                 onDismissRequest = { showDatePicker = false },
                 confirmButton = {
-                    TextButton(
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
                         onClick = {
                             datePickerState.selectedDateMillis?.let {
                                 nextPaymentDateState = it.fromDatePickerMillis().atStartOfDay(zone).toInstant().toEpochMilli()
                             }
                             showDatePicker = false
-                        }
+                        },
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     ) {
                         Text(stringResource(R.string.ui_recurring_select_date), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        onClick = { showDatePicker = false },
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                    ) {
                         Text(stringResource(R.string.btn_cancel))
                     }
                 }
@@ -5124,19 +5315,23 @@ fun AddEditSubscriptionSheet(
             DatePickerDialog(
                 onDismissRequest = { showInstallmentDatePicker = false },
                 confirmButton = {
-                    TextButton(
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
                         onClick = {
                             installmentDatePickerState.selectedDateMillis?.let {
                                 installmentFirstDueDate = it
                             }
                             showInstallmentDatePicker = false
-                        }
+                        },
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     ) {
                         Text(stringResource(R.string.ui_recurring_select_date), fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showInstallmentDatePicker = false }) {
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
+                        onClick = { showInstallmentDatePicker = false },
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                    ) {
                         Text(stringResource(R.string.btn_cancel))
                     }
                 }
@@ -5447,10 +5642,10 @@ fun DeleteSubscriptionConfirmDialog(
         },
         confirmButton = {
             if (pastCount == 0) {
-                Button(
+                com.example.vibefinance.ui.components.CompletePressButton(
                     onClick = { onConfirm(false) },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(12.dp),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     elevation = AppButtonDefaults.elevation(),
                 ) {
                     Text(stringResource(R.string.delete_sub_confirm_single))
@@ -5458,9 +5653,9 @@ fun DeleteSubscriptionConfirmDialog(
             }
         },
         dismissButton = {
-            TextButton(
+            com.example.vibefinance.ui.components.CompletePressTextButton(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp)
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
             ) {
                 Text(stringResource(R.string.btn_cancel))
             }

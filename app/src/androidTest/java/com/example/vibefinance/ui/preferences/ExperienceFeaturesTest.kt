@@ -24,6 +24,22 @@ import org.junit.runner.RunWith
 class ExperienceFeaturesTest {
     @get:Rule val rule = createComposeRule()
     private fun at(date: String) = LocalDate.parse(date).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    /** Types into the expanded M3E search view (focusing the pinned bar expands it), then collapses it. */
+    private fun searchFor(text: String) {
+        rule.onAllNodesWithTag("HistorySearch").onFirst().performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag("HistorySearchNavBack").fetchSemanticsNodes().isNotEmpty() &&
+                rule.onAllNodes(hasTestTag("HistorySearch") and hasSetTextAction()).fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onAllNodes(hasTestTag("HistorySearch") and hasSetTextAction()).onLast().performTextReplacement(text)
+        rule.waitForIdle()
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        androidx.test.espresso.Espresso.pressBack()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag("HistorySearchNavBack").fetchSemanticsNodes().isEmpty() &&
+                rule.onAllNodesWithTag("HistorySearchExpandedPanel").fetchSemanticsNodes().isEmpty()
+        }
+    }
     @Test fun searchAccountCategoryAmountAndDateIntersectAndClearTogether() {
         val accounts = listOf(AccountEntity(id = 1, name = "Daily Visa", type = AccountType.CC, balance = 10.0, icon = "cc"), AccountEntity(id = 2, name = "Cash", type = AccountType.CASH, balance = 20.0, icon = "wallet"))
         val rows = listOf(TransactionEntity(1, 10.0, "Food", at("2026-09-01"), 1, description = "Coffee alpha"),
@@ -35,11 +51,19 @@ class ExperienceFeaturesTest {
             rule.waitUntil(5_000) { rule.onAllNodesWithTag(tag).fetchSemanticsNodes().size == 1 }
             rule.onNodeWithTag(tag).assertTextContains("$number", substring = true)
         }
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        count(3)
-        rule.onNodeWithTag("HistorySearch").performTextInput("coffee"); count(2)
-        rule.onNodeWithTag("HistoryFiltersToggle").performClick()
+        // Redesign item 3: the M3E search bar is always present; amount/date filters live in "More".
+        fun openSheet() {
+            rule.onNodeWithTag("HistoryChip_More").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isNotEmpty() }
+        }
+        fun closeSheet() {
+            rule.onNodeWithTag("HistoryFiltersClose").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isEmpty() }
+        }
+        rule.onNodeWithTag("HistorySearchBar").assertExists()
+        openSheet(); count(3); closeSheet()
+        searchFor("coffee")
+        openSheet(); count(2)
         rule.onNodeWithTag("HistoryAccountFilter").performScrollTo().performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryAccountFilter_1").fetchSemanticsNodes().size == 1 }
         rule.onNodeWithTag("HistoryAccountFilter_1").performClick(); count(1)
@@ -51,12 +75,12 @@ class ExperienceFeaturesTest {
         rule.onNodeWithTag("HistoryFrom").performScrollTo().performTextInput("2026-09-02"); count(0)
         androidx.test.espresso.Espresso.closeSoftKeyboard()
         rule.onNodeWithTag("HistoryClearFilters").performScrollTo().performClick(); count(3)
-        rule.onNodeWithTag("HistoryFiltersClose").performClick()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("HistorySearchOpen").performClick().assertIsNotSelected()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistorySearch").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
-        rule.onNodeWithTag("HistorySearchOpen").performClick(); count(3)
+        closeSheet()
+        // Clearing also empties the pinned search field.
+        rule.waitUntil(5_000) {
+            rule.onAllNodes(hasTestTag("HistorySearch") and hasText("coffee", substring = true)).fetchSemanticsNodes().isEmpty()
+        }
+        rule.onNodeWithTag("HistorySearchBar").assertExists()
     }
     /** Run with -e historyWorkbook true after copying the supplied workbook to targetContext.externalCacheDir/history-test.xlsx.
      * Uses the production importer and History screen in memory; never imports into the saved ledger.
@@ -86,17 +110,20 @@ class ExperienceFeaturesTest {
         val allTime = instrumentation.targetContext.getString(com.example.vibefinance.R.string.category_analytics_all_time)
         rule.onNode(hasText(allTime) and hasAnyAncestor(hasTestTag("CategoryAnalyticsRange"))).performClick()
         rule.onNodeWithTag("CategoryAnalyticsTotal").assertTextEquals("HK$ 52,831.49")
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
         fun count(number: Int) {
             val tag = if (rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isNotEmpty()) "HistoryFilterResultsCount" else "HistoryResultsCount"
             rule.waitUntil(5_000) { rule.onAllNodesWithTag(tag).fetchSemanticsNodes().size == 1 }
             rule.onNodeWithTag(tag).assertTextContains("$number", substring = true)
         }
-        count(868)
-        rule.onNodeWithTag("HistorySearch").performTextReplacement(target.description)
-        androidx.test.espresso.Espresso.closeSoftKeyboard()
-        rule.onNodeWithTag("HistoryFiltersToggle").performClick()
+        fun openSheet() {
+            rule.onNodeWithTag("HistoryChip_More").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isNotEmpty() }
+        }
+        openSheet(); count(868)
+        rule.onNodeWithTag("HistoryFiltersClose").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isEmpty() }
+        searchFor(target.description)
+        openSheet()
         rule.onNodeWithTag("HistoryAccountFilter").performScrollTo().performClick()
         val accountIndex = accounts.indexOfFirst { it.id == target.accountId } + 1
         rule.onNodeWithTag("HistoryAccountFilter_$accountIndex").performScrollTo().performClick()
@@ -108,74 +135,43 @@ class ExperienceFeaturesTest {
         count(expected)
         rule.onNodeWithTag("HistoryFiltersClose").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("HistorySearchOpen").performClick().assertIsNotSelected()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistorySearch").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
         rule.onNodeWithTag("CategoryAnalyticsHint").assertTextContains("$expected", substring = true)
-        rule.onNodeWithTag("HistorySearchOpen").performClick(); count(expected)
-        rule.onNodeWithTag("HistorySearch").assertTextContains(target.description)
-        androidx.test.espresso.Espresso.closeSoftKeyboard()
-        rule.onNodeWithTag("HistoryFiltersToggle").performClick()
+        rule.onAllNodesWithTag("HistorySearch").onFirst().assertTextContains(target.description)
+        openSheet(); count(expected)
         rule.onNodeWithTag("HistoryClearFilters").performScrollTo().performClick(); count(868)
         rule.onNodeWithTag("HistoryFiltersClose").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistoryFiltersSheet").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("HistorySearchOpen").performClick().assertIsNotSelected()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("HistorySearch").fetchSemanticsNodes().isEmpty() }
         rule.onNodeWithTag("CategoryAnalyticsTotal").assertTextEquals("HK$ 52,831.49")
     }
-    /** Verified inline opening/closing, focused toggle and filter entry with ARTEMIS first.
-     * The Compose clock verifies intermediate frames without changing any device animation setting.
-     */
-    @Test fun inlineSearchMovesAboveBudgetCardAndCanReverseItsTransition() {
+    /** Redesign item 3: the M3E search bar is pinned above the cards, with filter chips under it. */
+    @Test fun pinnedSearchBarAndChipsSitAboveTheBudgetCard() {
         val budget = com.example.vibefinance.data.repository.DailyBudgetInfo(100.0, 0.0, 100.0, 10.0, 10.0, 10,
             at("2026-09-01"), at("2026-09-30"))
         rule.setContent { MaterialTheme { HistoryScreen(FinanceUiState(isLoading = false, budgetInfo = budget), {}) } }
         rule.waitForIdle()
-        val initialTop = rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot.top
-        rule.mainClock.autoAdvance = false
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(96)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsSelected()
-        val enteringTop = rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot.top
-        rule.mainClock.advanceTimeBy(800)
-        val openTop = rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot.top
-        Assert.assertTrue("Cards move progressively during opening", enteringTop > initialTop && enteringTop < openTop)
-        val bar = rule.onNodeWithTag("HistorySearch").fetchSemanticsNode()
-        Assert.assertTrue("Search sits above the period card", bar.boundsInRoot.bottom <= openTop)
-        val openSearchTop = bar.positionInRoot.y
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(80)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsNotSelected()
-        val closingTop = rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot.top
-        Assert.assertTrue("Cards move progressively during closing", closingTop > initialTop && closingTop < openTop)
-        Assert.assertTrue("The bar exits upward", rule.onNodeWithTag("HistorySearch").fetchSemanticsNode().positionInRoot.y < openSearchTop)
-        // Reverse while exit is still running; the new target must win without a second touch.
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(800)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsSelected()
-        rule.onNodeWithTag("HistorySearch").assertIsDisplayed()
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(400)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsNotSelected()
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
-        Assert.assertEquals(initialTop, rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot.top, 1f)
-        rule.mainClock.autoAdvance = true
+        val bar = rule.onNodeWithTag("HistorySearchBar").fetchSemanticsNode().boundsInRoot
+        val chips = rule.onNodeWithTag("HistoryFilterChips").fetchSemanticsNode().boundsInRoot
+        val card = rule.onNodeWithTag("HistoryBudgetPeriod").fetchSemanticsNode().boundsInRoot
+        Assert.assertTrue("Chips sit under the search bar", chips.top >= bar.bottom)
+        Assert.assertTrue("Search header sits above the period card", chips.bottom <= card.top)
     }
-    @Test fun minimalMotionSearchToggleFinishesWithoutAnAnimatedDelay() {
+    @Test fun typeChipsFilterAndToggleBackUnderMinimalMotion() {
+        val accounts = listOf(AccountEntity(id = 1, name = "Cash", type = AccountType.CASH, balance = 20.0, icon = "wallet"))
+        val rows = listOf(TransactionEntity(1, 10.0, "Food", at("2026-09-01"), 1, description = "Lunch"),
+            TransactionEntity(2, -50.0, "Salary", at("2026-09-02"), 1, description = "Pay"))
         rule.setContent { CompositionLocalProvider(LocalExperience provides ExperiencePreferences(motion = MotionLevel.MINIMAL)) {
-            MaterialTheme { HistoryScreen(FinanceUiState(isLoading = false), {}) }
+            MaterialTheme { HistoryScreen(FinanceUiState(isLoading = false, accounts = accounts, transactions = rows), {}) }
         } }
         rule.waitForIdle()
-        rule.mainClock.autoAdvance = false
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(32)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsSelected()
-        rule.onNodeWithTag("HistorySearch").assertIsDisplayed()
-        rule.onNodeWithTag("HistorySearchOpen").performClick()
-        rule.mainClock.advanceTimeBy(32)
-        rule.onNodeWithTag("HistorySearchOpen").assertIsNotSelected()
-        rule.onNodeWithTag("HistorySearch").assertDoesNotExist()
-        rule.mainClock.autoAdvance = true
+        rule.onNodeWithTag("HistoryChip_ALL").assertIsSelected()
+        rule.onNodeWithTag("HistoryChip_INCOME").performClick()
+        rule.onNodeWithTag("HistoryChip_INCOME").assertIsSelected()
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText("Lunch")).fetchSemanticsNodes().isEmpty() }
+        rule.onAllNodes(hasText("Pay")).onFirst().assertExists()
+        // Tapping the selected type again returns to all records.
+        rule.onNodeWithTag("HistoryChip_INCOME").performClick()
+        rule.onNodeWithTag("HistoryChip_ALL").assertIsSelected()
+        rule.waitUntil(5_000) { rule.onAllNodes(hasText("Lunch")).fetchSemanticsNodes().isNotEmpty() }
     }
     @Test fun hiddenAmountsDisappearFromTextSemanticsAndReturnOnReveal() {
         var hidden by mutableStateOf(false)

@@ -96,7 +96,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import com.example.vibefinance.ui.components.rememberSheetDismissAction
 import androidx.compose.material3.HorizontalDivider
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -310,7 +310,6 @@ fun SettingsSheet(
                 )
             },
             confirmButton = {
-                val confirmInteraction = remember { MutableInteractionSource() }
                 CompletePressButton(
                     onClick = {
                         VibeHaptics.warningAlert(view)
@@ -318,24 +317,19 @@ fun SettingsSheet(
                         showResetConfirmDialog = false
                         onDismiss()
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = confirmInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = confirmInteraction),
+                    shapes = AppButtonDefaults.shapes(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.btn_confirm), color = MaterialTheme.colorScheme.onError, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                val dismissInteraction = remember { MutableInteractionSource() }
                 CompletePressTextButton(
                     onClick = {
                         VibeHaptics.lightTick(view)
                         showResetConfirmDialog = false
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = dismissInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = dismissInteraction)
+                    shapes = AppButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
@@ -1152,10 +1146,14 @@ fun SettingsSheet(
                         Spacer(Modifier.height(12.dp))
                         CompletePressFilledTonalButton(
                             onClick = { VibeHaptics.lightTick(view); showCategoryManager = true },
-                            shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                            shapes = AppButtonDefaults.largeShapes(),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                         ) {
-                            Icon(Icons.Default.Category, null, Modifier.size(20.dp))
+                            Icon(
+                                Icons.Default.Category,
+                                null,
+                                Modifier.size(20.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                            )
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.category_merge_title))
                         }
@@ -1229,14 +1227,14 @@ fun SettingsSheet(
                             stringResource(R.string.settings_period_ends_format, endTextFormatted, days)
                         } else endTextFormatted
 
-                        Button(
+                        CompletePressButton(
                             onClick = { VibeHaptics.lightTick(view); onOpenDatePicker() },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 contentColor = MaterialTheme.colorScheme.onSurface
                             ),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                            shape = RoundedCornerShape(16.dp),
+                            shapes = AppButtonDefaults.largeShapes(),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp),
@@ -1246,7 +1244,7 @@ fun SettingsSheet(
                                 imageVector = Icons.Default.DateRange,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
@@ -1295,13 +1293,13 @@ fun SettingsSheet(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Start New Period Action Button
-                        OutlinedButton(
+                        com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                             onClick = {
                                 VibeHaptics.lightTick(view)
                                 onDismiss()
                                 onOpenNewPeriod()
                             },
-                            shape = RoundedCornerShape(16.dp),
+                            shapes = AppButtonDefaults.largeShapes(),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1311,7 +1309,7 @@ fun SettingsSheet(
                                 imageVector = Icons.Filled.AutoAwesome,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -1385,27 +1383,24 @@ fun SettingsSheet(
                             backupActions()
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            val importInteraction = remember { MutableInteractionSource() }
                             CompletePressFilledTonalButton(
                                 onClick = {
                                     VibeHaptics.lightTick(view)
                                     filePickerLauncher.launch("*/*")
                                 },
-                                shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(16.dp), pressedShape = RoundedCornerShape(12.dp)),
+                                shapes = AppButtonDefaults.largeShapes(),
                                 colors = ButtonDefaults.filledTonalButtonColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                                     contentColor = MaterialTheme.colorScheme.primary
                                 ),
-                                interactionSource = importInteraction,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
-                                    .pressBounce(interactionSource = importInteraction)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.UploadFile,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -1422,13 +1417,13 @@ fun SettingsSheet(
                         )
 
                         Column(Modifier.padding(horizontal = 12.dp)) {
-                            OutlinedButton(
+                            com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                                 onClick = { VibeHaptics.warningAlert(view); showResetConfirmDialog = true },
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                                shape = RoundedCornerShape(16.dp),
+                                shapes = AppButtonDefaults.largeShapes(),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
@@ -1436,7 +1431,7 @@ fun SettingsSheet(
                                 Icon(
                                     imageVector = Icons.Filled.Refresh,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
@@ -1470,7 +1465,7 @@ fun SettingsSheet(
     if (drawerState != null) {
         settingsContent()
     } else {
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { dismissAfterSave() },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,

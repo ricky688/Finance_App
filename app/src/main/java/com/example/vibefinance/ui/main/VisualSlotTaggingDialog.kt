@@ -3,6 +3,9 @@
 package com.example.vibefinance.ui.main
 
 import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressFilledTonalButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -250,31 +253,34 @@ fun VisualSlotTaggingDialog(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    FilledTonalButton(
+                                    CompletePressFilledTonalButton(
                                         onClick = {
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.AMOUNT)
                                             selectedTokenIndex = null
                                         },
+                                        shapes = AppButtonDefaults.shapes(),
                                         modifier = Modifier.weight(1f),
                                         elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
                                         Text("💰 金額", style = MaterialTheme.typography.labelSmall)
                                     }
-                                    FilledTonalButton(
+                                    CompletePressFilledTonalButton(
                                         onClick = {
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.MERCHANT)
                                             selectedTokenIndex = null
                                         },
+                                        shapes = AppButtonDefaults.shapes(),
                                         modifier = Modifier.weight(1f),
                                         elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
                                         Text("🏪 商戶", style = MaterialTheme.typography.labelSmall)
                                     }
-                                    FilledTonalButton(
+                                    CompletePressFilledTonalButton(
                                         onClick = {
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.CARD_LAST4)
                                             selectedTokenIndex = null
                                         },
+                                        shapes = AppButtonDefaults.shapes(),
                                         modifier = Modifier.weight(1f),
                                         elevation = AppButtonDefaults.tonalElevation(),
                                     ) {
@@ -283,11 +289,12 @@ fun VisualSlotTaggingDialog(
                                 }
                                 if (activeToken.slot != SlotType.NONE) {
                                     Spacer(Modifier.height(6.dp))
-                                    TextButton(
+                                    CompletePressTextButton(
                                         onClick = {
                                             tokens[activeToken.index] = activeToken.copy(slot = SlotType.NONE)
                                             selectedTokenIndex = null
                                         },
+                                        shapes = AppButtonDefaults.shapes(),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(stringResource(R.string.vst_clear_slot), style = MaterialTheme.typography.labelSmall)
@@ -378,7 +385,7 @@ fun VisualSlotTaggingDialog(
             }
         },
         confirmButton = {
-            Button(
+            CompletePressButton(
                 onClick = {
                     val template = NotificationTemplate.compileFromTokens(
                         tokens = tokens,
@@ -389,13 +396,17 @@ fun VisualSlotTaggingDialog(
                     )
                     onSaveAndApply(template, previewResult)
                 },
+                shapes = AppButtonDefaults.shapes(),
                 elevation = AppButtonDefaults.elevation(),
             ) {
                 Text(stringResource(R.string.vst_save_and_apply), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            CompletePressTextButton(
+                onClick = onDismiss,
+                shapes = AppButtonDefaults.shapes(),
+            ) {
                 Text(stringResource(R.string.btn_cancel))
             }
         }

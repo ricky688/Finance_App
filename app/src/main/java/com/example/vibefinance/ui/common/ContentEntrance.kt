@@ -36,9 +36,26 @@ import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
+/**
+ * Holds staggered entrances back until a shared element has landed (for example the card flying
+ * into the asset editor), so the shared element moves first and the content follows.
+ */
+internal val LocalEntranceGate = staticCompositionLocalOf<State<Boolean>?> { null }
+
+/** True where a parent already runs the staggered entrance (a large-screen add pane). */
+internal val LocalContentEntranceDisabled = staticCompositionLocalOf { false }
+
 /** Kept by the page so lazy disposal and financial-data updates cannot replay an arrival. */
 internal class ContentEntranceState {
     val revealed = mutableStateMapOf<String, Boolean>()
+    private var batchOrder = 0
+
+    fun resolveDelayMillis(explicitDelayMillis: Int): Int {
+        if (explicitDelayMillis > 0) return explicitDelayMillis.coerceIn(0, 110)
+        val step = (batchOrder % 5) * 15
+        batchOrder++
+        return step
+    }
 }
 
 /** Measures the unchanged slot; only its painted content fades and moves. */
@@ -55,16 +72,18 @@ internal fun ContentEntrance(
     val reducedMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion !=
         com.example.vibefinance.ui.preferences.MotionLevel.FULL
     val isRevealed = state.revealed[id] == true
-    if (reducedMotion || isRevealed) {
+    if (reducedMotion || isRevealed || LocalContentEntranceDisabled.current) {
         Box(modifier = modifier.fillMaxWidth().testTag("$tagPrefix:$id")) { content() }
         return
     }
+    val effectiveDelay = remember(id, state, delayMillis) { state.resolveDelayMillis(delayMillis) }
     val progress = remember(id, state) { Animatable(0f) }
     var bounds by remember(id) { mutableStateOf(Rect.Zero) }
     val currentViewport by rememberUpdatedState(viewport)
     val minimumVisibleHeight = with(LocalDensity.current) { 32.dp.toPx() }
-    val travel = with(LocalDensity.current) { 20.dp.toPx() }
+    val travel = with(LocalDensity.current) { 24.dp.toPx() }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val gate = LocalEntranceGate.current
 
     LaunchedEffect(id, state, lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -72,6 +91,7 @@ internal fun ContentEntrance(
                 progress.snapTo(1f)
                 return@repeatOnLifecycle
             }
+            gate?.let { open -> snapshotFlow { open.value }.first { it } }
             // Prefetch composes content before it is visible. Wait for actual window overlap,
             // including children of grouped items, before consuming its entrance.
             snapshotFlow {
@@ -87,7 +107,7 @@ internal fun ContentEntrance(
                 progress.snapTo(1f)
                 state.revealed[id] = true
             } else {
-                delay((delayMillis.coerceIn(0, 110) * durationScale).toLong())
+                delay((effectiveDelay * durationScale).toLong())
                 progress.animateTo(1f, tween(durationMillis = 320, easing = LinearOutSlowInEasing))
                 state.revealed[id] = true
             }

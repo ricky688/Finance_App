@@ -22,6 +22,7 @@ enum class InterceptableApp(
         defaultEnabled = true,
         packageKeywords = listOf(
             "com.samsung.android.spay",
+            "com.samsung.android.samsungpay",
             "com.samsung.android.raja.spay",
             "com.samsung.android.spaymini",
             "com.samsung.android.samsungpay.gear"
@@ -137,7 +138,8 @@ enum class InterceptableApp(
         if (isShell) {
             val hasIdentifier = id.replace("_", " ").lowercase(Locale.US).split(" ").any { 
                 lowerTitle.contains(it) || lowerText.contains(it) 
-            } || (id == "octopus" && (lowerTitle.contains("八達通") || lowerText.contains("八達通")))
+            } || (id == "octopus" && (lowerTitle.contains("八達通") || lowerText.contains("八達通"))) ||
+                (this == SAMSUNG_PAY && (lowerTitle.contains("card") || lowerTitle.contains("enjoy")))
             if (!hasIdentifier && requiredTitleKeywords.none { lowerTitle.contains(it.lowercase(Locale.US)) }) {
                 return false
             }

@@ -556,4 +556,12 @@ class HomeScreenBentoTest {
         assertEquals(null, resolveStackedBentoTiles(320.dp, 16.dp, 1f))
         assertEquals(null, resolveStackedBentoTiles(353.dp, 16.dp, 1.3f))
     }
+
+    @Test
+    fun categoryLegendStacksCategoryAboveAmount_whenCardWidthNarrow() {
+        assertTrue(shouldStackCategoryLegendItem(cardWidth = 276.dp, fontScale = 1f))
+        assertTrue(shouldStackCategoryLegendItem(cardWidth = 350.dp, fontScale = 1f))
+        assertFalse(shouldStackCategoryLegendItem(cardWidth = 400.dp, fontScale = 1f))
+        assertTrue(shouldStackCategoryLegendItem(cardWidth = 400.dp, fontScale = 1.3f))
+    }
 }

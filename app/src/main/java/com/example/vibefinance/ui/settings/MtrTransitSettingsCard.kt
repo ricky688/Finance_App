@@ -378,7 +378,10 @@ fun MtrTransitSettingsCard(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAccountDialog = false }) {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { showAccountDialog = false },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) {
                     Text("完成")
                 }
             }

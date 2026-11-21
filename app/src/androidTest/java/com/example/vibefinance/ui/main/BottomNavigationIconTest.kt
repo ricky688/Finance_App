@@ -232,6 +232,27 @@ class BottomNavigationIconTest {
         rule.onNodeWithTag("Item_HISTORY").assertIsSelected()
     }
 
+    @Test fun rapidTabSwitchAllowsBothIconAnimationsToContinue() {
+        show()
+        val recurringBaseline = image(TabItem.RECURRING)
+        val historyBaseline = image(TabItem.HISTORY)
+        rule.onNodeWithTag("Item_RECURRING").performClick(); advance(128)
+        val recurringMidFirst = image(TabItem.RECURRING)
+        assertTrue("First tab must be animating before switch", changed(recurringBaseline, recurringMidFirst) > 0)
+
+        // Quickly switch to HISTORY while RECURRING is still spinning.
+        rule.onNodeWithTag("Item_HISTORY").performClick(); advance(128)
+        val recurringAfterSwitch = image(TabItem.RECURRING)
+        val historyAfterSwitch = image(TabItem.HISTORY)
+        assertTrue("Original tab animation must continue instead of snapping back", changed(recurringMidFirst, recurringAfterSwitch) > 0)
+        assertTrue("Original tab must still be mid-flight rather than snapped to rest", changed(recurringBaseline, recurringAfterSwitch) > 0)
+        assertTrue("Newly pressed tab must also animate concurrently", changed(historyBaseline, historyAfterSwitch) > 0)
+
+        advance(1800)
+        assertEquals("Original tab settles cleanly to rest", 0, changed(recurringBaseline, image(TabItem.RECURRING)))
+        assertEquals("New tab settles cleanly to rest", 0, changed(historyBaseline, image(TabItem.HISTORY)))
+    }
+
     @Test fun reselectingAlreadySelectedTabReplaysAnimation() {
         show()
         // Select recurring and wait to settle

@@ -59,8 +59,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
-import androidx.compose.material3.Slider
+import com.example.vibefinance.ui.components.AppModalBottomSheet
+import com.example.vibefinance.ui.components.AppSlider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -287,7 +287,7 @@ internal fun AppearancePickerSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dismissSheet = rememberSheetDismissAction(sheetState)
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -534,7 +534,7 @@ internal fun AppearancePickerSheet(
                                 .padding(horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Slider(
+                            AppSlider(
                                 value = state.appearanceContrast.toFloat(),
                                 onValueChange = {
                                     if (state.dynamicColorEnabled) {
@@ -665,21 +665,18 @@ internal fun AppearancePickerSheet(
                     )
                 }
 
-                val closeInteraction = remember { MutableInteractionSource() }
                 CompletePressButton(
                     onClick = {
                         VibeHaptics.lightTick(view)
                         dismissSheet(onDismiss)
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
-                    interactionSource = closeInteraction,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier
                         .height(48.dp)
-                        .pressBounce(interactionSource = closeInteraction)
                 ) {
                     Text(
                         text = stringResource(R.string.btn_close),

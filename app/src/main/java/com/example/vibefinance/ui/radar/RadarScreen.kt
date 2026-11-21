@@ -1,6 +1,7 @@
 package com.example.vibefinance.ui.radar
 
 import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.AppSlider
 
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.animation.*
@@ -390,7 +391,7 @@ fun RadarScreen(
                                 )
                             }
 
-                            Slider(
+                            AppSlider(
                                 value = scanRadiusMeters,
                                 onValueChange = { scanRadiusMeters = it },
                                 valueRange = 200f..5000f,
@@ -441,8 +442,15 @@ fun RadarScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        TextButton(onClick = { showAddShopSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        com.example.vibefinance.ui.components.CompletePressTextButton(
+                            onClick = { showAddShopSheet = true },
+                            shapes = AppButtonDefaults.shapes(),
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                            )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(stringResource(R.string.ui_radar_add_shop), fontWeight = FontWeight.Bold)
                         }
@@ -509,12 +517,16 @@ fun RadarScreen(
                                 modifier = Modifier.fillMaxWidth(0.9f)
                             )
 
-                            Button(
+                            com.example.vibefinance.ui.components.CompletePressButton(
                                 onClick = { showAddShopSheet = true },
-                                shape = RoundedCornerShape(12.dp),
+                                shapes = AppButtonDefaults.shapes(),
                                 elevation = AppButtonDefaults.elevation(),
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null)
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(stringResource(R.string.ui_radar_add_discount_shop))
                             }
@@ -910,16 +922,20 @@ private fun DiscountShopCardItem(
                         Spacer(modifier = Modifier.width(8.dp))
                     }
 
-                    Button(
+                    com.example.vibefinance.ui.components.CompletePressButton(
                         onClick = {
                             val cardId = bestCard?.id ?: accounts.firstOrNull()?.id ?: 1L
                             onLogSpendClick(shop.name, shop.aspect, cardId)
                         },
-                        shape = RoundedCornerShape(12.dp),
+                        shapes = AppButtonDefaults.shapes(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         elevation = AppButtonDefaults.elevation(),
                     ) {
-                        Icon(Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.AddCard,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(stringResource(R.string.ui_radar_log_spend), fontWeight = FontWeight.Bold)
                     }

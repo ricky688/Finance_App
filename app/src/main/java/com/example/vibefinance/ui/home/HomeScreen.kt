@@ -16,6 +16,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
@@ -50,6 +51,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -96,11 +98,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.carousel.HorizontalUncontainedCarousel
@@ -111,16 +110,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.rememberDateRangePickerState
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -194,6 +195,14 @@ fun shouldStackBento(
     if (maxTextWidth > candidateAvailableWidthPx) return true
     if (fontScale > 1.25f && maxTextWidth > candidateAvailableWidthPx * 0.85f) return true
     return false
+}
+
+/**
+ * Determines whether CategoryDonutChart legend items should stack the category name
+ * above the expense amount when the card width is too narrow for side-by-side display.
+ */
+fun shouldStackCategoryLegendItem(cardWidth: Dp, fontScale: Float = 1f): Boolean {
+    return cardWidth < 380.dp * fontScale.coerceIn(1f, 1.35f)
 }
 
 @Composable
@@ -404,7 +413,9 @@ fun HomeScreen(
     onPayCard: (Long) -> Unit = {},
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset },
-    useRail: Boolean = false
+    useRail: Boolean = false,
+    /** Large screens: the add-transaction editor, shown in place of the right column while non-null. */
+    addPane: (@Composable () -> Unit)? = null
 ) {
     val budgetInfo = state.budgetInfo ?: DailyBudgetInfo(
         totalMonthlyBudget = 0.0,
@@ -504,23 +515,41 @@ fun HomeScreen(
                     val rightKeys = remember(effectiveCardOrder) {
                         effectiveCardOrder.filter { it !in LEFT_COLUMN_CARD_KEYS }
                     }
+                    val rightColumnCards = remember(rightKeys) {
+                        rightKeys.filter { it != "daily-calendar" }
+                    }
+                    val fullWidthSpanCards = remember(effectiveCardOrder) {
+                        effectiveCardOrder.filter { it == "daily-calendar" }
+                    }
 
+                    // The editor replaces the right column: the column's cards fade away underneath it.
+                    val showAddPane = isDualColumn && addPane != null
+                    var lastAddPane by remember { mutableStateOf(addPane) }
+                    if (addPane != null) lastAddPane = addPane
+                    val rightColumnAlpha = animateFloatAsState(
+                        if (showAddPane) 0f else 1f, com.example.vibefinance.theme.VibeMotion.defaultEffects(),
+                        label = "dailyRightColumnAlpha"
+                    )
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.TopCenter
                     ) {
+                      Box(
+                          modifier = Modifier
+                              .fillMaxHeight()
+                              // Desktop-class windows (>=1600dp) get a wider canvas so the two
+                              // semantic Bento panes breathe instead of floating in a narrow band.
+                              .widthIn(max = when {
+                                  availableWidth >= 1600.dp -> 1440.dp
+                                  isDualColumn -> 1240.dp
+                                  else -> 680.dp
+                              })
+                              .fillMaxWidth()
+                      ) {
                         LazyColumn(
                             state = listState,
                             modifier = Modifier
-                                .fillMaxHeight()
-                                // Desktop-class windows (>=1600dp) get a wider canvas so the two
-                                // semantic Bento panes breathe instead of floating in a narrow band.
-                                .widthIn(max = when {
-                                    availableWidth >= 1600.dp -> 1440.dp
-                                    isDualColumn -> 1240.dp
-                                    else -> 680.dp
-                                })
-                                .fillMaxWidth()
+                                .fillMaxSize()
                                 .testTag("DailyCardsList"),
                             contentPadding = PaddingValues(top = topContentPadding),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -560,11 +589,12 @@ fun HomeScreen(
                                                 )
                                             }
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                TextButton(
+                                                com.example.vibefinance.ui.components.CompletePressTextButton(
                                                     onClick = {
                                                         com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                                         onIntent(com.example.vibefinance.ui.FinanceIntent.ResetDailyCardOrder)
-                                                    }
+                                                    },
+                                                    shapes = AppButtonDefaults.shapes(),
                                                 ) {
                                                     Text(
                                                         text = stringResource(R.string.loc_reset),
@@ -573,11 +603,12 @@ fun HomeScreen(
                                                         color = MaterialTheme.colorScheme.onPrimaryContainer
                                                     )
                                                 }
-                                                FilledTonalButton(
+                                                com.example.vibefinance.ui.components.CompletePressFilledTonalButton(
                                                     onClick = {
                                                         com.example.vibefinance.util.VibeHaptics.successConfirm(hapticView)
                                                         isEditMode = false
                                                     },
+                                                    shapes = AppButtonDefaults.shapes(),
                                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
                                                     modifier = Modifier.height(34.dp),
                                                     elevation = AppButtonDefaults.tonalElevation(),
@@ -596,6 +627,26 @@ fun HomeScreen(
 
                             if (isDualColumn) {
                                 item(key = "daily-dual-column-body") {
+                                    val density = LocalDensity.current
+                                    var leftColumnHeightPx by remember { mutableIntStateOf(0) }
+                                    var rightHeaderHeightPx by remember { mutableIntStateOf(0) }
+                                    val otherRightCardHeights = remember { mutableStateMapOf<String, Int>() }
+                                    val columnSpacingPx = with(density) { 16.dp.roundToPx() }
+                                    val rightHeaderTotalPx = if (useRail && rightHeaderHeightPx > 0) rightHeaderHeightPx + columnSpacingPx else 0
+                                    val otherRightCardsTotalPx = rightColumnCards
+                                        .filter { it != "daily-category-chart" }
+                                        .sumOf { otherRightCardHeights[it] ?: 0 }
+                                    val rightGapsTotalPx = (rightColumnCards.size - 1).coerceAtLeast(0) * columnSpacingPx
+                                    val categoryChartMinHeight = if (!isEditMode && leftColumnHeightPx > 0 && "daily-category-chart" in rightColumnCards) {
+                                        with(density) {
+                                            (leftColumnHeightPx - rightHeaderTotalPx - otherRightCardsTotalPx - rightGapsTotalPx)
+                                                .coerceAtLeast(0)
+                                                .toDp()
+                                        }
+                                    } else {
+                                        0.dp
+                                    }
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -607,17 +658,20 @@ fun HomeScreen(
                                         Column(
                                             modifier = Modifier
                                                 .weight(1f)
+                                                .onSizeChanged { leftColumnHeightPx = it.height }
                                                 .testTag("DailyLeftColumn"),
                                             verticalArrangement = Arrangement.spacedBy(16.dp)
                                         ) {
                                             if (useRail) {
-                                                DualColumnPaneHeader(
-                                                    title = stringResource(R.string.dual_column_left_title),
-                                                    subtitle = stringResource(R.string.dual_column_left_subtitle),
-                                                    modifier = Modifier
-                                                        .padding(bottom = 2.dp)
-                                                        .testTag("DualColumnLeftHeader")
-                                                )
+                                                com.example.vibefinance.ui.common.PageContentEntrance("dual-left-header") {
+                                                    DualColumnPaneHeader(
+                                                        title = stringResource(R.string.dual_column_left_title),
+                                                        subtitle = stringResource(R.string.dual_column_left_subtitle),
+                                                        modifier = Modifier
+                                                            .padding(bottom = 2.dp)
+                                                            .testTag("DualColumnLeftHeader")
+                                                    )
+                                                }
                                             }
 
                                             leftKeys.forEachIndexed { index, cardKey ->
@@ -633,7 +687,7 @@ fun HomeScreen(
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                                             val newLeft = leftKeys.toMutableList()
                                                             java.util.Collections.swap(newLeft, index, index - 1)
-                                                            val newOrder = newLeft + rightKeys
+                                                            val newOrder = newLeft + rightColumnCards + fullWidthSpanCards
                                                             onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
                                                         }
                                                     },
@@ -642,7 +696,7 @@ fun HomeScreen(
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                                                             val newLeft = leftKeys.toMutableList()
                                                             java.util.Collections.swap(newLeft, index, index + 1)
-                                                            val newOrder = newLeft + rightKeys
+                                                            val newOrder = newLeft + rightColumnCards + fullWidthSpanCards
                                                             onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
                                                         }
                                                     }
@@ -667,81 +721,93 @@ fun HomeScreen(
                                         Column(
                                             modifier = Modifier
                                                 .weight(1f)
+                                                .graphicsLayer { alpha = rightColumnAlpha.value }
                                                 .testTag("DailyRightColumn"),
                                             verticalArrangement = Arrangement.spacedBy(16.dp)
                                         ) {
                                             if (useRail) {
-                                                DualColumnPaneHeader(
-                                                    title = stringResource(R.string.dual_column_right_title),
-                                                    subtitle = stringResource(R.string.dual_column_right_subtitle),
-                                                    modifier = Modifier
-                                                        .padding(bottom = 2.dp)
-                                                        .testTag("DualColumnRightHeader"),
-                                                    actions = {
-                                                        // Custom Bento Layout Toggle
-                                                        FilledTonalIconButton(
-                                                            onClick = {
-                                                                com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                                                isEditMode = !isEditMode
-                                                            },
-                                                            modifier = Modifier.size(36.dp).testTag("DualColumnCustomLayoutBtn"),
-                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                                                containerColor = if (isEditMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
-                                                                contentColor = if (isEditMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.DashboardCustomize,
-                                                                contentDescription = stringResource(R.string.loc_custom_bento_layout),
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
-                                                        }
+                                                com.example.vibefinance.ui.common.PageContentEntrance("dual-right-header", delayMillis = 20) {
+                                                    DualColumnPaneHeader(
+                                                        title = stringResource(R.string.dual_column_right_title),
+                                                        subtitle = stringResource(R.string.dual_column_right_subtitle),
+                                                        modifier = Modifier
+                                                            .onSizeChanged { rightHeaderHeightPx = it.height }
+                                                            .padding(bottom = 2.dp)
+                                                            .testTag("DualColumnRightHeader"),
+                                                        actions = {
+                                                            // Custom Bento Layout Toggle
+                                                            FilledTonalIconButton(
+                                                                onClick = {
+                                                                    com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                                                                    isEditMode = !isEditMode
+                                                                },
+                                                                modifier = Modifier.size(36.dp).testTag("DualColumnCustomLayoutBtn"),
+                                                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                    containerColor = if (isEditMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                                                                    contentColor = if (isEditMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.DashboardCustomize,
+                                                                    contentDescription = stringResource(R.string.loc_custom_bento_layout),
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
 
-                                                        // Recalculate Daily Budget
-                                                        FilledTonalIconButton(
-                                                            onClick = {
-                                                                com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
-                                                                onOpenRecalcSheet()
-                                                            },
-                                                            modifier = Modifier.size(36.dp).testTag("DualColumnRecalcBtn"),
-                                                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
-                                                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Default.Refresh,
-                                                                contentDescription = stringResource(R.string.btn_recalculate_budget),
-                                                                modifier = Modifier.size(18.dp)
-                                                            )
+                                                            // Recalculate Daily Budget
+                                                            FilledTonalIconButton(
+                                                                onClick = {
+                                                                    com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
+                                                                    onOpenRecalcSheet()
+                                                                },
+                                                                modifier = Modifier.size(36.dp).testTag("DualColumnRecalcBtn"),
+                                                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f),
+                                                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Refresh,
+                                                                    contentDescription = stringResource(R.string.btn_recalculate_budget),
+                                                                    modifier = Modifier.size(18.dp)
+                                                                )
+                                                            }
                                                         }
-                                                    }
-                                                )
+                                                    )
+                                                }
                                             }
 
-                                            rightKeys.forEachIndexed { index, cardKey ->
+                                            rightColumnCards.forEachIndexed { index, cardKey ->
                                                 DailyBentoCardWrapper(
                                                     title = resolveDailyCardTitle(cardKey),
                                                     index = index,
-                                                    totalCount = rightKeys.size,
+                                                    totalCount = rightColumnCards.size,
                                                     isEditMode = isEditMode,
-                                                    modifier = Modifier.testTag("DailyCard_$cardKey"),
+                                                    modifier = Modifier
+                                                        .then(
+                                                            if (cardKey != "daily-category-chart") {
+                                                                Modifier.onSizeChanged { otherRightCardHeights[cardKey] = it.height }
+                                                            } else {
+                                                                Modifier
+                                                            }
+                                                        )
+                                                        .testTag("DailyCard_$cardKey"),
                                                     onLongPress = { isEditMode = true },
                                                     onMoveUp = {
                                                         if (index > 0) {
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                                            val newRight = rightKeys.toMutableList()
+                                                            val newRight = rightColumnCards.toMutableList()
                                                             java.util.Collections.swap(newRight, index, index - 1)
-                                                            val newOrder = leftKeys + newRight
+                                                            val newOrder = leftKeys + newRight + fullWidthSpanCards
                                                             onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
                                                         }
                                                     },
                                                     onMoveDown = {
-                                                        if (index < rightKeys.size - 1) {
+                                                        if (index < rightColumnCards.size - 1) {
                                                             com.example.vibefinance.util.VibeHaptics.selection(hapticView)
-                                                            val newRight = rightKeys.toMutableList()
+                                                            val newRight = rightColumnCards.toMutableList()
                                                             java.util.Collections.swap(newRight, index, index + 1)
-                                                            val newOrder = leftKeys + newRight
+                                                            val newOrder = leftKeys + newRight + fullWidthSpanCards
                                                             onIntent(com.example.vibefinance.ui.FinanceIntent.SetDailyCardOrder(newOrder))
                                                         }
                                                     }
@@ -756,10 +822,38 @@ fun HomeScreen(
                                                         onOpenBudgetDialog = onOpenBudgetDialog,
                                                         onViewAllClick = onViewAllClick,
                                                         onCategoryClick = onCategoryClick,
-                                                        onPayCard = onPayCard
+                                                        onPayCard = onPayCard,
+                                                        categoryChartMinHeight = categoryChartMinHeight
                                                     )
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+                                fullWidthSpanCards.forEach { cardKey ->
+                                    item(key = cardKey) {
+                                        DailyBentoCardWrapper(
+                                            title = resolveDailyCardTitle(cardKey),
+                                            index = 0,
+                                            totalCount = 1,
+                                            isEditMode = isEditMode,
+                                            modifier = Modifier.fillMaxWidth().animateItem().testTag("DailyCard_$cardKey"),
+                                            onLongPress = { isEditMode = true },
+                                            onMoveUp = {},
+                                            onMoveDown = {}
+                                        ) {
+                                            DailyCardContent(
+                                                cardKey = cardKey,
+                                                budgetInfo = budgetInfo,
+                                                state = state,
+                                                periodExpenses = periodExpenses,
+                                                isDark = isDark,
+                                                onOpenRecalcSheet = onOpenRecalcSheet,
+                                                onOpenBudgetDialog = onOpenBudgetDialog,
+                                                onViewAllClick = onViewAllClick,
+                                                onCategoryClick = onCategoryClick,
+                                                onPayCard = onPayCard
+                                            )
                                         }
                                     }
                                 }
@@ -823,6 +917,27 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.height(100.dp))
                             }
                         }
+                        if (isDualColumn) {
+                            // Same split as the dual-column Row: the editor sits exactly on the right column.
+                            Row(
+                                Modifier.fillMaxSize().padding(top = topContentPadding, bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Spacer(Modifier.weight(1f))
+                                Box(Modifier.weight(1f).fillMaxHeight()) {
+                                    androidx.compose.animation.AnimatedVisibility(
+                                        visible = showAddPane,
+                                        // The editor arrives through its container transform (PaneContainerTransform).
+                                        enter = androidx.compose.animation.EnterTransition.None,
+                                        exit = androidx.compose.animation.slideOutHorizontally(
+                                            com.example.vibefinance.theme.VibeMotion.slowSpatial()
+                                        ) { it / 4 } + fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()),
+                                        modifier = Modifier.fillMaxSize().testTag("DailyAddPane")
+                                    ) { lastAddPane?.invoke() }
+                                }
+                            }
+                        }
+                      }
                     }
                 }
             }
@@ -842,7 +957,8 @@ private fun DailyCardContent(
     onViewAllClick: () -> Unit,
     onCategoryClick: (String) -> Unit,
     onPayCard: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    categoryChartMinHeight: Dp = 0.dp
 ) {
     when (cardKey) {
         "daily-hero" -> {
@@ -956,13 +1072,10 @@ private fun DailyCardContent(
                     }
 
                     if (shouldStack) {
-                        // Stacked: the remaining card takes the full row, so the square days card
-                        // joins the min/max pair in one Bento row instead of sitting alone.
-                        val stackedTiles = resolveStackedBentoTiles(
-                            maxWidth = bentoMaxWidth,
-                            bentoSpacing = bentoSpacing,
-                            fontScale = LocalDensity.current.fontScale
-                        )
+                        // Stacked Option B Bento mosaic: full-width remaining card above an asymmetric
+                        // 2-column mosaic with DaysLeftCard (left tall) and lowest/highest day cards stacked right.
+                        val mosaicSubCardHeight = 104.dp
+                        val mosaicTotalHeight = mosaicSubCardHeight * 2 + bentoSpacing
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(bentoSpacing),
@@ -983,40 +1096,60 @@ private fun DailyCardContent(
                                 )
                             }
 
-                            if (stackedTiles != null) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("DailyBentoTripleRow"),
-                                    horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    com.example.vibefinance.ui.common.PageContentEntrance(
-                                        "days", delayMillis = 110,
-                                        modifier = Modifier.size(stackedTiles)
-                                    ) {
-                                        DaysLeftCard(
-                                            modifier = Modifier.fillMaxSize(),
-                                            daysLeft = budgetInfo.daysLeft,
-                                            totalDays = totalPeriodDays
-                                        )
-                                    }
-                                    minMaxRow(Modifier.weight(1f), stackedTiles)
-                                }
-                            } else {
-                                // Ultra-narrow or very large text: three tiles cannot fit legibly.
-                                val stackedDaysSize = calculateStackedDaysSize(bentoMaxWidth)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(mosaicTotalHeight)
+                                    .testTag("DailyBentoTripleRow"),
+                                horizontalArrangement = Arrangement.spacedBy(bentoSpacing),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 com.example.vibefinance.ui.common.PageContentEntrance(
                                     "days", delayMillis = 110,
-                                    modifier = Modifier.size(stackedDaysSize)
+                                    modifier = Modifier
+                                        .weight(0.46f)
+                                        .fillMaxHeight()
                                 ) {
                                     DaysLeftCard(
                                         modifier = Modifier.fillMaxSize(),
                                         daysLeft = budgetInfo.daysLeft,
-                                        totalDays = totalPeriodDays
+                                        totalDays = totalPeriodDays,
+                                        enforceSquare = false
                                     )
                                 }
-                                minMaxRow(Modifier.fillMaxWidth(), 128.dp)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(0.54f)
+                                        .fillMaxHeight(),
+                                    verticalArrangement = Arrangement.spacedBy(bentoSpacing)
+                                ) {
+                                    com.example.vibefinance.ui.common.PageContentEntrance(
+                                        "lowest",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                    ) {
+                                        MinMaxSpentCard(
+                                            modifier = Modifier.fillMaxSize(),
+                                            isMin = true,
+                                            spends = periodExpenses,
+                                            isDarkTheme = isDark
+                                        )
+                                    }
+                                    com.example.vibefinance.ui.common.PageContentEntrance(
+                                        "highest", delayMillis = 40,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f)
+                                    ) {
+                                        MinMaxSpentCard(
+                                            modifier = Modifier.fillMaxSize(),
+                                            isMin = false,
+                                            spends = periodExpenses,
+                                            isDarkTheme = isDark
+                                        )
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -1076,7 +1209,8 @@ private fun DailyCardContent(
             com.example.vibefinance.ui.common.PageContentEntrance("category-chart", modifier = modifier) {
                 CategoryDonutChart(
                     state = state,
-                    onCategoryClick = onCategoryClick
+                    onCategoryClick = onCategoryClick,
+                    minHeight = categoryChartMinHeight
                 )
             }
         }
@@ -1191,7 +1325,8 @@ fun buildDailyCategoryColorMap(
 fun CategoryDonutChart(
     state: FinanceUiState,
     modifier: Modifier = Modifier,
-    onCategoryClick: (String) -> Unit = {}
+    onCategoryClick: (String) -> Unit = {},
+    minHeight: Dp = 0.dp
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f || isSystemInDarkTheme()
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -1250,271 +1385,355 @@ fun CategoryDonutChart(
         shape = cardShape,
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = minHeight)
             .testTag("DailyCategoryAnalyticsCard")
             .expressiveCardClickable(pressState, hoverEnabled = false) {}
             .animateContentSize(animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial())
             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), cardShape)
     ) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .heightIn(min = minHeight)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            val fontScale = LocalDensity.current.fontScale
+            val stackLegendItems = shouldStackCategoryLegendItem(maxWidth, fontScale)
+            val horizontalPadding = if (stackLegendItems) 16.dp else 20.dp
+            val donutSize = if (maxWidth < 300.dp) 104.dp else if (stackLegendItems) 110.dp else 118.dp
+            val contentSpacing = if (stackLegendItems) 10.dp else 12.dp
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = minHeight)
+                    .padding(horizontal = horizontalPadding, vertical = 20.dp),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .testTag("DailyCategoryAnalyticsTitle")
-                        .clickable(enabled = categorySpending.isNotEmpty()) {
-                            val target = selectedCategory ?: categorySpending.firstOrNull()?.first
-                            if (target != null) {
-                                onCategoryClick(target)
-                            }
-                        }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = stringResource(R.string.category_analytics_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = stringResource(R.string.loc_category_details),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-                }
-                AnimatedVisibility(
-                    visible = selectedCategory != null,
-                    enter = fadeIn(animationSpec = MotionTokens.standardEnter()) + expandVertically(animationSpec = MotionTokens.emphasizedEnter()),
-                    exit = fadeOut(animationSpec = MotionTokens.standardExit()) + shrinkVertically(animationSpec = MotionTokens.emphasizedExit())
-                ) {
-                    Text(
-                        text = stringResource(R.string.reset_filter),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
+                    Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { selectedCategory = null }
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Interactive Animated Donut Chart Canvas
-                Box(
-                    modifier = Modifier
-                        .size(118.dp)
-                        .pointerInput(categorySpending, totalSpending) {
-                            detectTapGestures { offset ->
-                                if (totalSpending > 0) {
-                                    val cx = size.width / 2f
-                                    val cy = size.height / 2f
-                                    val dx = offset.x - cx
-                                    val dy = offset.y - cy
-                                    var angle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
-                                    var relAngle = (angle - (-90f)) % 360f
-                                    if (relAngle < 0f) relAngle += 360f
-
-                                    var currentAngle = 0f
-                                    for ((category, amount) in categorySpending) {
-                                        val sweep = ((amount / totalSpending) * 360f).toFloat()
-                                        if (relAngle >= currentAngle && relAngle < currentAngle + sweep) {
-                                            selectedCategory = category
-                                            onCategoryClick(category)
-                                            break
-                                        }
-                                        currentAngle += sweep
-                                    }
+                            .testTag("DailyCategoryAnalyticsTitle")
+                            .clickable(enabled = categorySpending.isNotEmpty()) {
+                                val target = selectedCategory ?: categorySpending.firstOrNull()?.first
+                                if (target != null) {
+                                    onCategoryClick(target)
                                 }
                             }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(
-                        modifier = Modifier.fillMaxSize()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        if (totalSpending == 0.0) {
-                            drawArc(
-                                color = Color.Gray.copy(alpha = 0.15f),
-                                startAngle = 0f,
-                                sweepAngle = 360f,
-                                useCenter = false,
-                                style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
-                            )
-                        } else {
-                            var startAngle = -90f
-                            categorySpending.forEach { (category, amount) ->
-                                val sweepAngle = ((amount / totalSpending) * 360f).toFloat()
-                                val color = categoryColors[category] ?: Color.Gray
-                                
-                                val (strokeState, alphaState) = categoryAnimProps[category]
-                                    ?: (mutableStateOf(16.dp) to mutableStateOf(1f))
-                                
-                                val animatedStrokePx = strokeState.value.toPx()
-                                val animatedAlpha = alphaState.value
-
-                                drawArc(
-                                    color = color.copy(alpha = animatedAlpha),
-                                    startAngle = startAngle,
-                                    sweepAngle = sweepAngle,
-                                    useCenter = false,
-                                    style = Stroke(width = animatedStrokePx, cap = StrokeCap.Round)
-                                )
-                                startAngle += sweepAngle
-                            }
-                        }
+                        Text(
+                            text = stringResource(R.string.category_analytics_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = stringResource(R.string.loc_category_details),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
                     }
-                    
-                    // Animated Center Content transition on focus/unfocus
-                    AnimatedContent(
-                        targetState = selectedCategory,
-                        transitionSpec = {
-                            (fadeIn(animationSpec = tween(220)) + scaleIn(initialScale = 0.85f))
-                                .togetherWith(fadeOut(animationSpec = tween(180)) + scaleOut(targetScale = 0.85f))
-                        },
-                        label = "centerDonutText"
-                    ) { currentCategory ->
-                        val selectedItem = categorySpending.find { it.first == currentCategory }
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                    AnimatedVisibility(
+                        visible = selectedCategory != null,
+                        enter = fadeIn(animationSpec = MotionTokens.standardEnter()) + expandVertically(animationSpec = MotionTokens.emphasizedEnter()),
+                        exit = fadeOut(animationSpec = MotionTokens.standardExit()) + shrinkVertically(animationSpec = MotionTokens.emphasizedExit())
+                    ) {
+                        Text(
+                            text = stringResource(R.string.reset_filter),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedCategory = null }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(contentSpacing)
+                ) {
+                    // Interactive Animated Donut Chart Canvas
+                    Box(
+                        modifier = Modifier
+                            .size(donutSize)
+                            .pointerInput(categorySpending, totalSpending) {
+                                detectTapGestures { offset ->
+                                    if (totalSpending > 0) {
+                                        val cx = size.width / 2f
+                                        val cy = size.height / 2f
+                                        val dx = offset.x - cx
+                                        val dy = offset.y - cy
+                                        var angle = Math.toDegrees(kotlin.math.atan2(dy.toDouble(), dx.toDouble())).toFloat()
+                                        var relAngle = (angle - (-90f)) % 360f
+                                        if (relAngle < 0f) relAngle += 360f
+
+                                        var currentAngle = 0f
+                                        for ((category, amount) in categorySpending) {
+                                            val sweep = ((amount / totalSpending) * 360f).toFloat()
+                                            if (relAngle >= currentAngle && relAngle < currentAngle + sweep) {
+                                                selectedCategory = category
+                                                onCategoryClick(category)
+                                                break
+                                            }
+                                            currentAngle += sweep
+                                        }
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            if (selectedItem != null) {
-                                val percent = if (totalSpending > 0) (selectedItem.second / totalSpending * 100).toInt() else 0
-                                Text(
-                                    text = selectedItem.first,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = categoryColors[selectedItem.first] ?: MaterialTheme.colorScheme.primary,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "$%.0f", selectedItem.second),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "$percent%",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-                                    fontWeight = FontWeight.ExtraBold
+                            if (totalSpending == 0.0) {
+                                drawArc(
+                                    color = Color.Gray.copy(alpha = 0.15f),
+                                    startAngle = 0f,
+                                    sweepAngle = 360f,
+                                    useCenter = false,
+                                    style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
                                 )
                             } else {
-                                Text(
-                                    text = stringResource(R.string.total_spent),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "$%.0f", totalSpending),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                var startAngle = -90f
+                                categorySpending.forEach { (category, amount) ->
+                                    val sweepAngle = ((amount / totalSpending) * 360f).toFloat()
+                                    val color = categoryColors[category] ?: Color.Gray
+
+                                    val (strokeState, alphaState) = categoryAnimProps[category]
+                                        ?: (mutableStateOf(16.dp) to mutableStateOf(1f))
+
+                                    val animatedStrokePx = strokeState.value.toPx()
+                                    val animatedAlpha = alphaState.value
+
+                                    drawArc(
+                                        color = color.copy(alpha = animatedAlpha),
+                                        startAngle = startAngle,
+                                        sweepAngle = sweepAngle,
+                                        useCenter = false,
+                                        style = Stroke(width = animatedStrokePx, cap = StrokeCap.Round)
+                                    )
+                                    startAngle += sweepAngle
+                                }
+                            }
+                        }
+
+                        // Animated Center Content transition on focus/unfocus
+                        AnimatedContent(
+                            targetState = selectedCategory,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(220)) + scaleIn(initialScale = 0.85f))
+                                    .togetherWith(fadeOut(animationSpec = tween(180)) + scaleOut(targetScale = 0.85f))
+                            },
+                            label = "centerDonutText"
+                        ) { currentCategory ->
+                            val selectedItem = categorySpending.find { it.first == currentCategory }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                if (selectedItem != null) {
+                                    val percent = if (totalSpending > 0) (selectedItem.second / totalSpending * 100).toInt() else 0
+                                    Text(
+                                        text = selectedItem.first,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = categoryColors[selectedItem.first] ?: MaterialTheme.colorScheme.primary,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "$%.0f", selectedItem.second),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "$percent%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                } else {
+                                    Text(
+                                        text = stringResource(R.string.total_spent),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "$%.0f", totalSpending),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                
-                // Legend with Animated Selection State
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (categorySpending.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.loc_no_category_data),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    } else {
-                        categorySpending.take(5).forEach { (category, amount) ->
-                            val color = categoryColors[category] ?: Color.Gray
-                            val isFocused = selectedCategory == category
 
-                            val rowBgColor by animateColorAsState(
-                                targetValue = if (isFocused) color.copy(alpha = 0.18f) else Color.Transparent,
-                                animationSpec = tween(250),
-                                label = "rowBg_$category"
+                    // Legend with Animated Selection State
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (categorySpending.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.loc_no_category_data),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
-                            val dotSize by animateDpAsState(
-                                targetValue = if (isFocused) 14.dp else 10.dp,
-                                animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
-                                label = "dotSize_$category"
-                            )
+                        } else {
+                            categorySpending.take(5).forEach { (category, amount) ->
+                                val color = categoryColors[category] ?: Color.Gray
+                                val isFocused = selectedCategory == category
 
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .testTag("DailyCategoryAnalyticsItem_$category")
-                                    .clickable {
-                                        selectedCategory = category
-                                        onCategoryClick(category)
-                                    },
-                                color = rowBgColor,
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                val rowBgColor by animateColorAsState(
+                                    targetValue = if (isFocused) color.copy(alpha = 0.18f) else Color.Transparent,
+                                    animationSpec = tween(250),
+                                    label = "rowBg_$category"
+                                )
+                                val dotSize by animateDpAsState(
+                                    targetValue = if (isFocused) 14.dp else 10.dp,
+                                    animationSpec = com.example.vibefinance.theme.VibeMotion.fastSpatial(),
+                                    label = "dotSize_$category"
+                                )
+
+                                val limit = state.categoryLimits[category]
+                                val limitBadge: Pair<Color, String>? = if (limit != null && limit > 0) {
+                                    val percent = (amount / limit * 100).toInt()
+                                    when {
+                                        percent >= 100 -> MaterialTheme.colorScheme.error to stringResource(R.string.loc_over_limit_percent, percent)
+                                        percent >= 80 -> Color(0xFFE65100) to stringResource(R.string.loc_warning_percent, percent)
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) to stringResource(R.string.loc_percent_of_limit, percent)
+                                    }
+                                } else {
+                                    null
+                                }
+                                val displayName = getCategoryDisplayName(category)
+                                val formattedAmount = String.format(Locale.US, "$%.2f", amount)
+
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .testTag("DailyCategoryAnalyticsItem_$category")
+                                        .clickable {
+                                            selectedCategory = category
+                                            onCategoryClick(category)
+                                        },
+                                    color = rowBgColor,
+                                    shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
+                                    if (stackLegendItems) {
+                                        Column(
                                             modifier = Modifier
-                                                .size(dotSize)
-                                                .clip(CircleShape)
-                                                .background(color)
-                                        )
-                                        Text(
-                                            text = getCategoryDisplayName(category),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(
-                                            text = String.format(Locale.US, "$%.2f", amount),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        val limit = state.categoryLimits[category]
-                                        if (limit != null && limit > 0) {
-                                            val percent = (amount / limit * 100).toInt()
-                                            val (textColor, textLabel) = when {
-                                                percent >= 100 -> MaterialTheme.colorScheme.error to stringResource(R.string.loc_over_limit_percent, percent)
-                                                percent >= 80 -> Color(0xFFE65100) to stringResource(R.string.loc_warning_percent, percent)
-                                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) to stringResource(R.string.loc_percent_of_limit, percent)
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(dotSize)
+                                                        .clip(CircleShape)
+                                                        .background(color)
+                                                )
+                                                Text(
+                                                    text = displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
                                             }
-                                            Text(
-                                                text = textLabel,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = textColor,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(start = dotSize + 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = formattedAmount,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                if (limitBadge != null) {
+                                                    Text(
+                                                        text = limitBadge.second,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = limitBadge.first,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.weight(1f).padding(end = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(dotSize)
+                                                        .clip(CircleShape)
+                                                        .background(color)
+                                                )
+                                                Text(
+                                                    text = displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isFocused) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = formattedAmount,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                if (limitBadge != null) {
+                                                    Text(
+                                                        text = limitBadge.second,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = limitBadge.first,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1522,6 +1741,9 @@ fun CategoryDonutChart(
                         }
                     }
                 }
+
+                // Bottom anchor so SpaceBetween vertically centers Donut + Legend when minHeight exceeds natural height.
+                Spacer(modifier = Modifier.height(0.dp))
             }
         }
     }

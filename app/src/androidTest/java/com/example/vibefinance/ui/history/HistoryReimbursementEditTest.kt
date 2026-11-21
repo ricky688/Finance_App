@@ -32,7 +32,7 @@ class HistoryReimbursementEditTest {
         expense.copy(id = 12, timestamp = now - 1000, description = "Newer advance")))
 
     private fun show() {
-        rule.setContent {
+        rule.setPhoneContent {
             MaterialTheme {
                 HistoryScreen(FinanceUiState(isLoading = false, transactions = records, accounts = listOf(
                     AccountEntity(1, "Bank", type = AccountType.BANK, balance = 1000.0, icon = "bank"),
@@ -44,7 +44,7 @@ class HistoryReimbursementEditTest {
     }
     private fun open(id: Long) {
         rule.onNodeWithTag("HistoryList").performScrollToNode(hasTestTag("TransactionRow_$id"))
-        rule.onNodeWithTag("TransactionRow_$id").performClick()
+        rule.openTransactionEditor("TransactionRow_$id")
         rule.waitUntil(5000) { rule.onAllNodesWithTag("EditTransactionAmount").fetchSemanticsNodes().isNotEmpty() }
     }
     private fun source(id: Long) {

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
@@ -195,14 +197,17 @@ fun BudgetPeriodIndicatorCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            LinearProgressIndicator(
+            val minimalMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+            LinearWavyProgressIndicator(
                 progress = { animatedProgress.coerceIn(0f, 1f) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp),
+                    .heightIn(min = 10.dp),
                 color = if (spentRatio >= 1.0f) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                amplitude = { if (minimalMotion) 0f else WavyProgressIndicatorDefaults.indicatorAmplitude(it) }
             )
 
             Spacer(modifier = Modifier.height(14.dp))

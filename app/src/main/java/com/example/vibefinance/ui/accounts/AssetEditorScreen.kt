@@ -2,7 +2,9 @@
 
 package com.example.vibefinance.ui.accounts
 
+import com.example.vibefinance.ui.motion.paneEntrance
 import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.AppSlider
 
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import android.graphics.Bitmap
@@ -11,6 +13,7 @@ import android.net.Uri
 import com.example.vibefinance.ui.motion.predictiveBackPage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -97,7 +100,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenu
@@ -108,12 +110,17 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.WavyProgressIndicatorDefaults
+import androidx.compose.material3.ScrollField
+import androidx.compose.material3.ScrollFieldDefaults
+import androidx.compose.material3.rememberScrollFieldState
+import kotlinx.coroutines.flow.drop
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
@@ -138,6 +145,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -166,6 +174,8 @@ import com.example.vibefinance.theme.JetBrainsMonoFontFamily
 import com.example.vibefinance.ui.AccountSaveResult
 import com.example.vibefinance.ui.FinanceIntent
 import com.example.vibefinance.ui.FinanceUiState
+import com.example.vibefinance.ui.common.ContentEntranceViewport
+import com.example.vibefinance.ui.common.PageContentEntrance
 import com.example.vibefinance.ui.common.ScrollBlurContainer
 import com.example.vibefinance.ui.common.bouncyClickable
 import com.example.vibefinance.ui.common.horizontalFadingEdge
@@ -186,7 +196,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /** Full-window form; the historical sheet tag is retained for automation compatibility. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun AssetEditorScreen(
     state: FinanceUiState,
@@ -197,6 +207,8 @@ fun AssetEditorScreen(
     onDismissCreate: (() -> Unit)? = null,
     transition: Transition<Boolean>? = null,
     transformProgress: Float = 1f,
+    /** Large screens: drawn inside the Assets right pane rather than over the whole window. */
+    inPane: Boolean = false,
 ) {
     val fallbackTransition = updateTransition(editorState.isOpen, label = "AssetEditorFallback")
     val effectiveTransition = transition ?: fallbackTransition
@@ -204,10 +216,23 @@ fun AssetEditorScreen(
     val effectiveProgress = if (transition != null) transformProgress else (if (editorState.isOpen) 1f else 0f)
 
     val sourceBounds = editorState.cardBounds
+    // Adding in the large-screen pane: staggered content entrance and exit, no shared element.
+    val paneStagger = inPane && sourceBounds == null
     var destCardBounds by remember { mutableStateOf<Rect?>(null) }
+    // The flight starts drawing one frame after the card's slot is measured, so its first frame is
+    // never drawn from a stale layout.
+    var flightReady by remember { mutableStateOf(editorState.cardBounds == null) }
+    LaunchedEffect(destCardBounds != null) {
+        if (destCardBounds != null && !flightReady) {
+            androidx.compose.runtime.withFrameNanos { }
+            flightReady = true
+        }
+    }
     val density = LocalDensity.current
+    val isWideWindow = (com.example.vibefinance.ui.main.LocalMainWindowWidth.current
+        ?: LocalConfiguration.current.screenWidthDp.dp) >= 720.dp
 
-    // Compute spatial delta between source (clicked card) and destination (preview card)
+    // Compute spatial delta between source (clicked card on right inspector or list) and destination (left preview card)
     val deltaX: Float
     val deltaY: Float
     val initialScaleX: Float
@@ -216,11 +241,23 @@ fun AssetEditorScreen(
     if (sourceBounds != null && destCardBounds != null) {
         deltaX = sourceBounds.left - destCardBounds!!.left
         deltaY = sourceBounds.top - destCardBounds!!.top
-        initialScaleX = (sourceBounds.width / destCardBounds!!.width.coerceAtLeast(1f)).coerceIn(0.5f, 1.5f)
-        initialScaleY = (sourceBounds.height / destCardBounds!!.height.coerceAtLeast(1f)).coerceIn(0.5f, 1.5f)
+        // Uniform scale (no squashing of the card face or its text), wide enough to start exactly
+        // on the source card even when the list card and the preview differ a lot in size.
+        val uniform = minOf(
+            sourceBounds.width / destCardBounds!!.width.coerceAtLeast(1f),
+            sourceBounds.height / destCardBounds!!.height.coerceAtLeast(1f)
+        ).coerceIn(0.25f, 4f)
+        initialScaleX = uniform
+        initialScaleY = uniform
+    } else if (paneStagger) {
+        // Adding on a large screen: no flight; the card enters with the staggered sections.
+        deltaX = 0f
+        deltaY = 0f
+        initialScaleX = 1f
+        initialScaleY = 1f
     } else if (sourceBounds != null) {
         val estimatedDestTopPx = with(density) { 96.dp.toPx() }
-        val estimatedDestLeftPx = with(density) { 16.dp.toPx() }
+        val estimatedDestLeftPx = with(density) { (if (isWideWindow) 24.dp else 16.dp).toPx() }
         deltaX = sourceBounds.left - estimatedDestLeftPx
         deltaY = sourceBounds.top - estimatedDestTopPx
         initialScaleX = 1f
@@ -232,31 +269,30 @@ fun AssetEditorScreen(
         initialScaleY = 0.92f
     }
 
-    // 1. Actual Card Motion (Travels upwards from clicked position to destination)
-    val cardMotionEasing = CubicBezierEasing(0.08f, 0.82f, 0.17f, 1.0f)
-    val cardT = cardMotionEasing.transform(effectiveProgress.coerceIn(0f, 1f))
+    // 1. Shared-element Container Transform (driven directly by VibeMotion.slowSpatial() spring)
+    val cardT = effectiveProgress.coerceIn(0f, 1f)
 
     val currentCardTranslationX = androidx.compose.ui.util.lerp(deltaX, 0f, cardT)
     val currentCardTranslationY = androidx.compose.ui.util.lerp(deltaY, 0f, cardT)
     val currentCardScaleX = androidx.compose.ui.util.lerp(initialScaleX, 1f, cardT)
     val currentCardScaleY = androidx.compose.ui.util.lerp(initialScaleY, 1f, cardT)
-    val currentCardElevation = androidx.compose.ui.unit.lerp(1.dp, 8.dp, cardT)
+    // Flat during the flight and at rest: the preview card carries no shadow.
+    val currentCardElevation = 0.dp
 
     // 2. Top Bar Animation (Fades and slides down smoothly)
     val topBarProgress = ((effectiveProgress - 0.20f) / 0.80f).coerceIn(0f, 1f)
-    val topBarAlpha = FastOutSlowInEasing.transform(topBarProgress)
+    val topBarAlpha = if (paneStagger) 1f else FastOutSlowInEasing.transform(topBarProgress)
     val topBarOffsetY = (-36).dp * (1f - topBarAlpha)
 
-    // 3. Form Animation ("then the other elements pop up with ease in animation speed")
+    // 3. Form exit alpha (open arrival is driven by staggered PageContentEntrance containers)
     val formProgress = ((effectiveProgress - 0.28f) / 0.72f).coerceIn(0f, 1f)
-    val formEaseIn = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f).transform(formProgress)
-    val formAlpha = formEaseIn
-    val formOffsetY = 60.dp * (1f - formEaseIn)
-    val formScale = 0.94f + 0.06f * formEaseIn
+    val formAlpha = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f).transform(formProgress)
+    val closingFormAlpha = if (editorState.isOpen || paneStagger) 1f else formAlpha
 
     // 4. Scaffold Background Alpha (Smoothly dissolves in as card ascends)
-    val scaffoldBgAlpha = FastOutSlowInEasing.transform(effectiveProgress.coerceIn(0f, 1f))
-    val animatedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = scaffoldBgAlpha)
+    val scaffoldBgAlpha = if (paneStagger) 1f else FastOutSlowInEasing.transform(effectiveProgress.coerceIn(0f, 1f))
+    val animatedContainerColor = (if (inPane) MaterialTheme.colorScheme.surfaceContainerLow
+        else MaterialTheme.colorScheme.surface).copy(alpha = scaffoldBgAlpha)
 
     val editingAccountId = editorState.accountId
     val editingAccount = state.accounts.firstOrNull { it.id == editingAccountId }
@@ -268,7 +304,7 @@ fun AssetEditorScreen(
         if (state.isLoading)
             Surface(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.CircularProgressIndicator()
+                    LoadingIndicator()
                 }
             }
         else
@@ -467,44 +503,69 @@ fun AssetEditorScreen(
     val previewCardImage = rememberCardImagePainter(selectedCardImageUri)
 
     val isFromCard = sourceBounds != null
-    val (targetThemeColor1, targetThemeColor2) = remember(selectedCardTheme, isDark) {
-        getCardThemeColors(selectedCardTheme, isDark)
+    val isDefaultSurfaceTheme = selectedCardTheme.equals("default", ignoreCase = true) && previewCardImage == null
+    val listCardColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(
+        alpha = if (previewCardImage != null) (if (isDark) 0.22f else 0.30f) else (if (isDark) 0.60f else 0.85f)
+    )
+    val openingColors = remember(openingAccount?.cardTheme, isDark) {
+        getCardThemeColors(openingAccount?.cardTheme, isDark)
+    }
+    val openingIsDefault = (openingAccount?.cardTheme.isNullOrBlank() || openingAccount?.cardTheme.equals("default", ignoreCase = true)) && previewCardImage == null
+    val targetThemeColors = remember(selectedCardTheme, isDark, isDefaultSurfaceTheme, listCardColor) {
+        if (isDefaultSurfaceTheme) listCardColor to listCardColor else getCardThemeColors(selectedCardTheme, isDark)
     }
     val animatedThemeColor1 by animateColorAsState(
-        targetValue = targetThemeColor1,
+        targetValue = targetThemeColors.first,
         animationSpec = tween(350, easing = FastOutSlowInEasing),
         label = "themeColor1"
     )
     val animatedThemeColor2 by animateColorAsState(
-        targetValue = targetThemeColor2,
+        targetValue = targetThemeColors.second,
         animationSpec = tween(350, easing = FastOutSlowInEasing),
         label = "themeColor2"
     )
 
-    val listCardColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(
-        alpha = if (previewCardImage != null) (if (isDark) 0.22f else 0.30f) else (if (isDark) 0.60f else 0.85f)
+    val startCardColor1 = if (isFromCard) (if (openingIsDefault) listCardColor else openingColors.first) else animatedThemeColor1
+    val startCardColor2 = if (isFromCard) (if (openingIsDefault) listCardColor else openingColors.second) else animatedThemeColor2
+    val startTextColor = if (isFromCard && openingIsDefault) MaterialTheme.colorScheme.onSurface else Color.White
+    val startSubtextColor = if (isFromCard && openingIsDefault) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f)
+    val startLast4Color = if (isFromCard && openingIsDefault) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
+    val defaultCardBorderColor = if (selectedAccentColorKey == null) {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.35f)
+    } else {
+        accountAccent(typeState, selectedAccentColorKey).foreground.copy(alpha = 0.40f)
+    }
+    val startBorderColor = if (isFromCard && openingIsDefault) defaultCardBorderColor else Color.White.copy(alpha = 0.16f)
+
+    val targetTextColor by animateColorAsState(
+        targetValue = if (isDefaultSurfaceTheme) MaterialTheme.colorScheme.onSurface else Color.White,
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "targetTextColor"
     )
-    val startCardColor1 = if (isFromCard) listCardColor else animatedThemeColor1
-    val startCardColor2 = if (isFromCard) listCardColor else animatedThemeColor2
-    val startTextColor = if (isFromCard) MaterialTheme.colorScheme.onSurface else Color.White
-    val startSubtextColor = if (isFromCard) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f)
-    val startLast4Color = if (isFromCard) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
-    val startBorderColor = if (isFromCard) {
-        if (selectedAccentColorKey == null) {
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.25f else 0.35f)
-        } else {
-            accountAccent(typeState, selectedAccentColorKey).foreground.copy(alpha = 0.40f)
-        }
-    } else Color.Transparent
+    val targetSubtextColor by animateColorAsState(
+        targetValue = if (isDefaultSurfaceTheme) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.7f),
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "targetSubtextColor"
+    )
+    val targetLast4Color by animateColorAsState(
+        targetValue = if (isDefaultSurfaceTheme) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f),
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "targetLast4Color"
+    )
+    val targetBorderColor by animateColorAsState(
+        targetValue = if (isDefaultSurfaceTheme) defaultCardBorderColor else Color.White.copy(alpha = 0.16f),
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "targetBorderColor"
+    )
 
     val currentCardColor1 = androidx.compose.ui.graphics.lerp(startCardColor1, animatedThemeColor1, cardT)
     val currentCardColor2 = androidx.compose.ui.graphics.lerp(startCardColor2, animatedThemeColor2, cardT)
     val animatedCardGradient = Brush.verticalGradient(listOf(currentCardColor1, currentCardColor2))
 
-    val currentTextColor = androidx.compose.ui.graphics.lerp(startTextColor, Color.White, cardT)
-    val currentSubtextColor = androidx.compose.ui.graphics.lerp(startSubtextColor, Color.White.copy(alpha = 0.7f), cardT)
-    val currentLast4Color = androidx.compose.ui.graphics.lerp(startLast4Color, Color.White.copy(alpha = 0.85f), cardT)
-    val currentBorderColor = androidx.compose.ui.graphics.lerp(startBorderColor, Color.Transparent, cardT)
+    val currentTextColor = androidx.compose.ui.graphics.lerp(startTextColor, targetTextColor, cardT)
+    val currentSubtextColor = androidx.compose.ui.graphics.lerp(startSubtextColor, targetSubtextColor, cardT)
+    val currentLast4Color = androidx.compose.ui.graphics.lerp(startLast4Color, targetLast4Color, cardT)
+    val currentBorderColor = androidx.compose.ui.graphics.lerp(startBorderColor, targetBorderColor, cardT)
 
     val currentPreviewAccent = accountAccent(typeState, selectedAccentColorKey)
     val animatedAccentBg by animateColorAsState(
@@ -512,9 +573,15 @@ fun AssetEditorScreen(
         animationSpec = tween(300, easing = FastOutSlowInEasing),
         label = "accentBg"
     )
+    val startAccentBorderColor = if (isFromCard && openingIsDefault) {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    } else Color.White.copy(alpha = 0.8f)
+    val targetAccentBorderColor = if (isDefaultSurfaceTheme) {
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    } else Color.White.copy(alpha = 0.8f)
     val currentAccentBorderColor = androidx.compose.ui.graphics.lerp(
-        if (isFromCard) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.8f),
-        Color.White.copy(alpha = 0.8f),
+        startAccentBorderColor,
+        targetAccentBorderColor,
         cardT
     )
 
@@ -548,15 +615,8 @@ fun AssetEditorScreen(
                         onIntent(FinanceIntent.DeleteAccount(editingAccount!!))
                         editorState.close()
                     },
-                    interactionSource = deleteConfirmInteractionSource,
-                    modifier =
-                        Modifier.testTag("AssetEditorDeleteConfirm")
-                            .pressBounce(interactionSource = deleteConfirmInteractionSource),
-                    shapes =
-                        ButtonDefaults.shapes(
-                            shape = CircleShape,
-                            pressedShape = RoundedCornerShape(percent = 32),
-                        ),
+                    modifier = Modifier.testTag("AssetEditorDeleteConfirm"),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
@@ -572,14 +632,7 @@ fun AssetEditorScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showDeleteConfirmDialog = false
                     },
-                    interactionSource = deleteCancelInteractionSource,
-                    modifier =
-                        Modifier.pressBounce(interactionSource = deleteCancelInteractionSource),
-                    shapes =
-                        ButtonDefaults.shapes(
-                            shape = CircleShape,
-                            pressedShape = RoundedCornerShape(percent = 32),
-                        ),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
@@ -681,7 +734,7 @@ fun AssetEditorScreen(
             title = { Text(stringResource(R.string.asset_editor_discard_title)) },
             text = { Text(stringResource(R.string.asset_editor_discard_message)) },
             confirmButton = {
-                TextButton(
+                CompletePressTextButton(
                     onClick = {
                         showDiscard = false
                         editorState.close()
@@ -693,7 +746,7 @@ fun AssetEditorScreen(
                 }
             },
             dismissButton = {
-                TextButton(
+                CompletePressTextButton(
                     onClick = { showDiscard = false },
                     modifier = Modifier.testTag("AssetEditorKeepEditing"),
                 ) {
@@ -763,15 +816,32 @@ fun AssetEditorScreen(
             onIntent(FinanceIntent.SaveAccount(acc, originalBalance, pendingSaveRequest))
         }
     }
+    // Adding in the pane: staggered entrance on open and staggered exit on close. Elsewhere this
+    // wrapper is inert (no stagger state is provided to the sections).
+    com.example.vibefinance.ui.motion.StaggeredPane(
+        Modifier.fillMaxSize(),
+        exiting = if (paneStagger) !editorState.isOpen else false,
+        enabled = paneStagger
+    ) { paneEntranceState ->
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.example.vibefinance.ui.common.LocalContentEntranceDisabled provides paneStagger,
+        com.example.vibefinance.ui.motion.LocalPaneEntrance provides paneEntranceState.takeIf { paneStagger }
+    ) {
     Scaffold(
         modifier =
             Modifier.fillMaxSize()
                 .predictiveBackPage(predictiveBack)
+                .then(if (inPane) Modifier.clip(RoundedCornerShape(28.dp)) else Modifier)
                 .testTag("AssetEditorSheet"),
         containerColor = animatedContainerColor,
+        contentWindowInsets = if (inPane) WindowInsets(0) else androidx.compose.material3.ScaffoldDefaults.contentWindowInsets,
         topBar = {
             TopAppBar(
-                modifier = Modifier.graphicsLayer {
+                windowInsets = if (inPane) WindowInsets(0) else androidx.compose.material3.TopAppBarDefaults.windowInsets,
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (inPane) Color.Transparent else MaterialTheme.colorScheme.surface
+                ),
+                modifier = Modifier.paneEntrance(0).graphicsLayer {
                     alpha = topBarAlpha
                     translationY = topBarOffsetY.toPx()
                 },
@@ -796,11 +866,7 @@ fun AssetEditorScreen(
                             Modifier.heightIn(min = 48.dp)
                                 .padding(end = 8.dp)
                                 .testTag("AssetEditorSave"),
-                        shapes =
-                            ButtonDefaults.shapes(
-                                shape = RoundedCornerShape(12.dp),
-                                pressedShape = RoundedCornerShape(8.dp),
-                            ),
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
                     ) {
                         Text(
                             stringResource(
@@ -813,60 +879,88 @@ fun AssetEditorScreen(
             )
         },
     ) { padding ->
-        BoxWithConstraints(
-            Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
+        // Shared element first: the form's staggered entrance waits until the card has landed.
+        val entranceGate = androidx.compose.runtime.rememberUpdatedState(
+            sourceBounds == null || effectiveProgress >= 0.94f || !editorState.isOpen
+        )
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.example.vibefinance.ui.common.LocalEntranceGate provides entranceGate
         ) {
-            val isWide = maxWidth >= 720.dp
-            val editorBlurActive =
-                LocalWindowInfo.current.isWindowFocused &&
-                    !showCropDialog &&
-                    !showAppPickerDialog &&
-                    !showDeleteConfirmDialog &&
-                    !showDiscard &&
-                    !billingDayDropdownExpanded &&
-                    !paymentDayDropdownExpanded &&
-                    !paymentDeadlineDayDropdownExpanded &&
-                    !protocolDropdownExpanded &&
-                    !patternDropdownExpanded
-            val cyclePreview: @Composable () -> Unit = {
-                if (typeState == AccountType.CC) {
-                    Box(
-                        modifier = Modifier.graphicsLayer {
-                            translationY = formOffsetY.toPx()
-                            scaleX = formScale
-                            scaleY = formScale
-                            alpha = formAlpha
-                        }
-                    ) {
-                        CreditCardCycleBadges(
-                            AccountEntity(id = editingAccountId ?: 0L, name = "", type = typeState, balance = 0.0, icon = "",
-                                creditLimit = creditLimitText.toDoubleOrNull(), billingDate = billingDateText.toIntOrNull(),
-                                paymentDate = paymentDateText.toIntOrNull(), paymentDeadline = paymentDeadlineText.toIntOrNull()), state.transactions)
-                    }
-                }
-            }
-            val previewCard: @Composable () -> Unit = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { coords ->
-                            if (coords.isAttached && destCardBounds == null) {
-                                destCardBounds = coords.boundsInRoot()
+        ContentEntranceViewport(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding(),
+            tagPrefix = "AssetEditorArrival"
+        ) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val isWide = maxWidth >= 720.dp
+                val editorBlurActive =
+                    LocalWindowInfo.current.isWindowFocused &&
+                        !showCropDialog &&
+                        !showAppPickerDialog &&
+                        !showDeleteConfirmDialog &&
+                        !showDiscard &&
+                        !billingDayDropdownExpanded &&
+                        !paymentDayDropdownExpanded &&
+                        !paymentDeadlineDayDropdownExpanded &&
+                        !protocolDropdownExpanded &&
+                        !patternDropdownExpanded
+                val cyclePreview: @Composable () -> Unit = {
+                    if (typeState == AccountType.CC) {
+                        PageContentEntrance("editor-cycle-preview", modifier = Modifier.paneEntrance(2), delayMillis = 40) {
+                            Box(
+                                modifier = Modifier.graphicsLayer {
+                                    alpha = closingFormAlpha
+                                }
+                            ) {
+                                CreditCardCycleBadges(
+                                    AccountEntity(id = editingAccountId ?: 0L, name = "", type = typeState, balance = 0.0, icon = "",
+                                        creditLimit = creditLimitText.toDoubleOrNull(), billingDate = billingDateText.toIntOrNull(),
+                                        paymentDate = paymentDateText.toIntOrNull(), paymentDeadline = paymentDeadlineText.toIntOrNull()), state.transactions)
                             }
                         }
-                ) {
-                    Card(
-                        modifier =
-                            Modifier.fillMaxWidth()
-                                .height(160.dp)
-                                .graphicsLayer {
-                                    translationX = currentCardTranslationX
-                                    translationY = currentCardTranslationY
-                                    scaleX = currentCardScaleX
-                                    scaleY = currentCardScaleY
-                                    shadowElevation = currentCardElevation.toPx()
+                    }
+                }
+                val previewCard: @Composable () -> Unit = {
+                    Box(
+                        modifier = Modifier
+                            .paneEntrance(1)
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coords ->
+                                if (coords.isAttached) {
+                                    destCardBounds = coords.boundsInRoot()
                                 }
-                                .testTag("AssetEditorPreview")
+                            }
+                    ) {
+                        val flightScope = com.example.vibefinance.ui.motion.LocalSharedTransitionScope.current
+                        Card(
+                            modifier =
+                                Modifier.fillMaxWidth()
+                                    .height(160.dp)
+                                    // In flight the card is drawn above everything, so it leaves the
+                                    // pressed control itself rather than appearing at the pane edge.
+                                    .then(
+                                        if (flightScope != null && sourceBounds != null) with(flightScope) {
+                                            Modifier.renderInSharedTransitionScopeOverlay(
+                                                zIndexInOverlay = 2f,
+                                                renderInOverlay = { flightReady && destCardBounds != null && editorState.isOpen && cardT < 0.999f }
+                                            )
+                                        } else Modifier
+                                    )
+                                    .graphicsLayer {
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        translationX = currentCardTranslationX
+                                        translationY = currentCardTranslationY
+                                        scaleX = currentCardScaleX
+                                        scaleY = currentCardScaleY
+                                        shadowElevation = currentCardElevation.toPx()
+                                        // Until its slot is measured the flight start is only an estimate:
+                                        // keep the card hidden for that frame rather than flash it elsewhere.
+                                        alpha = if (sourceBounds != null && (destCardBounds == null || !flightReady)) 0f else 1f
+                                    }
+                                    .testTag("AssetEditorPreview")
                             .then(
                                 if (selectedCardImageUri.isEmpty()) {
                                     Modifier
@@ -960,8 +1054,10 @@ fun AssetEditorScreen(
                                             fontFamily = JetBrainsMonoFontFamily,
                                         ),
                                     color = androidx.compose.ui.graphics.lerp(
-                                        if (isDark) Color.White.copy(alpha = 0.08f) else currentPreviewAccent.foreground.copy(alpha = 0.09f),
-                                        Color.White.copy(alpha = 0.12f),
+                                        if (openingIsDefault && !isDark) currentPreviewAccent.foreground.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.08f),
+                                        if (isDefaultSurfaceTheme && !isDark) currentPreviewAccent.foreground.copy(alpha = 0.09f)
+                                        else if (isDefaultSurfaceTheme) Color.White.copy(alpha = 0.08f)
+                                        else Color.White.copy(alpha = 0.12f),
                                         cardT
                                     ),
                                     maxLines = 1,
@@ -1585,7 +1681,6 @@ fun AssetEditorScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f).assetEditorBringIntoView(),
                             )
-                            val plusInteraction = remember { MutableInteractionSource() }
                             CompletePressFilledTonalButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1594,15 +1689,8 @@ fun AssetEditorScreen(
                                     balanceText =
                                         String.format(Locale.US, "%.2f", currentVal + delta)
                                 },
-                                shapes =
-                                    ButtonDefaults.shapes(
-                                        shape = RoundedCornerShape(16.dp),
-                                        pressedShape = RoundedCornerShape(12.dp),
-                                    ),
-                                interactionSource = plusInteraction,
-                                modifier =
-                                    Modifier.height(56.dp)
-                                        .pressBounce(interactionSource = plusInteraction),
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
+                                modifier = Modifier.height(56.dp),
                             ) {
                                 Text(
                                     "+",
@@ -1610,7 +1698,6 @@ fun AssetEditorScreen(
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
-                            val minusInteraction = remember { MutableInteractionSource() }
                             CompletePressFilledTonalButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1628,15 +1715,8 @@ fun AssetEditorScreen(
                                         containerColor = MaterialTheme.colorScheme.errorContainer,
                                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
                                     ),
-                                shapes =
-                                    ButtonDefaults.shapes(
-                                        shape = RoundedCornerShape(16.dp),
-                                        pressedShape = RoundedCornerShape(12.dp),
-                                    ),
-                                interactionSource = minusInteraction,
-                                modifier =
-                                    Modifier.height(56.dp)
-                                        .pressBounce(interactionSource = minusInteraction),
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
+                                modifier = Modifier.height(56.dp),
                             ) {
                                 Text(
                                     "-",
@@ -1753,12 +1833,18 @@ fun AssetEditorScreen(
                                         color = animatedBarColor,
                                     )
                                 }
-                                LinearProgressIndicator(
+                                val minimalMotion =
+                                    com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                                        com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+                                LinearWavyProgressIndicator(
                                     progress = { animatedUtil },
-                                    modifier =
-                                        Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 10.dp),
                                     color = animatedBarColor,
                                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    amplitude = {
+                                        if (minimalMotion) 0f
+                                        else WavyProgressIndicatorDefaults.indicatorAmplitude(it)
+                                    },
                                 )
                             }
                         }
@@ -1780,7 +1866,9 @@ fun AssetEditorScreen(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
+                            var showDayWheelPicker by rememberSaveable { mutableStateOf(false) }
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -1808,7 +1896,175 @@ fun AssetEditorScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
                                     letterSpacing = 1.2.sp,
+                                    modifier = Modifier.weight(1f),
                                 )
+                                FilterChip(
+                                    selected = showDayWheelPicker,
+                                    onClick = {
+                                        haptic.performHapticFeedback(
+                                            HapticFeedbackType.TextHandleMove
+                                        )
+                                        showDayWheelPicker = !showDayWheelPicker
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    },
+                                    label = { Text("1–31", maxLines = 1, softWrap = false) },
+                                )
+                            }
+
+                            AnimatedVisibility(visible = showDayWheelPicker) {
+                                val wheelColors = ScrollFieldDefaults.colors()
+                                val statementLabel =
+                                    stringResource(
+                                        com.example.vibefinance.R.string.acc_statement_date
+                                    )
+                                val paymentLabel = stringResource(R.string.ah_payment_due)
+                                val billingWheelState =
+                                    rememberScrollFieldState(
+                                        itemCount = 31,
+                                        index =
+                                            ((billingDateText.toIntOrNull() ?: 1) - 1)
+                                                .coerceIn(0, 30),
+                                    )
+                                val paymentWheelState =
+                                    rememberScrollFieldState(
+                                        itemCount = 31,
+                                        index =
+                                            ((paymentDateText.toIntOrNull() ?: 1) - 1)
+                                                .coerceIn(0, 30),
+                                    )
+
+                                LaunchedEffect(billingWheelState) {
+                                    snapshotFlow { billingWheelState.selectedOption }
+                                        .drop(1)
+                                        .collect { opt ->
+                                            val dayStr = (opt + 1).toString()
+                                            if (billingDateText != dayStr) {
+                                                billingDateText = dayStr
+                                                haptic.performHapticFeedback(
+                                                    HapticFeedbackType.TextHandleMove
+                                                )
+                                            }
+                                        }
+                                }
+                                LaunchedEffect(billingDateText) {
+                                    val target =
+                                        billingDateText.toIntOrNull()?.let {
+                                            (it - 1).coerceIn(0, 30)
+                                        }
+                                    if (
+                                        target != null &&
+                                            billingWheelState.selectedOption != target &&
+                                            !billingWheelState.isScrollInProgress
+                                    ) {
+                                        billingWheelState.scrollToOption(target)
+                                    }
+                                }
+                                LaunchedEffect(paymentWheelState) {
+                                    snapshotFlow { paymentWheelState.selectedOption }
+                                        .drop(1)
+                                        .collect { opt ->
+                                            val dayStr = (opt + 1).toString()
+                                            if (paymentDateText != dayStr) {
+                                                paymentDateText = dayStr
+                                                haptic.performHapticFeedback(
+                                                    HapticFeedbackType.TextHandleMove
+                                                )
+                                            }
+                                        }
+                                }
+                                LaunchedEffect(paymentDateText) {
+                                    val target =
+                                        paymentDateText.toIntOrNull()?.let {
+                                            (it - 1).coerceIn(0, 30)
+                                        }
+                                    if (
+                                        target != null &&
+                                            paymentWheelState.selectedOption != target &&
+                                            !paymentWheelState.isScrollInProgress
+                                    ) {
+                                        paymentWheelState.scrollToOption(target)
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier =
+                                            Modifier.fillMaxWidth().padding(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            Text(
+                                                text = statementLabel,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color =
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                            )
+                                            ScrollField(
+                                                state = billingWheelState,
+                                                contentDescription = statementLabel,
+                                                colors = wheelColors,
+                                                fieldAccessibilityDescription = {
+                                                    (it + 1).toString()
+                                                },
+                                                field = { index, selected, enabled ->
+                                                    ScrollFieldDefaults.Item(
+                                                        index + 1,
+                                                        selected,
+                                                        enabled,
+                                                        wheelColors,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            Text(
+                                                text = paymentLabel,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color =
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                            )
+                                            ScrollField(
+                                                state = paymentWheelState,
+                                                contentDescription = paymentLabel,
+                                                colors = wheelColors,
+                                                fieldAccessibilityDescription = {
+                                                    (it + 1).toString()
+                                                },
+                                                field = { index, selected, enabled ->
+                                                    ScrollFieldDefaults.Item(
+                                                        index + 1,
+                                                        selected,
+                                                        enabled,
+                                                        wheelColors,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
                             }
 
                             Row(
@@ -2044,7 +2300,8 @@ fun AssetEditorScreen(
 
                         val themes =
                             listOf(
-                                "default" to Pair(Color(0xFF161B22), Color(0xFF242C37)),
+                                "default" to Pair(listCardColor, listCardColor),
+                                "obsidian" to Pair(Color(0xFF161B22), Color(0xFF242C37)),
                                 "ocean" to Pair(Color(0xFF0D47A1), Color(0xFF1976D2)),
                                 "emerald" to Pair(Color(0xFF1B5E20), Color(0xFF388E3C)),
                                 "sunset" to Pair(Color(0xFFE65100), Color(0xFFF57C00)),
@@ -2053,21 +2310,22 @@ fun AssetEditorScreen(
                                 "crimson" to Pair(Color(0xFFB71C1C), Color(0xFFD32F2F)),
                             )
 
-                        val swatchScrollState = rememberScrollState()
-                        Row(
+                        FlowRow(
                             modifier =
                                 Modifier.fillMaxWidth()
-                                    .horizontalFadingEdge(swatchScrollState, 16.dp)
-                                    .horizontalScroll(swatchScrollState),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             themes.forEach { (themeKey, colors) ->
-                                val isSelected = selectedCardTheme == themeKey
+                                val isSelected =
+                                    selectedCardTheme.equals(themeKey, ignoreCase = true) ||
+                                        (themeKey == "obsidian" &&
+                                            selectedCardTheme.equals("dark stealth", ignoreCase = true))
                                 val themeLabel = accountCardThemeLabel(themeKey)
                                 val animatedScale by
                                     animateFloatAsState(
-                                        targetValue = if (isSelected) 1.15f else 1.0f,
+                                        targetValue = if (isSelected) 1.12f else 1.0f,
                                         animationSpec =
                                             com.example.vibefinance.theme.VibeMotion.defaultSpatial(),
                                         label = "swatchScale_$themeKey",
@@ -2079,9 +2337,15 @@ fun AssetEditorScreen(
                                             spring(stiffness = Spring.StiffnessMediumLow),
                                         label = "swatchBorder_$themeKey",
                                     )
+                                val unselectedBorder =
+                                    if (themeKey == "default") MaterialTheme.colorScheme.outline.copy(alpha = 0.50f)
+                                    else Color.White.copy(alpha = 0.40f)
+                                val checkTint =
+                                    if (themeKey == "default") MaterialTheme.colorScheme.onSurface
+                                    else Color.White
                                 Box(
                                     modifier =
-                                        Modifier.padding(vertical = 4.dp)
+                                        Modifier.padding(2.dp)
                                             .size(42.dp)
                                             .graphicsLayer {
                                                 scaleX = animatedScale
@@ -2098,10 +2362,16 @@ fun AssetEditorScreen(
                                                 color =
                                                     if (isSelected)
                                                         MaterialTheme.colorScheme.primary
-                                                    else Color.White.copy(alpha = 0.35f),
+                                                    else unselectedBorder,
                                                 shape = CircleShape,
                                             )
-                                            .clickable { selectedCardTheme = themeKey }
+                                            .testTag("CardThemeSwatch_$themeKey")
+                                            .clickable {
+                                                haptic.performHapticFeedback(
+                                                    HapticFeedbackType.TextHandleMove
+                                                )
+                                                selectedCardTheme = themeKey
+                                            }
                                             .semantics {
                                                 contentDescription = themeLabel
                                                 selected = isSelected
@@ -2113,7 +2383,7 @@ fun AssetEditorScreen(
                                             imageVector = Icons.Default.Check,
                                             contentDescription =
                                                 stringResource(R.string.ah_selected),
-                                            tint = Color.White,
+                                            tint = checkTint,
                                             modifier = Modifier.size(20.dp),
                                         )
                                     }
@@ -2272,26 +2542,18 @@ fun AssetEditorScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            val uploadInteraction = remember { MutableInteractionSource() }
                             CompletePressOutlinedButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     galleryLauncher.launch("image/*")
                                 },
-                                shapes =
-                                    ButtonDefaults.shapes(
-                                        shape = RoundedCornerShape(16.dp),
-                                        pressedShape = RoundedCornerShape(12.dp),
-                                    ),
-                                interactionSource = uploadInteraction,
-                                modifier =
-                                    Modifier.weight(1f)
-                                        .pressBounce(interactionSource = uploadInteraction),
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                                modifier = Modifier.weight(1f),
                             ) {
                                 Icon(
                                     Icons.Default.Image,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current),
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -2301,7 +2563,6 @@ fun AssetEditorScreen(
                                 )
                             }
                             if (selectedCardImageUri.isNotEmpty()) {
-                                val cropInteraction = remember { MutableInteractionSource() }
                                 CompletePressOutlinedButton(
                                     onClick = {
                                         haptic.performHapticFeedback(
@@ -2321,25 +2582,17 @@ fun AssetEditorScreen(
                                             e.printStackTrace()
                                         }
                                     },
-                                    shapes =
-                                        ButtonDefaults.shapes(
-                                            shape = RoundedCornerShape(16.dp),
-                                            pressedShape = RoundedCornerShape(12.dp),
-                                        ),
-                                    interactionSource = cropInteraction,
-                                    modifier =
-                                        Modifier.pressBounce(interactionSource = cropInteraction),
+                                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                                 ) {
                                     Icon(
                                         Icons.Default.Crop,
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current),
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(stringResource(R.string.ah_crop))
                                 }
 
-                                val removeInteraction = remember { MutableInteractionSource() }
                                 CompletePressTextButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -2352,14 +2605,7 @@ fun AssetEditorScreen(
                                         ButtonDefaults.textButtonColors(
                                             contentColor = MaterialTheme.colorScheme.error
                                         ),
-                                    shapes =
-                                        ButtonDefaults.shapes(
-                                            shape = CircleShape,
-                                            pressedShape = RoundedCornerShape(percent = 32),
-                                        ),
-                                    interactionSource = removeInteraction,
-                                    modifier =
-                                        Modifier.pressBounce(interactionSource = removeInteraction),
+                                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                                 ) {
                                     Text(stringResource(R.string.ah_remove))
                                 }
@@ -2426,7 +2672,7 @@ fun AssetEditorScreen(
                                                 selectedCardBgOffsetY != 0f ||
                                                 selectedCardBgScale != 1f
                                         ) {
-                                            TextButton(
+                                            CompletePressTextButton(
                                                 onClick = {
                                                     haptic.performHapticFeedback(
                                                         HapticFeedbackType.LongPress
@@ -2435,6 +2681,7 @@ fun AssetEditorScreen(
                                                     selectedCardBgOffsetY = 0f
                                                     selectedCardBgScale = 1f
                                                 },
+                                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                                                 contentPadding =
                                                     PaddingValues(
                                                         horizontal = 6.dp,
@@ -2444,7 +2691,7 @@ fun AssetEditorScreen(
                                                 Icon(
                                                     Icons.Default.Refresh,
                                                     contentDescription = null,
-                                                    modifier = Modifier.size(13.dp),
+                                                    modifier = Modifier.size(13.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current),
                                                 )
                                                 Spacer(modifier = Modifier.width(3.dp))
                                                 Text(
@@ -2562,7 +2809,7 @@ fun AssetEditorScreen(
                                                     modifier = Modifier.size(18.dp),
                                                 )
                                             }
-                                            Slider(
+                                            AppSlider(
                                                 value = selectedCardBgOffsetX,
                                                 onValueChange = {
                                                     selectedCardBgOffsetX =
@@ -2671,7 +2918,7 @@ fun AssetEditorScreen(
                                                     modifier = Modifier.size(18.dp),
                                                 )
                                             }
-                                            Slider(
+                                            AppSlider(
                                                 value = selectedCardBgOffsetY,
                                                 onValueChange = {
                                                     selectedCardBgOffsetY =
@@ -2768,7 +3015,7 @@ fun AssetEditorScreen(
                                                     modifier = Modifier.size(18.dp),
                                                 )
                                             }
-                                            Slider(
+                                            AppSlider(
                                                 value = selectedCardBgScale,
                                                 onValueChange = {
                                                     selectedCardBgScale =
@@ -3165,7 +3412,7 @@ fun AssetEditorScreen(
                                         }
                                     ),
                             )
-                            FilledTonalButton(
+                            CompletePressFilledTonalButton(
                                 onClick = {
                                     val trimmed = newAliasInput.trim()
                                     if (
@@ -3179,8 +3426,7 @@ fun AssetEditorScreen(
                                     }
                                 },
                                 enabled = newAliasInput.trim().isNotEmpty(),
-                                shape = RoundedCornerShape(12.dp),
-                                elevation = AppButtonDefaults.tonalElevation(),
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                             ) {
                                 Text(
                                     stringResource(
@@ -3201,63 +3447,87 @@ fun AssetEditorScreen(
                 Column(
                     modifier =
                         Modifier.fillMaxWidth().graphicsLayer {
-                            translationY = formOffsetY.toPx()
-                            scaleX = formScale
-                            scaleY = formScale
-                            alpha = formAlpha
+                            alpha = closingFormAlpha
                         },
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (currentResult is AccountSaveResult.Failed)
-                        Text(
-                            currentResult.message,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.testTag("AssetEditorSaveError"),
-                        )
-                    Text(
-                        stringResource(R.string.asset_editor_basic),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    basicContent()
+                    PageContentEntrance("editor-basic", modifier = Modifier.paneEntrance(3), delayMillis = 40) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            if (currentResult is AccountSaveResult.Failed)
+                                Text(
+                                    currentResult.message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.testTag("AssetEditorSaveError"),
+                                )
+                            Text(
+                                stringResource(R.string.asset_editor_basic),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            basicContent()
+                        }
+                    }
                     if (typeState == AccountType.CC) {
-                        Text(
-                            stringResource(R.string.ah_billing_schedule),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        billingContent()
+                        PageContentEntrance("editor-billing", modifier = Modifier.paneEntrance(4), delayMillis = 70) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    stringResource(R.string.ah_billing_schedule),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                billingContent()
+                            }
+                        }
                     }
                     // Wide windows edit appearance beside the preview (Appearance Studio pane).
                     if (!isWide) {
-                        Text(
-                            stringResource(R.string.asset_editor_appearance),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        designContent()
-                    }
-                    Text(
-                        stringResource(R.string.asset_editor_automation),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    automationContent()
-                    if (editingAccount != null)
-                        CompletePressOutlinedButton(
-                            onClick = { showDeleteConfirmDialog = true },
-                            enabled = !saving,
-                            shapes =
-                                ButtonDefaults.shapes(
-                                    shape = RoundedCornerShape(12.dp),
-                                    pressedShape = RoundedCornerShape(8.dp),
-                                ),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                            colors =
-                                ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error
-                                ),
-                        ) {
-                            Icon(Icons.Default.Delete, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.btn_delete))
+                        PageContentEntrance("editor-appearance", modifier = Modifier.paneEntrance(5), delayMillis = 85) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    stringResource(R.string.asset_editor_appearance),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                designContent()
+                            }
                         }
+                    }
+                    PageContentEntrance("editor-automation", modifier = Modifier.paneEntrance(6), delayMillis = 100) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                stringResource(R.string.asset_editor_automation),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            automationContent()
+                        }
+                    }
+                    if (editingAccount != null) {
+                        PageContentEntrance("editor-delete", modifier = Modifier.paneEntrance(7), delayMillis = 110) {
+                            CompletePressOutlinedButton(
+                                onClick = { showDeleteConfirmDialog = true },
+                                enabled = !saving,
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                colors =
+                                    ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    ),
+                            ) {
+                                Icon(Icons.Default.Delete, null, modifier = Modifier.then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.btn_delete))
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(48.dp))
                 }
             }
@@ -3285,14 +3555,22 @@ fun AssetEditorScreen(
                                 .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
                                 .padding(top = 12.dp, bottom = 12.dp)
+                                .graphicsLayer { alpha = closingFormAlpha }
                                 .testTag("AssetEditorAppearanceStudio"),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Text(
-                                stringResource(R.string.asset_editor_appearance),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            designContent()
+                            PageContentEntrance("editor-appearance-studio", modifier = Modifier.paneEntrance(4), delayMillis = 70) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    Text(
+                                        stringResource(R.string.asset_editor_appearance),
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    designContent()
+                                }
+                            }
                         }
                     }
                 ScrollBlurContainer(
@@ -3320,7 +3598,11 @@ fun AssetEditorScreen(
                     }
                 }
             }
+            }
         }
+        }
+    }
+    }
     }
 }
 

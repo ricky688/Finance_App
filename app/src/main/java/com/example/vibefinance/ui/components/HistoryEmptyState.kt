@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -44,12 +43,15 @@ fun HistoryEmptyState(
             val viewAll = onViewAllRecords != null
             CompletePressFilledTonalButton(
                 onClick = { if (viewAll) onViewAllRecords?.invoke() else onAddTransaction?.invoke() },
-                shapes = ButtonDefaults.shapes(),
+                shapes = AppButtonDefaults.largeShapes(),
                 modifier = Modifier.heightIn(min = 48.dp)
                     .testTag(if (viewAll) "HistoryEmptyViewAll" else "HistoryEmptyAdd")
             ) {
-                Icon(if (viewAll) Icons.Default.History else Icons.Default.Add,
-                    contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(
+                    if (viewAll) Icons.Default.History else Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp).postPressIconBounce()
+                )
                 androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
                 Text(stringResource(if (viewAll) R.string.analytics_view_all_records else R.string.analytics_add_transaction))
             }

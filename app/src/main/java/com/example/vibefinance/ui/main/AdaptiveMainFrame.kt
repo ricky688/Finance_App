@@ -1,11 +1,22 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class,
+    androidx.compose.animation.ExperimentalSharedTransitionApi::class
+)
 
 package com.example.vibefinance.ui.main
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,14 +34,19 @@ import androidx.window.core.layout.computeWindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
 import com.example.vibefinance.R
+import com.example.vibefinance.theme.VibeMotion
 import com.example.vibefinance.ui.components.VibeFinanceIcon
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
 import com.example.vibefinance.util.VibeHaptics
 
 val LocalMainWindowWidth = compositionLocalOf<androidx.compose.ui.unit.Dp?> { null }
@@ -189,34 +205,85 @@ internal fun AdaptiveMainFrame(
                                 TabItem.RECURRING to Triple(R.string.nav_recurring, Icons.Filled.AutoMode, Icons.Outlined.AutoMode),
                                 TabItem.HISTORY to Triple(R.string.nav_history, Icons.AutoMirrored.Filled.List, Icons.AutoMirrored.Outlined.List)
                             )
+                            val minimalMotion = LocalExperience.current.motion == MotionLevel.MINIMAL
 
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                tabs.forEach { (tab, info) ->
-                                    val title = stringResource(info.first)
-                                    WideNavigationRailItem(
-                                        selected = selectedTab == tab,
-                                        onClick = {
-                                            triggers[tab] = (triggers[tab] ?: 0) + 1
-                                            onSelect(tab)
-                                        },
-                                        icon = {
-                                            BottomNavigationIcon(
-                                                tab = tab,
-                                                selected = selectedTab == tab,
-                                                title = title,
-                                                filledIcon = info.second,
-                                                outlinedIcon = info.third,
-                                                trigger = triggers[tab] ?: 0
-                                            )
-                                        },
-                                        label = { Text(title, maxLines = 1) },
-                                        railExpanded = false,
-                                        modifier = Modifier.testTag("RailNav_${tab.name}")
-                                    )
+                            SharedTransitionLayout(modifier = Modifier.fillMaxWidth()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    tabs.forEach { (tab, info) ->
+                                        val title = stringResource(info.first)
+                                        WideNavigationRailItem(
+                                            selected = selectedTab == tab,
+                                            onClick = {
+                                                triggers[tab] = (triggers[tab] ?: 0) + 1
+                                                onSelect(tab)
+                                            },
+                                            colors = WideNavigationRailItemDefaults.colors(
+                                                selectedIndicatorColor = Color.Transparent
+                                            ),
+                                            indicatorPadding = PaddingValues(0.dp),
+                                            icon = {
+                                                Box(
+                                                    modifier = Modifier.size(56.dp, 32.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    AnimatedContent(
+                                                        targetState = selectedTab == tab,
+                                                        transitionSpec = {
+                                                            fadeIn(
+                                                                if (minimalMotion) snap()
+                                                                else VibeMotion.fastEffects()
+                                                            ) togetherWith fadeOut(
+                                                                if (minimalMotion) snap()
+                                                                else VibeMotion.fastEffects()
+                                                            )
+                                                        },
+                                                        label = "RailIndicator_${tab.name}"
+                                                    ) { isSelected ->
+                                                        if (isSelected) {
+                                                            val sharedPillModifier = if (minimalMotion) {
+                                                                Modifier
+                                                            } else {
+                                                                Modifier.sharedBounds(
+                                                                    sharedContentState = rememberSharedContentState("rail-active-indicator-pill"),
+                                                                    animatedVisibilityScope = this,
+                                                                    boundsTransform = { _, _ -> VibeMotion.defaultSpatial() },
+                                                                    resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds
+                                                                )
+                                                            }
+                                                            Box(
+                                                                Modifier
+                                                                    .then(sharedPillModifier)
+                                                                    .size(56.dp, 32.dp)
+                                                                    .background(
+                                                                        MaterialTheme.colorScheme.secondaryContainer,
+                                                                        CircleShape
+                                                                    )
+                                                                    .semantics(mergeDescendants = true) {}
+                                                                    .testTag("RailActiveIndicatorPill")
+                                                            )
+                                                        } else {
+                                                            Spacer(Modifier.size(56.dp, 32.dp))
+                                                        }
+                                                    }
+                                                    BottomNavigationIcon(
+                                                        tab = tab,
+                                                        selected = selectedTab == tab,
+                                                        title = title,
+                                                        filledIcon = info.second,
+                                                        outlinedIcon = info.third,
+                                                        trigger = triggers[tab] ?: 0
+                                                    )
+                                                }
+                                            },
+                                            label = { Text(title, maxLines = 1) },
+                                            railExpanded = false,
+                                            modifier = Modifier.testTag("RailNav_${tab.name}")
+                                        )
+                                    }
                                 }
                             }
 
@@ -282,9 +349,8 @@ internal fun AdaptiveMainFrame(
                                             .testTag("RailGoogleDriveSync")
                                     ) {
                                         if (isSyncing) {
-                                            CircularProgressIndicator(
+                                            LoadingIndicator(
                                                 modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                         } else {

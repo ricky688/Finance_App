@@ -216,42 +216,86 @@ fun M3ExpressiveHeatmap(
     var tileShapeMode by remember { mutableStateOf(HeatmapTileShape.SQUIRCLE) }
     val activeDate = selectedDate ?: today
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 1. Hero Streak & Summary Banner (Glassmorphic M3 Expressive Card)
-        HeroStreakCard(
-            matrix = matrix,
-            isDark = isDark
-        )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= 560.dp) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1.15f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    HeatmapGridSection(
+                        matrix = matrix,
+                        selectedDate = activeDate,
+                        tileShapeMode = tileShapeMode,
+                        isDark = isDark,
+                        onCellClick = onDateSelected
+                    )
+                    TileShapeSelectorRow(
+                        currentShape = tileShapeMode,
+                        onSelectShape = { tileShapeMode = it }
+                    )
+                    HeatmapLegendBar(isDark = isDark)
+                }
+                Column(
+                    modifier = Modifier.weight(0.85f),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    HeroStreakCard(
+                        matrix = matrix,
+                        isDark = isDark
+                    )
+                    InspectionCalloutCard(
+                        date = activeDate,
+                        dailyBudget = dailyBudget,
+                        transactions = transactions,
+                        isDark = isDark,
+                        onViewTransactions = { onViewTransactionsForDate(activeDate) }
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 1. Hero Streak & Summary Banner (Glassmorphic M3 Expressive Card)
+                HeroStreakCard(
+                    matrix = matrix,
+                    isDark = isDark
+                )
 
-        // 2. 16-Week Heatmap Grid
-        HeatmapGridSection(
-            matrix = matrix,
-            selectedDate = activeDate,
-            tileShapeMode = tileShapeMode,
-            isDark = isDark,
-            onCellClick = onDateSelected
-        )
+                // 2. 16-Week Heatmap Grid
+                HeatmapGridSection(
+                    matrix = matrix,
+                    selectedDate = activeDate,
+                    tileShapeMode = tileShapeMode,
+                    isDark = isDark,
+                    onCellClick = onDateSelected
+                )
 
-        // 3. Tile Shape Selector Pills
-        TileShapeSelectorRow(
-            currentShape = tileShapeMode,
-            onSelectShape = { tileShapeMode = it }
-        )
+                // 3. Tile Shape Selector Pills
+                TileShapeSelectorRow(
+                    currentShape = tileShapeMode,
+                    onSelectShape = { tileShapeMode = it }
+                )
 
-        // 4. Inspection Callout Card for Selected Day
-        InspectionCalloutCard(
-            date = activeDate,
-            dailyBudget = dailyBudget,
-            transactions = transactions,
-            isDark = isDark,
-            onViewTransactions = { onViewTransactionsForDate(activeDate) }
-        )
+                // 4. Inspection Callout Card for Selected Day
+                InspectionCalloutCard(
+                    date = activeDate,
+                    dailyBudget = dailyBudget,
+                    transactions = transactions,
+                    isDark = isDark,
+                    onViewTransactions = { onViewTransactionsForDate(activeDate) }
+                )
 
-        // 5. Visual Legend Bar
-        HeatmapLegendBar(isDark = isDark)
+                // 5. Visual Legend Bar
+                HeatmapLegendBar(isDark = isDark)
+            }
+        }
     }
 }
 
@@ -291,7 +335,8 @@ private fun HeroStreakCard(
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = glowColor.copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, glowColor.copy(alpha = 0.4f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, glowColor.copy(alpha = 0.4f)),
+                    modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -308,7 +353,9 @@ private fun HeroStreakCard(
                             text = stringResource(R.string.loc_budget_streak, matrix.currentStreak),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = glowColor
+                            color = glowColor,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -326,7 +373,9 @@ private fun HeroStreakCard(
                     Text(
                         text = stringResource(R.string.loc_live_sync),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
@@ -751,6 +800,8 @@ private fun InspectionCalloutCard(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             color = badgeColor,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -785,7 +836,9 @@ private fun InspectionCalloutCard(
                             text = stringResource(R.string.category_transactions_count, txCount),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Icon(
                             imageVector = Icons.Default.ChevronRight,

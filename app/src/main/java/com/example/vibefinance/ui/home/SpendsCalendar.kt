@@ -3,7 +3,7 @@ package com.example.vibefinance.ui.home
 import com.example.vibefinance.ui.common.expressiveCardClickable
 import com.example.vibefinance.ui.common.rememberExpressiveCardPress
 
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import com.example.vibefinance.ui.components.rememberCompletePressProgress
@@ -40,6 +40,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -637,7 +638,7 @@ fun SpendsCalendar(
         val sheetState = rememberModalBottomSheetState()
         val dismissDetails = rememberSheetDismissAction(sheetState)
 
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showDetailSheet = false },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface,
@@ -758,14 +759,18 @@ fun SpendsCalendar(
                     }
                 } else {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 240.dp)
                     ) {
-                        items(dayTxList) { tx ->
+                        itemsIndexed(dayTxList) { index, tx ->
+                            val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                                isFirst = index == 0,
+                                isLast = index == dayTxList.lastIndex
+                            )
                             Surface(
-                                shape = RoundedCornerShape(12.dp),
+                                shape = rowShape,
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                                 modifier = Modifier.fillMaxWidth()
                             ) {

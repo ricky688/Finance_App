@@ -1,9 +1,12 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.history
 
 import android.content.ComponentCallbacks
 import android.content.res.Configuration
 import android.view.MotionEvent
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -16,9 +19,11 @@ import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -55,7 +60,11 @@ internal const val TRANSACTION_MAP_DARK_STYLE = "https://tiles.openfreemap.org/s
 internal fun TransactionLocationMap(
     latitude: Double, longitude: Double,
     startLatitude: Double?, startLongitude: Double?, description: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    interactive: Boolean = true,
+    cornerRadius: Dp = 28.dp,
+    onMapClick: ((Double, Double) -> Unit)? = null,
+    onPreviewClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
@@ -72,11 +81,31 @@ internal fun TransactionLocationMap(
         }.distinct()
     }
     val currentCoordinates by rememberUpdatedState(coordinates)
+    val currentInteractive by rememberUpdatedState(interactive)
+    val currentOnMapClick by rememberUpdatedState(onMapClick)
     var loading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var readyStyle by remember { mutableStateOf<Style?>(null) }
+    var wasAlreadyInteractive by remember { mutableStateOf(false) }
+    fun centerCameraOnCoordinates(animate: Boolean) {
+        val activeMap = map ?: return
+        val coords = currentCoordinates
+        if (coords.isEmpty()) return
+        if (animate) {
+            activeMap.easeCamera(CameraUpdateFactory.newLatLng(coords.last()), 250)
+        } else if (coords.size > 1) {
+            activeMap.moveCamera(CameraUpdateFactory.newLatLngBounds(
+                LatLngBounds.Builder().includes(coords).build(),
+                (24 * context.resources.displayMetrics.density).toInt(),
+                (56 * context.resources.displayMetrics.density).toInt(),
+                (24 * context.resources.displayMetrics.density).toInt(),
+                (32 * context.resources.displayMetrics.density).toInt()))
+        } else {
+            activeMap.moveCamera(CameraUpdateFactory.newLatLngZoom(coords.last(), 16.0))
+        }
+    }
     val mapView = remember(context) {
         MapLibre.getInstance(context)
         HttpRequestUtil.setOkHttpClient(OkHttpClient.Builder().addInterceptor { chain ->
@@ -90,12 +119,32 @@ internal fun TransactionLocationMap(
                 if (fullyRendered && readyStyle != null && currentCoordinates.isNotEmpty()) { loading = false; failed = false }
             }
             addOnDidFailLoadingMapListener { failed = true; loading = false }
-            getMapAsync { map = it }
+            getMapAsync { loadedMap ->
+                loadedMap.uiSettings.setAllGesturesEnabled(currentInteractive)
+                loadedMap.addOnMapClickListener { latLng ->
+                    val callback = currentOnMapClick
+                    if (currentInteractive && callback != null) {
+                        callback(latLng.latitude, latLng.longitude)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                map = loadedMap
+            }
             setOnTouchListener { view, event ->
-                view.parent?.requestDisallowInterceptTouchEvent(event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
+                if (currentInteractive) {
+                    view.parent?.requestDisallowInterceptTouchEvent(
+                        event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL
+                    )
+                }
                 false
             }
         }
+    }
+    LaunchedEffect(map, interactive) {
+        map?.uiSettings?.setAllGesturesEnabled(interactive)
+        if (!interactive) wasAlreadyInteractive = false
     }
     DisposableEffect(mapView, owner) {
         var started = false
@@ -113,11 +162,28 @@ internal fun TransactionLocationMap(
             override fun onConfigurationChanged(newConfig: Configuration) = Unit
             override fun onLowMemory() = mapView.onLowMemory()
         }
+        val layoutListener = android.view.View.OnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            val width = right - left
+            val height = bottom - top
+            val oldWidth = oldRight - oldLeft
+            val oldHeight = oldBottom - oldTop
+            if (width > 0 && height > 0 && (width != oldWidth || height != oldHeight) &&
+                !currentInteractive && readyStyle != null && currentCoordinates.isNotEmpty()
+            ) {
+                mapView.post {
+                    if (!currentInteractive && readyStyle != null && currentCoordinates.isNotEmpty()) {
+                        centerCameraOnCoordinates(animate = false)
+                    }
+                }
+            }
+        }
+        mapView.addOnLayoutChangeListener(layoutListener)
         context.applicationContext.registerComponentCallbacks(memory)
         owner.lifecycle.addObserver(observer)
         onDispose {
             readyStyle = null
             map = null
+            mapView.removeOnLayoutChangeListener(layoutListener)
             owner.lifecycle.removeObserver(observer)
             context.applicationContext.unregisterComponentCallbacks(memory)
             if (resumed) mapView.onPause()
@@ -127,7 +193,7 @@ internal fun TransactionLocationMap(
     }
     LaunchedEffect(map, styleUrl, chinese, labelColor, haloColor, retry) {
         val activeMap = map ?: return@LaunchedEffect
-        loading = true; failed = false; readyStyle = null
+        loading = true; failed = false; readyStyle = null; wasAlreadyInteractive = false
         activeMap.setStyle(Style.Builder().fromUri(styleUrl)) { style ->
             applyStreetPalette(style, dark)
             style.layers.filterIsInstance<SymbolLayer>().forEach { layer ->
@@ -152,7 +218,7 @@ internal fun TransactionLocationMap(
         delay(30_000)
         if (loading) { failed = true; loading = false }
     }
-    LaunchedEffect(readyStyle, coordinates) {
+    LaunchedEffect(readyStyle, coordinates, interactive) {
         val style = readyStyle ?: return@LaunchedEffect
         if (coordinates.isEmpty()) { loading = false; failed = true; return@LaunchedEffect }
         val points = coordinates.map { Point.fromLngLat(it.longitude, it.latitude) }
@@ -164,25 +230,35 @@ internal fun TransactionLocationMap(
             if (points.size > 1) listOf(Feature.fromGeometry(LineString.fromLngLats(points))) else emptyList()))
         mapView.post {
             if (readyStyle === style) {
-                if (coordinates.size > 1) map?.moveCamera(CameraUpdateFactory.newLatLngBounds(
-                    LatLngBounds.Builder().includes(coordinates).build(),
-                    (24 * context.resources.displayMetrics.density).toInt(),
-                    (56 * context.resources.displayMetrics.density).toInt(),
-                    (24 * context.resources.displayMetrics.density).toInt(),
-                    (32 * context.resources.displayMetrics.density).toInt()))
-                else map?.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinates.last(), 16.0))
+                if (wasAlreadyInteractive && currentInteractive && currentOnMapClick != null) {
+                    centerCameraOnCoordinates(animate = true)
+                } else {
+                    centerCameraOnCoordinates(animate = false)
+                    wasAlreadyInteractive = currentInteractive && currentOnMapClick != null
+                }
             }
         }
     }
-    Box(modifier.clip(RoundedCornerShape(28.dp))
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(28.dp))) {
+    Box(modifier.clip(RoundedCornerShape(cornerRadius))
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius))) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize().semantics { contentDescription = description })
-        if (loading && !failed) CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp))
+        if (!interactive && onPreviewClick != null && !failed) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .clickable(onClick = onPreviewClick)
+                    .testTag("OsmMiniMapPreviewTap")
+            )
+        }
+        if (loading && !failed) ContainedLoadingIndicator(modifier = Modifier.align(Alignment.Center).size(36.dp))
         if (failed) Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
             Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center) {
                 Text(stringResource(R.string.transaction_map_unavailable))
-                TextButton(onClick = { retry++ }) { Text(stringResource(R.string.transaction_map_retry)) }
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { retry++ },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) { Text(stringResource(R.string.transaction_map_retry)) }
             }
         }
         // Visible data attribution; native attribution control retains provider/license links.

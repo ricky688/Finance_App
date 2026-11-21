@@ -26,8 +26,14 @@ import com.example.vibefinance.data.entity.ExpenseSymbol
 @Composable
 fun ExpenseIconChoice(value: String?, category: String, onValueChange: (String?) -> Unit, modifier: Modifier = Modifier) {
     var choosing by remember { mutableStateOf(false) }
-    OutlinedButton(onClick = { choosing = true }, modifier = modifier.fillMaxWidth().testTag("ExpenseIconChoose")) {
-        ExpenseEventIcon(value, category, MaterialTheme.colorScheme.primary)
+    CompletePressOutlinedButton(
+        onClick = { choosing = true },
+        shapes = AppButtonDefaults.shapes(),
+        modifier = modifier.fillMaxWidth().testTag("ExpenseIconChoose")
+    ) {
+        Box(Modifier.postPressIconBounce()) {
+            ExpenseEventIcon(value, category, MaterialTheme.colorScheme.primary)
+        }
         Spacer(Modifier.width(12.dp))
         Text(stringResource(R.string.expense_icon_title))
         Spacer(Modifier.weight(1f))
@@ -56,8 +62,14 @@ private fun ExpenseIconPicker(value: String?, category: String, onConfirm: (Stri
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.expense_icon_hint))
-                OutlinedButton(onClick = { selected = null; typedEmoji = ""; typing = false }, Modifier.fillMaxWidth().testTag("ExpenseIconDefault")) {
-                    ExpenseEventIcon(null, category, MaterialTheme.colorScheme.primary)
+                CompletePressOutlinedButton(
+                    onClick = { selected = null; typedEmoji = ""; typing = false },
+                    shapes = AppButtonDefaults.shapes(),
+                    modifier = Modifier.fillMaxWidth().testTag("ExpenseIconDefault")
+                ) {
+                    Box(Modifier.postPressIconBounce()) {
+                        ExpenseEventIcon(null, category, MaterialTheme.colorScheme.primary)
+                    }
                     Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.expense_icon_default))
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {

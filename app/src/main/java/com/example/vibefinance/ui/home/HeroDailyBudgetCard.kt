@@ -1,6 +1,6 @@
 package com.example.vibefinance.ui.home
 
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.components.rememberSheetDismissAction
 import com.example.vibefinance.ui.components.AppButton
 import com.example.vibefinance.ui.components.TapIconEffect
@@ -595,7 +595,7 @@ fun HeroDailyBudgetCard(
     if (showNewDayBudgetInfoSheet) {
         val infoSheetState = rememberModalBottomSheetState()
         val dismissInfo = rememberSheetDismissAction(infoSheetState)
-        ModalBottomSheet(
+        AppModalBottomSheet(
             sheetState = infoSheetState,
             onDismissRequest = { showNewDayBudgetInfoSheet = false },
             containerColor = MaterialTheme.colorScheme.surface,
@@ -648,7 +648,7 @@ fun HeroDailyBudgetCard(
     if (showBudgetEndInfoSheet) {
         val infoSheetState = rememberModalBottomSheetState()
         val dismissInfo = rememberSheetDismissAction(infoSheetState)
-        ModalBottomSheet(
+        AppModalBottomSheet(
             sheetState = infoSheetState,
             onDismissRequest = { showBudgetEndInfoSheet = false },
             containerColor = MaterialTheme.colorScheme.surface,

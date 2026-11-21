@@ -692,13 +692,28 @@ object PendingPaymentStore {
                 searchPool.firstOrNull { it.name.contains("hsbc", ignoreCase = true) || it.name.contains("匯豐") || it.name.contains("汇丰") }?.let { return it }
             }
             hint.contains("hang seng") || hint.contains("恒生") || merch.contains("hang seng") || merch.contains("恒生") || hint.contains("enjoy") -> {
-                if (isTransferOrIncome || hint.contains("bank")) {
+                if (hint.contains("enjoy")) {
                     searchPool.firstOrNull {
-                        (it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true)) &&
-                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                        it.name.contains("enjoy", ignoreCase = true) || it.nickname?.contains("enjoy", ignoreCase = true) == true
                     }?.let { return it }
                 }
-                searchPool.firstOrNull { it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) }?.let { return it }
+                if (isTransferOrIncome || hint.contains("bank")) {
+                    searchPool.firstOrNull {
+                        (it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) ||
+                            it.nickname?.contains("hang seng", ignoreCase = true) == true || it.nickname?.contains("恒生") == true) &&
+                            (it.type == AccountType.BANK || it.type == AccountType.DEBIT || !it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                } else {
+                    searchPool.firstOrNull {
+                        (it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) ||
+                            it.nickname?.contains("hang seng", ignoreCase = true) == true || it.nickname?.contains("恒生") == true) &&
+                            (it.type == AccountType.CC || it.name.contains("card", ignoreCase = true))
+                    }?.let { return it }
+                }
+                searchPool.firstOrNull {
+                    it.name.contains("hang seng", ignoreCase = true) || it.name.contains("恒生") || it.name.contains("enjoy", ignoreCase = true) ||
+                        it.nickname?.contains("hang seng", ignoreCase = true) == true || it.nickname?.contains("恒生") == true
+                }?.let { return it }
             }
             hint.contains("mox") || merch.contains("mox") || payment.sourcePackage.contains("mox") -> {
                 // If it is a transfer, income, top-up, prefer BANK / DEBIT account (e.g. Mox, Mox Bank)
@@ -1071,6 +1086,20 @@ object PendingPaymentStore {
             return hint == accountName || (hint.contains("payme") && accountName.contains("payme")) || ((hint.contains("alipay") || hint.contains("支付寶")) && (accountName.contains("alipay") || accountName.contains("支付寶")))
         }
 
+        // Hang Seng / enJoy cards match Hang Seng & enJoy accounts for regular purchases
+        if (!isNonTopUpTransferOrIncome && !isBankTopUp && (account.type == AccountType.CC || account.type == AccountType.DEBIT || account.type == AccountType.BANK)) {
+            if (hint.contains("enjoy") && (accountName.contains("enjoy") || accountNickname.contains("enjoy") ||
+                accountName.contains("hang seng") || accountNickname.contains("hang seng") ||
+                accountName.contains("恒生") || accountNickname.contains("恒生"))) {
+                return true
+            }
+            if ((hint.contains("hang seng") || hint.contains("恒生")) &&
+                (accountName.contains("hang seng") || accountNickname.contains("hang seng") ||
+                    accountName.contains("恒生") || accountNickname.contains("恒生"))) {
+                return true
+            }
+        }
+
         // Generic hints without a specific card cannot be safely remembered
         if (isGenericHint(hint)) return false
         if (Regex("(?:^|\\D)\\d{4}(?:\\D|$)").containsMatchIn(hint)) return true
@@ -1080,10 +1109,10 @@ object PendingPaymentStore {
         val normAcc = norm(accountName)
         val normNick = norm(accountNickname)
         if (normHint.isNotEmpty()) {
-            if (normAcc.length >= 6 && (normHint == normAcc || normHint.contains(normAcc) || normAcc.contains(normHint))) {
+            if (normAcc.length >= 4 && (normHint == normAcc || normHint.contains(normAcc) || normAcc.contains(normHint))) {
                 return true
             }
-            if (normNick.length >= 6 && (normHint == normNick || normHint.contains(normNick) || normNick.contains(normNick))) {
+            if (normNick.length >= 4 && (normHint == normNick || normHint.contains(normNick) || normNick.contains(normHint))) {
                 return true
             }
         }

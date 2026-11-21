@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.vibefinance.R
+import com.example.vibefinance.ui.components.AppButtonDefaults
 import com.example.vibefinance.ui.preferences.LocalExperience
 import com.example.vibefinance.ui.preferences.MotionLevel
 import com.example.vibefinance.util.VibeHaptics
@@ -79,8 +80,11 @@ internal fun AutoLoggingPanel(
                 Text(stringResource(R.string.auto_logging_recovery_title), style = MaterialTheme.typography.labelLarge)
                 Text(stringResource(R.string.auto_logging_recovery_body), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { VibeHaptics.lightTick(view); onOpenNotificationAccess() },
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("AutoLoggingNotificationAccess")) {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { VibeHaptics.lightTick(view); onOpenNotificationAccess() },
+                    shapes = AppButtonDefaults.largeShapes(),
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("AutoLoggingNotificationAccess")
+                ) {
                     Text(stringResource(R.string.auto_logging_open_access))
                 }
             }
@@ -227,12 +231,12 @@ internal fun PowerSavingGuidelineCard(modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (!isUnrestricted) {
-                            Button(
+                            com.example.vibefinance.ui.components.CompletePressButton(
                                 onClick = {
                                     VibeHaptics.impactMedium(view)
                                     BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(context)
                                 },
-                                shape = RoundedCornerShape(12.dp),
+                                shapes = AppButtonDefaults.shapes(),
                                 modifier = Modifier.weight(1f).heightIn(min = 40.dp)
                             ) {
                                 Text(
@@ -241,12 +245,12 @@ internal fun PowerSavingGuidelineCard(modifier: Modifier = Modifier) {
                                 )
                             }
                         } else {
-                            OutlinedButton(
+                            com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                                 onClick = {
                                     VibeHaptics.lightTick(view)
                                     BatteryOptimizationHelper.openAppBatterySettings(context)
                                 },
-                                shape = RoundedCornerShape(12.dp),
+                                shapes = AppButtonDefaults.shapes(),
                                 modifier = Modifier.weight(1f).heightIn(min = 40.dp)
                             ) {
                                 Text(
@@ -256,12 +260,12 @@ internal fun PowerSavingGuidelineCard(modifier: Modifier = Modifier) {
                             }
                         }
 
-                        OutlinedButton(
+                        com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                             onClick = {
                                 VibeHaptics.lightTick(view)
                                 BatteryOptimizationHelper.openSystemBatterySaverSettings(context)
                             },
-                            shape = RoundedCornerShape(12.dp),
+                            shapes = AppButtonDefaults.shapes(),
                             modifier = Modifier.weight(1f).heightIn(min = 40.dp)
                         ) {
                             Text(

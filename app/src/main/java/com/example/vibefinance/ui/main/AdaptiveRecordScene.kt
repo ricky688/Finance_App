@@ -33,6 +33,11 @@ internal fun AdaptiveRecordScene(
     modifier: Modifier = Modifier,
     listContent: @Composable () -> Unit,
     hasActiveDialog: Boolean = false,
+    /**
+     * True while an add/edit page owns the detail pane: it brings its own container transform (or
+     * card flight), so the pane switches without the default cross-fade underneath it.
+     */
+    instantDetail: Boolean = false,
     detailContent: @Composable (Long) -> Unit
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
@@ -44,7 +49,7 @@ internal fun AdaptiveRecordScene(
         val directive = calculatePaneScaffoldDirective(adaptiveInfo).copy(
             maxHorizontalPartitions = if (canShowBoth) 2 else 1,
             maxVerticalPartitions = 1,
-            horizontalPartitionSpacerSize = if (verticalSeparatingHinge != null) 0.dp else 24.dp,
+            horizontalPartitionSpacerSize = if (verticalSeparatingHinge != null) 0.dp else 16.dp,
             defaultPanePreferredWidth = if (canShowBoth && maxWidth < 800.dp) 340.dp else 400.dp
         )
         val strategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
@@ -56,7 +61,14 @@ internal fun AdaptiveRecordScene(
             onClose()
         }
 
+        val instant: androidx.compose.animation.AnimatedContentTransitionScope<androidx.navigation3.scene.Scene<NavKey>>.() -> androidx.compose.animation.ContentTransform =
+            { androidx.compose.animation.ContentTransform(androidx.compose.animation.EnterTransition.None, androidx.compose.animation.ExitTransition.None) }
+        // Side by side, each detail page plays its own staggered content entrance, so the pane
+        // itself switches without a cross-fade. A single pane keeps the default navigation motion.
+        val instantPane = instantDetail || canShowBoth
         NavDisplay(backStack = stack, onBack = onClose, sceneStrategy = strategy,
+            transitionSpec = if (instantPane) instant else androidx.navigation3.ui.defaultTransitionSpec(),
+            popTransitionSpec = if (instantPane) instant else androidx.navigation3.ui.defaultPopTransitionSpec(),
             entryProvider = entryProvider {
                 entry<RecordList>(metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = {
                     Box(Modifier.fillMaxSize().testTag("InspectionPlaceholder"), contentAlignment = androidx.compose.ui.Alignment.Center) {

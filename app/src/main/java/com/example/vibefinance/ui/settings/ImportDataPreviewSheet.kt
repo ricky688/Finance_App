@@ -43,12 +43,12 @@ import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -103,7 +103,7 @@ fun ImportDataPreviewSheet(
         } else ""
     }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = { if (!isImporting) onDismiss() },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -507,29 +507,25 @@ fun ImportDataPreviewSheet(
             Spacer(modifier = Modifier.height(4.dp))
 
             // --- ACTION BUTTONS ---
-            val confirmInteraction = remember { MutableInteractionSource() }
             CompletePressButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onConfirm(replaceExisting)
                 },
                 enabled = !isImporting && preview.rawTransactions.isNotEmpty(),
-                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (replaceExisting) MaterialTheme.colorScheme.error
                                      else MaterialTheme.colorScheme.primary
                 ),
-                interactionSource = confirmInteraction,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
-                    .pressBounce(interactionSource = confirmInteraction)
             ) {
                 if (isImporting) {
-                    CircularProgressIndicator(
+                    LoadingIndicator(
                         modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
@@ -541,7 +537,7 @@ fun ImportDataPreviewSheet(
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -552,18 +548,15 @@ fun ImportDataPreviewSheet(
                 }
             }
 
-            val cancelInteraction = remember { MutableInteractionSource() }
             CompletePressTextButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onDismiss()
                 },
                 enabled = !isImporting,
-                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                interactionSource = cancelInteraction,
+                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .pressBounce(interactionSource = cancelInteraction)
             ) {
                 Text(
                     text = stringResource(R.string.btn_cancel),

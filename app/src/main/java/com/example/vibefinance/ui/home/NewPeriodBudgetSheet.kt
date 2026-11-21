@@ -2,12 +2,14 @@
 
 package com.example.vibefinance.ui.home
 
-import com.example.vibefinance.ui.components.AppModalBottomSheet as ModalBottomSheet
-import com.example.vibefinance.ui.components.rememberSheetDismissAction
-
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.AppModalBottomSheet
 import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressOutlinedButton
 import com.example.vibefinance.ui.components.CompletePressTextButton
+import com.example.vibefinance.ui.components.LocalPostPressIconBounce
+import com.example.vibefinance.ui.components.rememberSheetDismissAction
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -131,7 +133,7 @@ fun NewPeriodBudgetSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dismissSheet = rememberSheetDismissAction(sheetState)
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetContainerColor,
@@ -322,12 +324,16 @@ fun NewPeriodBudgetSheet(
                         }
 
                         // Custom Date Picker Button
-                        OutlinedButton(
+                        CompletePressOutlinedButton(
                             onClick = { showDatePickerModal = true },
-                            shape = RoundedCornerShape(14.dp),
+                            shapes = AppButtonDefaults.shapes(),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp).then(LocalPostPressIconBounce.current)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             val startStr = todayLocal.format(DateTimeFormatter.ofPattern("dd MMM", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
                             val endStr = endDateLocal.format(DateTimeFormatter.ofPattern("dd MMM yyyy", androidx.compose.ui.platform.LocalConfiguration.current.locales[0]))
@@ -387,14 +393,18 @@ fun NewPeriodBudgetSheet(
                                     )
                                 }
 
-                                TextButton(
+                                CompletePressTextButton(
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         showAddCategoryModal = true
                                     },
-                                    shape = RoundedCornerShape(12.dp)
+                                    shapes = AppButtonDefaults.shapes(),
                                 ) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp).then(LocalPostPressIconBounce.current)
+                                    )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(stringResource(R.string.loc_category_budgets_add_btn))
                                 }
@@ -620,7 +630,6 @@ fun NewPeriodBudgetSheet(
 
                 // 7. Confirm Button
                 item {
-                    val confirmInteraction = remember { MutableInteractionSource() }
                     CompletePressButton(
                         onClick = {
                             if (baseBudget > 0 && calculatedEndDateMillis > startDateMillis) {
@@ -636,14 +645,12 @@ fun NewPeriodBudgetSheet(
                             }
                         },
                         enabled = baseBudget > 0,
-                        shapes = ButtonDefaults.shapes(shape = RoundedCornerShape(27.dp), pressedShape = RoundedCornerShape(16.dp)),
+                        shapes = AppButtonDefaults.largeShapes(),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
-                        interactionSource = confirmInteraction,
                         modifier = Modifier
                             .testTag("NewPeriodBudgetConfirm")
                             .fillMaxWidth()
                             .height(54.dp)
-                            .pressBounce(interactionSource = confirmInteraction)
                     ) {
                         Text(
                             text = stringResource(R.string.loc_start_new_period),
@@ -666,7 +673,6 @@ fun NewPeriodBudgetSheet(
         DatePickerDialog(
             onDismissRequest = { showDatePickerModal = false },
             confirmButton = {
-                val dateConfirmInteraction = remember { MutableInteractionSource() }
                 CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -676,23 +682,18 @@ fun NewPeriodBudgetSheet(
                         }
                         showDatePickerModal = false
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = dateConfirmInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = dateConfirmInteraction)
+                    shapes = AppButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.btn_confirm))
                 }
             },
             dismissButton = {
-                val dateDismissInteraction = remember { MutableInteractionSource() }
                 CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showDatePickerModal = false
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = dateDismissInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = dateDismissInteraction)
+                    shapes = AppButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.btn_cancel))
                 }
@@ -786,7 +787,10 @@ fun NewPeriodBudgetSheet(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAddCategoryModal = false }) {
+                CompletePressTextButton(
+                    onClick = { showAddCategoryModal = false },
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.btn_close))
                 }
             }

@@ -5,6 +5,7 @@
 
 package com.example.vibefinance.ui.main
 
+import com.example.vibefinance.ui.motion.paneEntrance
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.filled.CloudDone
@@ -223,6 +224,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Settings
@@ -233,16 +235,22 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AppBarRow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -738,6 +746,7 @@ fun MainScreen(
     val budgetConfigurationOnly = budgetSheetDestination == BudgetSheetDestination.EDIT_PERIOD
     val showNewPeriodSheet = budgetSheetDestination == BudgetSheetDestination.NEW_PERIOD
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var homeFabMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val dailyFabIconMotion = transactionFabIconMotion(showAddDialog)
     var showAddRecurringSheet by remember { mutableStateOf(false) }
     var showLoadingIndicator by remember { mutableStateOf(false) }
@@ -860,6 +869,21 @@ fun MainScreen(
     val isBackgroundObscured by remember(isAnyModalActive, paymentToChoose, windowFocused) {
         derivedStateOf {
             !windowFocused || isAnyModalActive || paymentToChoose != null || sheetDepthProgress.value > 0f
+        }
+    }
+    LaunchedEffect(selectedTab, showAddDialog) {
+        if (selectedTab != TabItem.HOME || showAddDialog) {
+            homeFabMenuExpanded = false
+        }
+    }
+    androidx.activity.compose.PredictiveBackHandler(
+        enabled = homeFabMenuExpanded && selectedTab == TabItem.HOME && !isAnyModalActive
+    ) { progressFlow ->
+        try {
+            progressFlow.collect { }
+            homeFabMenuExpanded = false
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // gesture cancelled
         }
     }
     androidx.activity.compose.PredictiveBackHandler(
@@ -1040,6 +1064,41 @@ fun MainScreen(
         subscriptionEditorState.isOpen, label = "Subscription editor navigation"
     )
     val isWideScreen = (LocalMainWindowWidth.current ?: LocalConfiguration.current.screenWidthDp.dp) >= 600.dp
+    val assetEditorHost: @Composable (Boolean) -> Unit = { inPane ->
+        // In the pane the editor is composed only once it opens, so it runs its own transition
+        // starting from "closed"; the shared one would already have settled and the card would
+        // appear in place instead of flying in.
+        val paneEditorState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+        paneEditorState.targetState = assetEditorState.isOpen
+        val paneEditorTransition = androidx.compose.animation.core.rememberTransition(paneEditorState, label = "Asset editor pane")
+        AssetEditorHost(
+            state = state, editorState = assetEditorState, onIntent = viewModel::dispatch,
+            transition = if (inPane) paneEditorTransition else assetEditorTransition,
+            saveResult = accountSaveResult,
+            onAccountCreated = { account ->
+                val paymentId = assetEditorState.originPaymentId
+                val originTab = assetEditorState.originTab
+                if (paymentId != null) {
+                    settlingEditorPaymentId = paymentId
+                    pendingChoiceScope.launch {
+                        val recorded = runCatching {
+                            PendingPaymentStore.accept(context, paymentId, account.id, rememberChoice = true)
+                        }.getOrDefault(false)
+                        settlingEditorPaymentId = null
+                        if (!recorded) deferredPaymentIds = deferredPaymentIds + paymentId
+                        snackbarHostState.showSnackbar(if (recorded) context.getString(R.string.pending_payment_quick_created, account.name)
+                            else context.getString(R.string.pending_payment_failed))
+                    }
+                }
+                originTab?.let { selectedTab = TabItem.valueOf(it) }
+            },
+            onDismissCreate = {
+                assetEditorState.originPaymentId?.let { deferredPaymentIds = deferredPaymentIds + it }
+                assetEditorState.originTab?.let { selectedTab = TabItem.valueOf(it) }
+            },
+            inPane = inPane
+        )
+    }
     val fullScreenEditorTransition = androidx.compose.animation.core.updateTransition(
         !isWideScreen && (assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen), label = "Full-screen editor background"
     )
@@ -1071,17 +1130,42 @@ fun MainScreen(
         val localContext = androidx.compose.ui.platform.LocalContext.current
         val syncScope = androidx.compose.runtime.rememberCoroutineScope()
 
+        // Large screens: the add-transaction editor lives in the page's own right side
+        // (History's detail pane, Daily's right column) instead of an overlay.
+        val dismissTransactionEntry = { showAddDialog = false; prefilledTransferCardId = null }
+        val transactionEntryPane: (@Composable () -> Unit)? = if (isWideScreen && showAddDialog) {
+            {
+                TransactionEntryPane(
+                    state = state, onIntent = viewModel::dispatch, onDismiss = dismissTransactionEntry,
+                    initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
+                    accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
+                    reimbursementResult = reimbursementResult
+                )
+            }
+        } else null
+
         AdaptiveMainFrame(
             selectedTab = selectedTab,
             onSelect = { tab ->
                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
                 if (selectedTab != tab) {
                     if (tab == TabItem.HISTORY) { historyAccountFilterId = null; historyCategoryFilter = null }
+                    // Leaving a page closes any add/edit page opened on it, so it never reappears by itself.
+                    showAddDialog = false
+                    prefilledTransferCardId = null
+                    if (subscriptionEditorState.isOpen) subscriptionEditorState.close()
+                    showAddRecurringSheet = false
+                    if (assetEditorState.isOpen && assetEditorState.originPaymentId == null) assetEditorState.close()
                     selectedTab = tab
                 }
             },
             onAddTransaction = {
                 com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                // Only Daily and History have a right side for the editor; open it beside the records.
+                if (isWideScreen && selectedTab != TabItem.HOME && selectedTab != TabItem.HISTORY) {
+                    historyAccountFilterId = null; historyCategoryFilter = null
+                    selectedTab = TabItem.HISTORY
+                }
                 activeTransactionMode = TransactionMode.EXPENSE
                 showAddDialog = true
             },
@@ -1141,42 +1225,8 @@ fun MainScreen(
                         onAppIconEasterEggTrigger = { flyingCashTriggerKey = System.currentTimeMillis() },
                         actions = {
                             val actionView = androidx.compose.ui.platform.LocalView.current
-                            if (driveAuthState.isAuthenticated) {
-                                IconButton(
-                                    onClick = {
-                                        if (!isSyncing) {
-                                            com.example.vibefinance.util.VibeHaptics.lightTick(actionView)
-                                            syncScope.launch {
-                                                com.example.vibefinance.util.GoogleDriveSyncEngine.sync(localContext, silent = false)
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("GoogleDriveSyncTopBarBtn")
-                                ) {
-                                    if (isSyncing) {
-                                        androidx.compose.material3.CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.5.dp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = androidx.compose.material.icons.Icons.Default.CloudDone,
-                                            contentDescription = stringResource(R.string.google_drive_sync_title),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                            }
-
-                            IconButton(onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
-                                modifier = Modifier.testTag("ToggleAmountPrivacy")) {
-                                Icon(if (state.hideAmounts) androidx.compose.material.icons.Icons.Default.VisibilityOff
-                                    else androidx.compose.material.icons.Icons.Default.Visibility,
-                                    contentDescription = stringResource(if (state.hideAmounts) R.string.privacy_show_amounts else R.string.privacy_hide_amounts))
-                            }
+                            val topBarWidth = LocalMainWindowWidth.current ?: LocalConfiguration.current.screenWidthDp.dp
+                            val maxTopActions = if (topBarWidth < 380.dp) 2 else 4
                             val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
                             val iconRotation by animateFloatAsState(
                                 targetValue = if (isDarkTheme) 360f else 0f,
@@ -1191,45 +1241,167 @@ fun MainScreen(
                                 ),
                                 label = "themeIconTint"
                             )
-                            IconButton(onClick = {
-                                val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
-                                viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
-                            }) {
-                                AnimatedContent(
-                                    targetState = isDarkTheme,
-                                    transitionSpec = {
-                                        (fadeIn(animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )) + scaleIn(
-                                            animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
-                                        )).togetherWith(
-                                            fadeOut(animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                stiffness = Spring.StiffnessMedium
-                                            )) + scaleOut(animationSpec = spring(
-                                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                                stiffness = Spring.StiffnessMediumLow
-                                            ))
-                                        )
+                            val privacyLabel = stringResource(if (state.hideAmounts) R.string.privacy_show_amounts else R.string.privacy_hide_amounts)
+                            val syncLabel = stringResource(R.string.google_drive_sync_title)
+                            val themeLabel = stringResource(R.string.theme_mode_label)
+                            val settingsLabel = stringResource(R.string.settings_title)
+
+                            AppBarRow(
+                                maxItemCount = maxTopActions,
+                                overflowIndicator = { menuState ->
+                                    IconButton(onClick = { if (menuState.isShowing) menuState.dismiss() else menuState.show() }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = settingsLabel)
+                                    }
+                                }
+                            ) {
+                                customItem(
+                                    appbarContent = {
+                                        IconButton(
+                                            onClick = { viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts)) },
+                                            modifier = Modifier.testTag("ToggleAmountPrivacy")
+                                        ) {
+                                            Icon(
+                                                if (state.hideAmounts) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = privacyLabel
+                                            )
+                                        }
                                     },
-                                    label = "moonSunIconSwitch"
-                                ) { isDark ->
-                                    Icon(
-                                        imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                        contentDescription = stringResource(R.string.theme_mode_label),
-                                        tint = iconTint,
-                                        modifier = Modifier.graphicsLayer { rotationZ = iconRotation }
+                                    menuContent = { menuState ->
+                                        DropdownMenuItem(
+                                            text = { Text(privacyLabel) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (state.hideAmounts) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                menuState.dismiss()
+                                                viewModel.dispatch(FinanceIntent.SetHideAmounts(!state.hideAmounts))
+                                            }
+                                        )
+                                    }
+                                )
+                                if (driveAuthState.isAuthenticated) {
+                                    customItem(
+                                        appbarContent = {
+                                            IconButton(
+                                                onClick = {
+                                                    if (!isSyncing) {
+                                                        com.example.vibefinance.util.VibeHaptics.lightTick(actionView)
+                                                        syncScope.launch {
+                                                            com.example.vibefinance.util.GoogleDriveSyncEngine.sync(localContext, silent = false)
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.testTag("GoogleDriveSyncTopBarBtn")
+                                            ) {
+                                                if (isSyncing) {
+                                                    androidx.compose.material3.LoadingIndicator(
+                                                        modifier = Modifier.size(20.dp),
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Default.CloudDone,
+                                                        contentDescription = syncLabel,
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        menuContent = { menuState ->
+                                            DropdownMenuItem(
+                                                text = { Text(syncLabel) },
+                                                leadingIcon = { Icon(Icons.Default.CloudDone, contentDescription = null) },
+                                                onClick = {
+                                                    menuState.dismiss()
+                                                    if (!isSyncing) {
+                                                        com.example.vibefinance.util.VibeHaptics.lightTick(actionView)
+                                                        syncScope.launch {
+                                                            com.example.vibefinance.util.GoogleDriveSyncEngine.sync(localContext, silent = false)
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                        }
                                     )
                                 }
-                            }
-                            IconButton(onClick = {
-                                VibeHaptics.lightTick(hapticView)
-                                budgetSheetDestination = BudgetSheetDestination.SETTINGS
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = stringResource(R.string.settings_title)
+                                customItem(
+                                    appbarContent = {
+                                        IconButton(onClick = {
+                                            val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
+                                            viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
+                                        }) {
+                                            AnimatedContent(
+                                                targetState = isDarkTheme,
+                                                transitionSpec = {
+                                                    (fadeIn(animationSpec = spring(
+                                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    )) + scaleIn(
+                                                        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultSpatial()
+                                                    )).togetherWith(
+                                                        fadeOut(animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                                            stiffness = Spring.StiffnessMedium
+                                                        )) + scaleOut(animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioNoBouncy,
+                                                            stiffness = Spring.StiffnessMediumLow
+                                                        ))
+                                                    )
+                                                },
+                                                label = "moonSunIconSwitch"
+                                            ) { isDark ->
+                                                Icon(
+                                                    imageVector = if (isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                                    contentDescription = themeLabel,
+                                                    tint = iconTint,
+                                                    modifier = Modifier.graphicsLayer { rotationZ = iconRotation }
+                                                )
+                                            }
+                                        }
+                                    },
+                                    menuContent = { menuState ->
+                                        DropdownMenuItem(
+                                            text = { Text(themeLabel) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                menuState.dismiss()
+                                                val nextMode = if (isDarkTheme) ThemeMode.LIGHT else ThemeMode.DARK
+                                                viewModel.dispatch(FinanceIntent.SetThemeMode(nextMode))
+                                            }
+                                        )
+                                    }
+                                )
+                                customItem(
+                                    appbarContent = {
+                                        IconButton(onClick = {
+                                            VibeHaptics.lightTick(hapticView)
+                                            budgetSheetDestination = BudgetSheetDestination.SETTINGS
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Settings,
+                                                contentDescription = settingsLabel
+                                            )
+                                        }
+                                    },
+                                    menuContent = { menuState ->
+                                        DropdownMenuItem(
+                                            text = { Text(settingsLabel) },
+                                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                            onClick = {
+                                                menuState.dismiss()
+                                                VibeHaptics.lightTick(hapticView)
+                                                budgetSheetDestination = BudgetSheetDestination.SETTINGS
+                                            }
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -1277,24 +1449,83 @@ fun MainScreen(
                     label = "dailyRecurringFabTransition"
                 ) { targetTab ->
                     when (targetTab) {
-                        TabItem.HOME -> ExtendedFloatingActionButton(
-                            expanded = isFabExpanded,
-                            onClick = {
-                                if (selectedTab != TabItem.HOME || showAddDialog) return@ExtendedFloatingActionButton
-                                com.example.vibefinance.util.VibeHaptics.impactMedium(hapticView)
-                                activeTransactionMode = TransactionMode.EXPENSE
-                                prefilledTransferCardId = null
-                                showAddDialog = true
-                            },
-                            modifier = Modifier.testTag("DailyAddFab").graphicsLayer {
+                        TabItem.HOME -> FloatingActionButtonMenu(
+                            expanded = homeFabMenuExpanded,
+                            modifier = Modifier.graphicsLayer {
                                 translationY = if (useRail) 0f else with(density) { fabOffsetY.toPx() }
                             },
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            shape = RoundedCornerShape(16.dp),
-                            icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.ui_main_add_transaction), modifier = Modifier.size(24.dp).then(dailyFabIconMotion).testTag("DailyAddFabIcon")) },
-                            text = { Text(stringResource(R.string.btn_add), maxLines = 1, softWrap = false) }
-                        )
+                            button = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    ExtendedFloatingActionButton(
+                                        expanded = isFabExpanded && !homeFabMenuExpanded,
+                                        onClick = {
+                                            if (selectedTab != TabItem.HOME || showAddDialog) return@ExtendedFloatingActionButton
+                                            if (homeFabMenuExpanded) {
+                                                VibeHaptics.selection(hapticView)
+                                                homeFabMenuExpanded = false
+                                                return@ExtendedFloatingActionButton
+                                            }
+                                            VibeHaptics.impactMedium(hapticView)
+                                            activeTransactionMode = TransactionMode.EXPENSE
+                                            prefilledTransferCardId = null
+                                            showAddDialog = true
+                                        },
+                                        modifier = Modifier.testTag("DailyAddFab"),
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        shape = RoundedCornerShape(16.dp),
+                                        icon = {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = stringResource(R.string.ui_main_add_transaction),
+                                                modifier = Modifier.size(24.dp).then(dailyFabIconMotion).testTag("DailyAddFabIcon")
+                                            )
+                                        },
+                                        text = { Text(stringResource(R.string.btn_add), maxLines = 1, softWrap = false) }
+                                    )
+                                    ToggleFloatingActionButton(
+                                        checked = homeFabMenuExpanded,
+                                        onCheckedChange = {
+                                            VibeHaptics.selection(hapticView)
+                                            homeFabMenuExpanded = it
+                                        },
+                                        modifier = Modifier.testTag("DailyAddFabMenuToggle"),
+                                        containerSize = ToggleFloatingActionButtonDefaults.containerSize(48.dp, 48.dp),
+                                        containerCornerRadius = ToggleFloatingActionButtonDefaults.containerCornerRadius(16.dp, 24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (checkedProgress > 0.5f) Icons.Default.Close else Icons.Default.KeyboardArrowUp,
+                                            contentDescription = stringResource(R.string.ui_main_add_transaction),
+                                            modifier = with(ToggleFloatingActionButtonDefaults) {
+                                                Modifier.animateIcon(checkedProgress = { checkedProgress })
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            listOf(
+                                Triple(TransactionMode.EXPENSE, Icons.Default.ShoppingCart, R.string.history_kind_expense),
+                                Triple(TransactionMode.INCOME, Icons.Default.Savings, R.string.history_kind_income),
+                                Triple(TransactionMode.TRANSFER, Icons.Default.SwapHoriz, R.string.history_kind_transfer)
+                            ).forEach { (mode, itemIcon, labelRes) ->
+                                FloatingActionButtonMenuItem(
+                                    onClick = {
+                                        homeFabMenuExpanded = false
+                                        VibeHaptics.impactMedium(hapticView)
+                                        activeTransactionMode = mode
+                                        prefilledTransferCardId = null
+                                        showAddDialog = true
+                                    },
+                                    icon = { Icon(itemIcon, contentDescription = null) },
+                                    text = { Text(stringResource(labelRes), maxLines = 1, softWrap = false) }
+                                )
+                            }
+                        }
                         TabItem.RECURRING -> ExtendedFloatingActionButton(
                             expanded = isFabExpanded,
                             onClick = {
@@ -1542,6 +1773,7 @@ fun MainScreen(
                                     },
                                     showAddDialog = showAddDialog,
                                     onDismissAddDialog = { showAddDialog = false; prefilledTransferCardId = null },
+                                    addPane = transactionEntryPane,
                                     onOpenBudgetDialog = {
                                         budgetSheetDestination = BudgetSheetDestination.fromDaily(budgetInfo.totalMonthlyBudget)
                                     },
@@ -1574,7 +1806,8 @@ fun MainScreen(
                                     selectedTab = TabItem.HISTORY
                                 },
                                 editorState = assetEditorState,
-                                renderEditor = false
+                                renderEditor = false,
+                                editorPane = if (isWideScreen) { { assetEditorHost(true) } } else null
                             )
                             TabItem.RECURRING -> RecurringScreen(
                                 state = state,
@@ -1597,7 +1830,8 @@ fun MainScreen(
                                 editResult = { transactionEditResult },
                                 batchResult = batchResult,
                                 onIntent = viewModel::dispatch,
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalContentPadding = 16.dp,
                                 listState = historyListState,
                                 topContentPadding = pageTopPadding,
                                 topVisibilityInset = if (overlayTopBar) paddingValues.calculateTopPadding() else 0.dp,
@@ -1612,7 +1846,9 @@ fun MainScreen(
                                 onAddTransaction = {
                                     activeTransactionMode = TransactionMode.EXPENSE
                                     showAddDialog = true
-                                }
+                                },
+                                addPane = transactionEntryPane,
+                                onDismissAddPane = dismissTransactionEntry
                             )
                         }
                     }
@@ -1666,17 +1902,8 @@ fun MainScreen(
                 )
             }
         }
-        if (useRail) {
-            TransactionEntryHost(
-                visible = showAddDialog, state = state, onIntent = viewModel::dispatch,
-                onDismiss = { showAddDialog = false; prefilledTransferCardId = null },
-                initialMode = activeTransactionMode, categoryFrequency = categoryFrequency,
-                accountFrequency = accountFrequency, prefilledDestinationAccountId = prefilledTransferCardId,
-                transition = transactionEditorTransition,
-                reimbursementResult = reimbursementResult,
-                useSideSheet = true
-            )
-        }
+        // Large screens: the add-transaction editor renders inside the page's own right side
+        // (History detail pane / Daily right column), see transactionEntryPane below.
     }
     }
 
@@ -1710,32 +1937,8 @@ fun MainScreen(
         )
     }
 
-    AssetEditorHost(
-        state = state, editorState = assetEditorState, onIntent = viewModel::dispatch,
-        transition = assetEditorTransition,
-        saveResult = accountSaveResult,
-        onAccountCreated = { account ->
-            val paymentId = assetEditorState.originPaymentId
-            val originTab = assetEditorState.originTab
-            if (paymentId != null) {
-                settlingEditorPaymentId = paymentId
-                pendingChoiceScope.launch {
-                    val recorded = runCatching {
-                        PendingPaymentStore.accept(context, paymentId, account.id, rememberChoice = true)
-                    }.getOrDefault(false)
-                    settlingEditorPaymentId = null
-                    if (!recorded) deferredPaymentIds = deferredPaymentIds + paymentId
-                    snackbarHostState.showSnackbar(if (recorded) context.getString(R.string.pending_payment_quick_created, account.name)
-                        else context.getString(R.string.pending_payment_failed))
-                }
-            }
-            originTab?.let { selectedTab = TabItem.valueOf(it) }
-        },
-        onDismissCreate = {
-            assetEditorState.originPaymentId?.let { deferredPaymentIds = deferredPaymentIds + it }
-            assetEditorState.originTab?.let { selectedTab = TabItem.valueOf(it) }
-        }
-    )
+    // Large screens: the Assets tab shows the editor inside its right pane (assetEditorPane).
+    if (!(isWideScreen && selectedTab == TabItem.ACCOUNTS)) assetEditorHost(false)
 
     if (!assetEditorState.isOpen) paymentCategoryTransaction?.let { transaction ->
         NotificationCategorySheet(
@@ -1856,7 +2059,6 @@ fun MainScreen(
                                 )
                             }
 
-                            val dateConfirmInteraction = remember { MutableInteractionSource() }
                             CompletePressButton(
                                 onClick = {
                                     com.example.vibefinance.util.VibeHaptics.selection(hapticView)
@@ -1867,9 +2069,7 @@ fun MainScreen(
                                     showDatePickerModal = false
                                 },
                                 enabled = calendarState.calendarUiState.value.hasSelectedDates,
-                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                interactionSource = dateConfirmInteraction,
-                                modifier = Modifier.pressBounce(interactionSource = dateConfirmInteraction),
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1880,7 +2080,7 @@ fun MainScreen(
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = stringResource(R.string.btn_confirm),
-                                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                                    modifier = Modifier.size(ButtonDefaults.IconSize).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                                 )
                                 Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
                                 Text(stringResource(R.string.btn_confirm))
@@ -2209,16 +2409,21 @@ fun ExpressiveAddButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    restingCorner: Dp = 20.dp,
+    restingCorner: Dp = 24.dp,
     pressedCorner: Dp = 8.dp
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val view = LocalView.current
-    val haptic = rememberVibeHapticFeedback()
     val hapticView = androidx.compose.ui.platform.LocalView.current
     val shapeProgress by rememberCompletePressProgress(interactionSource)
     val cornerRadius = androidx.compose.ui.unit.lerp(restingCorner, pressedCorner, shapeProgress)
     val shape = RoundedCornerShape(cornerRadius)
+    var clickTrigger by remember { mutableIntStateOf(0) }
+    val iconBounceModifier = com.example.vibefinance.ui.components.rememberPostPressIconBounce(
+        selected = false,
+        clickTrigger = clickTrigger,
+        restingSelectedScale = 1f
+    )
 
     ConnectedButtonRipple {
         Surface(
@@ -2234,6 +2439,7 @@ fun ExpressiveAddButton(
                     onClick = {
                         view.playSoundEffect(SoundEffectConstants.CLICK)
                         com.example.vibefinance.util.VibeHaptics.selection(hapticView)
+                        clickTrigger++
                         onClick()
                     }
                 )
@@ -2246,7 +2452,7 @@ fun ExpressiveAddButton(
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp),
+                    modifier = Modifier.size(16.dp).then(iconBounceModifier),
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -2804,7 +3010,9 @@ fun AddExpenseSheetContent(
             // hero to scroll with the form. The navigation row and 54dp keypad stay fixed.
             val scrollHero = maxHeight < 520.dp || LocalDensity.current.fontScale > 1.5f
             Column(Modifier.fillMaxSize()) {
-                TransactionEntryTopBar(transactionMode, selectedCurrency, { selectedCurrency = it }, { if (!entrySubmitting) onDismissAddDialog() })
+                Box(Modifier.paneEntrance(0)) {
+                    TransactionEntryTopBar(transactionMode, selectedCurrency, { selectedCurrency = it }, { if (!entrySubmitting) onDismissAddDialog() })
+                }
                 ScrollBlurContainer(scrollState, Modifier.weight(1f).fillMaxWidth().testTag("EntryScrollContent")
                     .onGloballyPositioned { entryViewportCoordinates = it },
                     vertical = true, tagPrefix = "EntryScrollContent", blurActive = selectorOverlay.activeTag == null) { source ->
@@ -2823,6 +3031,7 @@ fun AddExpenseSheetContent(
                                 }
                             },
                             modifier = Modifier
+                                .paneEntrance(1)
                                 .fillMaxWidth()
                                 .padding(top = 4.dp, bottom = 12.dp)
                                 .testTag("TransactionModeSwitcher"),
@@ -2873,6 +3082,7 @@ fun AddExpenseSheetContent(
 
                         Row(
                             modifier = Modifier
+                                .paneEntrance(2)
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp)
                                 .clickable(
@@ -2940,6 +3150,7 @@ fun AddExpenseSheetContent(
                             color = MaterialTheme.colorScheme.surfaceContainer,
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                             modifier = Modifier
+                                .paneEntrance(3)
                                 .fillMaxWidth()
                                 .padding(bottom = 12.dp)
                         ) {
@@ -3263,6 +3474,7 @@ fun AddExpenseSheetContent(
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                     modifier = Modifier
+                        .paneEntrance(4)
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                 ) {
@@ -3376,7 +3588,6 @@ fun AddExpenseSheetContent(
                                                 modifier = Modifier.weight(1f),
                                                 textStyle = MaterialTheme.typography.bodyMedium
                                             )
-                                            val addCatInteraction = remember { MutableInteractionSource() }
                                             CompletePressButton(
                                                 onClick = {
                                                     com.example.vibefinance.util.VibeHaptics.selection(hapticView)
@@ -3397,11 +3608,13 @@ fun AddExpenseSheetContent(
                                                     newCatName = ""
                                                     showInlineAddCategory = false
                                                 },
-                                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                                interactionSource = addCatInteraction,
-                                                modifier = Modifier.pressBounce(interactionSource = addCatInteraction)
+                                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                                             ) {
-                                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Icon(
+                                                    Icons.Default.Add,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                                )
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text(stringResource(R.string.btn_add))
                                             }
@@ -3667,6 +3880,7 @@ fun AddExpenseSheetContent(
                         selectedAccount?.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT))
                 Surface(
                     modifier = Modifier
+                        .paneEntrance(5)
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -3674,7 +3888,7 @@ fun AddExpenseSheetContent(
                         .onGloballyPositioned { selectorOverlay.keypadBounds = it.boundsInWindow() },
                     color = Color.Transparent
                 ) {
-                    Button(
+                    com.example.vibefinance.ui.components.CompletePressButton(
                         onClick = {
                             val accId = selectedAccount?.id
                             if (isApplyEnabled && accId != null && amt != null && !entrySubmitting) {
@@ -3683,7 +3897,7 @@ fun AddExpenseSheetContent(
                                 val finalHkdAmt = convertedAmount
                                 val descWithFx = if (selectedCurrency != "HKD") {
                                     val origStr = com.example.vibefinance.util.CurrencyEngine.formatOriginal(amt, selectedCurrency)
-                                    val quote = rateQuote ?: return@Button
+                                    val quote = rateQuote ?: return@CompletePressButton
                                     val detail = "$origStr; 1 ${quote.currencyCode} = ${quote.rateText()} HKD; ${quote.source} ${quote.rateDate}"
                                     "${descriptionText.ifEmpty { if (isTransfer) "Transfer" else if (transactionMode == TransactionMode.INCOME) "Income" else "Purchase" }} ($detail)"
                                 } else {
@@ -3741,7 +3955,7 @@ fun AddExpenseSheetContent(
                             }
                         },
                         enabled = isApplyEnabled,
-                        shape = CircleShape,
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
@@ -3752,9 +3966,15 @@ fun AddExpenseSheetContent(
                             .testTag("EntrySubmit"),
                         elevation = AppButtonDefaults.elevation(),
                     ) {
-                        if (entrySubmitting && isRepaymentActive) androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                        else Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
+                        if (entrySubmitting && isRepaymentActive) androidx.compose.material3.LoadingIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        else Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = stringResource(
@@ -4000,7 +4220,7 @@ fun AddExpenseSheetContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Inline "+ 新增帳戶" Toggle & Form
-                OutlinedButton(
+                com.example.vibefinance.ui.components.CompletePressOutlinedButton(
                     onClick = {
                         showInlineAddAccountInSheet = !showInlineAddAccountInSheet
                         com.example.vibefinance.util.VibeHaptics.lightTick(hapticView)
@@ -4008,12 +4228,12 @@ fun AddExpenseSheetContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("AccountPicker_AddAccountToggle"),
-                    shape = RoundedCornerShape(12.dp)
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                 ) {
                     Icon(
                         imageVector = if (showInlineAddAccountInSheet) Icons.Default.Close else Icons.Default.Add,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(if (showInlineAddAccountInSheet) stringResource(R.string.btn_cancel) else stringResource(R.string.ui_main_add_account))
@@ -4095,7 +4315,6 @@ fun AddExpenseSheetContent(
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
-                            val addAccountInteraction = remember { MutableInteractionSource() }
                             CompletePressButton(
                                 onClick = {
                                     com.example.vibefinance.util.VibeHaptics.selection(hapticView)
@@ -4122,13 +4341,15 @@ fun AddExpenseSheetContent(
                                     showInlineAddAccountInSheet = false
                                     showAccountPickerSheet = false
                                 },
-                                shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                                interactionSource = addAccountInteraction,
+                                shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(),
                                 modifier = Modifier
                                     .height(48.dp)
-                                    .pressBounce(interactionSource = addAccountInteraction)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(stringResource(R.string.btn_save))
                             }

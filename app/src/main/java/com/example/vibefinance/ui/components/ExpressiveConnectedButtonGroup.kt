@@ -143,24 +143,18 @@ fun <T> ExpressiveConnectedButtonGroup(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = if (compact) 4.dp else 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                val trigger = if (index < clickTriggers.size) clickTriggers[index] else 0
+                                val iconBounceModifier = rememberPostPressIconBounce(
+                                    selected = isSelected,
+                                    clickTrigger = trigger,
+                                    restingSelectedScale = 1.08f
+                                )
                                 if (animatedIconProvider != null) {
-                                    val trigger = if (index < clickTriggers.size) clickTriggers[index] else 0
                                     animatedIconProvider(item, colorMotion.contentColor, isSelected, trigger)
                                     Spacer(Modifier.width(6.dp))
                                 } else if (iconProvider != null) {
-                                    val iconScale by animateFloatAsState(
-                                        targetValue = if (isSelected) 1.08f else 1f,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioNoBouncy,
-                                            stiffness = Spring.StiffnessLow
-                                        ),
-                                        label = "btnGroupIconScale_$index"
-                                    )
                                     Box(
-                                        modifier = Modifier.graphicsLayer {
-                                            scaleX = iconScale
-                                            scaleY = iconScale
-                                        },
+                                        modifier = iconBounceModifier,
                                         contentAlignment = Alignment.Center
                                     ) {
                                         iconProvider(item, colorMotion.contentColor)
@@ -177,7 +171,11 @@ fun <T> ExpressiveConnectedButtonGroup(
                                         )
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Icon(
+                                                Icons.Default.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp).then(iconBounceModifier)
+                                            )
                                             Spacer(Modifier.width(4.dp))
                                         }
                                     }

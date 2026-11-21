@@ -1,6 +1,10 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.example.vibefinance.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
@@ -11,8 +15,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import com.example.vibefinance.ui.preferences.PrivacyText as Text
@@ -22,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -98,12 +106,9 @@ fun GoogleDriveSyncCard(
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSyncing) {
-                            CircularProgressIndicator(
+                            LoadingIndicator(
                                 modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.5.dp,
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                strokeCap = StrokeCap.Round
+                                color = MaterialTheme.colorScheme.primary
                             )
                         } else {
                             Icon(
@@ -143,25 +148,24 @@ fun GoogleDriveSyncCard(
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp)),
+                val minimalMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                    com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+                LinearWavyProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                    strokeCap = StrokeCap.Round
+                    amplitude = if (minimalMotion) 0f else 1f
                 )
             }
 
             // If NOT connected: Show Connect Button
             if (!authState.isAuthenticated) {
-                Button(
+                com.example.vibefinance.ui.components.CompletePressButton(
                     onClick = {
                         VibeHaptics.lightTick(view)
                         onLaunchSignIn()
                     },
-                    shape = RoundedCornerShape(14.dp),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
@@ -170,7 +174,7 @@ fun GoogleDriveSyncCard(
                     Icon(
                         imageVector = Icons.Default.CloudSync,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(18.dp).then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -255,54 +259,121 @@ fun GoogleDriveSyncCard(
                     )
                 }
 
-                // Action buttons: Sync Now + Disconnect
+                // Action buttons: Sync Now SplitButton + Disconnect
+                var showSyncMenu by remember { mutableStateOf(false) }
+                val minimalMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+                    com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+                val menuArrowRotation by animateFloatAsState(
+                    targetValue = if (showSyncMenu) 180f else 0f,
+                    animationSpec = if (minimalMotion) snap() else com.example.vibefinance.theme.VibeMotion.fastSpatial(),
+                    label = "driveSplitArrow"
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FilledTonalButton(
-                        onClick = {
-                            VibeHaptics.lightTick(view)
-                            coroutineScope.launch {
-                                GoogleDriveSyncEngine.sync(context, silent = false)
+                    SplitButtonLayout(
+                        leadingButton = {
+                            com.example.vibefinance.ui.components.CompletePressTonalSplitLeadingButton(
+                                onClick = {
+                                    VibeHaptics.lightTick(view)
+                                    coroutineScope.launch {
+                                        GoogleDriveSyncEngine.sync(context, silent = false)
+                                    }
+                                },
+                                enabled = !isSyncing
+                            ) {
+                                if (isSyncing) {
+                                    LoadingIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.google_drive_sync_status_syncing),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Sync,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(SplitButtonDefaults.LeadingIconSize)
+                                            .then(com.example.vibefinance.ui.components.LocalPostPressIconBounce.current)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = stringResource(R.string.google_drive_sync_now_btn),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         },
-                        enabled = !isSyncing,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                strokeCap = StrokeCap.Round
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.google_drive_sync_status_syncing))
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(stringResource(R.string.google_drive_sync_now_btn))
+                        trailingButton = {
+                            Box {
+                                com.example.vibefinance.ui.components.CompletePressTonalSplitTrailingButton(
+                                    checked = showSyncMenu,
+                                    onCheckedChange = {
+                                        VibeHaptics.selection(view)
+                                        showSyncMenu = it
+                                    },
+                                    enabled = !isSyncing
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = stringResource(R.string.google_drive_sync_more_options),
+                                        modifier = Modifier
+                                            .size(SplitButtonDefaults.TrailingIconSize)
+                                            .graphicsLayer { rotationZ = menuArrowRotation }
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSyncMenu,
+                                    onDismissRequest = { showSyncMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.google_drive_force_upload)) },
+                                        leadingIcon = { Icon(Icons.Default.CloudUpload, contentDescription = null) },
+                                        onClick = {
+                                            showSyncMenu = false
+                                            VibeHaptics.lightTick(view)
+                                            coroutineScope.launch {
+                                                GoogleDriveSyncEngine.forceUpload(context)
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.google_drive_force_download)) },
+                                        leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) },
+                                        onClick = {
+                                            showSyncMenu = false
+                                            VibeHaptics.warningAlert(view)
+                                            coroutineScope.launch {
+                                                GoogleDriveSyncEngine.forceDownload(context)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
-                    }
+                    )
 
-                    TextButton(
+                    com.example.vibefinance.ui.components.CompletePressTextButton(
                         onClick = {
                             VibeHaptics.warningAlert(view)
                             GoogleDriveSyncEngine.signOut(context)
                         },
-                        shape = RoundedCornerShape(12.dp)
+                        shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     ) {
                         Text(
                             text = stringResource(R.string.google_drive_sync_disconnect),
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

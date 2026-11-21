@@ -47,7 +47,7 @@ internal fun NotificationLocationSettingsCard() {
                     else MaterialTheme.colorScheme.error)
             Text(stringResource(R.string.notification_location_body), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = {
+            com.example.vibefinance.ui.components.CompletePressTextButton(onClick = {
                 VibeHaptics.lightTick(view)
                 val intent = if (status == R.string.notification_location_off) {
                     Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
@@ -55,7 +55,7 @@ internal fun NotificationLocationSettingsCard() {
                     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
                 }
                 context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }, modifier = Modifier.heightIn(min = 48.dp)) {
+            }, shapes = com.example.vibefinance.ui.components.AppButtonDefaults.largeShapes(), modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(stringResource(R.string.notification_location_settings))
             }
         }

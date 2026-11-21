@@ -2,6 +2,13 @@
 
 package com.example.vibefinance.ui.history
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import com.example.vibefinance.ui.common.ContentEntranceViewport
 import com.example.vibefinance.ui.common.PageContentEntrance
 
@@ -32,7 +39,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.selected
 import com.example.vibefinance.ui.common.verticalFadingEdge
@@ -101,6 +108,8 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.nonInteractiveScrollbar
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.ui.platform.LocalDensity
 import com.example.vibefinance.ui.components.ExpressiveSwipeRow
 import com.example.vibefinance.ui.home.CategoryIcon
@@ -121,9 +130,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -168,6 +180,9 @@ import java.util.Locale
 
 private fun AccountEntity.displayLabel(): String = nickname?.trim()?.takeIf { it.isNotEmpty() } ?: name
 
+/** Detail-pane key of the large-screen add-transaction editor (never a real transaction id). */
+private const val ADD_TRANSACTION_PANE_ID = -1L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -185,7 +200,11 @@ fun HistoryScreen(
     batchResult: com.example.vibefinance.ui.BatchTransactionResult? = null,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     bottomVisibilityInsetProvider: () -> Dp = { bottomVisibilityInset },
-    editResult: (() -> com.example.vibefinance.ui.BatchTransactionResult?)? = null
+    editResult: (() -> com.example.vibefinance.ui.BatchTransactionResult?)? = null,
+    /** Large screens: the add-transaction editor, shown in the detail pane while non-null. */
+    addPane: (@Composable () -> Unit)? = null,
+    onDismissAddPane: () -> Unit = {},
+    horizontalContentPadding: Dp = 0.dp,
 ) {
     var multiSelect by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val motion = LocalExperience.current.motion
@@ -233,6 +252,19 @@ fun HistoryScreen(
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(showSearch) {
         if (showSearch && historyListState.firstVisibleItemIndex > 0) historyListState.animateScrollToItem(0)
+    }
+    // Enter-always collapse for the pinned search header, applied in layout (no recomposition).
+    val searchHeaderOffset = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val searchHeaderHeight = remember { IntArray(1) }
+    val searchHeaderScroll = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                val current = searchHeaderOffset.floatValue
+                val next = (current + available.y).coerceIn(-searchHeaderHeight[0].toFloat(), 0f)
+                searchHeaderOffset.floatValue = next
+                return Offset(0f, next - current)
+            }
+        }
     }
     val toggleSearch: () -> Unit = {
         if (showSearch) { focusManager.clearFocus(); keyboard?.hide() }
@@ -433,6 +465,34 @@ fun HistoryScreen(
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var viewingDetailTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var viewingAdjustment by remember { mutableStateOf<TransactionEntity?>(null) }
+    val optimisticTransactions = remember { mutableStateMapOf<Long, Pair<TransactionEntity, TransactionEntity>>() }
+    LaunchedEffect(state.transactions) {
+        val byId = state.transactions.associateBy { it.id }
+        optimisticTransactions.keys.toList().forEach { id ->
+            val entry = optimisticTransactions[id]
+            val stored = byId[id]
+            if (entry == null || stored == null || stored != entry.first) {
+                optimisticTransactions.remove(id)
+            }
+        }
+    }
+    fun latestTransaction(tx: TransactionEntity): TransactionEntity =
+        optimisticTransactions[tx.id]?.second ?: state.transactions.firstOrNull { it.id == tx.id } ?: tx
+    fun latestTransactionById(id: Long): TransactionEntity? =
+        optimisticTransactions[id]?.second ?: state.transactions.firstOrNull { it.id == id }
+    var fullScreenMapTransactionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
+    val saveRepositionedLocation: (TransactionEntity, Double, Double, String) -> Unit = { tx, lat, lng, label ->
+        val baseTx = state.transactions.firstOrNull { it.id == tx.id } ?: tx
+        val updated = baseTx.withRepositionedLocation(lat, lng, label)
+        if (updated != baseTx) {
+            optimisticTransactions[tx.id] = baseTx to updated
+        }
+        if (viewingDetailTransaction?.id == tx.id) viewingDetailTransaction = updated
+        if (editingTransaction?.id == tx.id) {
+            editingTransaction = editingTransaction!!.withRepositionedLocation(lat, lng, label)
+        }
+        onIntent(FinanceIntent.EditTransaction(baseTx, updated))
+    }
     var editAmountText by remember { mutableStateOf("") }
     var editCategoryText by remember { mutableStateOf("") }
     var editDescriptionText by remember { mutableStateOf("") }
@@ -456,7 +516,7 @@ fun HistoryScreen(
     }
 
     // Predictive back for editing transaction modal
-    androidx.activity.compose.PredictiveBackHandler(enabled = editingTransaction != null || viewingAdjustment != null || viewingDetailTransaction != null) { progressFlow ->
+    androidx.activity.compose.PredictiveBackHandler(enabled = fullScreenMapTransactionId == null && (editingTransaction != null || viewingAdjustment != null || viewingDetailTransaction != null)) { progressFlow ->
         try {
             progressFlow.collect { }
             if (!editBusy) editingTransaction = null
@@ -558,32 +618,61 @@ fun HistoryScreen(
                 com.example.vibefinance.ui.components.HistoryScreenSkeleton(modifier = Modifier)
             } else {
                 // Keep the list's leading inset and analytics height stable when selection changes.
-                Column(Modifier.fillMaxSize().padding(top = (topContentPadding - 16.dp).coerceAtLeast(0.dp))) {
-                AnimatedVisibility(multiSelect, enter = selectionEnter, exit = selectionExit) {
-                    Column(Modifier.padding(horizontal = 4.dp, vertical = 8.dp).testTag("HistorySelectionDock")) {
-                    if (batchPicker == null && batchError != null) Text(batchError, color = MaterialTheme.colorScheme.error)
-                    val records = transactionsList.filter { it.id in selectedIds }
-                    val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment && !it.isReimbursement }
-                    HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy || !multiSelect,
-                        canCategory = ordinary && (records.all { it.amount > 0 } || records.all { it.amount < 0 }), canAccount = ordinary,
-                        onClose = { multiSelect = false; selectionArray = longArrayOf() },
-                        onSelectAll = { selectionArray = if (selectedIds == visibleIds) longArrayOf() else visibleIds.toLongArray() },
-                        onAction = { kind -> batchSnapshot = records.toList(); batchPicker = kind; batchRequestId = null
-                            if (kind == "delete") com.example.vibefinance.util.VibeHaptics.warningAlert(view) })
-                    }
+                val searchHeaderTopPadding = if (useInspector) topContentPadding else (topContentPadding - 16.dp).coerceAtLeast(0.dp)
+                Column(Modifier.fillMaxSize().padding(top = searchHeaderTopPadding)) {
+                // M3E search bar + filter chips, pinned above the list; it slides away while
+                // scrolling down and comes straight back on any scroll up (enter-always).
+                PageContentEntrance("search-header") {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clipToBounds()
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(constraints)
+                            searchHeaderHeight[0] = placeable.height
+                            val offset = searchHeaderOffset.floatValue.coerceIn(-placeable.height.toFloat(), 0f).roundToInt()
+                            layout(placeable.width, (placeable.height + offset).coerceAtLeast(0)) { placeable.place(0, offset) }
+                        }
+                ) {
+                    HistorySearchHeader(
+                        query = searchQuery,
+                        onQueryChange = { query ->
+                            searchText = query.text; searchAccount = query.account; searchCategory = query.category
+                            searchKind = query.kind; searchFrom = query.from; searchThrough = query.through
+                            searchMinimum = query.minimum; searchMaximum = query.maximum
+                        },
+                        accounts = state.accounts,
+                        categories = remember(state.transactions) { state.transactions.map { it.category }.distinct().sorted() },
+                        results = transactionsList,
+                        wide = useInspector,
+                        onOpenMore = { showFilters = true },
+                        onOpenResult = { tx ->
+                            when {
+                                useInspector -> inspectedTransactionId = tx.id
+                                tx.isBalanceAdjustment -> viewingAdjustment = tx
+                                else -> viewingDetailTransaction = tx
+                            }
+                        },
+                        onExpandedChange = { isSearchExpanded ->
+                            if (isSearchExpanded) searchHeaderOffset.floatValue = 0f
+                        }
+                    )
                 }
-                Box(Modifier.weight(1f).fillMaxWidth().testTag("HistoryRecordViewport")
+                }
+                Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(searchHeaderScroll).testTag("HistoryRecordViewport")
                     .verticalFadingEdge(topFadeHeight = selectionEdge, bottomFadeHeight = 0.dp)) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().testTag("HistoryList"),
+                    modifier = Modifier.fillMaxSize()
+                        .then(
+                            historyListState.scrollIndicatorState?.let {
+                                Modifier.nonInteractiveScrollbar(state = it, orientation = Orientation.Vertical)
+                            } ?: Modifier
+                        )
+                        .testTag("HistoryList"),
                     state = historyListState,
-                    contentPadding = PaddingValues(top = topContentPadding.coerceIn(0.dp, 16.dp)),
+                    contentPadding = PaddingValues(top = if (useInspector) 8.dp else topContentPadding.coerceIn(0.dp, 16.dp)),
                     verticalArrangement = Arrangement.Top
                 ) {
-            item(key = "history-search-bar") {
-                AnimatedHistorySearchBar(searchVisibility, searchQuery, transactionsList.size,
-                    onChange = { searchText = it.text }, onOpenFilters = { showFilters = true })
-            }
             if (accountFilterId != null) {
                 item {
                     PageContentEntrance("account-filter") {
@@ -632,9 +721,9 @@ fun HistoryScreen(
                 PageContentEntrance("analytics") {
                     com.example.vibefinance.ui.components.CategoryBreakdownCard(
                         transactions = analyticsTransactions,
-                        onSearch = toggleSearch,
+                        onSearch = null,
                         onSelectTransactions = { multiSelect = true; com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) },
-                        searchExpanded = showSearch,
+                        searchExpanded = false,
                         searchActive = searchQuery != HistoryQuery(),
                         searchSummary = if (searchQuery != HistoryQuery()) stringResource(R.string.history_results_count, transactionsList.size) else null,
                         onExportCsv = {
@@ -717,8 +806,19 @@ fun HistoryScreen(
                     }
                     val weekday = localDate.format(weekdayFormatter)
                     val headerText = "$dateLabel · $weekday"
+                    // Transfers only move money between accounts, so they never contribute to
+                    // a day's income-minus-spending total. Balance corrections remain visible
+                    // in an account's own history, where they change that account's balance.
+                    val dailySummaryTransactions = txsForDate.filter { tx ->
+                        tx.toAccountId == null && (accountFilterId != null || !tx.isBalanceAdjustment)
+                    }
+                    val dailyNet = dailySummaryTransactions.sumOf { tx ->
+                        tx.historyAmountFor(accountFilterId)
+                    }
 
-                    item {
+                    // Sticky day header: pins under the search bar while that day's records scroll,
+                    // and carries the day's net total on the right.
+                    stickyHeader(key = "history-day-$localDate", contentType = "history-day-header") {
                         val bInfo = state.budgetInfo
                         val isInActivePeriod = hasBudgetPeriod && txsForDate.any { tx ->
                             tx.timestamp >= activePeriodStart && tx.timestamp < activePeriodEndExclusive
@@ -727,16 +827,39 @@ fun HistoryScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                                .padding(top = 8.dp, bottom = 4.dp)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                                .padding(start = 14.dp, end = 10.dp, top = 6.dp, bottom = 6.dp)
+                                .testTag("HistoryDayHeader"),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = headerText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1
                             )
+                            if (dailySummaryTransactions.isNotEmpty()) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.daily_net_format,
+                                        when {
+                                            dailyNet > 0.0 -> "+"
+                                            dailyNet < 0.0 -> "-"
+                                            else -> ""
+                                        },
+                                        kotlin.math.abs(dailyNet)
+                                    ),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = activeVibeColor,
+                                    maxLines = 1,
+                                    modifier = Modifier.testTag("HistoryDayNet")
+                                )
+                            }
 
                             if (bInfo != null && bInfo.startDate > 0L && bInfo.endDate > 0L) {
                                 Surface(
@@ -807,11 +930,20 @@ fun HistoryScreen(
                         ) {
                             PageContentEntrance("transaction:${tx.id}") {
                                 Column(modifier = Modifier.fillMaxWidth()) {
-                                    val itemShape = RoundedCornerShape(
-                                        topStart = if (isFirst) 26.dp else 8.dp,
-                                        topEnd = if (isFirst) 26.dp else 8.dp,
-                                        bottomStart = if (isLast) 26.dp else 8.dp,
-                                        bottomEnd = if (isLast) 26.dp else 8.dp
+                                    val isRowSelected = if (multiSelect) {
+                                        tx.id in selectedIds
+                                    } else if (useInspector) {
+                                        inspectedTransactionId == tx.id
+                                    } else {
+                                        viewingDetailTransaction?.id == tx.id || editingTransaction?.id == tx.id
+                                    }
+                                    val rowInteractionSource = remember { MutableInteractionSource() }
+                                    val isRowPressed by rowInteractionSource.collectIsPressedAsState()
+                                    val itemShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                                        isFirst = isFirst,
+                                        isLast = isLast,
+                                        isSelected = isRowSelected,
+                                        isPressed = isRowPressed
                                     )
                                     ExpressiveSwipeRow(
                                         modifier = Modifier
@@ -821,6 +953,7 @@ fun HistoryScreen(
                                             .background(if (useInspector && inspectedTransactionId == tx.id) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, itemShape),
                                         shape = itemShape,
                                         selectionMode = multiSelect,
+                                        interactionSource = rowInteractionSource,
                                         onLongClick = { if (!batchBusy) { multiSelect = true; selectionArray = (selectedIds + tx.id).toLongArray(); com.example.vibefinance.util.VibeHaptics.heavyLongPress(view) } },
                                         onEdit = edit@{
                                             if (multiSelect) { toggleSelected(tx.id); return@edit }
@@ -1003,39 +1136,6 @@ fun HistoryScreen(
                         }
                     }
 
-                    // Transfers only move money between accounts, so they never contribute to
-                    // a day's income-minus-spending total. Balance corrections remain visible
-                    // in an account's own history, where they change that account's balance.
-                    val dailySummaryTransactions = txsForDate.filter { tx ->
-                        tx.toAccountId == null && (accountFilterId != null || !tx.isBalanceAdjustment)
-                    }
-                    val dailyNet = dailySummaryTransactions.sumOf { tx ->
-                        tx.historyAmountFor(accountFilterId)
-                    }
-                    if (dailySummaryTransactions.isNotEmpty()) item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = stringResource(
-                                    R.string.daily_net_format,
-                                    when {
-                                        dailyNet > 0.0 -> "+"
-                                        dailyNet < 0.0 -> "-"
-                                        else -> ""
-                                    },
-                                    kotlin.math.abs(dailyNet)
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = activeVibeColor.copy(alpha = 0.8f),
-                                modifier = Modifier.align(Alignment.CenterEnd)
-                            )
-                        }
-                    }
-
                     // 4. Day Divider (if this is not the last group/day)
                     if (groupIndex < groupedList.size - 1) {
                         item {
@@ -1054,7 +1154,35 @@ fun HistoryScreen(
             item {
                 Spacer(modifier = Modifier.height(100.dp))
             }
-        }
+            // Room for the floating batch toolbar so the last record can scroll above it.
+                    item(key = "history-batch-toolbar-space") {
+                        androidx.compose.animation.AnimatedVisibility(multiSelect) { Spacer(Modifier.height(88.dp)) }
+                    }
+                }
+                // Multi-select: M3E floating toolbar at the bottom instead of a top dock.
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = multiSelect,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = bottomVisibilityInsetProvider() + 12.dp, start = 8.dp, end = 8.dp)
+                        .testTag("HistorySelectionDock"),
+                    enter = slideInVertically(com.example.vibefinance.theme.VibeMotion.defaultSpatial()) { it } +
+                        fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()),
+                    exit = slideOutVertically(com.example.vibefinance.theme.VibeMotion.defaultSpatial()) { it } +
+                        fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects())
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (batchPicker == null && batchError != null) Text(batchError, color = MaterialTheme.colorScheme.error)
+                    val records = transactionsList.filter { it.id in selectedIds }
+                    val ordinary = records.isNotEmpty() && records.all { it.toAccountId == null && !it.isBalanceAdjustment && !it.isReimbursement }
+                    HistoryBatchToolbar(selectedIds.size, visibleIds.isNotEmpty() && selectedIds == visibleIds, batchBusy || !multiSelect,
+                        canCategory = ordinary && (records.all { it.amount > 0 } || records.all { it.amount < 0 }), canAccount = ordinary,
+                        onClose = { multiSelect = false; selectionArray = longArrayOf() },
+                        onSelectAll = { selectionArray = if (selectedIds == visibleIds) longArrayOf() else visibleIds.toLongArray() },
+                        onAction = { kind -> batchSnapshot = records.toList(); batchPicker = kind; batchRequestId = null
+                            if (kind == "delete") com.example.vibefinance.util.VibeHaptics.warningAlert(view) })
+                    }
+                }
                 }
                 }
         }
@@ -1100,8 +1228,12 @@ fun HistoryScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     // Where the intercepted payment happened comes first, as context for the edit.
-                    rememberTransactionLocation(tx)?.let {
-                        EditTransactionLocationCard(it, mapHeight = if (compactForm) 84.dp else 140.dp)
+                    rememberTransactionLocation(latestTransaction(tx))?.let {
+                        EditTransactionLocationCard(
+                            it,
+                            mapHeight = if (compactForm) 84.dp else 140.dp,
+                            onOpenFullScreen = { fullScreenMapTransactionId = tx.id }
+                        )
                     }
                     if (canChangeType) {
                         // The selector's own labels are enough in the compact phone dialog.
@@ -1310,8 +1442,10 @@ fun HistoryScreen(
             save = {
                         val amount = editedMagnitude
                         if (amount != null && validAccounts && validRepayment && !editBusy) {
+                            val currentStoredTx = latestTransaction(tx)
+                            val oldStoredTx = state.transactions.firstOrNull { it.id == tx.id } ?: currentStoredTx
                             // Apply the edited time first: reimbursement checks inside read it.
-                            val newTx = tx.copy(timestamp = editTimestamp).withHistoryEdit(
+                            val newTx = currentStoredTx.copy(timestamp = editTimestamp).withHistoryEdit(
                                 magnitude = amount,
                                 isIncome = editIsIncome,
                                 category = editCategoryText,
@@ -1322,14 +1456,14 @@ fun HistoryScreen(
                                 sourceAccountId = if (editIsTransfer) {
                                     requireNotNull(editSourceAccountId)
                                 } else {
-                                    editSourceAccountId ?: tx.accountId
+                                    editSourceAccountId ?: currentStoredTx.accountId
                                 },
                                 destinationAccountId = if (editIsTransfer) editDestinationAccountId else null,
                                 repaymentExpense = if (editIsRepayment) repaymentExpense else null,
                                 unlinkedRepayment = editIsRepayment && repaymentExpense == null
                             )
                             editSubmitting = editResult != null
-                            onIntent(FinanceIntent.EditTransaction(tx, newTx, editRequestId,
+                            onIntent(FinanceIntent.EditTransaction(oldStoredTx, newTx, editRequestId,
                                 if (editIsRepayment) repaymentExpense else null))
                             if (editResult == null) editingTransaction = null
                         }
@@ -1337,28 +1471,147 @@ fun HistoryScreen(
         )
     }
     if (useInspector) {
-        com.example.vibefinance.ui.main.AdaptiveRecordScene(inspectedTransactionId,
-            { inspectedTransactionId = null }, modifier, historyList) { id ->
-            state.transactions.firstOrNull { it.id == id }?.let { tx ->
-                val paneEditing = editingTransaction?.id == tx.id
-                TransactionDetailPage(
-                    transaction = tx,
-                    accounts = state.accounts,
-                    embedded = true,
-                    editing = paneEditing,
-                    editUi = editingTransaction?.takeIf { paneEditing }?.let { transactionEditUi(it) },
-                    onClose = { inspectedTransactionId = null },
-                    onEdit = { beginTransactionEdit(it) },
-                    onCancelEdit = { if (!editBusy) editingTransaction = null },
-                    onDelete = { inspectDelete = it },
-                    onUpdateTransaction = { updated -> onIntent(FinanceIntent.EditTransaction(tx, updated)) },
-                    onMoneyBack = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true },
-                    onUnlink = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true; editRepaymentExpenseId = 0L },
-                    modifier = Modifier.padding(top = topContentPadding)
-                )
+        // Opening the add page clears the selection, so tapping any record (even the one shown
+        // before) closes the add page and opens that record's detail.
+        val addOpen = addPane != null
+        val inspectorMapHost = remember { SharedMapHost() }
+        val inContentContainer = com.example.vibefinance.ui.main.LocalNavigationSuiteType.current ==
+            androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType.WideNavigationRailCollapsed
+        LaunchedEffect(addOpen) {
+            if (addOpen) {
+                inspectedTransactionId = null
+                fullScreenMapTransactionId = null
             }
         }
-    } else Box(modifier) { historyList() }
+        LaunchedEffect(inspectedTransactionId) {
+            if (inspectedTransactionId != null && addPane != null) onDismissAddPane()
+            if (fullScreenMapTransactionId != null && inspectedTransactionId != fullScreenMapTransactionId) {
+                fullScreenMapTransactionId = null
+            }
+        }
+        LaunchedEffect(state.transactions, state.isLoading) {
+            if (!state.isLoading && fullScreenMapTransactionId != null &&
+                state.transactions.none { it.id == fullScreenMapTransactionId }
+            ) {
+                fullScreenMapTransactionId = null
+            }
+        }
+        var displayedTransactionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(inspectedTransactionId) }
+        var detailExiting by remember { mutableStateOf(false) }
+        var activeDetailEntrance by remember { mutableStateOf<com.example.vibefinance.ui.motion.PaneEntranceState?>(null) }
+        val minimalInspectorMotion = com.example.vibefinance.ui.preferences.LocalExperience.current.motion ==
+            com.example.vibefinance.ui.preferences.MotionLevel.MINIMAL
+        LaunchedEffect(inspectedTransactionId, addPane != null, minimalInspectorMotion, state.transactions) {
+            if (addPane != null) {
+                detailExiting = false
+                displayedTransactionId = null
+                return@LaunchedEffect
+            }
+            val currentId = displayedTransactionId
+            val targetId = inspectedTransactionId
+            if (currentId == targetId) {
+                detailExiting = false
+                return@LaunchedEffect
+            }
+            val currentExists = currentId != null && latestTransactionById(currentId) != null
+            if (!currentExists || minimalInspectorMotion) {
+                detailExiting = false
+                displayedTransactionId = targetId
+            } else {
+                detailExiting = true
+                val waitMs = activeDetailEntrance?.totalExitDurationMs ?: 255L
+                kotlinx.coroutines.delay(waitMs)
+                detailExiting = false
+                displayedTransactionId = inspectedTransactionId
+            }
+        }
+        CompositionLocalProvider(LocalSharedMapHost provides inspectorMapHost) {
+            AnimatedContent(
+                targetState = fullScreenMapTransactionId,
+                transitionSpec = {
+                    fadeIn(com.example.vibefinance.theme.VibeMotion.slowEffects()) togetherWith
+                        fadeOut(com.example.vibefinance.theme.VibeMotion.defaultEffects())
+                },
+                modifier = modifier.fillMaxSize(),
+                label = "historyInspectorFullScreenMap"
+            ) { activeMapTxId ->
+                CompositionLocalProvider(
+                    com.example.vibefinance.ui.motion.LocalSharedContentScope provides this,
+                    com.example.vibefinance.ui.motion.LocalIsSharedTargetPage provides (activeMapTxId == fullScreenMapTransactionId)
+                ) {
+                    val mapTx = activeMapTxId?.let { targetId ->
+                        latestTransactionById(targetId)
+                    }
+                    if (mapTx != null) {
+                        TransactionFullScreenMapOverlay(
+                            transaction = mapTx,
+                            inContentContainer = inContentContainer,
+                            onExit = { fullScreenMapTransactionId = null },
+                            onSaveLocation = { lat, lng, label ->
+                                saveRepositionedLocation(mapTx, lat, lng, label)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        com.example.vibefinance.ui.main.AdaptiveRecordScene(
+                            if (addPane != null) ADD_TRANSACTION_PANE_ID else displayedTransactionId,
+                            { if (addPane != null) onDismissAddPane() else inspectedTransactionId = null },
+                            Modifier.fillMaxSize().padding(horizontal = horizontalContentPadding),
+                            historyList,
+                            instantDetail = addPane != null
+                        ) { id ->
+                            if (id == ADD_TRANSACTION_PANE_ID) {
+                                Box(Modifier.fillMaxSize().padding(top = topContentPadding, bottom = 16.dp)) { addPane?.invoke() }
+                                return@AdaptiveRecordScene
+                            }
+                            latestTransactionById(id)?.let { tx ->
+                                val paneEditing = editingTransaction?.id == tx.id
+                                val reimbursementAccountId = state.accounts.firstOrNull {
+                                    it.id == tx.accountId && it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT
+                                }?.id ?: state.accounts.firstOrNull {
+                                    it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT
+                                }?.id ?: tx.accountId
+                                // Staggered content entrance and exit for each record shown in the detail pane.
+                                androidx.compose.runtime.key(id) {
+                                    com.example.vibefinance.ui.motion.StaggeredPane(
+                                        modifier = Modifier.fillMaxSize(),
+                                        exiting = detailExiting
+                                    ) { paneState ->
+                                        SideEffect { activeDetailEntrance = paneState }
+                                        TransactionDetailPage(
+                                            transaction = tx,
+                                            accounts = state.accounts,
+                                            embedded = true,
+                                            editing = paneEditing,
+                                            editUi = editingTransaction?.takeIf { paneEditing }?.let { transactionEditUi(it) },
+                                            onClose = { inspectedTransactionId = null },
+                                            onEdit = { beginTransactionEdit(it) },
+                                            onCancelEdit = { if (!editBusy) editingTransaction = null },
+                                            onDelete = { inspectDelete = it },
+                                            onUpdateTransaction = { updated ->
+                                                val baseTx = state.transactions.firstOrNull { it.id == tx.id } ?: tx
+                                                if (updated != baseTx) {
+                                                    optimisticTransactions[tx.id] = baseTx to updated
+                                                }
+                                                onIntent(FinanceIntent.EditTransaction(baseTx, updated))
+                                            },
+                                            onMoneyBack = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true },
+                                            onUnlink = { com.example.vibefinance.util.VibeHaptics.selection(view); beginTransactionEdit(tx); editType = HistoryTransactionType.Income; editRepayment = true; editRepaymentExpenseId = 0L },
+                                            onRecordReimbursement = { amount, desc ->
+                                                onIntent(FinanceIntent.RecordReimbursement(java.util.UUID.randomUUID().toString(), tx, amount, reimbursementAccountId, desc))
+                                            },
+                                            onOpenFullScreenMap = { fullScreenMapTransactionId = tx.id },
+                                            modifier = Modifier.padding(top = topContentPadding)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else Box(modifier.padding(horizontal = horizontalContentPadding)) { historyList() }
     inspectDelete?.let { tx ->
         AlertDialog(onDismissRequest = { inspectDelete = null },
             title = { Text(stringResource(R.string.btn_delete)) },
@@ -1393,7 +1646,7 @@ fun HistoryScreen(
             title = { Text(stringResource(R.string.balance_adjustment_title)) },
             text = { Text(stringResource(R.string.balance_adjustment_detail, accountName, signedAmount)) },
             confirmButton = {
-                TextButton(onClick = { viewingAdjustment = null }) {
+                CompletePressTextButton(onClick = { viewingAdjustment = null }) {
                     Text(stringResource(R.string.btn_close))
                 }
             }
@@ -1406,16 +1659,45 @@ fun HistoryScreen(
     if (!useInspector) {
         var lastEditTx by remember { mutableStateOf<TransactionEntity?>(null) }
         editingTransaction?.let { lastEditTx = it }
-        val detailTx = viewingDetailTransaction?.let { v -> state.transactions.firstOrNull { it.id == v.id } ?: v }
+        val detailTx = viewingDetailTransaction?.let { v -> latestTransaction(v) }
+        LaunchedEffect(detailTx, editingTransaction) {
+            if (detailTx == null && editingTransaction == null) {
+                fullScreenMapTransactionId = null
+            }
+        }
         if (detailTx != null || editingTransaction != null) {
             val isEditing = editingTransaction != null
+            val fullScreenMapTx = fullScreenMapTransactionId?.let { targetId ->
+                latestTransactionById(targetId)
+                    ?: detailTx?.takeIf { it.id == targetId }
+                    ?: editingTransaction?.takeIf { it.id == targetId }
+            }
             MorphingTransactionDialog(
                 editing = isEditing,
+                fullScreenMapOpen = fullScreenMapTx != null,
                 onDismissRequest = {
                     if (isEditing) { if (!editBusy) editingTransaction = null } else viewingDetailTransaction = null
                 },
+                fullScreenMap = {
+                    fullScreenMapTx?.let { mapTx ->
+                        TransactionFullScreenMapOverlay(
+                            transaction = mapTx,
+                            inContentContainer = false,
+                            onExit = { fullScreenMapTransactionId = null },
+                            onSaveLocation = { lat, lng, label ->
+                                saveRepositionedLocation(mapTx, lat, lng, label)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                },
                 detail = {
                     detailTx?.let { tx ->
+                        val reimbursementAccountId = state.accounts.firstOrNull {
+                            it.id == tx.accountId && it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT
+                        }?.id ?: state.accounts.firstOrNull {
+                            it.type != com.example.vibefinance.data.entity.AccountType.INVESTMENT
+                        }?.id ?: tx.accountId
                         TransactionDetailDialog(
                             transaction = tx,
                             accounts = state.accounts,
@@ -1430,9 +1712,17 @@ fun HistoryScreen(
                                 onIntent(FinanceIntent.DeleteTransaction(it))
                             },
                             onUpdateTransaction = { updated ->
+                                val baseTx = state.transactions.firstOrNull { it.id == tx.id } ?: tx
+                                if (updated != baseTx) {
+                                    optimisticTransactions[tx.id] = baseTx to updated
+                                }
                                 viewingDetailTransaction = updated
-                                onIntent(FinanceIntent.EditTransaction(tx, updated))
-                            }
+                                onIntent(FinanceIntent.EditTransaction(baseTx, updated))
+                            },
+                            onRecordReimbursement = { amount, desc ->
+                                onIntent(FinanceIntent.RecordReimbursement(java.util.UUID.randomUUID().toString(), tx, amount, reimbursementAccountId, desc))
+                            },
+                            onOpenFullScreenMap = { fullScreenMapTransactionId = tx.id },
                         )
                     }
                 },
@@ -1457,7 +1747,6 @@ fun HistoryScreen(
                 }
             },
             confirmButton = {
-                val confirmInteraction = remember { MutableInteractionSource() }
                 val haptic = rememberVibeHapticFeedback()
                 CompletePressButton(
                     onClick = {
@@ -1465,18 +1754,14 @@ fun HistoryScreen(
                         ui.save()
                     },
                     enabled = ui.canSave,
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = confirmInteraction,
-                    modifier = Modifier
-                        .testTag("EditTransactionSave")
-                        .pressBounce(interactionSource = confirmInteraction)
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                    modifier = Modifier.testTag("EditTransactionSave")
                 ) {
-                    if (ui.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    if (ui.busy) LoadingIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                     else Text(stringResource(R.string.btn_save))
                 }
             },
             dismissButton = {
-                val dismissInteraction = remember { MutableInteractionSource() }
                 val haptic = rememberVibeHapticFeedback()
                 CompletePressTextButton(
                     enabled = !editBusy,
@@ -1484,9 +1769,7 @@ fun HistoryScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         editingTransaction = null
                     },
-                    shapes = ButtonDefaults.shapes(shape = CircleShape, pressedShape = RoundedCornerShape(percent = 32)),
-                    interactionSource = dismissInteraction,
-                    modifier = Modifier.pressBounce(interactionSource = dismissInteraction)
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                 ) {
                     Text(stringResource(R.string.btn_cancel), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                 }

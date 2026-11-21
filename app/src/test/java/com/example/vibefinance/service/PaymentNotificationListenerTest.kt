@@ -1208,6 +1208,46 @@ class PaymentNotificationListenerTest {
         assertEquals("com.chase.sig.android", account.linkedAppPackage)
         assertTrue(account.getNotificationAliasList().contains("Chase"))
     }
+
+    @Test
+    fun samsungWalletHangSengEnjoyCardPurchaseParsesAndMatchesCorrectly() {
+        val title = "Hang Seng enJoy Card (Vanilla)"
+        val text = "MANNINGS - LOWER NGAU TAU\nHK$31.90"
+        val pkg = "com.samsung.android.spay"
+
+        assertTrue(PaymentNotificationListener.isPaymentNotification(title, text, pkg))
+        val parsed = PaymentNotificationListener.parseNotification(title, text, pkg)
+        assertNotNull("Expected parsed payment for Samsung Wallet Hang Seng enJoy Card", parsed)
+        assertEquals(31.90, parsed!!.amount, 0.001)
+        assertEquals("MANNINGS - LOWER NGAU TAU", parsed.merchant)
+        assertEquals("Hang Seng enJoy Card (Vanilla)", parsed.assetName)
+        assertEquals("EXPENSE", parsed.transactionType)
+        assertFalse(parsed.isTopUp)
+        assertEquals("Shopping", PaymentNotificationListener.determineCategory(parsed.merchant, title))
+
+        val bankAccount = com.example.vibefinance.data.entity.AccountEntity(
+            id = 1L, name = "Hang Seng Bank", type = AccountType.BANK, balance = 1000.0, icon = "bank"
+        )
+        val enjoyCard = com.example.vibefinance.data.entity.AccountEntity(
+            id = 2L, name = "Hang Seng enJoy Card", type = AccountType.CC, balance = 0.0, icon = "credit_card"
+        )
+        val pending = PendingPayment(
+            id = "sw-enjoy-1",
+            fingerprint = "fp-enjoy-1",
+            sourcePackage = pkg,
+            assetHint = parsed.assetName,
+            merchant = parsed.merchant,
+            amount = parsed.amount,
+            detectedAt = 1000L,
+            rawTitle = title,
+            rawText = text,
+            transactionType = parsed.transactionType
+        )
+        val matched = PendingPaymentStore.findMatchingAccount(pending, listOf(bankAccount, enjoyCard))
+        assertNotNull(matched)
+        assertEquals(2L, matched!!.id)
+        assertTrue(PendingPaymentStore.canRememberChoice(pending, enjoyCard))
+    }
 }
 
 

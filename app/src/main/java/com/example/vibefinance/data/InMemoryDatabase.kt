@@ -161,15 +161,20 @@ object InMemoryDatabase {
         if (packageName == "com.android.shell") return true
         val enabledSet = selectedInterceptApps.value
         if (enabledSet.isEmpty()) return false
-        if (enabledSet.none { packageName.equals(it, ignoreCase = true) }) return false
-
-        // A selected chat app still needs to pass its payment-only notification rules.
         val knownApp = InterceptableApp.values().firstOrNull { app ->
             app.packageKeywords.any { keyword ->
                 packageName.equals(keyword, ignoreCase = true) ||
                     packageName.startsWith("$keyword.", ignoreCase = true)
             }
         }
+        if (enabledSet.none { selected ->
+                packageName.equals(selected, ignoreCase = true) ||
+                    (knownApp != null && (selected.equals(knownApp.id, ignoreCase = true) ||
+                        knownApp.packageKeywords.any { kw -> selected.equals(kw, ignoreCase = true) }))
+            }
+        ) return false
+
+        // A selected chat app still needs to pass its payment-only notification rules.
         return knownApp?.matches(packageName, title, text) ?: true
     }
 

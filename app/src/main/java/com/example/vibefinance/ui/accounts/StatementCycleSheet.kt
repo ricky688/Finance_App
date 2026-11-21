@@ -1,10 +1,12 @@
 package com.example.vibefinance.ui.accounts
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -89,17 +91,38 @@ internal fun StatementCycleSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         key(period) {
-            LazyColumn(Modifier.weight(1f, fill = false).fillMaxWidth(), contentPadding = PaddingValues(vertical = 8.dp)) {
+            LazyColumn(
+                Modifier.weight(1f, fill = false).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
                 if (records.isEmpty()) item {
                     Text(stringResource(R.string.statement_cycle_empty), Modifier.padding(20.dp))
                 }
-                items(records, key = { it.id }) { transaction ->
+                itemsIndexed(records, key = { _, tx -> tx.id }) { index, transaction ->
                     val transactionDate = Instant.ofEpochMilli(transaction.timestamp).atZone(zone).toLocalDate()
-                    Surface(onClick = {
-                        VibeHaptics.selection(view)
-                        editingId = transaction.id
-                    }, modifier = Modifier.fillMaxWidth()) {
+                    val isSelected = editingId == transaction.id
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                        isFirst = index == 0,
+                        isLast = index == records.lastIndex,
+                        isSelected = isSelected,
+                        isPressed = isPressed
+                    )
+                    Surface(
+                        onClick = {
+                            VibeHaptics.selection(view)
+                            editingId = transaction.id
+                        },
+                        interactionSource = interactionSource,
+                        shape = rowShape,
+                        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         ListItem(
+                            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                             headlineContent = { Text(transaction.description.ifBlank { transaction.category }) },
                             supportingContent = {
                                 Column {
@@ -118,7 +141,11 @@ internal fun StatementCycleSheet(
                 }
             }
         }
-        TextButton(onClick = { dismiss(onDismiss) }, modifier = Modifier.align(Alignment.End).padding(end = 16.dp)) {
+        com.example.vibefinance.ui.components.CompletePressTextButton(
+            onClick = { dismiss(onDismiss) },
+            shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+            modifier = Modifier.align(Alignment.End).padding(end = 16.dp)
+        ) {
             Text(stringResource(R.string.btn_close))
         }
     }
@@ -157,15 +184,22 @@ internal fun StatementCycleSheet(
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    editingId = null
-                    onSetOffset(expected, selected.takeUnless { it == 0 })
-                }, enabled = selected != (expected.statementCycleOffset ?: 0)) {
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = {
+                        editingId = null
+                        onSetOffset(expected, selected.takeUnless { it == 0 })
+                    },
+                    enabled = selected != (expected.statementCycleOffset ?: 0),
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.btn_save))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { editingId = null }) { Text(stringResource(R.string.btn_cancel)) }
+                com.example.vibefinance.ui.components.CompletePressTextButton(
+                    onClick = { editingId = null },
+                    shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
+                ) { Text(stringResource(R.string.btn_cancel)) }
             }
         )
     }

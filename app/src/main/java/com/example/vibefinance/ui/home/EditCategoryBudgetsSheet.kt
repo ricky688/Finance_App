@@ -41,6 +41,12 @@ import androidx.compose.ui.window.Dialog
 import com.example.vibefinance.R
 import com.example.vibefinance.data.entity.ExpenseSymbol
 import com.example.vibefinance.data.repository.DailyBudgetInfo
+import com.example.vibefinance.ui.components.AppButtonDefaults
+import com.example.vibefinance.ui.components.AppModalBottomSheet
+import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressOutlinedButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+import com.example.vibefinance.ui.components.LocalPostPressIconBounce
 import com.example.vibefinance.ui.components.label
 import com.example.vibefinance.ui.components.vector
 import com.example.vibefinance.util.VibeHaptics
@@ -75,7 +81,7 @@ fun EditCategoryBudgetsSheet(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -173,17 +179,18 @@ fun EditCategoryBudgetsSheet(
                             color = if (isOverBudget) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
 
-                        TextButton(
+                        CompletePressTextButton(
                             onClick = {
                                 VibeHaptics.lightTick(view)
                                 showSymbolPicker = true
                             },
+                            shapes = AppButtonDefaults.shapes(),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp).then(LocalPostPressIconBounce.current)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
@@ -330,9 +337,9 @@ fun EditCategoryBudgetsSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
+                CompletePressOutlinedButton(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(14.dp),
+                    shapes = AppButtonDefaults.largeShapes(),
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                 ) {
                     Text(
@@ -341,12 +348,12 @@ fun EditCategoryBudgetsSheet(
                     )
                 }
 
-                Button(
+                CompletePressButton(
                     onClick = {
                         VibeHaptics.successConfirm(view)
                         onSave(categoryBudgets)
                     },
-                    shape = RoundedCornerShape(14.dp),
+                    shapes = AppButtonDefaults.largeShapes(),
                     modifier = Modifier.weight(1.5f).heightIn(min = 48.dp)
                 ) {
                     Text(
@@ -462,7 +469,10 @@ fun EditCategoryBudgetsSheet(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
                     ) {
-                        TextButton(onClick = { showSymbolPicker = false }) {
+                        CompletePressTextButton(
+                            onClick = { showSymbolPicker = false },
+                            shapes = AppButtonDefaults.shapes(),
+                        ) {
                             Text(stringResource(R.string.btn_cancel))
                         }
                     }

@@ -56,9 +56,7 @@ class AssetEditorState {
         prefillAccount = prefill
         originPaymentId = paymentId
         originTab = tab
-        if (sourceBounds != null) {
-            cardBounds = sourceBounds
-        }
+        cardBounds = sourceBounds
         sessionId = UUID.randomUUID().toString()
         isOpen = true
     }
@@ -124,6 +122,8 @@ fun AssetEditorHost(
     onAccountCreated: ((AccountEntity) -> Unit)? = null,
     onDismissCreate: (() -> Unit)? = null,
     transition: Transition<Boolean> = updateTransition(editorState.isOpen, label = "Asset editor"),
+    /** Large screens: render inside the Assets right pane, without the window scrim. */
+    inPane: Boolean = false,
 ) {
     if (transition.currentState || transition.targetState) {
         DisposableEffect(transition.currentState, transition.targetState) {
@@ -134,12 +134,7 @@ fun AssetEditorHost(
         }
 
         val progress by transition.animateFloat(
-            transitionSpec = {
-                androidx.compose.animation.core.spring(
-                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
-                    stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                )
-            },
+            transitionSpec = { com.example.vibefinance.theme.VibeMotion.slowSpatial() },
             label = "containerProgress"
         ) { open ->
             if (open) 1f else 0f
@@ -160,7 +155,7 @@ fun AssetEditorHost(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrimAlpha))
+                .background(Color.Black.copy(alpha = if (inPane) 0f else scrimAlpha))
         ) {
             key(editorState.sessionId) {
                 AssetEditorScreen(
@@ -172,6 +167,7 @@ fun AssetEditorHost(
                     onDismissCreate = onDismissCreate,
                     transition = transition,
                     transformProgress = progress,
+                    inPane = inPane,
                 )
             }
         }

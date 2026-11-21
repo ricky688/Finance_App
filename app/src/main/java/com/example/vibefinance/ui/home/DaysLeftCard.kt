@@ -61,6 +61,7 @@ fun DaysLeftCard(
     modifier: Modifier = Modifier,
     daysLeft: Int,
     totalDays: Int,
+    enforceSquare: Boolean = true,
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     var indicatorShape by remember { mutableStateOf(IndicatorShape.WAVY) }
@@ -103,7 +104,7 @@ fun DaysLeftCard(
     Card(
         modifier = modifier
             .testTag("DaysLeftCard")
-            .aspectRatio(1f)
+            .then(if (enforceSquare) Modifier.aspectRatio(1f) else Modifier)
             .expressiveCardClickable(
                 pressState = pressState,
                 rippleColor = activeColor

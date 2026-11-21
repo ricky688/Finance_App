@@ -16,6 +16,7 @@ import com.example.vibefinance.util.CalendarSyncHelper
 import com.example.vibefinance.util.appString
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CalendarExportMenu(state: FinanceUiState) {
     val context = LocalContext.current
@@ -35,7 +36,7 @@ internal fun CalendarExportMenu(state: FinanceUiState) {
         }
     }
     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        if (exporting) CircularProgressIndicator(Modifier.size(24.dp))
+        if (exporting) LoadingIndicator(modifier = Modifier.size(24.dp))
         Box {
             IconButton(onClick = { expanded = true }, enabled = !exporting, modifier = Modifier.testTag("RecurringCalendarOptions")) {
                 Icon(Icons.Default.MoreVert, stringResource(R.string.calendar_options))

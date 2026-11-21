@@ -1,10 +1,14 @@
 package com.example.vibefinance.ui.main
 
 import com.example.vibefinance.ui.components.AppButtonDefaults
-
 import com.example.vibefinance.ui.components.CompletePressButton
+import com.example.vibefinance.ui.components.CompletePressOutlinedButton
+import com.example.vibefinance.ui.components.CompletePressTextButton
+import com.example.vibefinance.ui.components.LocalPostPressIconBounce
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -279,12 +283,9 @@ internal fun PendingPaymentChoiceDialog(
                                         containerColor = MaterialTheme.colorScheme.primary,
                                         contentColor = MaterialTheme.colorScheme.onPrimary
                                     ),
-                                    shapes = ButtonDefaults.shapes(
-                                        shape = RoundedCornerShape(14.dp),
-                                        pressedShape = RoundedCornerShape(10.dp)
-                                    )
+                                    shapes = AppButtonDefaults.shapes(),
                                 ) {
-                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp).then(LocalPostPressIconBounce.current))
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         text = stringResource(R.string.pending_payment_quick_create),
@@ -292,13 +293,13 @@ internal fun PendingPaymentChoiceDialog(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                OutlinedButton(
+                                CompletePressOutlinedButton(
                                     onClick = { onDetailCreate(suggestedNewAccount) },
                                     enabled = !saving,
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp)
+                                    shapes = AppButtonDefaults.shapes(),
                                 ) {
-                                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(16.dp).then(LocalPostPressIconBounce.current))
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         text = stringResource(R.string.pending_payment_detail_create),
@@ -326,17 +327,28 @@ internal fun PendingPaymentChoiceDialog(
                 } else {
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 280.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        items(sortedAccounts, key = { it.id }) { account ->
+                        itemsIndexed(sortedAccounts, key = { _, acc -> acc.id }) { index, account ->
                             val isDestinationOctopus = isTopUp && PendingPaymentStore.isOctopusAccount(account)
                             val isSelectable = !isDestinationOctopus && !saving
                             val selected = selectedId == account.id
-                            val rowShape = RoundedCornerShape(18.dp)
+                            val interactionSource = remember { MutableInteractionSource() }
+                            val isPressed by interactionSource.collectIsPressedAsState()
+                            val rowShape = com.example.vibefinance.ui.main.rememberConnectedListRowShape(
+                                isFirst = index == 0,
+                                isLast = index == sortedAccounts.lastIndex,
+                                isSelected = selected,
+                                isPressed = isPressed
+                            )
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .bouncyClickable(enabled = isSelectable, shape = rowShape) {
+                                    .bouncyClickable(
+                                        enabled = isSelectable,
+                                        shape = rowShape,
+                                        interactionSource = interactionSource
+                                    ) {
                                         selectedId = account.id
                                     },
                                 shape = rowShape,
@@ -397,13 +409,13 @@ internal fun PendingPaymentChoiceDialog(
                             }
                         }
                     }
-                    OutlinedButton(
+                    CompletePressOutlinedButton(
                         onClick = { onDetailCreate(suggestedNewAccount) },
                         enabled = !saving,
-                        shape = RoundedCornerShape(14.dp),
+                        shapes = AppButtonDefaults.shapes(),
                         modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp).then(LocalPostPressIconBounce.current))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = stringResource(R.string.pending_payment_add_new_asset),
@@ -447,10 +459,7 @@ internal fun PendingPaymentChoiceDialog(
             CompletePressButton(
                 enabled = selectedId != null && !saving,
                 onClick = { selectedId?.let { onRecord(it, rememberChoice && canRemember) } },
-                shapes = ButtonDefaults.shapes(
-                    shape = RoundedCornerShape(26.dp),
-                    pressedShape = RoundedCornerShape(16.dp)
-                )
+                shapes = AppButtonDefaults.shapes(),
             ) {
                 Text(
                     text = if (isTopUp) stringResource(R.string.pending_payment_record_topup)
@@ -460,10 +469,18 @@ internal fun PendingPaymentChoiceDialog(
         },
         dismissButton = {
             Row {
-                TextButton(enabled = !saving, onClick = onIgnore) {
+                CompletePressTextButton(
+                    enabled = !saving,
+                    onClick = onIgnore,
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.pending_payment_ignore))
                 }
-                TextButton(enabled = !saving, onClick = onLater) {
+                CompletePressTextButton(
+                    enabled = !saving,
+                    onClick = onLater,
+                    shapes = AppButtonDefaults.shapes(),
+                ) {
                     Text(stringResource(R.string.pending_payment_later))
                 }
             }

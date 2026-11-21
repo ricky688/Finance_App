@@ -39,6 +39,27 @@ Static, sudden, or linear UI transitions are strictly forbidden. All interactive
   - **Compact width (<600dp), compact height (<480dp, e.g. phone landscape) or tabletop posture**: the bottom `NavigationBar` (haze glass, staggered pop, scroll-hide). Keep `NavigationBar` until `ShortNavigationBar` is fixed: in material3 1.5.0-alpha01 it lays out only its first item.
   - **Otherwise (>=600dp width with >=480dp height, including portrait foldables and tablets)**: collapsed 96dp rail using `WideNavigationRailItem` in three zones: logo and FAB on top, destinations vertically centred, utility dock at the bottom. The rail controls and the content card are inset for `WindowInsets.safeDrawing` (the rail background stays edge-to-edge), and short windows fall back to vertical scrolling (`rememberScrollState()`).
 - Read the active type from `LocalNavigationSuiteType`; do not add separate orientation-based navigation switches.
+- **Unified add/edit pages (user decision, 2026-11-20):** on phones every add page is full screen. On wide windows (>=600dp) every add/edit page opens in the **page's own right side**, as a 28dp rounded `surfaceContainerLow` surface. Never use a separate side pane that pushes or reflows the content (user correction, 2026-11-20):
+  - History: `TransactionEntryPane` in the list-detail **detail pane**, the same place a selected record shows (`AdaptiveRecordScene` key `-1L`).
+  - Daily: `TransactionEntryPane` takes the place of the **right column** ("分析與洞察"); the column's cards fade out underneath, and the left column does not move.
+  - Recurring: `SubscriptionEditorPane` in the list-detail pane.
+  - Assets: `AssetEditorHost(inPane = true)` in the right pane. When it edits the inspected account it opens over that account's card preview, and the card flies into the editor.
+  - The rail's add-transaction button on Assets or Recurring switches to History first.
+  - **Add-page motion (user decision, 2026-11-20): staggered content entrance and staggered exit only, no shared element or container transform from the rail or add button.**
+    - Host the page in `StaggeredPane` (`ui/motion/PaneEntrance.kt`) and tag its sections with `Modifier.paneEntrance(index)`.
+    - Entrance: the surface fades in, then sections rise 24dp and fade in at 45ms steps.
+    - Closing goes through `PaneEntranceState.close(onDismiss)`: sections leave in reverse order (30ms apart, sinking 24dp), then the surface fades, and only then is the page removed. The asset editor drives this from `!editorState.isOpen`.
+    - The Assets page uses no shared element: the card does not fly on add or on edit from the pane's card preview.
+    - Detail panes use the same staggered content entrance:
+      - transaction detail: `StaggeredPane` keyed by record, with title, amount, location, info and action sections;
+      - asset inspector: its `PageContentEntrance` sections.
+    - Side by side, `AdaptiveRecordScene` switches panes without a cross-fade, because each page brings its own entrance. A single pane keeps the default navigation motion.
+  - Tapping a record, asset or subscription while an add page is open closes the add page and opens that item:
+    - opening an add page clears the selection, so tapping even the previously shown item works;
+    - the asset editor plays its staggered exit first;
+    - a new subscription session replays the entrance.
+  - Switching tabs closes any open add/edit page (transaction, subscription, asset); it must never reopen by itself on another page.
+  - Do not add full-width overlays, scrimmed side sheets or reflowing side panes for add flows.
 
 ## 5. Device Testing & Verification Standards (Waydroid & scrcpy)
 - **Target Device Policy**:

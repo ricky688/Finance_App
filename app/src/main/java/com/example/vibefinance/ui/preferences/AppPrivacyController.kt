@@ -100,7 +100,12 @@ fun PrivacyLockScreen(controller: AppPrivacyController) {
         Spacer(Modifier.height(12.dp))
         Text(controller.message ?: stringResource(R.string.privacy_lock_desc))
         Spacer(Modifier.height(24.dp))
-        Button(onClick = controller::authenticate, enabled = !controller.authenticating,
-            modifier = Modifier.testTag("PrivacyUnlock"), elevation = AppButtonDefaults.elevation()) { Text(stringResource(R.string.privacy_unlock)) }
+        com.example.vibefinance.ui.components.CompletePressButton(
+            onClick = controller::authenticate,
+            enabled = !controller.authenticating,
+            shapes = AppButtonDefaults.shapes(),
+            modifier = Modifier.testTag("PrivacyUnlock"),
+            elevation = AppButtonDefaults.elevation()
+        ) { Text(stringResource(R.string.privacy_unlock)) }
     }
 }
