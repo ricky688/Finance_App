@@ -1224,7 +1224,10 @@ object PendingPaymentStore {
                 locationName = payment.locationName,
                 startLatitude = payment.startLatitude,
                 startLongitude = payment.startLongitude,
-                startLocationName = payment.startLocationName
+                startLocationName = payment.startLocationName,
+                notificationPackage = payment.sourcePackage.takeIf { it.isNotBlank() },
+                notificationTitle = payment.rawTitle.takeIf { it.isNotBlank() },
+                notificationText = payment.rawText.takeIf { it.isNotBlank() }
             )
         )
         if (!inserted && InMemoryDatabase.transactions.value.none { it.groupId == transactionKey }) {
@@ -1308,6 +1311,13 @@ object PendingPaymentStore {
         )
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
+        InterceptedNotificationLog.updateStatusByPaymentId(
+            context = context,
+            paymentId = payment.id,
+            status = InterceptedNotificationStatus.LOGGED,
+            amount = payment.amount,
+            merchant = payment.merchant
+        )
         PaymentLoggingNotification.cancel(context, paymentId)
         return true
     }
@@ -1330,6 +1340,13 @@ object PendingPaymentStore {
         markSeen(payment)
         _pending.value = _pending.value.filterNot { it.id == paymentId }
         persist(context)
+        InterceptedNotificationLog.updateStatusByPaymentId(
+            context = context,
+            paymentId = payment.id,
+            status = InterceptedNotificationStatus.LOGGED,
+            amount = payment.amount,
+            merchant = payment.merchant
+        )
         PaymentLoggingNotification.cancel(context, paymentId)
     }
 

@@ -666,17 +666,19 @@ fun NewPeriodBudgetSheet(
 
     // Material 3 Custom End Date Picker Modal
     if (showDatePickerModal) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = calculatedEndDateMillis
-        )
+        var selectedUtcMillis by remember(calculatedEndDateMillis) {
+            mutableStateOf<Long?>(calculatedEndDateMillis)
+        }
 
-        DatePickerDialog(
+        com.example.vibefinance.ui.components.VibeDatePickerDialog(
+            selectedUtcMillis = selectedUtcMillis,
+            onDateSelected = { selectedUtcMillis = it },
             onDismissRequest = { showDatePickerModal = false },
             confirmButton = {
                 CompletePressTextButton(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        datePickerState.selectedDateMillis?.let {
+                        selectedUtcMillis?.let {
                             customEndDateMillis = it
                             selectedDaysPreset = -1
                         }
@@ -698,9 +700,7 @@ fun NewPeriodBudgetSheet(
                     Text(stringResource(R.string.btn_cancel))
                 }
             }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+        )
     }
 
     // Material 3 Built-in Category Symbols Modal (16 Built-in Icons Grid)

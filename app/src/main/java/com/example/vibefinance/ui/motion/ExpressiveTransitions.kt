@@ -113,7 +113,12 @@ val LocalIsSharedTargetPage = staticCompositionLocalOf { true }
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun Modifier.sharedTransitionBounds(key: Any, remeasure: Boolean = false): Modifier {
+fun Modifier.sharedTransitionBounds(
+    key: Any,
+    remeasure: Boolean = false,
+    contentScale: androidx.compose.ui.layout.ContentScale = androidx.compose.ui.layout.ContentScale.Inside,
+    alignment: androidx.compose.ui.Alignment = androidx.compose.ui.Alignment.CenterStart,
+): Modifier {
     val shared = LocalSharedTransitionScope.current ?: return this
     val animated = LocalSharedContentScope.current ?: return this
     return with(shared) {
@@ -124,10 +129,7 @@ fun Modifier.sharedTransitionBounds(key: Any, remeasure: Boolean = false): Modif
             exit = fadeOut(VibeMotion.slowEffects()),
             boundsTransform = { _, _ -> VibeMotion.slowSpatial() },
             resizeMode = if (remeasure) SharedTransitionScope.ResizeMode.RemeasureToBounds
-                else SharedTransitionScope.ResizeMode.scaleToBounds(
-                    androidx.compose.ui.layout.ContentScale.Inside,
-                    androidx.compose.ui.Alignment.CenterStart
-                )
+                else SharedTransitionScope.ResizeMode.scaleToBounds(contentScale, alignment)
         )
     }
 }

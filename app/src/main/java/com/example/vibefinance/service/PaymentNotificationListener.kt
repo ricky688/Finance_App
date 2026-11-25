@@ -125,13 +125,32 @@ class PaymentNotificationListener : NotificationListenerService() {
         }
 
         // 5. Check if incoming notification matches user-selected intercept payment apps
+        val postTime = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
         if (!InMemoryDatabase.isAppInterceptEnabled(packageName, title, text)) {
+            if (InMemoryDatabase.isPackageInterceptSelected(packageName)) {
+                InterceptedNotificationLog.record(
+                    context = this,
+                    packageName = packageName,
+                    title = title,
+                    text = text,
+                    receivedAt = postTime,
+                    status = InterceptedNotificationStatus.FILTERED
+                )
+            }
             android.util.Log.d("VibeFinanceNotification", "Notification from '$packageName' ('$title') is ignored (not selected in allowed apps).")
             return
         }
 
         // 6. Strict Payment Intent Guard: Filter out non-payment alerts (OTP, promos, marketing, login alerts)
         if (!isPaymentNotification(title, text, packageName)) {
+            InterceptedNotificationLog.record(
+                context = this,
+                packageName = packageName,
+                title = title,
+                text = text,
+                receivedAt = postTime,
+                status = InterceptedNotificationStatus.FILTERED
+            )
             android.util.Log.d("VibeFinanceNotification", "Notification from '$packageName' ('$title') filtered out: not a payment transaction.")
             return
         }
@@ -140,12 +159,22 @@ class PaymentNotificationListener : NotificationListenerService() {
 
         // Store the candidate before returning from the callback. A process death during a
         // delayed batch window must not erase a detected payment.
-        val parsed = parseNotification(title, text, packageName) ?: return
+        val parsed = parseNotification(title, text, packageName) ?: run {
+            InterceptedNotificationLog.record(
+                context = this,
+                packageName = packageName,
+                title = title,
+                text = text,
+                receivedAt = postTime,
+                status = InterceptedNotificationStatus.FILTERED
+            )
+            return
+        }
         queuePayment(
             this,
             parsed.copy(
                 sourcePackage = packageName,
-                detectedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis(),
+                detectedAt = postTime,
                 notificationKey = sbn.key.orEmpty(),
                 rawTitle = if (parsed.rawTitle.isNotBlank()) parsed.rawTitle else title,
                 rawText = if (parsed.rawText.isNotBlank()) parsed.rawText else text
@@ -184,7 +213,11 @@ class PaymentNotificationListener : NotificationListenerService() {
             RegexOption.IGNORE_CASE
         )
         private val outgoingEnglish = Regex(
-            "\\b(?:paid|spent|payment|purchased|charged|transferred|debited|sent)\\b",
+            "\\b(?:paid|spent|payment|purchase[ds]?|bought|charged|transferred|debited|deducted|withdrawn|billed|billing|autopay|auto[- ]?pay|direct\\s+debit|sent)\\b",
+            RegexOption.IGNORE_CASE
+        )
+        private val incomingEnglish = Regex(
+            "\\b(?:received|credited|deposited|salary|payroll|dividend)\\b",
             RegexOption.IGNORE_CASE
         )
         private val smartOctopusPurchase = Regex(
@@ -407,6 +440,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             val isOctopusPayment = isAndroidOctopusPayment || isSmartOctopusPayment
 
             return outgoingEnglish.containsMatchIn(combined) ||
+                incomingEnglish.containsMatchIn(combined) ||
                 positiveIndicators.any { combined.contains(it) } ||
                 isOctopusPayment ||
                 octopusMerchantPayment.matches(text.trim()) ||
@@ -979,10 +1013,34 @@ class PaymentNotificationListener : NotificationListenerService() {
             }
         }
 
+        internal fun isSubscriptionTransaction(payment: ParsedPayment): Boolean {
+            if (payment.isTopUp) return false
+            val combined = "${payment.merchant} ${payment.rawTitle} ${payment.rawText}".lowercase(Locale.ROOT)
+            val subscriptionKeywords = listOf(
+                "subscription", "recurring", "auto-renew", "autorenew", "renewal",
+                "membership", "monthly plan", "annual plan",
+                "訂閱", "續訂", "自動續費", "會籍", "月費", "年費",
+                "netflix", "spotify", "icloud", "apple one", "apple.com/bill",
+                "youtube premium", "chatgpt", "openai", "claude", "midjourney",
+                "patreon", "adobe", "microsoft 365", "dropbox",
+                "playstation plus", "nintendo switch online", "disney+", "hulu"
+            )
+            if (subscriptionKeywords.any { combined.contains(it) }) return true
+
+            return InMemoryDatabase.subscriptions.value.any { sub ->
+                val subName = sub.name.trim().lowercase(Locale.ROOT)
+                subName.length >= 2 && (combined.contains(subName) ||
+                    kotlin.math.abs(sub.amount - payment.amount) < 0.05 &&
+                    payment.merchant.contains(subName, ignoreCase = true))
+            }
+        }
+
         /** Queue a candidate until a real account is chosen, or use a remembered choice. */
         fun queuePayment(context: Context, payment: ParsedPayment): Boolean {
             val sourcePackage = payment.sourcePackage.ifBlank { return false }
-            val loc = com.example.vibefinance.util.GnssLocationManager.getInstantLocation(context)
+            val skipLocationForSubscription = isSubscriptionTransaction(payment)
+            val loc = if (skipLocationForSubscription) null
+                else com.example.vibefinance.util.GnssLocationManager.getInstantLocation(context)
             val queued = PendingPaymentStore.enqueue(
                 context = context,
                 sourcePackage = sourcePackage,
@@ -1002,8 +1060,22 @@ class PaymentNotificationListener : NotificationListenerService() {
                 locationName = loc?.locationName
             ) ?: return false
 
-            // Actively acquire fresh GPS/Fused location asynchronously upon notification interception
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            InterceptedNotificationLog.record(
+                context = context,
+                packageName = sourcePackage,
+                title = queued.rawTitle,
+                text = queued.rawText,
+                receivedAt = queued.detectedAt,
+                status = InterceptedNotificationStatus.PENDING,
+                paymentId = queued.id,
+                amount = queued.amount,
+                merchant = queued.merchant
+            )
+
+            // Subscriptions don't occur at a physical checkout spot, so skip GNSS lookups for them.
+            if (!skipLocationForSubscription) {
+                // Actively acquire fresh GPS/Fused location asynchronously upon notification interception
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                 try {
                     val fresh = com.example.vibefinance.util.GnssLocationManager.resolveFreshLocation(context)
                     val effectiveLat = fresh?.latitude ?: loc?.latitude
@@ -1064,6 +1136,7 @@ class PaymentNotificationListener : NotificationListenerService() {
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
                 }
             }
 

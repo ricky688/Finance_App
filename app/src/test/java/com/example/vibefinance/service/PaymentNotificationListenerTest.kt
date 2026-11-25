@@ -1248,6 +1248,37 @@ class PaymentNotificationListenerTest {
         assertEquals(2L, matched!!.id)
         assertTrue(PendingPaymentStore.canRememberChoice(pending, enjoyCard))
     }
+
+    @Test
+    fun englishPaymentAndSubscriptionAlertsParseAndSkipSubscriptionLocation() {
+        val enExpense = PaymentNotificationListener.parseNotification(
+            "Visa Alert",
+            "Card purchase of HK$48.00 at Starbucks Central",
+            "com.hsbc.hbap.mobilebanking"
+        )
+        assertNotNull("Expected English 'card purchase' alert to parse", enExpense)
+        assertEquals(48.00, enExpense!!.amount, 0.001)
+        assertEquals("EXPENSE", enExpense.transactionType)
+        assertFalse(PaymentNotificationListener.isSubscriptionTransaction(enExpense))
+
+        val enSub = PaymentNotificationListener.parseNotification(
+            "HSBC Alert",
+            "Billed HK$98.00 to Visa ending 1234 for Netflix",
+            "com.hsbc.hbap.mobilebanking"
+        )
+        assertNotNull("Expected English subscription alert to parse", enSub)
+        assertEquals(98.00, enSub!!.amount, 0.001)
+        assertEquals("Netflix", enSub.merchant)
+        assertTrue("Expected Netflix subscription to skip location", PaymentNotificationListener.isSubscriptionTransaction(enSub))
+
+        val salaryDeposit = PaymentNotificationListener.parseNotification(
+            "Payroll",
+            "Salary HK$25,000.00 credited to your bank account",
+            "com.hsbc.hbap.mobilebanking"
+        )
+        assertNotNull("Expected English salary deposit to parse", salaryDeposit)
+        assertEquals("INCOME", salaryDeposit!!.transactionType)
+    }
 }
 
 

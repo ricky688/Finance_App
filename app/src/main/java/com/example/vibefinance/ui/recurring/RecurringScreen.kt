@@ -767,19 +767,28 @@ private fun ManualSubscriptionRenewalDialog(
     val suggestedDate = remember(subscription, today) {
         com.example.vibefinance.util.SubscriptionSchedule.advance(today, subscription.frequency, subscription.interval)
     }
-    val picker = rememberDatePickerState(
-        initialSelectedDateMillis = suggestedDate.toDatePickerMillis(),
+    var selectedUtcMillis by rememberSaveable(suggestedDate) {
+        mutableStateOf<Long?>(suggestedDate.toDatePickerMillis())
+    }
+    val selected = selectedUtcMillis?.fromDatePickerMillis()
+    com.example.vibefinance.ui.components.VibeDatePickerDialog(
+        selectedUtcMillis = selectedUtcMillis,
+        onDateSelected = { selectedUtcMillis = it },
+        onDismissRequest = onDismiss,
         yearRange = today.year..maxOf(today.year + 100, suggestedDate.year),
         selectableDates = remember(today) {
             object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean =
                     utcTimeMillis.fromDatePickerMillis() > today
             }
-        }
-    )
-    val selected = picker.selectedDateMillis?.fromDatePickerMillis()
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
+        },
+        title = {
+            Text(
+                stringResource(R.string.subscription_next_expiry),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
         confirmButton = {
             com.example.vibefinance.ui.components.CompletePressTextButton(
                 onClick = { selected?.let(onConfirm) },
@@ -793,14 +802,7 @@ private fun ManualSubscriptionRenewalDialog(
                 shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
             ) { Text(stringResource(R.string.btn_cancel)) }
         }
-    ) {
-        DatePicker(
-            state = picker,
-            title = {
-                Text(stringResource(R.string.subscription_next_expiry), Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp))
-            }
-        )
-    }
+    )
 }
 
 
@@ -5275,16 +5277,18 @@ fun AddEditSubscriptionSheet(
         if (showDatePicker) {
             val zone = ZoneId.systemDefault()
             val localDate = Instant.ofEpochMilli(nextPaymentDateState).atZone(zone).toLocalDate()
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = localDate.toDatePickerMillis(),
-                yearRange = minOf(1900, localDate.year)..maxOf(2100, localDate.year)
-            )
-            DatePickerDialog(
+            var selectedUtcMillis by rememberSaveable(nextPaymentDateState) {
+                mutableStateOf<Long?>(localDate.toDatePickerMillis())
+            }
+            com.example.vibefinance.ui.components.VibeDatePickerDialog(
+                selectedUtcMillis = selectedUtcMillis,
+                onDateSelected = { selectedUtcMillis = it },
                 onDismissRequest = { showDatePicker = false },
+                yearRange = minOf(1900, localDate.year)..maxOf(2100, localDate.year),
                 confirmButton = {
                     com.example.vibefinance.ui.components.CompletePressTextButton(
                         onClick = {
-                            datePickerState.selectedDateMillis?.let {
+                            selectedUtcMillis?.let {
                                 nextPaymentDateState = it.fromDatePickerMillis().atStartOfDay(zone).toInstant().toEpochMilli()
                             }
                             showDatePicker = false
@@ -5302,22 +5306,22 @@ fun AddEditSubscriptionSheet(
                         Text(stringResource(R.string.btn_cancel))
                     }
                 }
-            ) {
-                DatePicker(state = datePickerState)
-            }
+            )
         }
 
         // Installment Date Picker Modal Dialog
         if (showInstallmentDatePicker) {
-            val installmentDatePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = installmentFirstDueDate
-            )
-            DatePickerDialog(
+            var installmentUtcMillis by rememberSaveable(installmentFirstDueDate) {
+                mutableStateOf<Long?>(installmentFirstDueDate)
+            }
+            com.example.vibefinance.ui.components.VibeDatePickerDialog(
+                selectedUtcMillis = installmentUtcMillis,
+                onDateSelected = { installmentUtcMillis = it },
                 onDismissRequest = { showInstallmentDatePicker = false },
                 confirmButton = {
                     com.example.vibefinance.ui.components.CompletePressTextButton(
                         onClick = {
-                            installmentDatePickerState.selectedDateMillis?.let {
+                            installmentUtcMillis?.let {
                                 installmentFirstDueDate = it
                             }
                             showInstallmentDatePicker = false
@@ -5335,9 +5339,7 @@ fun AddEditSubscriptionSheet(
                         Text(stringResource(R.string.btn_cancel))
                     }
                 }
-            ) {
-                DatePicker(state = installmentDatePickerState)
-            }
+            )
         }
     }
 }

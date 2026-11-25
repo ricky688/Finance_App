@@ -239,8 +239,14 @@ internal fun TransactionLocationMap(
             }
         }
     }
-    Box(modifier.clip(RoundedCornerShape(cornerRadius))
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius))) {
+    val containerShape = RoundedCornerShape(cornerRadius)
+    val frameModifier = if (cornerRadius > 0.dp) {
+        modifier.clip(containerShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), containerShape)
+    } else {
+        modifier
+    }
+    Box(frameModifier) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize().semantics { contentDescription = description })
         if (!interactive && onPreviewClick != null && !failed) {
             Box(
@@ -262,9 +268,20 @@ internal fun TransactionLocationMap(
             }
         }
         // Visible data attribution; native attribution control retains provider/license links.
-        Surface(Modifier.align(Alignment.TopEnd).padding(8.dp), shape = RoundedCornerShape(16.dp),
+        val attributionInsets = if (interactive && cornerRadius == 0.dp) {
+            Modifier.windowInsetsPadding(
+                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            )
+        } else {
+            Modifier
+        }
+        Surface(
+            Modifier.align(Alignment.TopEnd).then(attributionInsets).padding(8.dp),
+            shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-            contentColor = MaterialTheme.colorScheme.onSurface) {
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) {
             Text("© OpenStreetMap", Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
         }

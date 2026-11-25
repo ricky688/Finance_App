@@ -15,7 +15,7 @@ import com.example.vibefinance.data.entity.TransactionEntity
         TransactionEntity::class,
         BudgetEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class VibeFinanceDatabase : RoomDatabase() {

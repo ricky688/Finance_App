@@ -42,6 +42,12 @@ object DatabaseModule {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN statementCycleOffset INTEGER")
             }
+        }, object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN notificationPackage TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN notificationTitle TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN notificationText TEXT")
+            }
         }).fallbackToDestructiveMigration().build()
     }
 

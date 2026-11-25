@@ -203,16 +203,33 @@ fun ReimbursementExpenseSelector(records: List<TransactionEntity>, selectedId: L
         } }
         val initialDay = selectedEpochDay?.let(LocalDate::ofEpochDay)
         fun LocalDate.utcMillis() = atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val picker = rememberDatePickerState(initialSelectedDateMillis = initialDay?.utcMillis(),
-            initialDisplayedMonthMillis = (initialDay ?: availableDays.maxOrNull())?.utcMillis(), selectableDates = selectable)
-        DatePickerDialog(onDismissRequest = { showDatePicker = false }, modifier = Modifier.testTag("ReimbursementDatePicker"),
-            confirmButton = { AppTextButton(onClick = {
-                picker.selectedDateMillis?.let { selectedEpochDay = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay() }
-                showDatePicker = false
-            }, enabled = picker.selectedDateMillis != null, modifier = Modifier.testTag("ReimbursementDateApply")) {
-                Text(stringResource(R.string.btn_confirm))
-            } }, dismissButton = { AppTextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.btn_cancel)) } }) {
-            DatePicker(picker)
-        }
+        var selectedUtcMillis by rememberSaveable(selectedEpochDay) { mutableStateOf(initialDay?.utcMillis()) }
+        com.example.vibefinance.ui.components.VibeDatePickerDialog(
+            selectedUtcMillis = selectedUtcMillis,
+            onDateSelected = { selectedUtcMillis = it },
+            initialDisplayedMonthMillis = (initialDay ?: availableDays.maxOrNull())?.utcMillis(),
+            selectableDates = selectable,
+            onDismissRequest = { showDatePicker = false },
+            modifier = Modifier.testTag("ReimbursementDatePicker"),
+            confirmButton = {
+                AppTextButton(
+                    onClick = {
+                        selectedUtcMillis?.let {
+                            selectedEpochDay = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()
+                        }
+                        showDatePicker = false
+                    },
+                    enabled = selectedUtcMillis != null,
+                    modifier = Modifier.testTag("ReimbursementDateApply")
+                ) {
+                    Text(stringResource(R.string.btn_confirm))
+                }
+            },
+            dismissButton = {
+                AppTextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.btn_cancel))
+                }
+            }
+        )
     }
 }

@@ -550,7 +550,10 @@ fun SpendsCalendar(
 
                                         // 2. Weekday Headers
                                         val headers = listOf(java.time.DayOfWeek.SUNDAY) + java.time.DayOfWeek.values().take(6)
-                                        val localizedHeaders = headers.map { it.getDisplayName(java.time.format.TextStyle.SHORT, androidx.compose.ui.platform.LocalConfiguration.current.locales[0]) }
+                                        val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+                                        val localizedHeaders = headers.map {
+                                            com.example.vibefinance.ui.components.datepicker.prettyWeekDay(it, locale)
+                                        }
                                         localizedHeaders.forEach { h ->
                                             Box(
                                                 modifier = Modifier

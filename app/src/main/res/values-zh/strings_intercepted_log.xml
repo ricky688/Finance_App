@@ -1,0 +1,16 @@
+<resources>
+    <string name="intercepted_log_entry_title">已拦截通知记录</string>
+    <string name="intercepted_log_entry_desc">查看最近 %1$d 条拦截与过滤通知</string>
+    <string name="intercepted_log_entry_empty">尚未记录到任何已拦截通知</string>
+    <string name="intercepted_log_open">打开完整记录</string>
+    <string name="intercepted_log_subtitle">本地保留最近 100 条（不纳入备份）</string>
+    <string name="intercepted_log_clear">清除</string>
+    <string name="intercepted_log_filter_all">全部</string>
+    <string name="intercepted_log_status_logged">已自动记账</string>
+    <string name="intercepted_log_status_pending">待确认</string>
+    <string name="intercepted_log_status_ignored">已忽略</string>
+    <string name="intercepted_log_status_filtered">非付款已过滤</string>
+    <string name="intercepted_log_empty_state">当已选定的付款 App 收到通知时，这里会列出通知原文与判别状态，方便排查漏记或点击创建自定义模板。</string>
+    <string name="intercepted_log_create_template">点击创建自定义模板</string>
+    <string name="tx_source_notification_title">来源通知 · %1$s</string>
+</resources>

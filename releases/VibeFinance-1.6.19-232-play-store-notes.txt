@@ -1,0 +1,13 @@
+<en-US>
+• Full-Screen OSM Map: Inspect & reposition transaction locations with shared-map transitions, keeping Google Maps redirect.
+• AA Split Amount: Circular bill splitter with contact picker, tip presets, and one-tap reimbursement logging.
+• M3 Expressive Motion: Rail & search shared-element transitions, fast upward staggered exits, and 50%/8dp/4dp connected list corners.
+• Wallet & UI: Samsung Wallet parsing, dual-column Bento layout, and full-width heatmap.
+</en-US>
+
+<zh-HK>
+• 應用程式內全螢幕 OSM 地圖：流暢切換至全螢幕檢視並重新調整交易地點，保留 Google Maps 跳轉。
+• AA 分帳介面：互動式圓形分帳轉盤，支援原生聯絡人挑選、小費比例及一鍵記錄報銷。
+• Material 3 Expressive 動效與幾何：側邊導覽列與搜尋列共享元素轉場、快速向上交錯退場、清單項目套用連接按鈕群組圓角（內縫 8dp／按壓 4dp／選取 50% 膠囊）及統一按壓形變。
+• 錢包與排版升級：支援 Samsung Wallet 信用卡通知攔截、大螢幕雙欄分析及全寬理財節奏熱力圖。
+</zh-HK>

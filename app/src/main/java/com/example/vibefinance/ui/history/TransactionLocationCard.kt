@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -17,16 +18,27 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.util.lerp
+import com.example.vibefinance.theme.VibeMotion
+import com.example.vibefinance.ui.preferences.LocalExperience
+import com.example.vibefinance.ui.preferences.MotionLevel
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -322,7 +334,13 @@ internal fun SharedTransactionMap(
         host.onMapClick = onMapClick
         host.onPreviewClick = onPreviewClick
     }
-    Box(modifier.sharedTransitionElement(SharedTxKeys.Map)) {
+    Box(
+        modifier.sharedTransitionBounds(
+            key = SharedTxKeys.Map,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            alignment = Alignment.Center
+        )
+    ) {
         if (isTarget) host.content(Modifier.matchParentSize())
     }
 }
@@ -395,6 +413,29 @@ internal fun TransactionFullScreenMapOverlay(
         }
     }
 
+    val minimalMotion = LocalExperience.current.motion == MotionLevel.MINIMAL
+    val exitBtnAnim = remember(transaction.id) { Animatable(if (minimalMotion) 1f else 0f) }
+    val mapsBtnAnim = remember(transaction.id) { Animatable(if (minimalMotion) 1f else 0f) }
+    val controlCardAnim = remember(transaction.id) { Animatable(if (minimalMotion) 1f else 0f) }
+    val saveRowAnim = remember(transaction.id) { Animatable(if (minimalMotion) 1f else 0f) }
+
+    androidx.compose.runtime.LaunchedEffect(transaction.id, minimalMotion) {
+        if (minimalMotion) return@LaunchedEffect
+        // Let the shared map expand before floating overlay buttons pop into view.
+        delay(140L)
+        launch { exitBtnAnim.animateTo(1f, VibeMotion.defaultSpatial()) }
+        delay(55L)
+        launch { mapsBtnAnim.animateTo(1f, VibeMotion.defaultSpatial()) }
+        delay(55L)
+        launch { controlCardAnim.animateTo(1f, VibeMotion.slowSpatial()) }
+        delay(60L)
+        launch { saveRowAnim.animateTo(1f, VibeMotion.defaultSpatial()) }
+    }
+
+    val topPopDropPx = with(LocalDensity.current) { 14.dp.toPx() }
+    val bottomCardRisePx = with(LocalDensity.current) { 40.dp.toPx() }
+    val buttonPopRisePx = with(LocalDensity.current) { 14.dp.toPx() }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -414,10 +455,13 @@ internal fun TransactionFullScreenMapOverlay(
             },
         )
 
-        val safeOverlayInsets = if (inContentContainer) {
-            Modifier
+        val edgeToEdgeTopInsets = if (inContentContainer) {
+            Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
         } else {
-            Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            Modifier.windowInsetsPadding(
+                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            )
         }
 
         // Top-left Exit button (always leaves without overwriting saved metadata).
@@ -433,8 +477,16 @@ internal fun TransactionFullScreenMapOverlay(
             ),
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .then(safeOverlayInsets)
+                .then(edgeToEdgeTopInsets)
                 .padding(start = 12.dp, top = 12.dp)
+                .graphicsLayer {
+                    val p = exitBtnAnim.value
+                    alpha = p.coerceIn(0f, 1f)
+                    val s = lerp(0.80f, 1f, p)
+                    scaleX = s
+                    scaleY = s
+                    translationY = -topPopDropPx * (1f - p)
+                }
                 .testTag("FullScreenMapExitButton")
         ) {
             Icon(
@@ -464,8 +516,16 @@ internal fun TransactionFullScreenMapOverlay(
             ),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .then(safeOverlayInsets)
+                .then(edgeToEdgeTopInsets)
                 .padding(end = 12.dp, top = 42.dp)
+                .graphicsLayer {
+                    val p = mapsBtnAnim.value
+                    alpha = p.coerceIn(0f, 1f)
+                    val s = lerp(0.80f, 1f, p)
+                    scaleX = s
+                    scaleY = s
+                    translationY = -topPopDropPx * (1f - p)
+                }
                 .testTag("FullScreenMapGoogleRedirectButton")
         ) {
             Icon(
@@ -481,9 +541,12 @@ internal fun TransactionFullScreenMapOverlay(
         }
 
         val bottomInsets = if (inContentContainer) {
-            Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+            Modifier.windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom)).imePadding()
         } else {
-            Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+            Modifier.windowInsetsPadding(
+                WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                    .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+            ).imePadding()
         }
 
         // Bottom floating M3E card for viewing/editing location metadata and persisting changes.
@@ -494,6 +557,14 @@ internal fun TransactionFullScreenMapOverlay(
                 .padding(16.dp)
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
+                .graphicsLayer {
+                    val p = controlCardAnim.value
+                    alpha = p.coerceIn(0f, 1f)
+                    val s = lerp(0.94f, 1f, p)
+                    scaleX = s
+                    scaleY = s
+                    translationY = bottomCardRisePx * (1f - p)
+                }
                 .testTag("FullScreenMapControlCard"),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.96f),
@@ -650,6 +721,14 @@ internal fun TransactionFullScreenMapOverlay(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
+                        .graphicsLayer {
+                            val p = saveRowAnim.value
+                            alpha = p.coerceIn(0f, 1f)
+                            val s = lerp(0.92f, 1f, p)
+                            scaleX = s
+                            scaleY = s
+                            translationY = buttonPopRisePx * (1f - p)
+                        }
                         .testTag("FullScreenMapSaveButton")
                 ) {
                     Icon(

@@ -173,7 +173,8 @@ fun SettingsSheet(
     onOpenDatePicker: () -> Unit,
     selectedEndDateMillis: Long?,
     budgetConfigurationOnly: Boolean = false,
-    drawerState: DrawerState? = null
+    drawerState: DrawerState? = null,
+    onOpenInterceptedNotifications: () -> Unit = {}
 ) {
     var showCategoryManager by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1062,6 +1063,13 @@ fun SettingsSheet(
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
+                                InterceptedNotificationLogEntryCard(
+                                    onClick = {
+                                        VibeHaptics.selection(view)
+                                        onOpenInterceptedNotifications()
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
                                 NotificationLocationSettingsCard()
                                 Spacer(modifier = Modifier.height(14.dp))
                                 MtrTransitSettingsCard()
@@ -1763,6 +1771,52 @@ internal fun RolloverOptionCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterceptedNotificationLogEntryCard(
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.example.vibefinance.service.InterceptedNotificationLog.initialize(context)
+    }
+    val entries by com.example.vibefinance.service.InterceptedNotificationLog.entries.collectAsStateWithLifecycle()
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("InterceptedNotificationsEntry")
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.intercepted_log_entry_title),
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = if (entries.isEmpty()) {
+                    stringResource(R.string.intercepted_log_entry_empty)
+                } else {
+                    stringResource(R.string.intercepted_log_entry_desc, entries.size)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            CompletePressTextButton(
+                onClick = onClick,
+                shapes = AppButtonDefaults.largeShapes(),
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text(stringResource(R.string.intercepted_log_open))
             }
         }
     }

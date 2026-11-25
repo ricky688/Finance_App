@@ -3,15 +3,24 @@
 package com.example.vibefinance.ui.history
 
 import android.text.format.DateFormat
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +32,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Schedule
@@ -31,21 +41,17 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ButtonShapes
 import androidx.compose.material3.ToggleButtonShapes
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.TimePickerDialogDefaults
 import androidx.compose.material3.TimePickerDisplayMode
 import androidx.compose.material3.TimeScroll
-import androidx.compose.material3.VibrantTimePickerDialog
 import androidx.compose.material3.isInputValid
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -122,6 +128,7 @@ internal fun TransactionDateTimeEditor(
             DateTimeButton(
                 text = if (compact) shortDateText else dateText, icon = { Icon(Icons.Outlined.CalendarMonth, null, Modifier.size(18.dp)) },
                 shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(), enabled = enabled,
+                active = showDatePicker,
                 modifier = Modifier.weight(1.45f).semantics { contentDescription = changeDate }
                     .testTag("EditTransactionDate"),
                 onClick = { VibeHaptics.selection(view); showDatePicker = true }
@@ -129,6 +136,7 @@ internal fun TransactionDateTimeEditor(
             DateTimeButton(
                 text = timeText, icon = { Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp)) },
                 shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(), enabled = enabled,
+                active = showTimePicker,
                 modifier = Modifier.weight(1f).semantics { contentDescription = changeTime }
                     .testTag("EditTransactionTime"),
                 onClick = { VibeHaptics.selection(view); showTimePicker = true }
@@ -153,14 +161,25 @@ internal fun TransactionDateTimeEditor(
     }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = TransactionDateTime.toDatePickerMillis(timestamp))
-        DatePickerDialog(
+        var selectedUtcMillis by rememberSaveable(timestamp) {
+            mutableStateOf<Long?>(TransactionDateTime.toDatePickerMillis(timestamp))
+        }
+        com.example.vibefinance.ui.components.VibeDatePickerDialog(
+            selectedUtcMillis = selectedUtcMillis,
+            onDateSelected = { selectedUtcMillis = it },
             onDismissRequest = { showDatePicker = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.edit_date_picker_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             confirmButton = {
                 com.example.vibefinance.ui.components.CompletePressTextButton(
-                    enabled = pickerState.selectedDateMillis != null,
+                    enabled = selectedUtcMillis != null,
                     onClick = {
-                        pickerState.selectedDateMillis?.let { onTimestampChange(TransactionDateTime.withDate(timestamp, it)) }
+                        selectedUtcMillis?.let { onTimestampChange(TransactionDateTime.withDate(timestamp, it)) }
                         VibeHaptics.selection(view)
                         showDatePicker = false
                     },
@@ -173,24 +192,18 @@ internal fun TransactionDateTimeEditor(
                     onClick = { showDatePicker = false },
                     shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                 ) { Text(stringResource(R.string.btn_cancel)) }
-            }
-        ) {
-            DatePicker(
-                state = pickerState,
-                title = {
-                    Text(stringResource(R.string.edit_date_picker_title),
-                        Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp))
-                }
-            )
-        }
+            },
+            modifier = Modifier.testTag("EditTransactionDateDialog")
+        )
     }
 
     if (showTimePicker) {
         val timeState = rememberTimePickerState(initialHour = local.hour, initialMinute = local.minute, is24Hour = is24Hour)
         var isScrollMode by rememberSaveable { mutableStateOf(true) }
         val displayMode = if (isScrollMode) TimePickerDisplayMode.Scroll else TimePickerDisplayMode.Input
-        VibrantTimePickerDialog(
+        com.example.vibefinance.ui.components.VibeTimePickerDialog(
             onDismissRequest = { showTimePicker = false },
+            title = stringResource(R.string.edit_time_picker_title),
             confirmButton = {
                 com.example.vibefinance.ui.components.CompletePressTextButton(
                     enabled = timeState.isInputValid,
@@ -217,16 +230,24 @@ internal fun TransactionDateTimeEditor(
             },
             modifier = Modifier.testTag("EditTransactionTimeDialog")
         ) {
-            Text(
-                stringResource(R.string.edit_time_picker_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            if (displayMode == TimePickerDisplayMode.Input) {
-                TimeInput(state = timeState, shapes = TimePickerDefaults.shapes())
-            } else {
-                TimeScroll(state = timeState, shapes = TimePickerDefaults.shapes())
+            AnimatedContent(
+                targetState = displayMode,
+                transitionSpec = {
+                    if (motion == MotionLevel.MINIMAL) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) togetherWith
+                            fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()) using
+                            SizeTransform(clip = false) { _, _ -> com.example.vibefinance.theme.VibeMotion.slowSpatial() }
+                    }
+                },
+                label = "TimePickerModeMorph"
+            ) { mode ->
+                if (mode == TimePickerDisplayMode.Input) {
+                    TimeInput(state = timeState, shapes = TimePickerDefaults.shapes())
+                } else {
+                    TimeScroll(state = timeState, shapes = TimePickerDefaults.shapes())
+                }
             }
         }
     }
@@ -238,22 +259,66 @@ private fun DateTimeButton(
     icon: @Composable () -> Unit,
     shapes: ToggleButtonShapes,
     enabled: Boolean,
+    active: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    ConnectedButtonRipple {
+    val minimal = LocalExperience.current.motion == MotionLevel.MINIMAL
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val emphasized = active || isFocused
+
+    // Slower spatial focus & active pill morphing so focus feedback never feels rushed.
+    val activeCorner by animateDpAsState(
+        targetValue = when {
+            isPressed -> 8.dp
+            emphasized -> 24.dp
+            else -> 12.dp
+        },
+        animationSpec = if (minimal) androidx.compose.animation.core.snap()
+        else com.example.vibefinance.theme.VibeMotion.slowSpatial(),
+        label = "DateTimeButtonCornerMorph"
+    )
+    val pressScale by animateFloatAsState(
+        targetValue = when {
+            minimal -> 1f
+            isPressed -> 0.94f
+            emphasized -> 1.02f
+            else -> 1f
+        },
+        animationSpec = com.example.vibefinance.theme.VibeMotion.slowSpatial(),
+        label = "DateTimeButtonFocusScale"
+    )
+    val containerColor by animateColorAsState(
+        targetValue = if (emphasized) colors.primaryContainer else colors.surfaceContainerHigh,
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultEffects(),
+        label = "DateTimeButtonContainer"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (emphasized) colors.onPrimaryContainer else colors.onSurface,
+        animationSpec = com.example.vibefinance.theme.VibeMotion.defaultEffects(),
+        label = "DateTimeButtonContent"
+    )
+
+    val effectiveShape = if (isPressed || emphasized) RoundedCornerShape(activeCorner) else shapes.shape
+    ConnectedButtonRipple(isSelected = emphasized) {
         CompletePressFilledTonalButton(
             onClick = onClick,
             enabled = enabled,
-            shapes = ButtonShapes(shape = shapes.shape, pressedShape = shapes.pressedShape),
+            interactionSource = interactionSource,
+            shapes = ButtonShapes(shape = effectiveShape, pressedShape = shapes.pressedShape),
             colors = ButtonDefaults.filledTonalButtonColors(
-                containerColor = colors.surfaceContainerHigh,
-                contentColor = colors.onSurface
+                containerColor = containerColor,
+                contentColor = contentColor
             ),
             elevation = null,
             contentPadding = PaddingValues(0.dp),
-            modifier = modifier
+            modifier = modifier.graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
         ) {
             Row(
                 modifier = Modifier

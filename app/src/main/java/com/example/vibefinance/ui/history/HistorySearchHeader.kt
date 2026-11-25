@@ -656,20 +656,28 @@ internal fun HistoryFilterChips(
 
     if (datePicker) {
         val toUtc = { iso: String -> runCatching { LocalDate.parse(iso).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull() }
-        val pickerState = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = toUtc(query.from),
-            initialSelectedEndDateMillis = toUtc(query.through)
-        )
+        var startUtcMillis by rememberSaveable(query.from) { mutableStateOf(toUtc(query.from)) }
+        var endUtcMillis by rememberSaveable(query.through) { mutableStateOf(toUtc(query.through)) }
         val toIso = { millis: Long? -> millis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString() }.orEmpty() }
-        DatePickerDialog(
+        com.example.vibefinance.ui.components.VibeDateRangePickerDialog(
+            startUtcMillis = startUtcMillis,
+            endUtcMillis = endUtcMillis,
+            onRangeSelected = { s, e -> startUtcMillis = s; endUtcMillis = e },
             onDismissRequest = { datePicker = false },
+            title = {
+                Text(
+                    stringResource(R.string.history_date_range_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             confirmButton = {
                 com.example.vibefinance.ui.components.CompletePressTextButton(
-                    enabled = pickerState.selectedStartDateMillis != null,
+                    enabled = startUtcMillis != null,
                     onClick = {
                         datePicker = false
-                        val from = toIso(pickerState.selectedStartDateMillis)
-                        change(query.copy(from = from, through = toIso(pickerState.selectedEndDateMillis).ifBlank { from }))
+                        val from = toIso(startUtcMillis)
+                        change(query.copy(from = from, through = toIso(endUtcMillis).ifBlank { from }))
                     },
                     shapes = com.example.vibefinance.ui.components.AppButtonDefaults.shapes(),
                     modifier = Modifier.testTag("HistoryDateRangeConfirm")
@@ -689,15 +697,7 @@ internal fun HistoryFilterChips(
                     ) { Text(stringResource(R.string.btn_cancel)) }
                 }
             }
-        ) {
-            DateRangePicker(
-                state = pickerState,
-                title = {
-                    Text(stringResource(R.string.history_date_range_title), Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp))
-                },
-                modifier = Modifier.height(480.dp)
-            )
-        }
+        )
     }
 }
 

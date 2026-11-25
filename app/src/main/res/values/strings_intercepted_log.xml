@@ -1,0 +1,16 @@
+<resources>
+    <string name="intercepted_log_entry_title">Intercepted notifications</string>
+    <string name="intercepted_log_entry_desc">%1$d recent intercepted or filtered alerts</string>
+    <string name="intercepted_log_entry_empty">No intercepted notifications recorded yet</string>
+    <string name="intercepted_log_open">View all notifications</string>
+    <string name="intercepted_log_subtitle">Latest 100 local alerts · excluded from backups</string>
+    <string name="intercepted_log_clear">Clear</string>
+    <string name="intercepted_log_filter_all">All</string>
+    <string name="intercepted_log_status_logged">Logged</string>
+    <string name="intercepted_log_status_pending">Pending</string>
+    <string name="intercepted_log_status_ignored">Ignored</string>
+    <string name="intercepted_log_status_filtered">Filtered</string>
+    <string name="intercepted_log_empty_state">Notifications received from selected payment apps will appear here with their raw text and status, making it easy to troubleshoot or create a custom template.</string>
+    <string name="intercepted_log_create_template">Tap to create custom template</string>
+    <string name="tx_source_notification_title">Source Notification · %1$s</string>
+</resources>

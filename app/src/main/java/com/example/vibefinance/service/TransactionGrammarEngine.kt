@@ -46,11 +46,13 @@ object TransactionGrammarEngine {
     )
 
     private val enAnchorPatterns = listOf(
-        Regex("(?i)\\b(?:at|to)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
-        Regex("(?i)\\b(?:paid|sent)\\s+(?:to\\s+)?([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
+        Regex("(?i)\\bmerchant[:：]\\s*([A-Za-z0-9&'._ -]{2,40})", RegexOption.IGNORE_CASE),
+        Regex("(?i)\\bat\\s+(?!(?:your|my|the)\\s+(?:card|account|acct)\\b)([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
+        Regex("(?i)\\b(?:paid|sent)\\s+(?:to\\s+)?(?!(?:your|my|the)?\\s*(?:visa|mastercard|amex|unionpay|credit\\s*card|debit\\s*card|card|account|acct)\\b)([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?i)\\bcharged\\s+(?:at|by)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
         Regex("(?i)\\b(?:from|received from)\\s+([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:via|into|to|for|amount|was|with|using|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
-        Regex("(?i)\\bmerchant[:：]\\s*([A-Za-z0-9&'._ -]{2,40})", RegexOption.IGNORE_CASE)
+        Regex("(?i)\\bfor\\s+(?!(?:HKD|HK\\$|USD|\\$|[0-9])|your\\s+)([A-Za-z0-9&'._+-]{2,40}?)(?:\\s+(?:via|with|using|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE),
+        Regex("(?i)\\bto\\s+(?!(?:your|my|the)?\\s*(?:visa|mastercard|amex|unionpay|credit\\s*card|debit\\s*card|card|account|acct)\\b)([A-Za-z0-9&'._ -]{2,40}?)(?:\\s+(?:for|amount|was|with|using|via|on|\\$|HKD|USD|[0-9])|[，,。\\n]|$)", RegexOption.IGNORE_CASE)
     )
 
     // Universal currency amount extractor
@@ -92,7 +94,7 @@ object TransactionGrammarEngine {
     )
 
     private val expensePatterns = listOf(
-        Regex("(?i)\\b(?:paid|spent|purchase|charged|debited)\\b"),
+        Regex("(?i)\\b(?:paid|spent|purchase[ds]?|bought|charged|debited|deducted|withdrawn|billed)\\b"),
         Regex("消費|支出|扣款|已扣款|付款|已完成付款|刷卡|成功扣除|簽[賬帳]|完成交易")
     )
 

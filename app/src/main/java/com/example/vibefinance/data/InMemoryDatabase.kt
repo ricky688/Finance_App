@@ -155,6 +155,24 @@ object InMemoryDatabase {
         sharedPrefs?.edit()?.putBoolean("notification_logging_enabled", enabled)?.apply()
     }
 
+    fun isPackageInterceptSelected(packageName: String): Boolean {
+        if (!isNotificationLoggingEnabled) return false
+        if (packageName == "com.android.shell") return true
+        val enabledSet = selectedInterceptApps.value
+        if (enabledSet.isEmpty()) return false
+        val knownApp = InterceptableApp.values().firstOrNull { app ->
+            app.packageKeywords.any { keyword ->
+                packageName.equals(keyword, ignoreCase = true) ||
+                    packageName.startsWith("$keyword.", ignoreCase = true)
+            }
+        }
+        return enabledSet.any { selected ->
+            packageName.equals(selected, ignoreCase = true) ||
+                (knownApp != null && (selected.equals(knownApp.id, ignoreCase = true) ||
+                    knownApp.packageKeywords.any { kw -> selected.equals(kw, ignoreCase = true) }))
+        }
+    }
+
     fun isAppInterceptEnabled(packageName: String, title: String, text: String): Boolean {
         if (!isNotificationLoggingEnabled) return false
         if (findMatchingTemplate(packageName, "$title $text".trim()) != null) return true
@@ -1008,7 +1026,10 @@ object InMemoryDatabase {
                 newTx.accountId == stored.accountId && newTx.toAccountId == null && !newTx.isBalanceAdjustment
             },
             sourceWasCreditCard = if (newTx.accountId == oldTx.accountId) newTx.sourceWasCreditCard else null,
-            destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null
+            destinationWasCreditCard = if (newTx.toAccountId == oldTx.toAccountId) newTx.destinationWasCreditCard else null,
+            notificationPackage = newTx.notificationPackage ?: stored.notificationPackage,
+            notificationTitle = newTx.notificationTitle ?: stored.notificationTitle,
+            notificationText = newTx.notificationText ?: stored.notificationText
         ))
         val now = System.currentTimeMillis()
         val deltas = mutableMapOf<Long, Double>()
@@ -1291,6 +1312,9 @@ object InMemoryDatabase {
                 tx.startLongitude?.let { obj.put("startLongitude", it) }
                 tx.startLocationName?.let { obj.put("startLocationName", it) }
                 tx.statementCycleOffset?.let { obj.put("statementCycleOffset", it) }
+                tx.notificationPackage?.let { obj.put("notificationPackage", it) }
+                tx.notificationTitle?.let { obj.put("notificationTitle", it) }
+                tx.notificationText?.let { obj.put("notificationText", it) }
                 txArr.put(obj)
             }
             root.put("transactions", txArr)
@@ -1535,7 +1559,10 @@ object InMemoryDatabase {
                             startLatitude = if (obj.has("startLatitude") && !obj.isNull("startLatitude")) obj.getDouble("startLatitude") else null,
                             startLongitude = if (obj.has("startLongitude") && !obj.isNull("startLongitude")) obj.getDouble("startLongitude") else null,
                             startLocationName = if (obj.has("startLocationName") && !obj.isNull("startLocationName")) obj.getString("startLocationName") else null,
-                            statementCycleOffset = obj.opt("statementCycleOffset")?.toString()?.toIntOrNull()?.takeIf { it == -1 || it == 1 }
+                            statementCycleOffset = obj.opt("statementCycleOffset")?.toString()?.toIntOrNull()?.takeIf { it == -1 || it == 1 },
+                            notificationPackage = if (obj.has("notificationPackage") && !obj.isNull("notificationPackage")) obj.getString("notificationPackage") else null,
+                            notificationTitle = if (obj.has("notificationTitle") && !obj.isNull("notificationTitle")) obj.getString("notificationTitle") else null,
+                            notificationText = if (obj.has("notificationText") && !obj.isNull("notificationText")) obj.getString("notificationText") else null
                         )
                     )
                 }

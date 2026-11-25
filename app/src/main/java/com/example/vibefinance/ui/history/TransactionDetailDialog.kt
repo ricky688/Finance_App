@@ -188,8 +188,22 @@ internal fun MorphingTransactionDialog(
         onDismissRequest = {
             if (stage != PhoneTransactionDialogStage.FULL_SCREEN_MAP) currentDismiss()
         },
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
+        val dialogView = LocalView.current
+        SideEffect {
+            val window = (dialogView.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+            if (window != null) {
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+                @Suppress("DEPRECATION")
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            }
+        }
         androidx.compose.animation.SharedTransitionLayout {
             CompositionLocalProvider(
                 com.example.vibefinance.ui.motion.LocalSharedTransitionScope provides this,
@@ -200,11 +214,16 @@ internal fun MorphingTransactionDialog(
                     targetState = stage,
                     contentAlignment = Alignment.Center,
                     transitionSpec = {
-                        if (targetState == PhoneTransactionDialogStage.FULL_SCREEN_MAP ||
-                            initialState == PhoneTransactionDialogStage.FULL_SCREEN_MAP
-                        ) {
-                            fadeIn(com.example.vibefinance.theme.VibeMotion.slowEffects()) togetherWith
-                                fadeOut(com.example.vibefinance.theme.VibeMotion.defaultEffects())
+                        if (targetState == PhoneTransactionDialogStage.FULL_SCREEN_MAP) {
+                            (fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) +
+                                scaleIn(com.example.vibefinance.theme.VibeMotion.slowSpatial(), initialScale = 0.94f)) togetherWith
+                                fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()) using
+                                SizeTransform(clip = false) { _, _ -> com.example.vibefinance.theme.VibeMotion.slowSpatial() }
+                        } else if (initialState == PhoneTransactionDialogStage.FULL_SCREEN_MAP) {
+                            fadeIn(com.example.vibefinance.theme.VibeMotion.defaultEffects()) togetherWith
+                                (fadeOut(com.example.vibefinance.theme.VibeMotion.fastEffects()) +
+                                    scaleOut(com.example.vibefinance.theme.VibeMotion.defaultSpatial(), targetScale = 0.96f)) using
+                                SizeTransform(clip = false) { _, _ -> com.example.vibefinance.theme.VibeMotion.defaultSpatial() }
                         } else {
                             val toEdit = targetState == PhoneTransactionDialogStage.EDIT
                             val enter = slideInVertically(com.example.vibefinance.theme.VibeMotion.slowSpatial()) { h -> if (toEdit) h / 8 else -h / 8 } +
@@ -234,6 +253,7 @@ internal fun MorphingTransactionDialog(
                             Box(
                                 Modifier
                                     .fillMaxSize()
+                                    .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout))
                                     // Scrim tap dismisses; gesture-only so no extra accessibility node (back dismisses too).
                                     .pointerInput(Unit) { detectTapGestures { currentDismiss() } },
                                 contentAlignment = Alignment.Center
@@ -904,6 +924,11 @@ internal fun TransactionDetailPage(
                                 }
                             }
                         }
+
+                        NotificationSourceCard(
+                            transaction = currentTx,
+                            modifier = Modifier.paneEntrance(3).fillMaxWidth()
+                        )
 
                         if (isExpense && !isReimbursement && !currentTx.isBalanceAdjustment && currentTx.timestamp <= System.currentTimeMillis()) {
                             CompletePressFilledTonalButton(
@@ -1735,6 +1760,10 @@ fun TransactionDetailDialog(
                         }
                     }
                 }
+                NotificationSourceCard(
+                    transaction = currentTx,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 if (isExpense && !isReimbursement && !currentTx.isBalanceAdjustment && currentTx.timestamp <= System.currentTimeMillis()) {
                     CompletePressFilledTonalButton(
                         onClick = {
@@ -2017,6 +2046,74 @@ private fun DetailRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )
+    }
+}
+
+@Composable
+private fun NotificationSourceCard(
+    transaction: com.example.vibefinance.data.entity.TransactionEntity,
+    modifier: Modifier = Modifier
+) {
+    val pkg = transaction.notificationPackage?.takeIf { it.isNotBlank() }
+    val title = transaction.notificationTitle?.takeIf { it.isNotBlank() }
+    val body = transaction.notificationText?.takeIf { it.isNotBlank() }
+    if (pkg == null && title == null && body == null) return
+
+    val context = LocalContext.current
+    val appLabel = remember(pkg) {
+        if (pkg == null) "" else com.example.vibefinance.ui.settings.resolveAppLabel(context, pkg)
+    }
+
+    Surface(
+        modifier = modifier.testTag("TransactionNotificationSourceCard"),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.NotificationsActive,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(
+                        R.string.tx_source_notification_title,
+                        appLabel.ifBlank { "Notification" }
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            if (body != null) {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

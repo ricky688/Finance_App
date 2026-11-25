@@ -746,6 +746,7 @@ fun MainScreen(
     val budgetConfigurationOnly = budgetSheetDestination == BudgetSheetDestination.EDIT_PERIOD
     val showNewPeriodSheet = budgetSheetDestination == BudgetSheetDestination.NEW_PERIOD
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
+    var showInterceptedNotifications by rememberSaveable { mutableStateOf(false) }
     var homeFabMenuExpanded by rememberSaveable { mutableStateOf(false) }
     val dailyFabIconMotion = transactionFabIconMotion(showAddDialog)
     var showAddRecurringSheet by remember { mutableStateOf(false) }
@@ -857,7 +858,7 @@ fun MainScreen(
         label = "tabBackProgress"
     )
 
-    val isAnyModalActive = assetEditorState.isOpen || subscriptionEditorState.isOpen || editingPaymentCategoryId != null || showBudgetDialog || showAddDialog || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || state.importPreview != null
+    val isAnyModalActive = assetEditorState.isOpen || subscriptionEditorState.isOpen || editingPaymentCategoryId != null || showBudgetDialog || showAddDialog || showInterceptedNotifications || showAddRecurringSheet || showRecalcSheet || showNewPeriodSheet || state.importPreview != null
     val isAnySheetOpen = showRecalcSheet || showNewPeriodSheet
     // One bounded clock for depth, read in the layer rather than recomposing the page each frame.
     val sheetDepthProgress = animateFloatAsState(
@@ -1060,6 +1061,9 @@ fun MainScreen(
     val transactionEditorTransition = androidx.compose.animation.core.updateTransition(
         showAddDialog, label = "Transaction editor navigation"
     )
+    val interceptedNotificationsTransition = androidx.compose.animation.core.updateTransition(
+        showInterceptedNotifications, label = "Intercepted notifications navigation"
+    )
     val subscriptionEditorTransition = androidx.compose.animation.core.updateTransition(
         subscriptionEditorState.isOpen, label = "Subscription editor navigation"
     )
@@ -1100,9 +1104,10 @@ fun MainScreen(
         )
     }
     val fullScreenEditorTransition = androidx.compose.animation.core.updateTransition(
-        !isWideScreen && (assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen), label = "Full-screen editor background"
+        showInterceptedNotifications || (!isWideScreen && (assetEditorState.isOpen || showAddDialog || subscriptionEditorState.isOpen)),
+        label = "Full-screen editor background"
     )
-    val shouldSlideBackground = !isWideScreen && (showAddDialog || subscriptionEditorState.isOpen) && !assetEditorState.isOpen
+    val shouldSlideBackground = showInterceptedNotifications || (!isWideScreen && (showAddDialog || subscriptionEditorState.isOpen) && !assetEditorState.isOpen)
     Box(Modifier.fillMaxSize().assetEditorBackgroundMotion(fullScreenEditorTransition, enableSlide = shouldSlideBackground)
         .semantics { if (fullScreenEditorTransition.currentState || fullScreenEditorTransition.targetState) hideFromAccessibility() }) {
     com.example.vibefinance.ui.settings.SettingsDrawerHost(
@@ -1117,7 +1122,8 @@ fun MainScreen(
                     onOpenNewPeriod = { budgetSheetDestination = BudgetSheetDestination.NEW_PERIOD },
                     onOpenDatePicker = { showDatePickerModal = true },
                     selectedEndDateMillis = selectedEndDateMillis,
-                    drawerState = settingsDrawerState
+                    drawerState = settingsDrawerState,
+                    onOpenInterceptedNotifications = { showInterceptedNotifications = true }
                 )
             }
         }
@@ -1936,6 +1942,12 @@ fun MainScreen(
             transition = subscriptionEditorTransition,
         )
     }
+
+    com.example.vibefinance.ui.settings.InterceptedNotificationsHost(
+        visible = showInterceptedNotifications,
+        onDismiss = { showInterceptedNotifications = false },
+        transition = interceptedNotificationsTransition
+    )
 
     // Large screens: the Assets tab shows the editor inside its right pane (assetEditorPane).
     if (!(isWideScreen && selectedTab == TabItem.ACCOUNTS)) assetEditorHost(false)
